@@ -56,6 +56,21 @@ jobs:
           VUE_APP_CORE_URL_API: ${{ secrets.VUE_APP_CORE_URL_API }}
         run: npm run build
 
+      - name: Prepare app directory on VPS
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: VPS_APP_DIR
+          script: |
+            set -e
+            mkdir -p "$VPS_APP_DIR"
+            rm -rf "$VPS_APP_DIR/dist"
+
       - name: Upload dist to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -63,9 +78,8 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          source: "dist/**"
+          source: "dist"
           target: ${{ secrets.VPS_APP_DIR }}
-          rm: true
 
       - name: Serve with pm2
         uses: appleboy/ssh-action@v1.2.2
