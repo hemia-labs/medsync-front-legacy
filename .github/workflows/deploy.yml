@@ -1,0 +1,116 @@
+name: Deploy medsync-front-legacy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  # Toolchain antiguo: vue-cli 4.5 usa webpack 4. En Node 17+ hace falta
+  # --openssl-legacy-provider para compilar (se fuerza en el paso de build).
+  NODE_VERSION: 22
+  APP_NAME: medsync-front-legacy
+  APP_PORT: 4324
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Validate deployment secrets
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+          VUE_APP_CORE_URL_API: ${{ secrets.VUE_APP_CORE_URL_API }}
+        run: |
+          node <<'NODE'
+          const required = ['VPS_HOST', 'VPS_USER', 'VPS_SSH_KEY', 'VPS_APP_DIR', 'VUE_APP_CORE_URL_API'];
+          const missing = required.filter((key) => !process.env[key]);
+          if (missing.length > 0) {
+            console.error(`Missing GitHub secrets: ${missing.join(', ')}`);
+            process.exit(1);
+          }
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        env:
+          # `npm run build` aplica --openssl-legacy-provider vía cross-env
+          # (multiplataforma) y dispara el prebuild, que valida que
+          # VUE_APP_CORE_URL_API sea https:// antes de compilar.
+          VUE_APP_CORE_URL_API: ${{ secrets.VUE_APP_CORE_URL_API }}
+        run: npm run build
+
+      - name: Upload dist to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "dist/**"
+          target: ${{ secrets.VPS_APP_DIR }}
+          rm: true
+
+      - name: Serve with pm2
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+          NODE_VERSION: ${{ env.NODE_VERSION }}
+          APP_NAME: ${{ env.APP_NAME }}
+          APP_PORT: ${{ secrets.APP_PORT || env.APP_PORT }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: VPS_APP_DIR,NODE_VERSION,APP_NAME,APP_PORT
+          script: |
+            set -e
+
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            nvm install "$NODE_VERSION"
+            nvm use "$NODE_VERSION"
+
+            cd "$VPS_APP_DIR"
+
+            command -v pm2 > /dev/null || npm install --global pm2
+
+            # pm2 sirve los estáticos de dist/ con fallback SPA a index.html.
+            # Si el proceso ya existe lo recargamos; si no, lo creamos.
+            if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
+              pm2 reload "$APP_NAME" --update-env
+            else
+              pm2 serve dist "$APP_PORT" --spa --name "$APP_NAME"
+            fi
+            pm2 save
+
+            for i in $(seq 1 10); do
+              if curl -fsS "http://127.0.0.1:$APP_PORT" > /dev/null; then
+                echo "$APP_NAME is ready on port $APP_PORT"
+                exit 0
+              fi
+              echo "Attempt $i: app not ready yet..."
+              sleep 2
+            done
+
+            echo "$APP_NAME did not become ready in time"
+            pm2 status
+            pm2 logs "$APP_NAME" --lines 80 --nostream
+            exit 1

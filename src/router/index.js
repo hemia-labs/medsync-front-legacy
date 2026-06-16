@@ -1,0 +1,259 @@
+import Vue from 'vue';
+import VueRouter from 'vue-router';
+import dashboard from './routes/dashboard';
+import superAdmin from './routes/super-admin';
+import admin from './routes/admin';
+import auth from './routes/auth';
+import patient from './routes/patient';
+import error from './routes/error';
+import legal from './routes/legal';
+import business from './routes/business';
+import prescription from './routes/prescription';
+import publicSignature from './routes/public-signature';
+import { getSessionPermissions, hasAnyPermission, hasPermission } from '../security/permissions';
+import store from '../store';
+import { isD2AuthMode } from '../services/config/authTransport.config';
+
+Vue.use(VueRouter)
+
+const AUTH_NAMESPACE = 'CORE/AUTH';
+
+function getLegacyTokenPayload() {
+    const token = Vue.prototype.$session ? Vue.prototype.$session.get('token') : null;
+    if(!token) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(atob(token.split('.')[1]));
+    }
+    catch(error) {
+        return null;
+    }
+}
+
+function isLegacySuperAdminSession() {
+    const payload = getLegacyTokenPayload();
+    return Boolean(payload && payload.rol === 'super_admin');
+}
+
+function isD2SuperAdminSession() {
+    return store.getters[`${AUTH_NAMESPACE}/getRole`] === 'super_admin'
+        || store.getters[`${AUTH_NAMESPACE}/isSuperAdmin`];
+}
+
+function getDefaultAuthenticatedRoute() {
+    if(isD2AuthMode()) {
+        return isD2SuperAdminSession() ? { name: 'superAdminDashboard' } : { name: 'home' };
+    }
+
+    return isLegacySuperAdminSession() ? { name: 'superAdminDashboard' } : { name: 'home' };
+}
+
+function getLegacyTenantOperationalState() {
+    return Vue.prototype.$session ? Vue.prototype.$session.get('tenantOperational') : null;
+}
+
+function getD2TenantOperationalState() {
+    return store.getters[`${AUTH_NAMESPACE}/getTenantOperational`] || null;
+}
+
+function isLegacyTenantRestrictedSession() {
+    const tenantOperational = getLegacyTenantOperationalState();
+    return Boolean(
+        tenantOperational
+        && tenantOperational.allowed === false
+        && tenantOperational.code === 'TENANT_NOT_OPERATIONAL'
+    );
+}
+
+function isD2TenantRestrictedSession() {
+    const tenantOperational = getD2TenantOperationalState();
+    return Boolean(
+        tenantOperational
+        && tenantOperational.allowed === false
+        && tenantOperational.code === 'TENANT_NOT_OPERATIONAL'
+    );
+}
+
+function canRouteInTenantRestrictedMode(to) {
+    if (to.matched.some(record => record.meta.allowTenantRestricted)) {
+        return true;
+    }
+
+    return ['AllPatients', 'ShowPx'].includes(to.name);
+}
+
+const routes = [
+        {
+            path: '/',
+            name: 'root',
+            redirect: () => getDefaultAuthenticatedRoute(),
+        },
+        ...auth,
+        ...superAdmin,
+        ...dashboard,
+        ...admin,
+        ...patient,
+        ...error,
+        ...legal,
+        ...publicSignature,
+        ...business,
+        ...prescription,
+        { path: "*", component: () => import('@/views/error/404.vue') }
+
+]
+
+const router = new VueRouter({
+    mode: 'history',
+    base: process.env.BASE_URL,
+    routes
+  })
+
+  function isLegacyAuthorized() {
+    let session = Vue.prototype.$session.get('token');
+    return session == undefined || !session ? false : true;
+  }
+
+  function isD2Authorized() {
+    return Boolean(store.getters[`${AUTH_NAMESPACE}/isAuthorized`]);
+  }
+
+  async function ensureD2SessionHydrated() {
+    if(isD2Authorized()) {
+        return true;
+    }
+
+    try {
+        await store.dispatch(`${AUTH_NAMESPACE}/getToken`);
+        return isD2Authorized();
+    } catch {
+        return false;
+    }
+  }
+
+  async function d2BeforeEach(to, next, requiredAuth) {
+    const shouldHydrate = requiredAuth || to.name === 'login';
+    const hasSession = shouldHydrate ? await ensureD2SessionHydrated() : isD2Authorized();
+
+    if (requiredAuth && to.name !== 'login' && !hasSession){
+        next({ name: 'auth' })
+        return;
+    }
+
+    if(to.name === 'login' && hasSession){
+        next(getDefaultAuthenticatedRoute())
+        return;
+    }
+
+    if(!requiredAuth) {
+        next();
+        return;
+    }
+
+    if(['dashboard', 'home'].includes(to.name) && isD2SuperAdminSession()){
+        next({ name: 'superAdminDashboard' })
+        return;
+    }
+
+    if(isD2TenantRestrictedSession() && !isD2SuperAdminSession() && !canRouteInTenantRestrictedMode(to)) {
+        next({ name: 'tenantRestricted' })
+        return;
+    }
+
+    const runtimePermissions = store.getters[`${AUTH_NAMESPACE}/getPermissions`] || [];
+    const requiredPermission = to.matched.map(record => record.meta.permission).find(permission => permission);
+    const requiredPermissionOptions = to.matched.map(record => record.meta.permissionsAny).find(permissions => Array.isArray(permissions) && permissions.length);
+
+    if (requiredPermissionOptions && !hasAnyPermission(runtimePermissions, requiredPermissionOptions)) {
+        next({ name: 'home' })
+        return;
+    }
+
+    if (requiredPermission && !hasPermission(runtimePermissions, requiredPermission)) {
+        next({ name: 'home' })
+        return;
+
+    }
+
+    const requiredRole = to.matched.map(record => record.meta.role).find(role => role);
+    if (requiredRole) {
+      const runtimeRole = store.getters[`${AUTH_NAMESPACE}/getRole`];
+      if(runtimeRole !== requiredRole) {
+        next(getDefaultAuthenticatedRoute())
+        return;
+      }
+    }
+
+    next();
+  }
+
+  function legacyBeforeEach(to, next, requiredAuth) {
+     if (requiredAuth && to.name !== 'login' && !isLegacyAuthorized()){
+          next({ name: 'auth' })
+          return;
+      }
+
+    if(to.name === 'login' && isLegacyAuthorized()){
+        next(getDefaultAuthenticatedRoute())
+        return;
+    }
+
+    if(requiredAuth && ['dashboard', 'home'].includes(to.name) && isLegacySuperAdminSession()){
+        next({ name: 'superAdminDashboard' })
+        return;
+    }
+
+    if(requiredAuth && isLegacyTenantRestrictedSession() && !isLegacySuperAdminSession() && !canRouteInTenantRestrictedMode(to)) {
+        next({ name: 'tenantRestricted' })
+        return;
+    }
+
+    const sessionPermissions = getSessionPermissions(Vue.prototype.$session);
+    const requiredPermission = to.matched.map(record => record.meta.permission).find(permission => permission);
+    const requiredPermissionOptions = to.matched.map(record => record.meta.permissionsAny).find(permissions => Array.isArray(permissions) && permissions.length);
+
+    if (requiredAuth && requiredPermissionOptions && !hasAnyPermission(sessionPermissions, requiredPermissionOptions)) {
+        next({ name: 'home' })
+        return;
+    }
+
+    if (requiredAuth && requiredPermission && !hasPermission(sessionPermissions, requiredPermission)) {
+        next({ name: 'home' })
+        return;
+
+    }
+
+    const requiredRole = to.matched.map(record => record.meta.role).find(role => role);
+    if (requiredAuth && requiredRole) {
+      const payload = getLegacyTokenPayload();
+      if(!payload || payload.rol !== requiredRole) {
+        next(getDefaultAuthenticatedRoute())
+        return;
+      }
+    }
+
+    next();
+  }
+
+
+  router.beforeEach((to, from, next) => {
+     const requiredAuth  = to.matched.some(record => record.meta.requireAuth);
+
+     if(isD2AuthMode()) {
+        d2BeforeEach(to, next, requiredAuth).catch(() => next({ name: 'auth' }));
+        return;
+     }
+
+     legacyBeforeEach(to, next, requiredAuth);
+  });
+
+
+const DEFAULT_TITLE = 'MedSync';
+router.afterEach((to) => {
+  Vue.nextTick(() => {
+    document.title = to.meta.title || DEFAULT_TITLE;
+  })
+})
+
+export default router

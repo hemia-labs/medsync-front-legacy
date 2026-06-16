@@ -1,0 +1,1161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+   --bg-box-shadow-primary: rgba(184, 154, 77, 0.25);
+   --bg-box-shadow-secondary: rgba(220, 38, 38, 0.25);
+   --bg-opacity-box: 0.6;
+   --color-primary-100: #F7F1DE;
+   --color-primary-200: #E9DBB8;
+   --color-primary-300: #D8C58D;
+   --color-primary-500: #B89A4D;
+   --color-primary-700: #6F642A;
+   --color-primary-900: #38422A;
+   --color-primary-1000: #24301F;
+   --color-secondary-500: #DC2626;
+   --color-secondary-700: #991B1B;
+   --color-terciary-500: #64748B;
+   --color-forty-500: #CBD5E1;
+   --color-grey: #64748B;
+   --color-gray98: #F8FAFC;
+   --color-red: #DC2626;
+}
+
+@layer base {
+  .text-secondary {
+    @apply text-secondary-500
+  }
+ .text-primary {
+    font-style: normal; font-weight: 300; font-size: 22px; line-height: 27px;
+ }
+
+ .box-shadow-primary {
+   box-shadow: 0px 4px 15px 2px var(--bg-box-shadow-primary), 0px 4px 4px var(--bg-box-shadow-primary);
+ }
+
+ .box-shadow-secondary {
+      box-shadow: 0px 4px 15px 2px var(--bg-box-shadow-secondary), 0px 4px 4px var(--bg-box-shadow-secondary)
+ }
+
+ .box-backgroud-title {
+   background: var(--color-primary-300)
+ }
+
+ .error-text {
+  color: red;
+  letter-spacing: 0.1rem;
+  font-family: sans-serif;
+ }
+
+
+
+}
+
+html[data-theme="clinical-night"],
+html[data-theme="clinical-night"] body,
+html[data-theme="clinical-night"] .v-application {
+  color: #E5E7EB;
+  background-color: #0F172A;
+}
+
+html[data-theme="clinical-night"] .bg-cover {
+  background-color: #0F172A;
+}
+
+html[data-theme="clinical-night"] .bg-white,
+html[data-theme="clinical-night"] .bg-gray-50,
+html[data-theme="clinical-night"] .bg-gray98,
+html[data-theme="clinical-night"] .v-card,
+html[data-theme="clinical-night"] .v-dialog,
+html[data-theme="clinical-night"] .v-menu__content,
+html[data-theme="clinical-night"] .v-tabs-items,
+html[data-theme="clinical-night"] .v-data-table,
+html[data-theme="clinical-night"] .theme--light.v-data-table,
+html[data-theme="clinical-night"] .theme--light.v-list,
+html[data-theme="clinical-night"] .theme--light.v-sheet {
+  color: #E5E7EB;
+  background-color: #1E293B !important;
+}
+
+html[data-theme="clinical-night"] .bg-primary-100,
+html[data-theme="clinical-night"] .bg-primary-200,
+html[data-theme="clinical-night"] .bg-primary-300 {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .text-primary-900,
+html[data-theme="clinical-night"] .text-primary-1000 {
+  color: #38BDF8 !important;
+}
+
+html[data-theme="clinical-night"] .bg-primary-900,
+html[data-theme="clinical-night"] .bg-primary-1000 {
+  color: #FFFFFF !important;
+  background-color: #0EA5E9 !important;
+}
+
+html[data-theme="clinical-night"] .hover\:text-primary-1000:hover {
+  color: #7DD3FC !important;
+}
+
+html[data-theme="clinical-night"] .text-gray-900,
+html[data-theme="clinical-night"] .text-gray-800,
+html[data-theme="clinical-night"] .text-gray-700,
+html[data-theme="clinical-night"] .text-gray-600,
+html[data-theme="clinical-night"] .text-grey,
+html[data-theme="clinical-night"] .theme--light.v-application,
+html[data-theme="clinical-night"] .theme--light.v-card,
+html[data-theme="clinical-night"] .theme--light.v-data-table,
+html[data-theme="clinical-night"] .theme--light.v-list {
+  color: #E5E7EB !important;
+}
+
+html[data-theme="clinical-night"] .text-gray-500,
+html[data-theme="clinical-night"] .text-gray-400,
+html[data-theme="clinical-night"] .theme--light.v-label,
+html[data-theme="clinical-night"] .theme--light.v-input,
+html[data-theme="clinical-night"] .theme--light.v-input input,
+html[data-theme="clinical-night"] .theme--light.v-input textarea,
+html[data-theme="clinical-night"] .theme--light.v-select .v-select__selection--comma {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .border-gray-100,
+html[data-theme="clinical-night"] .border-gray-200,
+html[data-theme="clinical-night"] .border-primary-200,
+html[data-theme="clinical-night"] .v-card,
+html[data-theme="clinical-night"] .v-dialog,
+html[data-theme="clinical-night"] .v-data-table,
+html[data-theme="clinical-night"] .v-input__slot {
+  border-color: #334155 !important;
+}
+
+html[data-theme="clinical-night"] .shadow-sm,
+html[data-theme="clinical-night"] .shadow-md,
+html[data-theme="clinical-night"] .shadow-lg,
+html[data-theme="clinical-night"] .shadow-xl {
+  box-shadow: 0 18px 45px rgba(2, 6, 23, 0.38) !important;
+}
+
+html[data-theme="clinical-night"] .box-shadow-primary,
+html[data-theme="clinical-night"] .box-shadow-secondary,
+html[data-theme="clinical-night"] button.box-shadow-primary,
+html[data-theme="clinical-night"] button.box-shadow-secondary {
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.22) !important;
+}
+
+html[data-theme="clinical-night"] button.bg-primary-500,
+html[data-theme="clinical-night"] button.bg-primary-700,
+html[data-theme="clinical-night"] button.bg-primary-900,
+html[data-theme="clinical-night"] button.bg-secondary-500 {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+button.tab-create-action {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.4rem !important;
+  min-height: 2.35rem !important;
+  padding: 0.45rem 0.9rem !important;
+  border: 1px solid #b8e8ca !important;
+  border-radius: 999px !important;
+  background: #e8f8ef !important;
+  background-color: #e8f8ef !important;
+  color: #137445 !important;
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.03em !important;
+  line-height: 1 !important;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1) !important;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease !important;
+}
+
+button.tab-create-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #d9f4e5 !important;
+  background-color: #d9f4e5 !important;
+  border-color: #9bdcb6 !important;
+}
+
+button.tab-create-action .v-icon {
+  color: currentColor !important;
+}
+
+html[data-theme="clinical-night"] button.tab-create-action {
+  border-color: rgba(45, 212, 191, 0.42) !important;
+  color: #A7F3D0 !important;
+  background: rgba(45, 212, 191, 0.12) !important;
+  background-color: rgba(45, 212, 191, 0.12) !important;
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.22) !important;
+}
+
+html[data-theme="clinical-night"] button.tab-create-action:hover:not(:disabled) {
+  border-color: rgba(45, 212, 191, 0.7) !important;
+  color: #F8FAFC !important;
+  background: rgba(45, 212, 191, 0.18) !important;
+  background-color: rgba(45, 212, 191, 0.18) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page button.tab-create-action {
+  border-color: rgba(45, 212, 191, 0.42) !important;
+  color: #A7F3D0 !important;
+  background: rgba(45, 212, 191, 0.12) !important;
+  background-color: rgba(45, 212, 191, 0.12) !important;
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.22) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page button.tab-create-action:hover:not(:disabled) {
+  border-color: rgba(45, 212, 191, 0.7) !important;
+  color: #F8FAFC !important;
+  background: rgba(45, 212, 191, 0.18) !important;
+  background-color: rgba(45, 212, 191, 0.18) !important;
+}
+
+html[data-theme="clinical-night"] nav.bg-white,
+html[data-theme="clinical-night"] header.bg-white {
+  background: rgba(15, 23, 42, 0.92) !important;
+  border-bottom: 1px solid #334155;
+  backdrop-filter: blur(14px);
+}
+
+html[data-theme="clinical-night"] nav .v-btn,
+html[data-theme="clinical-night"] nav .v-btn .v-icon {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] nav .v-btn:hover,
+html[data-theme="clinical-night"] nav .v-btn:hover .v-icon {
+  color: #38BDF8 !important;
+}
+
+html[data-theme="clinical-night"] .v-menu__content {
+  border: 1px solid #475569 !important;
+  border-radius: 10px !important;
+  background-color: #1E293B !important;
+}
+
+html[data-theme="clinical-night"] .v-menu__content .v-card {
+  background-color: #1E293B !important;
+}
+
+html[data-theme="clinical-night"] .v-menu__content .v-icon,
+html[data-theme="clinical-night"] .v-menu__content span {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .v-menu__content .cursor-pointer:hover {
+  color: #F8FAFC !important;
+  background-color: rgba(56, 189, 248, 0.12) !important;
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.28) !important;
+}
+
+html[data-theme="clinical-night"] .v-menu__content .cursor-pointer:hover .v-icon,
+html[data-theme="clinical-night"] .v-menu__content .cursor-pointer:hover span {
+  color: #38BDF8 !important;
+}
+
+html[data-theme="clinical-night"] .v-input__slot,
+html[data-theme="clinical-night"] input,
+html[data-theme="clinical-night"] textarea,
+html[data-theme="clinical-night"] select {
+  color: #E5E7EB !important;
+  background-color: #111827 !important;
+  caret-color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] input::placeholder,
+html[data-theme="clinical-night"] textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+html[data-theme="clinical-night"] .v-input--selection-controls .v-input__slot,
+html[data-theme="clinical-night"] .v-input--selection-controls .v-input--selection-controls__input,
+html[data-theme="clinical-night"] .v-input--selection-controls input,
+html[data-theme="clinical-night"] .v-input--selection-controls .v-label {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+html[data-theme="clinical-night"] .v-text-field > .v-input__control > .v-input__slot:before,
+html[data-theme="clinical-night"] .v-text-field > .v-input__control > .v-input__slot:after,
+html[data-theme="clinical-night"] .theme--light.v-input:not(.v-input--is-disabled) input,
+html[data-theme="clinical-night"] .theme--light.v-input:not(.v-input--is-disabled) textarea {
+  border-color: #334155 !important;
+}
+
+html[data-theme="clinical-night"] .v-text-field.v-input--is-focused > .v-input__control > .v-input__slot:after,
+html[data-theme="clinical-night"] .v-input--is-focused .v-input__slot {
+  border-color: #38BDF8 !important;
+}
+
+html[data-theme="clinical-night"] .v-data-table th,
+html[data-theme="clinical-night"] .v-data-table-header th,
+html[data-theme="clinical-night"] table thead tr {
+  color: #F8FAFC !important;
+  background-color: #263449 !important;
+}
+
+html[data-theme="clinical-night"] .v-data-table td,
+html[data-theme="clinical-night"] .v-data-table tbody tr,
+html[data-theme="clinical-night"] table tbody tr {
+  color: #E5E7EB !important;
+  background-color: #1E293B !important;
+  border-color: #334155 !important;
+}
+
+html[data-theme="clinical-night"] table tbody tr:nth-child(even),
+html[data-theme="clinical-night"] .v-data-table tbody tr:nth-child(even) {
+  background-color: #263449 !important;
+}
+
+html[data-theme="clinical-night"] .v-data-table tbody tr:hover,
+html[data-theme="clinical-night"] table tbody tr:hover {
+  background-color: rgba(56, 189, 248, 0.12) !important;
+}
+
+html[data-theme="clinical-night"] .box-backgroud-title,
+html[data-theme="clinical-night"] .box-background-title {
+  color: #F8FAFC;
+  background: #263449;
+}
+
+html[data-theme="clinical-night"] button:focus,
+html[data-theme="clinical-night"] a:focus,
+html[data-theme="clinical-night"] input:focus,
+html[data-theme="clinical-night"] textarea:focus,
+html[data-theme="clinical-night"] select:focus {
+  outline: 2px solid rgba(56, 189, 248, 0.55);
+  outline-offset: 2px;
+}
+
+html[data-theme="clinical-night"] .v-overlay__scrim {
+  background-color: #020617 !important;
+}
+
+html[data-theme="clinical-night"] .patient-record-breadcrumb {
+  color: #94A3B8;
+}
+
+html[data-theme="clinical-night"] .patient-record-back {
+  color: #CBD5E1;
+}
+
+html[data-theme="clinical-night"] .patient-record-back:hover {
+  color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .patient-record-separator {
+  color: #64748B;
+}
+
+html[data-theme="clinical-night"] .patient-summary-card,
+html[data-theme="clinical-night"] .patient-record-shell {
+  border-color: #475569;
+  background: rgba(30, 41, 59, 0.94);
+  box-shadow: 0 18px 45px rgba(2, 6, 23, 0.38);
+}
+
+html[data-theme="clinical-night"] .patient-kicker,
+html[data-theme="clinical-night"] .patient-title-row h1,
+html[data-theme="clinical-night"] .patient-meta,
+html[data-theme="clinical-night"] .patient-code {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .patient-code {
+  border-color: #38BDF8;
+  background: rgba(56, 189, 248, 0.12);
+}
+
+html[data-theme="clinical-night"] .patient-avatar {
+  border-color: #64748B;
+  color: #F8FAFC;
+  background: linear-gradient(135deg, #334155, #0F172A);
+  box-shadow: inset 0 0 0 3px rgba(148, 163, 184, 0.2);
+}
+
+html[data-theme="clinical-night"] .patient-photo-action,
+html[data-theme="clinical-night"] .patient-icon-action {
+  border-color: #475569;
+  color: #38BDF8;
+  background: #111827;
+}
+
+html[data-theme="clinical-night"] .patient-photo-action:hover,
+html[data-theme="clinical-night"] .patient-icon-action:hover {
+  color: #F8FAFC;
+  background: rgba(56, 189, 248, 0.16);
+}
+
+html[data-theme="clinical-night"] .patient-badge--soft {
+  border-color: #475569;
+  color: #CBD5E1;
+  background: rgba(15, 23, 42, 0.74);
+}
+
+html[data-theme="clinical-night"] .patient-badge--warning {
+  border-color: rgba(248, 113, 113, 0.42);
+  color: #FCA5A5;
+  background: rgba(248, 113, 113, 0.12);
+}
+
+html[data-theme="clinical-night"] .patient-record-tabs {
+  border-color: #334155;
+  background: linear-gradient(180deg, #111827, #1E293B);
+}
+
+html[data-theme="clinical-night"] .patient-tab {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .patient-tab:hover {
+  color: #F8FAFC !important;
+  background: rgba(56, 189, 248, 0.1);
+}
+
+html[data-theme="clinical-night"] .patient-tab--active {
+  border-color: rgba(56, 189, 248, 0.7);
+  color: #F8FAFC !important;
+  background: rgba(56, 189, 248, 0.16);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.28);
+}
+
+html[data-theme="clinical-night"] .patient-tab--active::after {
+  background: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .patient-record-content {
+  background-color: #1E293B !important;
+}
+
+html[data-theme="clinical-night"] .custom_table_class {
+  border: 1px solid #334155;
+  overflow: hidden;
+}
+
+html[data-theme="clinical-night"] .custom_table_class .bg-primary-100,
+html[data-theme="clinical-night"] .custom_table_class .bg-primary-200 {
+  background-color: #1E293B !important;
+}
+
+html[data-theme="clinical-night"] .custom_table_class thead .bg-primary-100,
+html[data-theme="clinical-night"] .custom_table_class thead .bg-primary-200 {
+  background-color: #263449 !important;
+}
+
+html[data-theme="clinical-night"] .v-card__title .v-input__slot {
+  border: 1px solid #334155 !important;
+  border-radius: 8px;
+  background-color: rgba(15, 23, 42, 0.82) !important;
+  padding: 0 0.75rem;
+}
+
+html[data-theme="clinical-night"] .v-card__title {
+  padding-bottom: 0.85rem;
+}
+
+html[data-theme="clinical-night"] .v-card__title .v-text-field {
+  max-width: none;
+}
+
+html[data-theme="clinical-night"] .v-card__title .v-input__control {
+  min-height: 2.55rem;
+}
+
+html[data-theme="clinical-night"] .v-card__title .v-label,
+html[data-theme="clinical-night"] .v-card__title .v-icon {
+  color: #94A3B8 !important;
+}
+
+html[data-theme="clinical-night"] .v-card__title .v-label--active {
+  color: #38BDF8 !important;
+}
+
+html[data-theme="clinical-night"] .v-card__title .v-input--is-focused .v-input__slot {
+  border-color: #38BDF8 !important;
+}
+
+html[data-theme="clinical-night"] .agenda-slot {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .agenda-slot[style*="#D1FAE5"],
+html[data-theme="clinical-night"] .agenda-slot[style*="rgb(209, 250, 229)"] {
+  color: #064E3B;
+}
+
+html[data-theme="clinical-night"] .monitoring-intro,
+html[data-theme="clinical-night"] .prescription-intro,
+html[data-theme="clinical-night"] .documents-hero {
+  border-color: #334155;
+  background: linear-gradient(180deg, rgba(38, 52, 73, 0.96), rgba(30, 41, 59, 0.96));
+  box-shadow: none;
+}
+
+html[data-theme="clinical-night"] .monitoring-kicker,
+html[data-theme="clinical-night"] .prescription-kicker,
+html[data-theme="clinical-night"] .documents-hero .eyebrow {
+  color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .monitoring-intro h3,
+html[data-theme="clinical-night"] .prescription-intro h3,
+html[data-theme="clinical-night"] .documents-hero h3 {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .monitoring-intro p:last-child,
+html[data-theme="clinical-night"] .prescription-intro p:last-child,
+html[data-theme="clinical-night"] .documents-hero p {
+  color: #CBD5E1;
+}
+
+html[data-theme="clinical-night"] .patient-documents {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .document-card,
+html[data-theme="clinical-night"] .empty-card,
+html[data-theme="clinical-night"] .step-card {
+  border-color: #334155;
+  background: rgba(30, 41, 59, 0.92);
+  box-shadow: none;
+}
+
+html[data-theme="clinical-night"] .document-card--priority {
+  border-color: rgba(56, 189, 248, 0.38);
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.08), rgba(30, 41, 59, 0.94));
+}
+
+html[data-theme="clinical-night"] .document-card--focused {
+  border-color: rgba(56, 189, 248, 0.72);
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.12), rgba(30, 41, 59, 0.96));
+  box-shadow: 0 14px 28px rgba(2, 6, 23, 0.22);
+}
+
+html[data-theme="clinical-night"] .document-card h3,
+html[data-theme="clinical-night"] .document-card strong,
+html[data-theme="clinical-night"] .empty-card h3,
+html[data-theme="clinical-night"] .step-title {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .document-card p,
+html[data-theme="clinical-night"] .document-card span,
+html[data-theme="clinical-night"] .empty-card p,
+html[data-theme="clinical-night"] .help-text {
+  color: #CBD5E1;
+}
+
+html[data-theme="clinical-night"] .document-filters .filter-chip {
+  border-color: #334155;
+  background: rgba(30, 41, 59, 0.84);
+  color: #CBD5E1;
+  box-shadow: none;
+}
+
+html[data-theme="clinical-night"] .document-filters .filter-chip:hover {
+  border-color: rgba(56, 189, 248, 0.52);
+  background: rgba(56, 189, 248, 0.12);
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .document-filters .filter-chip.active {
+  border-color: rgba(56, 189, 248, 0.62);
+  background: rgba(56, 189, 248, 0.16);
+  color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .signature-summary span,
+html[data-theme="clinical-night"] .status-chip {
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.38);
+  color: #CBD5E1;
+}
+
+html[data-theme="clinical-night"] .btn-outline {
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.28);
+  color: #BAE6FD;
+}
+
+html[data-theme="clinical-night"] .btn-outline:hover {
+  border-color: rgba(56, 189, 248, 0.54);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+html[data-theme="clinical-night"] .btn-outline.danger {
+  color: #FCA5A5;
+  border-color: rgba(248, 113, 113, 0.36);
+  background: rgba(248, 113, 113, 0.10);
+}
+
+html[data-theme="clinical-night"] .dialog-header {
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.92);
+}
+
+html[data-theme="clinical-night"] .document-dialog-body {
+  background: #0F172A;
+}
+
+html[data-theme="clinical-night"] .patient-treatment {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .treatment-hero,
+html[data-theme="clinical-night"] .treatment-toolbar,
+html[data-theme="clinical-night"] .history-section,
+html[data-theme="clinical-night"] .treatment-empty {
+  border-color: #334155;
+  background: linear-gradient(180deg, rgba(38, 52, 73, 0.96), rgba(30, 41, 59, 0.96));
+  box-shadow: none;
+}
+
+html[data-theme="clinical-night"] .treatment-hero h3,
+html[data-theme="clinical-night"] .treatment-empty h3,
+html[data-theme="clinical-night"] .history-toggle h3,
+html[data-theme="clinical-night"] .title-row h4,
+html[data-theme="clinical-night"] .history-card-title strong,
+html[data-theme="clinical-night"] .history-metrics strong,
+html[data-theme="clinical-night"] .history-summary-grid strong,
+html[data-theme="clinical-night"] .history-overview-main strong {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .treatment-hero p,
+html[data-theme="clinical-night"] .treatment-toolbar span,
+html[data-theme="clinical-night"] .history-empty,
+html[data-theme="clinical-night"] .history-toggle-meta,
+html[data-theme="clinical-night"] .description,
+html[data-theme="clinical-night"] .notes,
+html[data-theme="clinical-night"] .meta-row span,
+html[data-theme="clinical-night"] .history-card span,
+html[data-theme="clinical-night"] .history-metrics small,
+html[data-theme="clinical-night"] .history-summary-grid span,
+html[data-theme="clinical-night"] .document-data-grid strong,
+html[data-theme="clinical-night"] .history-overview-main small {
+  color: #CBD5E1;
+}
+
+html[data-theme="clinical-night"] .patient-treatment .eyebrow {
+  color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .summary-grid article,
+html[data-theme="clinical-night"] .treatment-card,
+html[data-theme="clinical-night"] .history-card,
+html[data-theme="clinical-night"] .readonly-treatment,
+html[data-theme="clinical-night"] .history-overview,
+html[data-theme="clinical-night"] .history-consent-block,
+html[data-theme="clinical-night"] .history-treatment-section {
+  border-color: #334155;
+  background: rgba(30, 41, 59, 0.92);
+  box-shadow: none;
+}
+
+html[data-theme="clinical-night"] .summary-grid article.summary-total-cost {
+  border-color: rgba(56, 189, 248, 0.68);
+  background: rgba(15, 23, 42, 0.42);
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.22);
+}
+
+html[data-theme="clinical-night"] .summary-grid span {
+  color: #94A3B8;
+}
+
+html[data-theme="clinical-night"] .summary-grid strong,
+html[data-theme="clinical-night"] .summary-total-cost strong {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .summary-total-cost strong {
+  color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .filter-group button {
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.34);
+  color: #CBD5E1;
+  box-shadow: none;
+}
+
+html[data-theme="clinical-night"] .filter-group button:hover {
+  border-color: rgba(56, 189, 248, 0.52);
+  background: rgba(56, 189, 248, 0.12);
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .filter-group button.active {
+  border-color: rgba(56, 189, 248, 0.62);
+  background: rgba(56, 189, 248, 0.16);
+  color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .patient-treatment .consent-panel {
+  border-color: rgba(251, 191, 36, 0.42);
+  background: rgba(251, 191, 36, 0.10);
+}
+
+html[data-theme="clinical-night"] .patient-treatment .consent-panel.signed {
+  border-color: rgba(34, 197, 94, 0.34);
+  background: rgba(34, 197, 94, 0.10);
+}
+
+html[data-theme="clinical-night"] .patient-treatment .consent-icon {
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.44);
+  color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .patient-treatment .consent-copy h3 {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .patient-treatment .consent-copy p,
+html[data-theme="clinical-night"] .patient-treatment .consent-copy span {
+  color: #CBD5E1;
+}
+
+html[data-theme="clinical-night"] .treatment-card,
+html[data-theme="clinical-night"] .history-card--closed {
+  border-left-color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .history-metrics div,
+html[data-theme="clinical-night"] .history-summary-grid article,
+html[data-theme="clinical-night"] .document-data-grid div,
+html[data-theme="clinical-night"] .history-status-summary span,
+html[data-theme="clinical-night"] .history-reason-inline {
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.34);
+  color: #CBD5E1;
+}
+
+html[data-theme="clinical-night"] .history-action,
+html[data-theme="clinical-night"] .btn-outline,
+html[data-theme="clinical-night"] .icon-action {
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.34);
+  color: #BAE6FD;
+  box-shadow: none;
+}
+
+html[data-theme="clinical-night"] .history-action:hover,
+html[data-theme="clinical-night"] .btn-outline:hover,
+html[data-theme="clinical-night"] .icon-action:hover {
+  border-color: rgba(56, 189, 248, 0.54);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+html[data-theme="clinical-night"] .btn-danger-secondary,
+html[data-theme="clinical-night"] .btn-outline.danger,
+html[data-theme="clinical-night"] .icon-action.danger {
+  color: #FCA5A5;
+  border-color: rgba(248, 113, 113, 0.36);
+  background: rgba(248, 113, 113, 0.10);
+}
+
+html[data-theme="clinical-night"] .treatment-empty .btn-primary:not(.tab-create-action) {
+  background: #38BDF8;
+  color: #082F49;
+  border-color: #38BDF8;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page {
+  color: #E5E7EB;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .clinical-panel,
+html[data-theme="clinical-night"] .clinical-history-page .clinical-section {
+  border-color: #334155 !important;
+  background: linear-gradient(180deg, rgba(38, 52, 73, 0.96), rgba(30, 41, 59, 0.96)) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .actions-panel,
+html[data-theme="clinical-night"] .clinical-history-page .status-panel,
+html[data-theme="clinical-night"] .clinical-history-page .capture-guide-panel {
+  border-color: #334155 !important;
+  background: linear-gradient(180deg, rgba(38, 52, 73, 0.98), rgba(30, 41, 59, 0.98)) !important;
+  box-shadow: 0 14px 34px rgba(2, 6, 23, 0.24) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .draft-status-panel {
+  border-left-color: #2DD4BF !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-navigator,
+html[data-theme="clinical-night"] .clinical-history-page .section-nav-item {
+  border-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.34) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-nav-item span,
+html[data-theme="clinical-night"] .clinical-history-page .section-navigator-header strong {
+  color: #E5E7EB !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-nav-item small {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-nav-item.active,
+html[data-theme="clinical-night"] .clinical-history-page .pending-dialog-list button:hover {
+  border-color: rgba(56, 189, 248, 0.54) !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-toggle-button,
+html[data-theme="clinical-night"] .clinical-history-page .quick-fill-button {
+  border-color: rgba(56, 189, 248, 0.38) !important;
+  background: rgba(56, 189, 248, 0.10) !important;
+  color: #BAE6FD !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-inline-warning,
+html[data-theme="clinical-night"] .clinical-history-page .pending-preview-list span,
+html[data-theme="clinical-night"] .clinical-history-page .section-state-pill.missing {
+  border-color: rgba(251, 191, 36, 0.45) !important;
+  background: rgba(251, 191, 36, 0.12) !important;
+  color: #FCD34D !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-state-pill.complete {
+  border-color: rgba(34, 197, 94, 0.42) !important;
+  background: rgba(34, 197, 94, 0.12) !important;
+  color: #86EFAC !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-state-pill.optional {
+  border-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.42) !important;
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .field-required-note {
+  color: #FCD34D !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-step-footer {
+  border-top-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.22) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .pending-dialog-list button {
+  border-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.34) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .pending-dialog-list span {
+  color: #94A3B8 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .pending-dialog-list strong {
+  color: #E5E7EB !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .initial-history-panel {
+  border-color: #334155 !important;
+  background: linear-gradient(180deg, rgba(38, 52, 73, 0.96), rgba(30, 41, 59, 0.96)) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .consent-panel {
+  border-color: #334155 !important;
+  background: linear-gradient(180deg, rgba(38, 52, 73, 0.96), rgba(30, 41, 59, 0.96)) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .section-kicker {
+  color: #38BDF8 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page h2,
+html[data-theme="clinical-night"] .clinical-history-page h3,
+html[data-theme="clinical-night"] .clinical-history-page .initial-subtitle,
+html[data-theme="clinical-night"] .clinical-history-page .initial-summary strong,
+html[data-theme="clinical-night"] .clinical-history-page .status-item strong,
+html[data-theme="clinical-night"] .clinical-history-page .legacy-grid strong,
+html[data-theme="clinical-night"] .clinical-history-page .read-grid strong,
+html[data-theme="clinical-night"] .clinical-history-page .version-title-row h4,
+html[data-theme="clinical-night"] .clinical-history-page .version-meta-grid strong,
+html[data-theme="clinical-night"] .clinical-history-page .start-option-card strong {
+  color: #E5E7EB !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .status-copy,
+html[data-theme="clinical-night"] .clinical-history-page .clinical-panel p,
+html[data-theme="clinical-night"] .clinical-history-page .clinical-section header span,
+html[data-theme="clinical-night"] .clinical-history-page .initial-summary span,
+html[data-theme="clinical-night"] .clinical-history-page .status-item span,
+html[data-theme="clinical-night"] .clinical-history-page .legacy-grid span,
+html[data-theme="clinical-night"] .clinical-history-page .read-grid span,
+html[data-theme="clinical-night"] .clinical-history-page .version-card-main p,
+html[data-theme="clinical-night"] .clinical-history-page .versions-empty,
+html[data-theme="clinical-night"] .clinical-history-page .version-meta-grid span,
+html[data-theme="clinical-night"] .clinical-history-page .start-option-card span {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .initial-summary div,
+html[data-theme="clinical-night"] .clinical-history-page .status-item,
+html[data-theme="clinical-night"] .clinical-history-page .legacy-grid div,
+html[data-theme="clinical-night"] .clinical-history-page .read-grid div,
+html[data-theme="clinical-night"] .clinical-history-page .version-card,
+html[data-theme="clinical-night"] .clinical-history-page .version-meta-grid div,
+html[data-theme="clinical-night"] .clinical-history-page .start-option-card {
+  border-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.34) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .version-card.active {
+  border-left-color: #38BDF8 !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .positive-note {
+  border-color: rgba(45, 212, 191, 0.42) !important;
+  background: rgba(45, 212, 191, 0.12) !important;
+  color: #A7F3D0 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .status-pill.neutral,
+html[data-theme="clinical-night"] .clinical-history-page .status-pill.superseded,
+html[data-theme="clinical-night"] .clinical-history-page .version-indicator {
+  border-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.42) !important;
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .status-pill.draft {
+  border-color: rgba(56, 189, 248, 0.54) !important;
+  background: rgba(56, 189, 248, 0.14) !important;
+  color: #7DD3FC !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .status-pill.finalized {
+  border-color: rgba(34, 197, 94, 0.42) !important;
+  background: rgba(34, 197, 94, 0.12) !important;
+  color: #86EFAC !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .status-pill.incomplete,
+html[data-theme="clinical-night"] .clinical-history-page .consent-status-badge.pending {
+  border-color: rgba(251, 191, 36, 0.45) !important;
+  background: rgba(251, 191, 36, 0.12) !important;
+  color: #FCD34D !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .status-pill.cancelled,
+html[data-theme="clinical-night"] .clinical-history-page .consent-status-badge.refusal {
+  border-color: rgba(248, 113, 113, 0.42) !important;
+  background: rgba(248, 113, 113, 0.12) !important;
+  color: #FCA5A5 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .consent-status-badge.signed {
+  border-color: rgba(34, 197, 94, 0.42) !important;
+  background: rgba(34, 197, 94, 0.12) !important;
+  color: #86EFAC !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .clinical-link-button {
+  color: #7DD3FC !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .clinical-link-button:hover:not(:disabled) {
+  color: #E0F2FE !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .history-link-button,
+html[data-theme="clinical-night"] .clinical-history-page .capture-progress-topline span {
+  border-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.34) !important;
+  color: #BAE6FD !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .capture-progress-topline strong {
+  color: #E5E7EB !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .capture-progress-track {
+  background: rgba(15, 23, 42, 0.55) !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .capture-progress-footer small {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .capture-template-inline {
+  border-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.34) !important;
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .capture-template-inline span {
+  color: #94A3B8 !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .capture-template-inline strong {
+  color: #E5E7EB !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .capture-template-inline em {
+  background: rgba(56, 189, 248, 0.14) !important;
+  color: #7DD3FC !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page button.clinical-button.secondary:not(:disabled) {
+  border-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.34) !important;
+  background-color: rgba(15, 23, 42, 0.34) !important;
+  color: #BAE6FD !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page button.clinical-button.secondary:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.54) !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+  background-color: rgba(56, 189, 248, 0.12) !important;
+  color: #E0F2FE !important;
+}
+
+html[data-theme="clinical-night"] .clinical-history-page .clinical-button.danger-soft {
+  border-color: rgba(248, 113, 113, 0.36) !important;
+  background: rgba(248, 113, 113, 0.10) !important;
+  background-color: rgba(248, 113, 113, 0.10) !important;
+  color: #FCA5A5 !important;
+}
+
+html[data-theme="clinical-night"] .start-history-dialog {
+  border-color: rgba(56, 189, 248, 0.28) !important;
+  background:
+    radial-gradient(circle at top left, rgba(45, 212, 191, 0.14), transparent 36%),
+    linear-gradient(180deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.98)) !important;
+  box-shadow: 0 28px 76px rgba(2, 6, 23, 0.58) !important;
+}
+
+html[data-theme="clinical-night"] .start-history-dialog::before {
+  background: linear-gradient(90deg, #2DD4BF, #38BDF8) !important;
+}
+
+html[data-theme="clinical-night"] .start-history-dialog > header {
+  border-bottom-color: rgba(56, 189, 248, 0.16) !important;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.11), rgba(15, 23, 42, 0.08)) !important;
+}
+
+html[data-theme="clinical-night"] .start-history-dialog > header .section-kicker {
+  border-color: rgba(45, 212, 191, 0.32) !important;
+  background: rgba(45, 212, 191, 0.12) !important;
+  color: #A7F3D0 !important;
+}
+
+html[data-theme="clinical-night"] .start-history-dialog > header h3 {
+  color: #F8FAFC !important;
+}
+
+html[data-theme="clinical-night"] .start-history-dialog > header p:last-child {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .start-history-dialog .dialog-actions {
+  border-top-color: rgba(56, 189, 248, 0.16) !important;
+  background: rgba(15, 23, 42, 0.22) !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-add,
+html[data-theme="clinical-night"] .prescription-add {
+  border-color: rgba(45, 212, 191, 0.42);
+  color: #A7F3D0;
+  background: rgba(45, 212, 191, 0.12);
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.22);
+}
+
+html[data-theme="clinical-night"] .monitoring-add:hover,
+html[data-theme="clinical-night"] .prescription-add:hover {
+  border-color: rgba(45, 212, 191, 0.7);
+  color: #F8FAFC;
+  background: rgba(45, 212, 191, 0.18);
+}
+
+html[data-theme="clinical-night"] .monitoring-action,
+html[data-theme="clinical-night"] .monitoring-dialog-action,
+html[data-theme="clinical-night"] .rx-action,
+html[data-theme="clinical-night"] .rx-swal-confirm,
+html[data-theme="clinical-night"] .rx-swal-cancel {
+  box-shadow: 0 5px 12px rgba(2, 6, 23, 0.2);
+}
+
+html[data-theme="clinical-night"] .monitoring-dialog-card {
+  border-color: #334155 !important;
+  background: #0F172A !important;
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.58) !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-dialog-header {
+  border-bottom-color: #334155 !important;
+  background: linear-gradient(180deg, rgba(38, 52, 73, 0.98), rgba(30, 41, 59, 0.98)) !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-dialog-header h3,
+html[data-theme="clinical-night"] .monitoring-dialog-header > span {
+  color: #E5E7EB !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-dialog-header h3 + span::after,
+html[data-theme="clinical-night"] .monitoring-dialog-header--detail > span::before {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-dialog-kicker::after {
+  color: #38BDF8 !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-dialog-header svg,
+html[data-theme="clinical-night"] .monitoring-dialog-close,
+html[data-theme="clinical-night"] .monitoring-dialog-body > .w-ful.text-right span {
+  border-color: #334155 !important;
+  background: rgba(15, 23, 42, 0.44) !important;
+  color: #BAE6FD !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-dialog-body {
+  background: #0F172A !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-schedule-panel,
+html[data-theme="clinical-night"] .monitoring-dialog-body > .flex.justify-end {
+  border-color: #334155 !important;
+  background: rgba(30, 41, 59, 0.92) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-schedule-panel > div:first-child p:first-child {
+  color: #E5E7EB !important;
+}
+
+html[data-theme="clinical-night"] .monitoring-schedule-panel > div:first-child p:last-child,
+html[data-theme="clinical-night"] .monitoring-schedule-panel p {
+  color: #CBD5E1 !important;
+}
+
+html[data-theme="clinical-night"] .v-pagination .v-pagination__item,
+html[data-theme="clinical-night"] .v-pagination .v-pagination__navigation {
+  color: #CBD5E1 !important;
+  background: #1E293B !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 4px 10px rgba(2, 6, 23, 0.2) !important;
+}
+
+html[data-theme="clinical-night"] .v-pagination .v-pagination__item--active {
+  color: #FFFFFF !important;
+  background: #0EA5E9 !important;
+  border-color: #38BDF8 !important;
+}
+
+html[data-theme="clinical-night"] .v-pagination .v-pagination__navigation--disabled {
+  opacity: 0.45;
+}

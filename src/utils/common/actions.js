@@ -1,0 +1,12 @@
+export default {
+
+    SHOW: 'ON.SHOW',
+    EDIT: 'ON.EDIT',
+    DELETE: 'ON.DELETE',
+    DISABLED: 'ON.DISABLED',
+    ENABLED: 'ON.ENABLED',
+    PREVIEW: 'ON.PREVIEW',
+    QRCODE: 'ON.QRCODE',
+    CHANGEACTIVE: 'ON.CHANGEACTIVE'
+    
+}
