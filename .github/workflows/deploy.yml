@@ -54,6 +54,11 @@ jobs:
           # (multiplataforma) y dispara el prebuild, que valida que
           # VUE_APP_CORE_URL_API sea https:// antes de compilar.
           VUE_APP_CORE_URL_API: ${{ secrets.VUE_APP_CORE_URL_API }}
+          # Config de auth D2 (cookie + CSRF). Vienen de secrets para poder
+          # ajustarlas por entorno sin tocar el código.
+          VUE_APP_AUTH_COOKIE_MODE: ${{ secrets.VUE_APP_AUTH_COOKIE_MODE }}
+          VUE_APP_BROWSER_AUTH_TRANSPORT: ${{ secrets.VUE_APP_BROWSER_AUTH_TRANSPORT }}
+          VUE_APP_CSRF_ENABLED: ${{ secrets.VUE_APP_CSRF_ENABLED }}
         run: npm run build
 
       - name: Prepare app directory on VPS
