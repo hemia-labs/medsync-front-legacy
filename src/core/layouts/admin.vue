@@ -82,8 +82,8 @@
         <button type="button" @click="$router.push('/terms-and-conditions')">
           Términos y condiciones
         </button>
-        <a v-if="hasSupportEmail" :href="`mailto:${supportEmail}`">
-          Contacto: {{ supportEmail }}
+        <a v-if="hasSupportEmail" class="tenant-footer-support-link" :href="`mailto:${supportEmail}`">
+          <span>Contacto</span><span class="tenant-footer-support-email">: {{ supportEmail }}</span>
         </a>
         <span v-else class="tenant-footer-contact-pending">
           Contacto legal/soporte pendiente
@@ -701,31 +701,64 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
   }
 
   .tenant-main-shell {
-    padding-bottom: 6.75rem;
+    padding-bottom: 3.5rem;
   }
 
   .tenant-footer {
     align-items: center;
-    flex-direction: column;
-    justify-content: center;
+    flex-direction: row;
+    justify-content: space-between;
     gap: 0.45rem;
-    padding: 0.55rem 0.75rem;
-    text-align: center;
+    min-height: 2.65rem;
+    padding: 0.34rem 0.58rem;
+    text-align: left;
   }
 
   .tenant-footer-brand {
-    flex-direction: column;
-    gap: 0.1rem;
+    flex: 0 0 auto;
+    gap: 0;
+  }
+
+  .tenant-footer-brand strong {
+    font-size: 0.78rem;
+  }
+
+  .tenant-footer-copy {
+    display: none;
   }
 
   .tenant-footer-links {
-    justify-content: center;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tenant-footer-links::-webkit-scrollbar {
+    display: none;
   }
 
   .tenant-footer span,
   .tenant-footer button,
   .tenant-footer a {
-    font-size: 0.76rem;
+    font-size: 0.68rem;
+  }
+
+  .tenant-footer button,
+  .tenant-footer a,
+  .tenant-footer-contact-pending {
+    min-height: 1.55rem;
+    padding: 0.18rem 0.45rem;
+    white-space: nowrap;
+  }
+
+  .tenant-footer-support-email,
+  .tenant-footer-contact-pending {
+    display: none;
   }
 }
 </style>

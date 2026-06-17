@@ -110,10 +110,10 @@ export default {
       ],
       metricDefinitions: [
         { key: 'patientsCreated', label: 'Pacientes creados', short: 'Pac.', color: '#0f766e' },
-        { key: 'appointmentsCreated', label: 'Citas registradas', short: 'Citas', color: '#0369a1' },
-        { key: 'appointmentsScheduled', label: 'Citas programadas', short: 'Prog.', color: '#7c3aed' },
-        { key: 'prescriptionsIssued', label: 'Recetas emitidas', short: 'Rec.', color: '#be123c' },
-        { key: 'clinicalHistoriesFinalized', label: 'Historias finalizadas', short: 'Hist.', color: '#b45309' }
+        { key: 'appointmentsCreated', label: 'Citas registradas', short: 'Citas', color: '#4f9d99' },
+        { key: 'appointmentsScheduled', label: 'Citas programadas', short: 'Prog.', color: '#7fa7a3' },
+        { key: 'prescriptionsIssued', label: 'Recetas emitidas', short: 'Rec.', color: '#b57f8d' },
+        { key: 'clinicalHistoriesFinalized', label: 'Historias finalizadas', short: 'Hist.', color: '#b49b71' }
       ]
     };
   },

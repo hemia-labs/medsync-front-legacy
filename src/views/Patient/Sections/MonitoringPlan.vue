@@ -475,7 +475,34 @@
             dense
             outlined
             :color="themePrimaryColor"
+            @input="onEditAppointmentDateChange($event)"
           ></v-text-field>
+
+          <div class="monitoring-schedule-panel mt-2 mb-5 border border-gray-200 bg-gray-50 p-4">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+              <div>
+                <p class="m-0 text-gray-700 font-semibold">Hora de próxima cita</p>
+                <p class="m-0 text-gray-500 text-sm">Solo se muestran horarios disponibles según la agenda configurada.</p>
+              </div>
+              <v-chip v-if="selectedEditAppointmentTime" color="#FFF3CD" text-color="#8A5A00" small>Pendiente de confirmar</v-chip>
+            </div>
+            <div v-if="availableEditAppointmentSlots.length > 0" class="flex flex-wrap gap-2">
+              <button
+                v-for="slot in availableEditAppointmentSlots"
+                :key="slot.startTime"
+                type="button"
+                class="monitoring-slot px-3 py-2 border text-sm font-semibold focus:outline-none"
+                :class="selectedEditAppointmentTime === slot.startTime ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-green-700 border-green-200'"
+                @click="selectEditAppointmentSlot(slot)"
+              >
+                {{ slot.startTime }}
+              </button>
+            </div>
+            <p v-else class="m-0 text-sm text-gray-500">Selecciona una fecha con horarios disponibles.</p>
+            <p v-if="selectedEditAppointmentTime" class="m-0 mt-3 text-sm text-gray-700">
+              Cita seleccionada: {{ objCita.quote_date_after }} a las {{ selectedEditAppointmentTime }}.
+            </p>
+          </div>
 
           <div class="w-ful text-right">
             <span v-if="showtto == true" class="text-primary-700 cursor-pointer" @click="showtto = !showtto">Seleccionar tratamiento</span>
@@ -582,6 +609,10 @@ export default {
             appointments: getAppointments(),
             selectedAppointmentTime: '',
             selectedAppointmentEndTime: '',
+            selectedEditAppointmentTime: '',
+            selectedEditAppointmentEndTime: '',
+            editLinkedAppointment: null,
+            originalEditNextDate: '',
             appointmentHistory: [],
             appointmentHistoryLoading: false,
             appointmentHistoryError: '',
@@ -667,6 +698,25 @@ export default {
         this.objCita3.quote_date_after,
         this.appointmentConfig,
         this.appointments
+      ).filter((slot) => slot.selectable)
+    },
+
+    availableEditAppointmentSlots: function() {
+      if(!this.objCita.quote_date_after) {
+        return []
+      }
+
+      const linkedAppointmentId = this.editLinkedAppointment && this.editLinkedAppointment.id
+        ? String(this.editLinkedAppointment.id)
+        : ''
+      const appointments = linkedAppointmentId
+        ? this.appointments.filter((appointment) => String(appointment.id || '') !== linkedAppointmentId)
+        : this.appointments
+
+      return generateDaySlots(
+        this.objCita.quote_date_after,
+        this.appointmentConfig,
+        appointments
       ).filter((slot) => slot.selectable)
     }
   },
@@ -907,12 +957,27 @@ export default {
           "id_person":  this.px.person.id_person
         }
 
-          await this.saveTracing(data)
+          const saveResponse = await this.saveTracing(data)
         
-        if(this.saveMonitorings){
-          await this.createFollowUpAppointment(ttoProximo)
+        if(this.hasMonitoringActionResult(this.saveMonitorings)){
+          await this.onGetMonitoring()
+          const savedMonitoringId = this.extractMonitoringId(saveResponse) || this.extractMonitoringId(this.saveMonitorings)
+          const savedMonitoring = this.findMonitoringRecordByPayload({
+            quote_date_now: this.objCita3.quote_date_now,
+            treatment_now: ttoActual,
+            quote_date_after: this.objCita3.quote_date_after,
+            treatment_after: ttoProximo,
+            note: this.objCita3.note
+          })
+          const appointmentSynced = await this.createFollowUpAppointment(
+            ttoProximo,
+            savedMonitoringId || (savedMonitoring ? savedMonitoring.id_tracing : '')
+          )
+          if(appointmentSynced === false) {
+            this.isLoading = false
+            return
+          }
           this.show = false
-          this.onGetMonitoring()
         }
         this.isLoading = false
       },
@@ -964,9 +1029,21 @@ export default {
           this.objCita.quote_date_after = '00-00-0000'
         }
 
+        const hasNextAppointmentDate = this.hasNextAppointmentDate(this.objCita.quote_date_after)
+        const nextAppointmentDateChanged = hasNextAppointmentDate
+          && toIsoDate(this.objCita.quote_date_after) !== toIsoDate(this.originalEditNextDate)
+
+        if(nextAppointmentDateChanged && !this.selectedEditAppointmentTime) {
+          this.toastFunction('error','Selecciona un horario disponible para la próxima cita.')
+          this.isLoading = false
+          return
+        }
+
         if(this.objCita.quote_date_now == '' || this.objCita.quote_date_now == undefined){
           this.objCita.quote_date_now = this.dateNow
         }
+
+        const shouldSyncEditAppointment = hasNextAppointmentDate && this.selectedEditAppointmentTime
 
         let data  = {
           "tracing":    [
@@ -986,7 +1063,15 @@ export default {
           await this.updTracing(data)
         
         
-        if(this.updMonitorings){
+        if(this.hasMonitoringActionResult(this.updMonitorings)){
+          if(shouldSyncEditAppointment) {
+            const appointmentSynced = await this.syncEditedFollowUpAppointment(tto)
+            if(!appointmentSynced) {
+              this.isLoading = false
+              return
+            }
+          }
+
           this.isReadOnly = true
           this.isEdit = false
            this.isNote = false
@@ -1043,6 +1128,146 @@ export default {
         this.selectedAppointmentEndTime = slot.endTime
       },
 
+      onEditAppointmentDateChange: async function(date) {
+        this.objCita.quote_date_after = date
+        this.selectedEditAppointmentTime = ''
+        this.selectedEditAppointmentEndTime = ''
+        await this.reloadAppointmentData(date)
+      },
+
+      selectEditAppointmentSlot(slot) {
+        this.selectedEditAppointmentTime = slot.startTime
+        this.selectedEditAppointmentEndTime = slot.endTime
+      },
+
+      prepareEditAppointmentData: async function(date) {
+        this.selectedEditAppointmentTime = ''
+        this.selectedEditAppointmentEndTime = ''
+        this.editLinkedAppointment = await this.resolveLinkedFollowUpAppointment()
+
+        await this.reloadAppointmentData(date)
+
+        const linkedAppointment = this.editLinkedAppointment || await this.resolveLinkedFollowUpAppointment()
+        if(linkedAppointment && toIsoDate(linkedAppointment.date) === toIsoDate(date)) {
+          this.selectedEditAppointmentTime = linkedAppointment.startTime || ''
+          this.selectedEditAppointmentEndTime = linkedAppointment.endTime || ''
+        }
+      },
+
+      findLinkedFollowUpAppointment: function(appointments) {
+        const tracingId = String(this.idtracing || '')
+        if(!tracingId || !Array.isArray(appointments)) {
+          return null
+        }
+
+        return appointments.find((appointment) => String(appointment.followUpId || '') === tracingId) || null
+      },
+
+      normalizeFollowUpText: function(value) {
+        return String(value || '').trim().toLowerCase()
+      },
+
+      hasMonitoringActionResult: function(value) {
+        return Array.isArray(value) ? value.length > 0 : Boolean(value)
+      },
+
+      extractMonitoringId: function(value) {
+        const payload = value && value.data !== undefined ? value.data : value
+        if(Array.isArray(payload)) {
+          const record = payload.find((item) => item && item.id_tracing)
+          return record ? record.id_tracing : ''
+        }
+
+        return payload && payload.id_tracing ? payload.id_tracing : ''
+      },
+
+      findMonitoringRecordByPayload: function(payload) {
+        const expectedQuoteDateNow = toIsoDate(payload.quote_date_now)
+        const expectedQuoteDateAfter = this.hasNextAppointmentDate(payload.quote_date_after)
+          ? toIsoDate(payload.quote_date_after)
+          : ''
+        const expectedTreatmentNow = this.normalizeFollowUpText(payload.treatment_now)
+        const expectedTreatmentAfter = this.normalizeFollowUpText(payload.treatment_after)
+        const expectedNote = this.normalizeFollowUpText(payload.note)
+
+        return this.monitoringRows.find((monitoring) => {
+          const quoteDateAfter = this.hasNextAppointmentDate(monitoring.quote_date_after)
+            ? toIsoDate(monitoring.quote_date_after)
+            : ''
+
+          return toIsoDate(monitoring.quote_date_now) === expectedQuoteDateNow
+            && quoteDateAfter === expectedQuoteDateAfter
+            && this.normalizeFollowUpText(monitoring.treatment_now) === expectedTreatmentNow
+            && this.normalizeFollowUpText(monitoring.treatment_after) === expectedTreatmentAfter
+            && this.normalizeFollowUpText(monitoring.note) === expectedNote
+        }) || null
+      },
+
+      findUnlinkedFollowUpAppointment: function(appointments) {
+        if(!Array.isArray(appointments)) {
+          return null
+        }
+
+        const originalDate = toIsoDate(this.originalEditNextDate || this.objCita.quote_date_after)
+        const treatmentAfter = this.normalizeFollowUpText(this.objCita2.id_cat_treatment_after || this.objCita.id_cat_treatment_after)
+        const patientId = this.px && this.px.person ? String(this.px.person.id_person || '') : ''
+
+        if(!originalDate || !treatmentAfter || !patientId) {
+          return null
+        }
+
+        return appointments.find((appointment) => {
+          return !appointment.followUpId
+            && appointment.source === 'follow_up'
+            && String(appointment.patientId || '') === patientId
+            && toIsoDate(appointment.date) === originalDate
+            && this.normalizeFollowUpText(appointment.title) === treatmentAfter
+        }) || null
+      },
+
+      resolveLinkedFollowUpAppointment: async function() {
+        const candidateAppointments = [
+          this.editLinkedAppointment,
+          ...this.appointments,
+          ...this.appointmentHistoryRows
+        ].filter(Boolean)
+
+        const currentAppointment = this.findLinkedFollowUpAppointment(candidateAppointments)
+          || this.findUnlinkedFollowUpAppointment(candidateAppointments)
+
+        if(currentAppointment) {
+          this.editLinkedAppointment = currentAppointment
+          return currentAppointment
+        }
+
+        const patientId = this.px && this.px.person ? this.px.person.id_person : ''
+        if(!patientId) {
+          return null
+        }
+
+        const response = await DAAppointmentService.patientHistory(patientId, {
+          limit: 50,
+          offset: 0
+        })
+
+        if(!response || !response.success) {
+          return null
+        }
+
+        const payload = response.data || {}
+        const appointments = Array.isArray(payload.appointments)
+          ? payload.appointments
+          : (Array.isArray(payload) ? payload : [])
+        const linkedAppointment = this.findLinkedFollowUpAppointment(appointments)
+          || this.findUnlinkedFollowUpAppointment(appointments)
+
+        if(linkedAppointment) {
+          this.editLinkedAppointment = linkedAppointment
+        }
+
+        return linkedAppointment
+      },
+
       reloadAppointmentData: async function(date) {
         const configResponse = await DAAppointmentService.getConfig()
         if(configResponse && configResponse.success && configResponse.data) {
@@ -1067,9 +1292,15 @@ export default {
         }
       },
 
-      createFollowUpAppointment: async function(treatmentAfter) {
+      createFollowUpAppointment: async function(treatmentAfter, followUpId) {
         if(!this.selectedAppointmentTime || this.objCita3.quote_date_after === '00-00-0000') {
           return
+        }
+
+        const normalizedFollowUpId = followUpId || (this.saveMonitorings && this.saveMonitorings.id_tracing ? this.saveMonitorings.id_tracing : '')
+        if(!normalizedFollowUpId) {
+          this.toastFunction('error','No se pudo vincular la cita con el seguimiento. Intenta guardar de nuevo.')
+          return false
         }
 
         const startTime = this.selectedAppointmentTime
@@ -1078,7 +1309,7 @@ export default {
         const response = await DAAppointmentService.save({
           patientId: this.px.person.id_person,
           patientName,
-          followUpId: this.saveMonitorings && this.saveMonitorings.id_tracing ? this.saveMonitorings.id_tracing : '',
+          followUpId: normalizedFollowUpId,
           date: toIsoDate(this.objCita3.quote_date_after),
           startTime,
           endTime,
@@ -1093,10 +1324,54 @@ export default {
           await this.reloadAppointmentData(this.objCita3.quote_date_after)
           await this.loadAppointmentHistory(true)
           this.toastFunction('success',`Cita creada como pendiente de confirmar a las ${startTime}.`)
-          return
+          return true
         }
 
         this.toastFunction('error', response && response.message ? response.message : 'No se pudo crear la cita en agenda.')
+        return false
+      },
+
+      syncEditedFollowUpAppointment: async function(treatmentAfter) {
+        if(!this.selectedEditAppointmentTime || !this.hasNextAppointmentDate(this.objCita.quote_date_after)) {
+          return true
+        }
+
+        const existingAppointment = await this.resolveLinkedFollowUpAppointment()
+        const startTime = this.selectedEditAppointmentTime
+        const endTime = this.selectedEditAppointmentEndTime || addMinutesToTime(startTime, this.appointmentConfig.defaultAppointmentDuration || 30)
+        const patientName = `${this.px.person.name || ''} ${this.px.person.surname || ''}`.trim()
+        const status = existingAppointment && [
+          APPOINTMENT_STATUSES.PENDING,
+          APPOINTMENT_STATUSES.CONFIRMED
+        ].includes(existingAppointment.status)
+          ? existingAppointment.status
+          : APPOINTMENT_STATUSES.PENDING
+
+        const appointment = Object.assign({}, existingAppointment || {}, {
+          patientId: this.px.person.id_person,
+          patientName,
+          followUpId: this.idtracing,
+          date: toIsoDate(this.objCita.quote_date_after),
+          startTime,
+          endTime,
+          status,
+          title: treatmentAfter || 'Próxima cita',
+          description: this.objCita.note || '',
+          source: 'follow_up',
+          blocksAvailability: appointmentBlocksAvailability(status)
+        })
+
+        const response = await DAAppointmentService.save(appointment)
+
+        if(response && response.success) {
+          await this.reloadAppointmentData(this.objCita.quote_date_after)
+          await this.loadAppointmentHistory(true)
+          this.toastFunction('success',`Cita ${existingAppointment ? 'actualizada' : 'creada'} a las ${startTime}.`)
+          return true
+        }
+
+        this.toastFunction('error', response && response.message ? response.message : 'No se pudo actualizar la cita en agenda.')
+        return false
       },
 
       showDelete(id){
@@ -1118,6 +1393,9 @@ export default {
         this.ttoSelecionado1  =  obj.treatment_now
         this.ttoSelecionado2  =  obj.treatment_now
         this.ttoSelecionado3  =  obj.treatment_after
+        this.selectedEditAppointmentTime = ''
+        this.selectedEditAppointmentEndTime = ''
+        this.editLinkedAppointment = null
 
         let proxTtoExisteEnLista = this.getAllTreatments.find((elemento) => elemento.name === obj.treatment_after);
         let actualTtoExisteEnLista = this.getAllTreatments.find((elemento) => elemento.name === obj.treatment_now);
@@ -1138,18 +1416,26 @@ export default {
             this.showtto1 = true
           }
 
-        this.objCita  = {...this.objCita2, quote_date_after: this.revertFormatFecha(obj.quote_date_after), quote_date_now: this.revertFormatFecha(obj.quote_date_now)};
+        const quoteDateAfter = this.hasNextAppointmentDate(obj.quote_date_after) ? toIsoDate(obj.quote_date_after) : ''
+        this.originalEditNextDate = quoteDateAfter
+        this.objCita  = {...this.objCita2, quote_date_after: quoteDateAfter, quote_date_now: toIsoDate(obj.quote_date_now)};
       },
 
-      changeButton(){
+      changeButton: async function(){
         this.isReadOnly = false
         this.isEdit = true
+        this.isLoading = true
+        await this.prepareEditAppointmentData(this.objCita.quote_date_after)
+        this.isLoading = false
       },
       cancelEditButton(){
         this.isReadOnly = true
         this.isEdit     = false
         this.showtto    = false
         this.showtto1   = false
+        this.selectedEditAppointmentTime = ''
+        this.selectedEditAppointmentEndTime = ''
+        this.editLinkedAppointment = null
       },
 
       closeModalEdit(){
@@ -1157,6 +1443,9 @@ export default {
         this.showtto = false
         this.showtto1 = false
         this.isReadOnly = true
+        this.selectedEditAppointmentTime = ''
+        this.selectedEditAppointmentEndTime = ''
+        this.editLinkedAppointment = null
         this.esperarCincoSegundos()
       },
 

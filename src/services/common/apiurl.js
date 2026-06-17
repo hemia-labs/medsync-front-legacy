@@ -6,6 +6,7 @@ export const DAC_AUTH_REFRESH_TOKEN = 'api/auth/refreshToken';
 export const DAC_AUTH_UPDATEPWD     = 'api/auth/resetPassword';
 export const DAC_AUTH_CSRF          = 'api/auth/csrf';
 export const DAC_AUTH_SESSION       = 'api/auth/session';
+export const DAC_HOME_CONTINUITY_SUMMARY = 'api/home/continuity-summary';
 export const DAC_USER_LIST          = 'api/user/list';
 export const DAC_USER_GET           = 'api/user/list/';
 export const DAC_USER_SAVE          = 'api/user/create';
