@@ -200,49 +200,133 @@
             </div>
           </section>
 
-          <section class="content-card" aria-labelledby="birthdays-title">
-            <div class="section-heading">
+          <section
+            class="content-card continuity-card"
+            aria-labelledby="continuity-title"
+            @mouseenter="pauseContinuityRotation"
+            @mouseleave="resumeContinuityRotation"
+            @focusin="pauseContinuityRotation"
+            @focusout="resumeContinuityRotation"
+          >
+            <div class="section-heading continuity-heading">
               <div>
-                <p class="eyebrow">Mes: {{ mesActual }}</p>
-                <h2 id="birthdays-title">Cumpleaños del mes</h2>
+                <p class="eyebrow">{{ activeContinuity.eyebrow }}</p>
+                <h2 id="continuity-title">Continuidad clinica</h2>
               </div>
+              <button
+                type="button"
+                class="icon-button"
+                aria-label="Actualizar continuidad clinica"
+                :disabled="isContinuityLoading"
+                @click="loadContinuitySummary(true)"
+              >
+                <v-icon size="18">mdi-refresh</v-icon>
+              </button>
             </div>
 
             <v-progress-linear
-              v-if="isBirthdaysLoading"
+              v-if="isContinuityLoading"
               indeterminate
               color="#0f766e"
               height="3"
               class="card-progress"
             ></v-progress-linear>
 
-            <div v-if="birthdaysError" class="inline-state is-error">
-              <v-icon size="24">mdi-alert-circle-outline</v-icon>
-              <p>No pudimos cargar los cumpleaños. Intenta nuevamente.</p>
-            </div>
-
-            <div v-else-if="birthdays.length" class="birthday-list">
-              <article
-                v-for="birthday in visibleBirthdays"
-                :key="birthdayKey(birthday)"
-                class="birthday-item"
+            <div v-if="continuityOptions.length" class="continuity-controls">
+              <button
+                type="button"
+                class="continuity-arrow"
+                aria-label="Ver seccion anterior"
+                @click="showPreviousContinuity"
               >
-                <span class="birthday-avatar">{{ birthdayInitials(birthday) }}</span>
-                <span>
-                  <strong>{{ birthday.name_complete || birthday.name || 'Paciente' }}</strong>
-                  <small>{{ birthdayDetail(birthday) }}</small>
+                <v-icon size="20">mdi-chevron-left</v-icon>
+              </button>
+
+              <select
+                v-model="activeContinuityKey"
+                class="continuity-select"
+                aria-label="Seleccionar seccion de continuidad clinica"
+                @change="onContinuityManualChange"
+              >
+                <option
+                  v-for="option in continuityOptions"
+                  :key="option.key"
+                  :value="option.key"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+
+              <button
+                type="button"
+                class="continuity-arrow"
+                aria-label="Ver seccion siguiente"
+                @click="showNextContinuity"
+              >
+                <v-icon size="20">mdi-chevron-right</v-icon>
+              </button>
+            </div>
+
+            <div v-if="continuityError" class="inline-state is-error">
+              <v-icon size="24">mdi-alert-circle-outline</v-icon>
+              <p>No pudimos cargar la continuidad clinica. Intenta nuevamente.</p>
+            </div>
+
+            <div v-else-if="activeContinuity.available" class="continuity-panel">
+              <div class="continuity-hero-line">
+                <span class="continuity-icon">
+                  <v-icon size="25">{{ activeContinuity.icon }}</v-icon>
                 </span>
-              </article>
+                <div>
+                  <strong>{{ activeContinuity.title }}</strong>
+                  <p>{{ activeContinuity.description }}</p>
+                </div>
+              </div>
 
-              <p v-if="birthdays.length > visibleBirthdays.length" class="list-note">
-                +{{ birthdays.length - visibleBirthdays.length }} cumpleaños mas este mes
-              </p>
+              <div class="continuity-stat-grid">
+                <article
+                  v-for="card in activeContinuity.cards"
+                  :key="card.key"
+                  :class="['continuity-stat', `tone-${card.tone || 'neutral'}`]"
+                >
+                  <strong>{{ card.value }}</strong>
+                  <span>{{ card.label }}</span>
+                </article>
+              </div>
+
+              <div v-if="activeContinuity.items && activeContinuity.items.length" class="continuity-item-list">
+                <button
+                  v-for="item in activeContinuity.items"
+                  :key="item.key"
+                  type="button"
+                  class="continuity-item"
+                  @click="navigateToContinuityItem(item)"
+                >
+                  <span class="continuity-dot"></span>
+                  <span>
+                    <strong>{{ item.label }}</strong>
+                    <small>{{ item.detail }}</small>
+                  </span>
+                  <v-icon size="18">mdi-arrow-right</v-icon>
+                </button>
+              </div>
+
+              <button
+                v-if="activeContinuity.action"
+                type="button"
+                class="continuity-action"
+                @click="navigateTo(activeContinuity.action.path)"
+              >
+                <v-icon size="18">mdi-open-in-new</v-icon>
+                <span>{{ activeContinuity.action.label }}</span>
+              </button>
             </div>
 
-            <div v-else-if="!isBirthdaysLoading" class="inline-state">
-              <v-icon size="24">mdi-cake-variant-outline</v-icon>
-              <p>No hay cumpleaños registrados este mes.</p>
+            <div v-else-if="!isContinuityLoading" class="inline-state">
+              <v-icon size="24">mdi-shield-check-outline</v-icon>
+              <p>Este perfil no tiene pendientes de continuidad visibles.</p>
             </div>
+
           </section>
         </aside>
       </div>
@@ -256,11 +340,27 @@ import decode from 'jwt-decode';
 import VuexMixin from '../../mixins/VuexMixin';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
-import { DAAppointmentService } from '../../services/context/core-proccess-context';
+import { DAAppointmentService, DAHomeService } from '../../services/context/core-proccess-context';
 import { APPOINTMENT_STATUS_LABELS } from '../../domain/appointments/appointment.storage';
 import { isD2AuthMode } from '../../services/config/authTransport.config';
 
-const primeraLetraMayuscula = (cadena) => cadena.charAt(0).toUpperCase().concat(cadena.substring(1, cadena.length));
+const CONTINUITY_CACHE_KEY = 'medsync.home.continuitySummary.v1';
+const CONTINUITY_CACHE_TTL_MS = 60 * 60 * 1000;
+const CONTINUITY_ROTATION_MS = 15000;
+const CONTINUITY_MANUAL_PAUSE_MS = 60000;
+const EMPTY_CONTINUITY_SECTION = {
+  key: 'empty',
+  label: 'Continuidad clinica',
+  eyebrow: 'Pendientes',
+  title: 'Todo al dia por ahora',
+  description: 'Aqui apareceran borradores, firmas, pacientes recientes y actividad semanal.',
+  icon: 'mdi-shield-check-outline',
+  available: true,
+  total: 0,
+  cards: [],
+  items: [],
+  action: null
+};
 
 export default {
     name: 'Home',
@@ -268,13 +368,17 @@ export default {
     data: function() {
         return {
             Param: '',
-            mesActual: '',
             showResult: false,
             searchError: false,
             searchServiceError: false,
             isSearching: false,
-            isBirthdaysLoading: false,
-            birthdaysError: false,
+            isContinuityLoading: false,
+            continuityError: false,
+            continuitySummary: null,
+            activeContinuityKey: 'drafts',
+            continuityRotationTimer: null,
+            continuityResumeTimer: null,
+            continuityRotationPaused: false,
             isAppointmentsLoading: false,
             appointmentsError: false,
             appointmentsUnavailable: false,
@@ -290,10 +394,15 @@ export default {
       if(this.homeClockTimer) {
         clearInterval(this.homeClockTimer)
       }
+      if(this.continuityRotationTimer) {
+        clearInterval(this.continuityRotationTimer)
+      }
+      if(this.continuityResumeTimer) {
+        clearTimeout(this.continuityResumeTimer)
+      }
     },
     computed: {
       ...mapGetters(moduleTypes.HOME, {
-        birthdays: fnTypes.getBirthdays,
         patients: fnTypes.getPatients
       }),
       ...mapGetters(moduleTypes.AUTH, {
@@ -390,29 +499,47 @@ export default {
       visibleTodayAppointments: function() {
         return this.todayAppointments.slice(0, 4)
       },
-      visibleBirthdays: function() {
-        return this.birthdays.slice(0, 5)
-      },
       appointmentsEmptyMessage: function() {
         return this.appointmentsUnavailable
           ? 'No hay citas para mostrar por ahora.'
           : 'No tienes citas proximas hoy.'
+      },
+      continuitySections: function() {
+        const sections = this.continuitySummary && this.continuitySummary.sections
+          ? this.continuitySummary.sections
+          : {}
+
+        return ['drafts', 'signatures', 'recentPatients', 'pulse']
+          .map((key) => sections[key])
+          .filter((section) => section && section.available)
+      },
+      continuityOptions: function() {
+        return this.continuitySections.map((section) => ({
+          key: section.key,
+          label: section.label
+        }))
+      },
+      activeContinuity: function() {
+        if(!this.continuitySections.length) {
+          return EMPTY_CONTINUITY_SECTION
+        }
+
+        return this.continuitySections.find((section) => section.key === this.activeContinuityKey)
+          || this.continuitySections[0]
       }
     },
     methods: {
       ...mapActions(moduleTypes.HOME, [
-        fnTypes.getBirthdays,
         fnTypes.getPatients
       ]),
 
       init: async function() {
         this.startHomeClock()
-        this.mesActual = new Intl.DateTimeFormat('es-ES', { month: 'long'}).format(new Date());
-        this.mesActual = primeraLetraMayuscula(this.mesActual)
         await Promise.all([
-          this.loadBirthdays(),
+          this.loadContinuitySummary(),
           this.loadTodayAppointments()
         ])
+        this.startContinuityRotation()
       },
       startHomeClock: function() {
         this.currentDateTime = new Date()
@@ -478,19 +605,137 @@ export default {
 
         this.$router.push(path).catch(() => {})
       },
-      loadBirthdays: async function() {
-        this.isBirthdaysLoading = true
-        this.birthdaysError = false
+      loadContinuitySummary: async function(forceRefresh) {
+        this.isContinuityLoading = true
+        this.continuityError = false
 
         try {
-          const response = await this.ActionWrapp(moduleTypes.HOME, fnTypes.getBirthdays)
-          this.birthdaysError = !(response && response.success)
+          const cached = forceRefresh ? null : this.readContinuityCache()
+          if(cached) {
+            this.applyContinuitySummary(cached)
+            this.isContinuityLoading = false
+            return
+          }
+
+          const response = await DAHomeService.getContinuitySummary()
+          if(response && response.success) {
+            this.writeContinuityCache(response.data)
+            this.applyContinuitySummary(response.data)
+          }
+          else {
+            this.continuityError = true
+          }
         }
         catch(error) {
-          this.birthdaysError = true
+          this.continuityError = true
         }
         finally {
-          this.isBirthdaysLoading = false
+          this.isContinuityLoading = false
+        }
+      },
+      applyContinuitySummary: function(summary) {
+        this.continuitySummary = summary || null
+        if(!this.continuityOptions.some((option) => option.key === this.activeContinuityKey) && this.continuityOptions.length) {
+          this.activeContinuityKey = this.continuityOptions[0].key
+        }
+      },
+      readContinuityCache: function() {
+        if(typeof window === 'undefined' || !window.localStorage) {
+          return null
+        }
+
+        try {
+          const raw = window.localStorage.getItem(CONTINUITY_CACHE_KEY)
+          if(!raw) {
+            return null
+          }
+
+          const cached = JSON.parse(raw)
+          if(!cached || !cached.savedAt || !cached.data) {
+            return null
+          }
+
+          if(Date.now() - Number(cached.savedAt) > CONTINUITY_CACHE_TTL_MS) {
+            window.localStorage.removeItem(CONTINUITY_CACHE_KEY)
+            return null
+          }
+
+          return cached.data
+        }
+        catch(error) {
+          return null
+        }
+      },
+      writeContinuityCache: function(data) {
+        if(typeof window === 'undefined' || !window.localStorage) {
+          return
+        }
+
+        try {
+          window.localStorage.setItem(CONTINUITY_CACHE_KEY, JSON.stringify({
+            savedAt: Date.now(),
+            data: data
+          }))
+        }
+        catch(error) {
+          return false
+        }
+      },
+      startContinuityRotation: function() {
+        if(this.continuityRotationTimer) {
+          clearInterval(this.continuityRotationTimer)
+        }
+
+        this.continuityRotationTimer = setInterval(() => {
+          if(!this.continuityRotationPaused && this.continuityOptions.length > 1) {
+            this.advanceContinuity(1)
+          }
+        }, CONTINUITY_ROTATION_MS)
+      },
+      pauseContinuityRotation: function() {
+        this.continuityRotationPaused = true
+      },
+      resumeContinuityRotation: function() {
+        if(this.continuityResumeTimer) {
+          return
+        }
+
+        this.continuityRotationPaused = false
+      },
+      pauseContinuityAfterManualChange: function() {
+        this.continuityRotationPaused = true
+        if(this.continuityResumeTimer) {
+          clearTimeout(this.continuityResumeTimer)
+        }
+        this.continuityResumeTimer = setTimeout(() => {
+          this.continuityRotationPaused = false
+          this.continuityResumeTimer = null
+        }, CONTINUITY_MANUAL_PAUSE_MS)
+      },
+      onContinuityManualChange: function() {
+        this.pauseContinuityAfterManualChange()
+      },
+      showPreviousContinuity: function() {
+        this.advanceContinuity(-1)
+        this.pauseContinuityAfterManualChange()
+      },
+      showNextContinuity: function() {
+        this.advanceContinuity(1)
+        this.pauseContinuityAfterManualChange()
+      },
+      advanceContinuity: function(direction) {
+        if(!this.continuityOptions.length) {
+          return
+        }
+
+        const currentIndex = this.continuityOptions.findIndex((option) => option.key === this.activeContinuityKey)
+        const safeIndex = currentIndex >= 0 ? currentIndex : 0
+        const nextIndex = (safeIndex + direction + this.continuityOptions.length) % this.continuityOptions.length
+        this.activeContinuityKey = this.continuityOptions[nextIndex].key
+      },
+      navigateToContinuityItem: function(item) {
+        if(item && item.path) {
+          this.navigateTo(item.path)
         }
       },
       loadTodayAppointments: async function() {
@@ -592,23 +837,6 @@ export default {
         }
 
         return details.length ? details.join(' | ') : 'Expediente disponible'
-      },
-      birthdayKey: function(birthday) {
-        return birthday.id_person || `${birthday.name_complete || birthday.name}-${birthday.birthday || ''}`
-      },
-      birthdayInitials: function(birthday) {
-        return this.initials(birthday.name_complete || birthday.name || 'Paciente')
-      },
-      birthdayDetail: function(birthday) {
-        const details = []
-        if(birthday.birthday) {
-          details.push(birthday.birthday)
-        }
-        if(birthday.age) {
-          details.push(`${birthday.age} años`)
-        }
-
-        return details.length ? details.join(' | ') : 'Fecha registrada'
       },
       initials: function(name) {
         return String(name || '')
@@ -834,7 +1062,6 @@ export default {
 
 .patient-info strong,
 .appointment-copy strong,
-.birthday-item strong,
 .empty-state strong {
   display: block;
   color: #12313a;
@@ -843,8 +1070,7 @@ export default {
 }
 
 .patient-info small,
-.appointment-copy small,
-.birthday-item small {
+.appointment-copy small {
   display: block;
   margin-top: 0.15rem;
   color: #64748b;
@@ -922,8 +1148,7 @@ export default {
   outline: none;
 }
 
-.patient-avatar,
-.birthday-avatar {
+.patient-avatar {
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -1007,14 +1232,12 @@ export default {
   text-underline-offset: 0.2rem;
 }
 
-.appointment-list,
-.birthday-list {
+.appointment-list {
   display: grid;
   gap: 0.65rem;
 }
 
-.appointment-item,
-.birthday-item {
+.appointment-item {
   display: grid;
   align-items: center;
   gap: 0.7rem;
@@ -1043,22 +1266,239 @@ export default {
   font-weight: 900;
 }
 
-.birthday-item {
-  grid-template-columns: auto 1fr;
+.continuity-card {
+  overflow: hidden;
 }
 
-.birthday-avatar {
-  width: 2.35rem;
-  height: 2.35rem;
-  font-size: 0.78rem;
+.continuity-heading {
+  margin-bottom: 0.75rem;
 }
 
-.list-note {
-  margin: 0.15rem 0 0;
+.continuity-controls {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) 2.25rem;
+  gap: 0.45rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.continuity-arrow {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid #d6e6ea;
+  border-radius: 0.5rem;
+  color: #0f766e;
+  background: #ffffff;
+}
+
+.continuity-arrow:hover,
+.continuity-arrow:focus {
+  border-color: #8bd8d2;
+  background: #f0fdfa;
+  outline: none;
+}
+
+.continuity-select {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0 2rem 0 0.8rem;
+  border: 1px solid #d6e6ea;
+  border-radius: 0.5rem;
+  color: #12313a;
+  background: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.continuity-select:focus {
+  border-color: #0f766e;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.continuity-panel {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.continuity-hero-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.85rem;
+  border: 1px solid #dff0ee;
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, #f7fffd 0%, #ffffff 100%);
+}
+
+.continuity-icon {
+  display: grid;
+  place-items: center;
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 0.5rem;
+  color: #ffffff;
+  background: #0f766e;
+}
+
+.continuity-icon .v-icon {
+  color: #ffffff;
+}
+
+.continuity-hero-line strong {
+  display: block;
+  color: #12313a;
+  font-size: 0.98rem;
+  font-weight: 900;
+  line-height: 1.25rem;
+}
+
+.continuity-hero-line p {
+  margin: 0.2rem 0 0;
   color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-align: center;
+  font-size: 0.84rem;
+  line-height: 1.25rem;
+}
+
+.continuity-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.continuity-stat {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid #e0edf0;
+  border-radius: 0.5rem;
+  background: #ffffff;
+}
+
+.continuity-stat strong {
+  display: block;
+  color: #12313a;
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 1.2rem;
+}
+
+.continuity-stat span {
+  display: block;
+  margin-top: 0.28rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 0.95rem;
+}
+
+.continuity-stat.tone-warning {
+  border-color: #e7dbc3;
+  background: #fffaf0;
+}
+
+.continuity-stat.tone-danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.continuity-stat.tone-accent {
+  border-color: #b7e4df;
+  background: #f0fdfa;
+}
+
+.continuity-stat.tone-success {
+  border-color: #c8eadc;
+  background: #f3fbf7;
+}
+
+.continuity-stat.tone-neutral {
+  border-color: #dfecef;
+  background: #fbfefe;
+}
+
+.continuity-stat.tone-warning strong {
+  color: #4f4634;
+}
+
+.continuity-stat.tone-accent strong,
+.continuity-stat.tone-success strong {
+  color: #0f766e;
+}
+
+.continuity-item-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.continuity-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid #e0edf0;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  text-align: left;
+}
+
+.continuity-item:hover,
+.continuity-item:focus {
+  border-color: #8bd8d2;
+  background: #fbfefe;
+  outline: none;
+}
+
+.continuity-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #0f766e;
+}
+
+.continuity-item strong,
+.continuity-item small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.continuity-item strong {
+  color: #12313a;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.continuity-item small {
+  margin-top: 0.12rem;
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1rem;
+}
+
+.continuity-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  padding: 0 0.85rem;
+  border: 1px solid #b7e4df;
+  border-radius: 0.5rem;
+  color: #0f766e;
+  background: #f0fdfa;
+  font-weight: 900;
+}
+
+.continuity-action:hover,
+.continuity-action:focus {
+  border-color: #0f766e;
+  outline: none;
 }
 
 html[data-theme="clinical-night"] .home-hero,
@@ -1066,7 +1506,11 @@ html[data-theme="clinical-night"] .search-command,
 html[data-theme="clinical-night"] .content-card,
 html[data-theme="clinical-night"] .patient-result,
 html[data-theme="clinical-night"] .appointment-item,
-html[data-theme="clinical-night"] .birthday-item {
+html[data-theme="clinical-night"] .continuity-hero-line,
+html[data-theme="clinical-night"] .continuity-stat,
+html[data-theme="clinical-night"] .continuity-item,
+html[data-theme="clinical-night"] .continuity-select,
+html[data-theme="clinical-night"] .continuity-arrow {
   border-color: rgba(148, 163, 184, 0.18);
   background: rgba(15, 23, 42, 0.88);
 }
@@ -1075,18 +1519,22 @@ html[data-theme="clinical-night"] .home-hero h1,
 html[data-theme="clinical-night"] .section-heading h2,
 html[data-theme="clinical-night"] .patient-info strong,
 html[data-theme="clinical-night"] .appointment-copy strong,
-html[data-theme="clinical-night"] .birthday-item strong,
-html[data-theme="clinical-night"] .empty-state strong {
+html[data-theme="clinical-night"] .empty-state strong,
+html[data-theme="clinical-night"] .continuity-hero-line strong,
+html[data-theme="clinical-night"] .continuity-stat strong,
+html[data-theme="clinical-night"] .continuity-item strong,
+html[data-theme="clinical-night"] .continuity-select {
   color: #e2e8f0;
 }
 
 html[data-theme="clinical-night"] .hero-description,
 html[data-theme="clinical-night"] .patient-info small,
 html[data-theme="clinical-night"] .appointment-copy small,
-html[data-theme="clinical-night"] .birthday-item small,
 html[data-theme="clinical-night"] .empty-state p,
 html[data-theme="clinical-night"] .inline-state p,
-html[data-theme="clinical-night"] .list-note {
+html[data-theme="clinical-night"] .continuity-hero-line p,
+html[data-theme="clinical-night"] .continuity-stat span,
+html[data-theme="clinical-night"] .continuity-item small {
   color: #94a3b8;
 }
 
@@ -1135,6 +1583,10 @@ html[data-theme="clinical-night"] .icon-button {
   .soft-link,
   .mini-link {
     width: 100%;
+  }
+
+  .continuity-stat-grid {
+    grid-template-columns: 1fr;
   }
 
   .patient-result {

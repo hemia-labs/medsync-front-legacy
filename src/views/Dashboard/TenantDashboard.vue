@@ -220,49 +220,60 @@
 
         <dashboard-locked-widget v-if="showProLockedPanel" />
 
-        <section v-if="canShowTrends || canShowOperationalAnalysis" class="pro-widgets-grid" aria-label="Widgets operativos Pro">
-          <dashboard-activity-trends
-            v-if="canShowTrends"
-            :loading="trendsLoading"
-            :error="trendsError"
-            :data="trendsData"
-            :granularity="trendsGranularity"
-            @granularity-change="changeTrendsGranularity"
-            @retry="fetchTrends"
-          />
-
+        <section
+          v-if="hasAdvancedDashboardWidgets"
+          class="dashboard-widget-layout"
+          aria-label="Analisis avanzado del consultorio"
+        >
           <dashboard-operational-summary
             v-if="canShowOperationalAnalysis"
             :loading="operationalLoading"
             :error="operationalError"
             :data="operationalData"
+            class="dashboard-widget-wide"
             @retry="fetchOperationalSummary"
           />
+
+          <div
+            v-if="canShowTrends || canShowProfessionalBreakdown || canShowTeamBreakdown"
+            :class="[
+              'dashboard-secondary-grid',
+              {
+                'is-single': !canShowTeamBreakdown || !(canShowTrends || canShowProfessionalBreakdown)
+              }
+            ]"
+          >
+            <div v-if="canShowTrends || canShowProfessionalBreakdown" class="dashboard-secondary-stack">
+              <dashboard-activity-trends
+                v-if="canShowTrends"
+                :loading="trendsLoading"
+                :error="trendsError"
+                :data="trendsData"
+                :granularity="trendsGranularity"
+                @granularity-change="changeTrendsGranularity"
+                @retry="fetchTrends"
+              />
+
+              <dashboard-professional-breakdown
+                v-if="canShowProfessionalBreakdown"
+                :loading="professionalBreakdownLoading"
+                :error="professionalBreakdownError"
+                :data="professionalBreakdownData"
+                @retry="fetchProfessionalBreakdown"
+              />
+            </div>
+
+            <dashboard-team-breakdown
+              v-if="canShowTeamBreakdown"
+              :loading="teamBreakdownLoading"
+              :error="teamBreakdownError"
+              :data="teamBreakdownData"
+              @retry="fetchTeamBreakdown"
+            />
+          </div>
         </section>
 
         <dashboard-enterprise-locked-widget v-if="showEnterpriseLockedPanel" />
-
-        <section
-          v-if="canShowProfessionalBreakdown || canShowTeamBreakdown"
-          class="enterprise-widgets-grid"
-          aria-label="Vista administrativa del equipo"
-        >
-          <dashboard-professional-breakdown
-            v-if="canShowProfessionalBreakdown"
-            :loading="professionalBreakdownLoading"
-            :error="professionalBreakdownError"
-            :data="professionalBreakdownData"
-            @retry="fetchProfessionalBreakdown"
-          />
-
-          <dashboard-team-breakdown
-            v-if="canShowTeamBreakdown"
-            :loading="teamBreakdownLoading"
-            :error="teamBreakdownError"
-            :data="teamBreakdownData"
-            @retry="fetchTeamBreakdown"
-          />
-        </section>
       </template>
 
       <section v-else-if="!isDashboardBusy && !errorMessage" class="state-panel is-empty">
@@ -446,6 +457,14 @@ export default {
         && this.dashboardLevel === 'operational'
         && !this.canShowProfessionalBreakdown
         && !this.canShowTeamBreakdown
+      );
+    },
+    hasAdvancedDashboardWidgets: function() {
+      return Boolean(
+        this.canShowTrends
+        || this.canShowOperationalAnalysis
+        || this.canShowProfessionalBreakdown
+        || this.canShowTeamBreakdown
       );
     },
     planScopeMessage: function() {
@@ -1185,8 +1204,7 @@ export default {
 .plan-scope-card,
 .license-card,
 .activity-section,
-.pro-widgets-grid,
-.enterprise-widgets-grid {
+.dashboard-widget-layout {
   margin-top: 1rem;
 }
 
@@ -1194,12 +1212,34 @@ export default {
   padding: 1rem;
 }
 
-.pro-widgets-grid,
-.enterprise-widgets-grid {
+.dashboard-widget-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.06fr) minmax(22rem, 0.94fr);
+  gap: 1rem;
+}
+
+.dashboard-secondary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(22rem, 0.88fr);
   gap: 1rem;
   align-items: start;
+}
+
+.dashboard-secondary-grid.is-single {
+  grid-template-columns: 1fr;
+}
+
+.dashboard-secondary-stack {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.dashboard-secondary-grid > * {
+  min-width: 0;
+}
+
+.dashboard-widget-wide {
+  min-width: 0;
 }
 
 .plan-scope-card p {
@@ -1473,8 +1513,7 @@ html[data-theme="clinical-night"] .scope-note strong {
   .license-grid,
   .plan-details,
   .scope-note-grid,
-  .pro-widgets-grid,
-  .enterprise-widgets-grid {
+  .dashboard-secondary-grid {
     grid-template-columns: 1fr;
   }
 

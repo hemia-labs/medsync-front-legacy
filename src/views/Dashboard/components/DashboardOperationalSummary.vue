@@ -28,6 +28,32 @@
     </div>
 
     <div v-else class="operational-content">
+      <div class="priority-panel">
+        <div class="decision-heading">
+          <div>
+            <p class="eyebrow">Que atender primero</p>
+            <h3>Lectura automatica</h3>
+          </div>
+          <small>Usa datos ya visibles</small>
+        </div>
+
+        <div class="priority-grid">
+          <article v-for="item in priorityActions" :key="item.key" :class="['priority-card', 'tone-' + item.tone]">
+            <v-icon size="22">{{ item.icon }}</v-icon>
+            <div>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.impact }}</small>
+              <em>{{ item.nextStep }}</em>
+            </div>
+          </article>
+        </div>
+
+        <p class="interpretation-note panel-note">
+          Como leerlo: este bloque no agrega mas numeros; toma los indicadores del resumen y los ordena como una lista de trabajo para decidir que conviene revisar primero.
+        </p>
+      </div>
+
       <div class="summary-groups">
         <article class="operation-group">
           <div class="group-heading">
@@ -37,8 +63,8 @@
               <span>{{ formatNumber(appointments.total) }} registradas</span>
             </div>
           </div>
-          <div class="mini-metrics">
-            <span><strong>{{ formatNumber(appointments.scheduled) }}</strong> programadas</span>
+          <div class="metric-grid">
+            <span class="metric-tile"><strong>{{ formatNumber(appointments.scheduled) }}</strong> programadas</span>
           </div>
           <div class="status-list">
             <span v-for="item in appointmentStatuses" :key="item.status">
@@ -46,6 +72,9 @@
               <strong>{{ formatNumber(item.count) }}</strong>
             </span>
           </div>
+          <p class="interpretation-note">
+            Como leerlo: muestra la carga real de agenda. Muchos pendientes, cancelaciones o no asistencias indican trabajo administrativo por resolver antes de que afecte ingresos y continuidad.
+          </p>
         </article>
 
         <article class="operation-group">
@@ -56,17 +85,14 @@
               <span>{{ formatNumber(prescriptions.total) }} totales</span>
             </div>
           </div>
-          <div class="mini-metrics">
-            <span><strong>{{ formatNumber(prescriptions.issued) }}</strong> emitidas</span>
-            <span><strong>{{ formatNumber(prescriptions.drafts) }}</strong> borradores</span>
-            <span><strong>{{ formatNumber(prescriptions.cancelled) }}</strong> canceladas</span>
+          <div class="metric-grid">
+            <span class="metric-tile"><strong>{{ formatNumber(prescriptions.issued) }}</strong> emitidas</span>
+            <span class="metric-tile"><strong>{{ formatNumber(prescriptions.drafts) }}</strong> borradores</span>
+            <span class="metric-tile"><strong>{{ formatNumber(prescriptions.cancelled) }}</strong> canceladas</span>
           </div>
-          <div class="status-list">
-            <span v-for="item in prescriptionStatuses" :key="item.status">
-              {{ prescriptionLabel(item.status) }}
-              <strong>{{ formatNumber(item.count) }}</strong>
-            </span>
-          </div>
+          <p class="interpretation-note">
+            Como leerlo: mide documentacion farmacologica. Muchos borradores pueden indicar recetas sin cerrar; muchas canceladas pueden apuntar a errores de captura o cambios frecuentes de indicacion.
+          </p>
         </article>
 
         <article class="operation-group">
@@ -77,18 +103,56 @@
               <span>{{ formatNumber(clinicalHistories.total) }} totales</span>
             </div>
           </div>
-          <div class="mini-metrics">
-            <span><strong>{{ formatNumber(clinicalHistories.finalized) }}</strong> finalizadas</span>
-            <span><strong>{{ formatNumber(clinicalHistories.drafts) }}</strong> borradores</span>
-            <span><strong>{{ formatNumber(clinicalHistories.pending) }}</strong> pendientes</span>
+          <div class="metric-grid">
+            <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.finalized) }}</strong> finalizadas</span>
+            <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.drafts) }}</strong> borradores</span>
+            <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.pending) }}</strong> pendientes</span>
           </div>
-          <div class="status-list">
-            <span v-for="item in clinicalHistoryStatuses" :key="item.status">
-              {{ clinicalHistoryLabel(item.status) }}
-              <strong>{{ formatNumber(item.count) }}</strong>
-            </span>
-          </div>
+          <p class="interpretation-note">
+            Como leerlo: habla de calidad y cierre clinico. Si hay muchas pendientes, puede haber riesgo de expedientes incompletos y perdida de trazabilidad medica.
+          </p>
         </article>
+      </div>
+
+      <div class="economics-panel">
+        <div class="decision-heading">
+          <div>
+            <p class="eyebrow">Planes de tratamiento</p>
+            <h3>Valor estimado por paciente</h3>
+          </div>
+          <small>Sin montos por paciente</small>
+        </div>
+
+        <div class="economics-grid">
+          <article v-for="item in economicsCards" :key="item.key" class="economics-card">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <small>{{ item.helper }}</small>
+          </article>
+        </div>
+
+        <p class="interpretation-note panel-note">
+          Como leerlo: es una estimacion comercial basada en costos capturados en planes de tratamiento del periodo; no significa dinero cobrado. Sirve para ver el potencial promedio de cada paciente con plan y detectar si faltan costos por capturar.
+        </p>
+      </div>
+
+      <div class="decision-panel">
+        <div class="decision-heading">
+          <div>
+            <p class="eyebrow">Indicadores de decision</p>
+            <h3>Acceso y continuidad</h3>
+          </div>
+          <small>Sin datos personales</small>
+        </div>
+
+        <div class="decision-grid">
+          <article v-for="item in decisionCards" :key="item.key" :class="['decision-card', 'tone-' + (item.tone || 'neutral')]">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <small>{{ item.helper }}</small>
+            <em>{{ item.interpretation }}</em>
+          </article>
+        </div>
       </div>
 
       <div class="comparison-panel">
@@ -107,6 +171,7 @@
             <small>
               {{ deltaLabel(item) }}
             </small>
+            <em>{{ item.interpretation }}</em>
           </article>
         </div>
       </div>
@@ -146,6 +211,21 @@ export default {
     clinicalHistories: function() {
       return this.data && this.data.clinicalHistories ? this.data.clinicalHistories : {};
     },
+    decisionMetrics: function() {
+      return this.data && this.data.decisionMetrics ? this.data.decisionMetrics : {};
+    },
+    appointmentHealth: function() {
+      return this.decisionMetrics.appointmentHealth || {};
+    },
+    retention: function() {
+      return this.decisionMetrics.retention || {};
+    },
+    followUps: function() {
+      return this.decisionMetrics.followUps || {};
+    },
+    treatmentEconomics: function() {
+      return this.decisionMetrics.treatmentEconomics || {};
+    },
     appointmentStatuses: function() {
       return Array.isArray(this.appointments.byStatus) ? this.appointments.byStatus : [];
     },
@@ -164,6 +244,185 @@ export default {
         { key: 'appointmentsCreated', label: 'Citas creadas', ...this.metricComparison('appointmentsCreated') },
         { key: 'prescriptionsIssued', label: 'Recetas emitidas', ...this.metricComparison('prescriptionsIssued') },
         { key: 'clinicalHistoriesFinalized', label: 'Historias finalizadas', ...this.metricComparison('clinicalHistoriesFinalized') }
+      ].map((item) => ({
+        ...item,
+        interpretation: this.comparisonInterpretation(item.key)
+      }));
+    },
+    economicsCards: function() {
+      return [
+        {
+          key: 'totalEstimatedTreatmentValue',
+          label: 'Valor estimado',
+          value: this.formatCurrency(this.treatmentEconomics.totalEstimatedTreatmentValue),
+          helper: 'Suma de tratamientos con costo capturado'
+        },
+        {
+          key: 'averageTreatmentValuePerPatient',
+          label: 'Promedio por paciente',
+          value: this.formatCurrency(this.treatmentEconomics.averageTreatmentValuePerPatient),
+          helper: 'Promedio entre pacientes con tratamiento valuado'
+        },
+        {
+          key: 'patientsWithEstimatedTreatment',
+          label: 'Pacientes con plan valuado',
+          value: this.formatNumber(this.treatmentEconomics.patientsWithEstimatedTreatment),
+          helper: 'Pacientes con al menos un tratamiento con costo'
+        },
+        {
+          key: 'treatmentItemsWithCost',
+          label: 'Tratamientos con costo',
+          value: this.formatNumber(this.treatmentEconomics.treatmentItemsWithCost),
+          helper: 'Partidas de tratamiento incluidas'
+        }
+      ];
+    },
+    priorityActions: function() {
+      const pendingConfirmations = normalizeNumber(this.appointmentHealth.pendingConfirmation);
+      const noShow = normalizeNumber(this.appointmentHealth.noShow);
+      const cancelled = normalizeNumber(this.appointmentHealth.cancelled);
+      const followUpsDue = normalizeNumber(this.followUps.due);
+      const followUpsScheduled = normalizeNumber(this.followUps.scheduled);
+      const followUpsWithoutAppointment = Math.max(0, followUpsDue - followUpsScheduled);
+      const clinicalPending = normalizeNumber(this.clinicalHistories.pending);
+      const prescriptionDrafts = normalizeNumber(this.prescriptions.drafts);
+      const actions = [
+        {
+          key: 'pendingConfirmations',
+          count: pendingConfirmations,
+          score: pendingConfirmations * 4,
+          label: 'Confirma tu agenda',
+          value: `${this.formatNumber(pendingConfirmations)} pendientes`,
+          impact: 'La agenda puede verse llena, pero esas citas todavia no estan aseguradas.',
+          nextStep: 'Primero confirma o depura estas citas.',
+          icon: 'mdi-calendar-alert-outline',
+          tone: pendingConfirmations >= 5 ? 'danger' : 'warning'
+        },
+        {
+          key: 'followUpsWithoutAppointment',
+          count: followUpsWithoutAppointment,
+          score: followUpsWithoutAppointment * 4,
+          label: 'Recupera seguimientos',
+          value: `${this.formatNumber(followUpsWithoutAppointment)} sin cita`,
+          impact: 'Son pacientes que deberian volver y aun no tienen una cita ligada.',
+          nextStep: 'Conviene convertir seguimientos pendientes en citas.',
+          icon: 'mdi-clipboard-pulse-outline',
+          tone: followUpsWithoutAppointment >= 3 ? 'danger' : 'warning'
+        },
+        {
+          key: 'clinicalPending',
+          count: clinicalPending,
+          score: clinicalPending * 3,
+          label: 'Cierra expedientes',
+          value: `${this.formatNumber(clinicalPending)} pendientes`,
+          impact: 'Historias sin cerrar pueden afectar trazabilidad clinica y seguimiento medico.',
+          nextStep: 'Revisa expedientes pendientes antes de que se acumulen.',
+          icon: 'mdi-clipboard-text-clock-outline',
+          tone: clinicalPending >= 3 ? 'danger' : 'warning'
+        },
+        {
+          key: 'prescriptionDrafts',
+          count: prescriptionDrafts,
+          score: prescriptionDrafts * 2,
+          label: 'Revisa recetas borrador',
+          value: `${this.formatNumber(prescriptionDrafts)} borradores`,
+          impact: 'Pueden ser indicaciones que quedaron sin cerrar o sin emitir.',
+          nextStep: 'Valida si deben emitirse, corregirse o descartarse.',
+          icon: 'mdi-file-document-alert-outline',
+          tone: 'warning'
+        },
+        {
+          key: 'noShow',
+          count: noShow,
+          score: noShow * 3,
+          label: 'Reduce ausencias',
+          value: `${this.formatNumber(noShow)} no asistio`,
+          impact: 'Cada ausencia puede representar tiempo clinico perdido.',
+          nextStep: 'Refuerza confirmacion y revisa si conviene reagendar.',
+          icon: 'mdi-account-cancel-outline',
+          tone: noShow >= 3 ? 'danger' : 'warning'
+        },
+        {
+          key: 'cancelled',
+          count: cancelled,
+          score: cancelled * 2,
+          label: 'Revisa cancelaciones',
+          value: `${this.formatNumber(cancelled)} canceladas`,
+          impact: 'Si no se recuperan, pueden convertirse en huecos de agenda.',
+          nextStep: 'Busca que las cancelaciones importantes queden reagendadas.',
+          icon: 'mdi-calendar-remove-outline',
+          tone: cancelled >= 5 ? 'danger' : 'warning'
+        }
+      ]
+        .filter((item) => item.count > 0)
+        .sort((a, b) => b.score - a.score);
+
+      if(!actions.length) {
+        return [
+          {
+            key: 'steady',
+            label: 'Sin alertas fuertes',
+            value: 'Todo estable',
+            impact: 'No detectamos pendientes operativos importantes en este periodo.',
+            nextStep: 'Manten confirmaciones, expedientes y seguimientos al dia.',
+            icon: 'mdi-check-circle-outline',
+            tone: 'success'
+          }
+        ];
+      }
+
+      return actions.slice(0, 3);
+    },
+    decisionCards: function() {
+      return [
+        {
+          key: 'retention',
+          label: 'Retencion primera cita',
+          value: this.formatPercent(this.retention.retentionRate),
+          helper: `${this.formatNumber(this.retention.retainedPatients)} de ${this.formatNumber(this.retention.firstVisitPatients)} pacientes volvieron`,
+          interpretation: 'Alto significa que la primera experiencia si esta generando continuidad.',
+          tone: 'accent'
+        },
+        {
+          key: 'followUps',
+          label: 'Seguimientos con cita',
+          value: this.formatPercent(this.followUps.coverageRate),
+          helper: `${this.formatNumber(this.followUps.scheduled)} de ${this.formatNumber(this.followUps.due)} seguimientos`,
+          interpretation: 'Bajo significa que hay pacientes que deberian volver y aun no tienen cita.',
+          tone: 'success'
+        },
+        {
+          key: 'noShow',
+          label: 'No asistio',
+          value: this.formatPercent(this.appointmentHealth.noShowRate),
+          helper: `${this.formatNumber(this.appointmentHealth.noShow)} citas del periodo`,
+          interpretation: 'Al subir, se pierde tiempo de sillon y conviene reforzar confirmaciones.',
+          tone: normalizeNumber(this.appointmentHealth.noShow) > 0 ? 'warning' : 'neutral'
+        },
+        {
+          key: 'pending',
+          label: 'Pendientes de confirmar',
+          value: this.formatPercent(this.appointmentHealth.pendingConfirmationRate),
+          helper: `${this.formatNumber(this.appointmentHealth.pendingConfirmation)} de ${this.formatNumber(this.appointmentHealth.scheduled)} programadas`,
+          interpretation: 'Si es alto, la agenda parece llena pero todavia no esta asegurada.',
+          tone: normalizeNumber(this.appointmentHealth.pendingConfirmation) > 0 ? 'warning' : 'neutral'
+        },
+        {
+          key: 'completion',
+          label: 'Citas completadas',
+          value: this.formatPercent(this.appointmentHealth.completedRate),
+          helper: `${this.formatNumber(this.appointmentHealth.completed)} completadas`,
+          interpretation: 'Alto indica que la agenda se esta convirtiendo en atencion real.',
+          tone: 'neutral'
+        },
+        {
+          key: 'cancelled',
+          label: 'Cancelacion',
+          value: this.formatPercent(this.appointmentHealth.cancelledRate),
+          helper: `${this.formatNumber(this.appointmentHealth.cancelled)} canceladas`,
+          interpretation: 'Al subir, revisa motivos y si se estan reagendando a tiempo.',
+          tone: normalizeNumber(this.appointmentHealth.cancelled) > 0 ? 'warning' : 'neutral'
+        }
       ];
     },
     previousRangeLabel: function() {
@@ -183,6 +442,7 @@ export default {
         && normalizeNumber(this.appointments.scheduled) === 0
         && normalizeNumber(this.prescriptions.total) === 0
         && normalizeNumber(this.clinicalHistories.total) === 0
+        && normalizeNumber(this.treatmentEconomics.totalEstimatedTreatmentValue) === 0
         && this.comparisonCards.every((item) => normalizeNumber(item.current) === 0);
     }
   },
@@ -196,12 +456,23 @@ export default {
         deltaPercent: item.deltaPercent === null || item.deltaPercent === undefined ? null : Number(item.deltaPercent)
       };
     },
+    comparisonInterpretation: function(key) {
+      const labels = {
+        patientsCreated: 'Ayuda a ver si esta entrando gente nueva al consultorio.',
+        appointmentsCreated: 'Ayuda a ver si la demanda de agenda esta creciendo o bajando.',
+        prescriptionsIssued: 'Ayuda a ver movimiento clinico documentado en recetas.',
+        clinicalHistoriesFinalized: 'Ayuda a ver si los expedientes se estan cerrando correctamente.'
+      };
+      return labels[key] || 'Compara el periodo actual contra el anterior.';
+    },
     appointmentLabel: function(status) {
       const labels = {
         confirmed: 'Confirmadas',
         cancelled: 'Canceladas',
         pending_confirmation: 'Pendientes de confirmar',
-        rescheduled: 'Reprogramadas'
+        rescheduled: 'Reprogramadas',
+        completed: 'Completadas',
+        no_show: 'No asistio'
       };
       return labels[status] || status || 'Sin estado';
     },
@@ -230,6 +501,18 @@ export default {
     },
     formatNumber: function(value) {
       return normalizeNumber(value).toLocaleString('es-MX');
+    },
+    formatPercent: function(value) {
+      return `${normalizeNumber(value).toLocaleString('es-MX', {
+        maximumFractionDigits: 1
+      })}%`;
+    },
+    formatCurrency: function(value) {
+      return normalizeNumber(value).toLocaleString('es-MX', {
+        style: 'currency',
+        currency: 'MXN',
+        maximumFractionDigits: 0
+      });
     },
     formatDate: function(value) {
       const parts = String(value || '').split('-');
@@ -344,11 +627,17 @@ h3 {
 
 .summary-groups {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
   gap: 0.85rem;
 }
 
 .operation-group,
+.priority-panel,
+.priority-card,
+.economics-panel,
+.economics-card,
+.decision-panel,
+.decision-card,
 .comparison-panel,
 .comparison-card {
   border: 1px solid #e2edf0;
@@ -357,6 +646,7 @@ h3 {
 
 .operation-group {
   display: grid;
+  align-content: flex-start;
   gap: 0.85rem;
   padding: 1rem;
 }
@@ -397,17 +687,17 @@ h3 {
   font-size: 0.82rem;
 }
 
-.mini-metrics,
+.metric-grid,
 .status-list {
   display: grid;
   gap: 0.4rem;
 }
 
-.mini-metrics {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
 }
 
-.mini-metrics span,
+.metric-tile,
 .status-list span {
   display: flex;
   justify-content: space-between;
@@ -417,13 +707,233 @@ h3 {
   background: #ffffff;
 }
 
-.mini-metrics strong,
+.metric-tile strong,
 .status-list strong {
   color: #12313a;
 }
 
+.metric-tile {
+  align-items: baseline;
+  min-width: 0;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.metric-tile strong {
+  flex: 0 0 auto;
+  font-size: 1.12rem;
+}
+
+.interpretation-note {
+  margin: 0;
+  padding: 0.72rem 0.82rem;
+  border: 1px solid #d7ebe8;
+  background: #f5fbfa;
+  color: #475569;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.priority-panel {
+  padding: 1rem;
+  background: #fbfdfc;
+}
+
+.priority-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.priority-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.72rem;
+  padding: 0.9rem;
+  background: #ffffff;
+}
+
+.priority-card .v-icon {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.75rem;
+  color: #0f766e;
+  background: #dff7f4;
+}
+
+.priority-card span,
+.priority-card strong,
+.priority-card small,
+.priority-card em {
+  display: block;
+}
+
+.priority-card span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.priority-card strong {
+  margin-top: 0.12rem;
+  color: #12313a;
+  font-size: 1.22rem;
+}
+
+.priority-card small {
+  margin-top: 0.26rem;
+  color: #475569;
+  line-height: 1.28rem;
+}
+
+.priority-card em {
+  margin-top: 0.42rem;
+  color: #0f766e;
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.25rem;
+}
+
+.priority-card.tone-warning {
+  border-color: #e7dbc3;
+  background: #fffaf0;
+}
+
+.priority-card.tone-danger {
+  border-color: #f5c6c8;
+  background: #fff7f7;
+}
+
+.priority-card.tone-danger .v-icon {
+  color: #b4232a;
+  background: #fde8e8;
+}
+
+.priority-card.tone-success {
+  border-color: #c8eadc;
+  background: #f3fbf7;
+}
+
+.economics-panel {
+  padding: 1rem;
+  background: #fbfdfc;
+}
+
+.economics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.economics-card {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.85rem;
+  background: #ffffff;
+}
+
+.economics-card span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.economics-card strong {
+  color: #12313a;
+  font-size: 1.35rem;
+  line-height: 1.45rem;
+  word-break: break-word;
+}
+
+.economics-card small {
+  color: #64748b;
+  line-height: 1.25rem;
+}
+
+.panel-note {
+  margin-top: 0.9rem;
+}
+
+.decision-panel,
 .comparison-panel {
   padding: 1rem;
+}
+
+.decision-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.decision-heading small {
+  color: #0f766e;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.decision-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.decision-card {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.85rem;
+  background: #ffffff;
+}
+
+.decision-card span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.decision-card strong {
+  color: #12313a;
+  font-size: 1.65rem;
+  line-height: 1.7rem;
+}
+
+.decision-card small {
+  color: #64748b;
+  line-height: 1.2rem;
+}
+
+.decision-card em,
+.comparison-card em {
+  color: #475569;
+  font-size: 0.78rem;
+  font-style: normal;
+  line-height: 1.25rem;
+}
+
+.decision-card.tone-accent {
+  border-color: #b7e4df;
+  background: #f5fdfb;
+}
+
+.decision-card.tone-success {
+  border-color: #c8eadc;
+  background: #f3fbf7;
+}
+
+.decision-card.tone-warning {
+  border-color: #e7dbc3;
+  background: #fffaf0;
+}
+
+.decision-card.tone-neutral {
+  border-color: #e2edf0;
+  background: #ffffff;
 }
 
 .comparison-grid {
@@ -454,33 +964,62 @@ html[data-theme="clinical-night"] h2,
 html[data-theme="clinical-night"] h3,
 html[data-theme="clinical-night"] .widget-state strong,
 html[data-theme="clinical-night"] .group-heading strong,
-html[data-theme="clinical-night"] .mini-metrics strong,
+html[data-theme="clinical-night"] .metric-tile strong,
 html[data-theme="clinical-night"] .status-list strong,
+html[data-theme="clinical-night"] .priority-card strong,
+html[data-theme="clinical-night"] .economics-card strong,
+html[data-theme="clinical-night"] .decision-card strong,
 html[data-theme="clinical-night"] .comparison-card strong {
   color: #e2e8f0;
 }
 
 html[data-theme="clinical-night"] .operation-group,
+html[data-theme="clinical-night"] .priority-panel,
+html[data-theme="clinical-night"] .priority-card,
+html[data-theme="clinical-night"] .economics-panel,
+html[data-theme="clinical-night"] .economics-card,
+html[data-theme="clinical-night"] .decision-panel,
+html[data-theme="clinical-night"] .decision-card,
 html[data-theme="clinical-night"] .comparison-panel,
 html[data-theme="clinical-night"] .comparison-card,
-html[data-theme="clinical-night"] .mini-metrics span,
+html[data-theme="clinical-night"] .metric-tile,
 html[data-theme="clinical-night"] .status-list span {
   border-color: rgba(148, 163, 184, 0.18);
   background: rgba(30, 41, 59, 0.76);
 }
 
 html[data-theme="clinical-night"] .group-heading span,
+html[data-theme="clinical-night"] .metric-tile,
 html[data-theme="clinical-night"] .status-list span,
+html[data-theme="clinical-night"] .priority-card span,
+html[data-theme="clinical-night"] .priority-card small,
+html[data-theme="clinical-night"] .economics-card span,
+html[data-theme="clinical-night"] .economics-card small,
+html[data-theme="clinical-night"] .decision-card span,
+html[data-theme="clinical-night"] .decision-card small,
+html[data-theme="clinical-night"] .decision-card em,
 html[data-theme="clinical-night"] .comparison-heading small,
 html[data-theme="clinical-night"] .comparison-card span,
 html[data-theme="clinical-night"] .comparison-card small,
+html[data-theme="clinical-night"] .comparison-card em,
 html[data-theme="clinical-night"] .widget-state p,
 html[data-theme="clinical-night"] .widget-state {
   color: #94a3b8;
 }
 
+html[data-theme="clinical-night"] .priority-card em {
+  color: #5eead4;
+}
+
+html[data-theme="clinical-night"] .interpretation-note {
+  border-color: rgba(45, 212, 191, 0.18);
+  background: rgba(15, 23, 42, 0.58);
+  color: #cbd5e1;
+}
+
 @media (max-width: 1100px) {
   .summary-groups,
+  .decision-grid,
   .comparison-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -493,8 +1032,9 @@ html[data-theme="clinical-night"] .widget-state {
   }
 
   .summary-groups,
+  .decision-grid,
   .comparison-grid,
-  .mini-metrics {
+  .metric-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -44,6 +44,7 @@
             </div>
             <div class="professional-copy">
               <strong>{{ item.label || 'Profesional sin alias' }}</strong>
+              <span class="professional-role">{{ item.roleLabel || 'Rol sin etiqueta' }}</span>
               <span>{{ formatNumber(totalActivity(item)) }} movimientos registrados</span>
             </div>
           </div>
@@ -58,8 +59,16 @@
               {{ formatNumber(item.prescriptionsIssued) }} recetas
             </span>
             <span>
+              <v-icon size="16">mdi-clipboard-plus-outline</v-icon>
+              {{ formatNumber(item.clinicalHistoriesCreated) }} creadas
+            </span>
+            <span>
+              <v-icon size="16">mdi-clipboard-edit-outline</v-icon>
+              {{ formatNumber(item.clinicalHistoriesUpdated) }} editadas
+            </span>
+            <span>
               <v-icon size="16">mdi-clipboard-check-outline</v-icon>
-              {{ formatNumber(item.clinicalHistoriesFinalized) }} historias
+              {{ formatNumber(item.clinicalHistoriesFinalized) }} finalizadas
             </span>
             <span>
               <v-icon size="16">mdi-file-sign-outline</v-icon>
@@ -107,10 +116,14 @@ export default {
     totals: function() {
       return this.items.reduce((acc, item) => ({
         prescriptionsIssued: acc.prescriptionsIssued + normalizeNumber(item.prescriptionsIssued),
+        clinicalHistoriesCreated: acc.clinicalHistoriesCreated + normalizeNumber(item.clinicalHistoriesCreated),
+        clinicalHistoriesUpdated: acc.clinicalHistoriesUpdated + normalizeNumber(item.clinicalHistoriesUpdated),
         clinicalHistoriesFinalized: acc.clinicalHistoriesFinalized + normalizeNumber(item.clinicalHistoriesFinalized),
         documentsSigned: acc.documentsSigned + normalizeNumber(item.documentsSigned)
       }), {
         prescriptionsIssued: 0,
+        clinicalHistoriesCreated: 0,
+        clinicalHistoriesUpdated: 0,
         clinicalHistoriesFinalized: 0,
         documentsSigned: 0
       });
@@ -118,8 +131,10 @@ export default {
     totalMetrics: function() {
       return [
         { key: 'professionals', label: 'Profesionales', value: this.items.length },
+        { key: 'clinicalHistoriesCreated', label: 'Historias creadas', value: this.totals.clinicalHistoriesCreated },
+        { key: 'clinicalHistoriesUpdated', label: 'Historias editadas', value: this.totals.clinicalHistoriesUpdated },
+        { key: 'clinicalHistoriesFinalized', label: 'Historias finalizadas', value: this.totals.clinicalHistoriesFinalized },
         { key: 'prescriptionsIssued', label: 'Recetas', value: this.totals.prescriptionsIssued },
-        { key: 'clinicalHistoriesFinalized', label: 'Historias', value: this.totals.clinicalHistoriesFinalized },
         { key: 'documentsSigned', label: 'Documentos', value: this.totals.documentsSigned }
       ];
     },
@@ -134,6 +149,8 @@ export default {
   methods: {
     totalActivity: function(item) {
       return normalizeNumber(item.prescriptionsIssued)
+        + normalizeNumber(item.clinicalHistoriesCreated)
+        + normalizeNumber(item.clinicalHistoriesUpdated)
         + normalizeNumber(item.clinicalHistoriesFinalized)
         + normalizeNumber(item.documentsSigned);
     },
@@ -268,7 +285,7 @@ h2 {
 
 .total-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(7.4rem, 1fr));
   gap: 0.65rem;
 }
 
@@ -338,6 +355,19 @@ h2 {
   font-size: 0.84rem;
 }
 
+.professional-copy .professional-role {
+  display: inline-flex;
+  width: fit-content;
+  margin: 0.24rem 0;
+  padding: 0.12rem 0.5rem;
+  border: 1px solid #cfece7;
+  border-radius: 999px;
+  color: #0f766e;
+  background: #f3fbf9;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
 .activity-bar {
   height: 0.48rem;
   border-radius: 999px;
@@ -350,7 +380,7 @@ h2 {
   height: 100%;
   max-width: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #0f766e, #0891b2);
+  background: linear-gradient(90deg, #0f766e, #4f9d99);
 }
 
 .metric-chips {
@@ -399,6 +429,7 @@ html[data-theme="clinical-night"] .professional-copy span {
 
 html[data-theme="clinical-night"] .total-card,
 html[data-theme="clinical-night"] .professional-row,
+html[data-theme="clinical-night"] .professional-copy .professional-role,
 html[data-theme="clinical-night"] .metric-chips span {
   border-color: rgba(148, 163, 184, 0.18);
   background: rgba(30, 41, 59, 0.76);

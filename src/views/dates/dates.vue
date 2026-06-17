@@ -71,8 +71,8 @@
     </div>
 
     <v-dialog v-model="followUpDialog" max-width="1100">
-      <v-card>
-        <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
+      <v-card class="follow-up-card">
+        <div class="follow-up-header">
           <div>
             <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Seguimiento</p>
             <h3 class="m-0 mt-1 text-gray-700 text-xl font-semibold">Pacientes por seguimiento</h3>
@@ -82,14 +82,71 @@
             <v-icon color="#9CA3AF">mdi-close</v-icon>
           </v-btn>
         </div>
-        <v-card-text class="pt-5">
-          <da-datatable :headers="headers" :values="allMonitorings" :elevation="1" :hidesearch="false">
-            <template #action="{ data }">
-              <da-button-900 @click.native="goTo(data.telephone,data.name,data.quote_date_after)" :label="'Contactar'" r2xl swpr class="w-full px-2 tracking-wider rounded-md">
-                <v-icon small color="white">mdi mdi-whatsapp</v-icon>
-              </da-button-900>
-            </template>
-          </da-datatable>
+        <v-card-text class="follow-up-body">
+          <div class="follow-up-search">
+            <v-text-field
+              v-model="followUpSearch"
+              append-icon="mdi-magnify"
+              label="Termino de busqueda"
+              outlined
+              dense
+              hide-details
+              :color="themePrimaryColor"
+            ></v-text-field>
+          </div>
+
+          <div class="follow-up-table-shell">
+            <div class="follow-up-table-scroll">
+              <table class="follow-up-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Prox. Cita</th>
+                    <th>Prox. Tratamiento</th>
+                    <th>Telefono</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(patient, index) in filteredFollowUps" :key="followUpKey(patient, index)">
+                    <td>
+                      <span class="follow-up-name">{{ patient.name || 'Paciente' }}</span>
+                    </td>
+                    <td>{{ patient.quote_date_after || '-' }}</td>
+                    <td>{{ patient.treatment_after || '-' }}</td>
+                    <td>{{ patient.telephone || '-' }}</td>
+                    <td>
+                      <div class="follow-up-actions">
+                        <button
+                          v-if="canOpenFollowUpRecord(patient)"
+                          type="button"
+                          class="follow-up-record-button"
+                          @click="openFollowUpRecord(patient)"
+                        >
+                          <v-icon size="17">mdi-folder-account-outline</v-icon>
+                          <span>Expediente</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="follow-up-contact-button"
+                          :disabled="!patient.telephone"
+                          @click="goTo(patient.telephone, patient.name, patient.quote_date_after)"
+                        >
+                          <span>Contactar</span>
+                          <v-icon size="17">mdi-whatsapp</v-icon>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div v-if="!filteredFollowUps.length" class="follow-up-empty">
+              <v-icon size="26">mdi-account-search-outline</v-icon>
+              <p>No se encontraron pacientes por seguimiento.</p>
+            </div>
+          </div>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -107,6 +164,14 @@
         </div>
 
         <v-card-text class="pt-5">
+          <div v-if="isEditingCompletedAppointment" class="completed-appointment-alert">
+            <v-icon size="22">mdi-alert-circle-outline</v-icon>
+            <div>
+              <strong>Cita completada</strong>
+              <p>Los cambios a esta cita pueden alterar el historial clinico y operativo del paciente. Revisa antes de guardar.</p>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <v-text-field v-model="editingAppointment.date" type="date" label="Fecha" outlined dense :color="themePrimaryColor" @change="refreshDialogEndTime"></v-text-field>
             <v-select v-model="editingAppointment.startTime" :items="dialogAvailableTimes" item-text="label" item-value="value" label="Hora" outlined dense :color="themePrimaryColor" @change="refreshDialogEndTime"></v-select>
@@ -146,39 +211,43 @@
 
           <v-text-field v-model="editingAppointment.patientName" label="Nombre del paciente" hint="Usa este campo si es paciente nuevo o no tiene expediente." persistent-hint outlined dense :color="themePrimaryColor"></v-text-field>
           <div class="appointment-contact-row">
-            <v-text-field
-              v-model="editingAppointment.contactPhone"
-              label="Telefono de contacto / WhatsApp"
-              hint="Se usara solo para confirmar o contactar esta cita."
-              persistent-hint
-              outlined
-              dense
-              counter="40"
-              maxlength="40"
-              :color="themePrimaryColor"
-              class="appointment-contact-field"
-              @blur="normalizeAppointmentContactPhone"
-            ></v-text-field>
-            <v-tooltip bottom>
-              <template #activator="{ on, attrs }">
-                <span
-                  class="appointment-whatsapp-trigger"
-                  v-bind="attrs"
-                  v-on="on"
-                >
-                  <button
-                    type="button"
-                    class="appointment-whatsapp-button"
-                    :class="{ disabled: !canOpenAppointmentWhatsApp }"
-                    :disabled="!canOpenAppointmentWhatsApp"
-                    @click="openAppointmentWhatsApp"
+            <div class="appointment-contact-control">
+              <v-text-field
+                v-model="editingAppointment.contactPhone"
+                label="Telefono de contacto / WhatsApp"
+                outlined
+                dense
+                maxlength="40"
+                :color="themePrimaryColor"
+                class="appointment-contact-field"
+                hide-details
+                @blur="normalizeAppointmentContactPhone"
+              ></v-text-field>
+              <v-tooltip bottom>
+                <template #activator="{ on, attrs }">
+                  <span
+                    class="appointment-whatsapp-trigger"
+                    v-bind="attrs"
+                    v-on="on"
                   >
-                    <v-icon size="20">mdi-whatsapp</v-icon>
-                  </button>
-                </span>
-              </template>
-              <span>{{ appointmentWhatsAppTooltip }}</span>
-            </v-tooltip>
+                    <button
+                      type="button"
+                      class="appointment-whatsapp-button"
+                      :class="{ disabled: !canOpenAppointmentWhatsApp }"
+                      :disabled="!canOpenAppointmentWhatsApp"
+                      @click="openAppointmentWhatsApp"
+                    >
+                      <v-icon size="20">mdi-whatsapp</v-icon>
+                    </button>
+                  </span>
+                </template>
+                <span>{{ appointmentWhatsAppTooltip }}</span>
+              </v-tooltip>
+            </div>
+            <div class="appointment-contact-meta">
+              <span>Se usara solo para confirmar o contactar esta cita.</span>
+              <span>{{ contactPhoneCharacterCount }} / 40</span>
+            </div>
           </div>
           <v-text-field v-model="editingAppointment.title" label="Motivo o titulo" outlined dense :color="themePrimaryColor"></v-text-field>
           <v-textarea v-model="editingAppointment.description" label="Descripcion" outlined dense :color="themePrimaryColor" rows="3"></v-textarea>
@@ -191,6 +260,32 @@
           <da-button-secondary @click.native="closeDialog()" :label="'Cerrar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-secondary>
           <da-button-900 v-if="editingAppointment.id" @click.native="cancelAppointment()" :label="'Cancelar cita'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-900>
           <da-button-primary @click.native="saveAppointment()" :label="'Guardar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-primary>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="completedEditConfirmDialog" max-width="520">
+      <v-card class="completed-confirm-card">
+        <div class="completed-confirm-header">
+          <v-icon size="24">mdi-alert-circle-outline</v-icon>
+          <div>
+            <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Confirmar cambio</p>
+            <h3 class="m-0 mt-1 text-gray-700 text-lg font-semibold">Esta cita ya estaba completada</h3>
+          </div>
+        </div>
+        <div class="completed-confirm-body">
+          <p>
+            Modificar una cita completada puede cambiar el historial de atencion del paciente.
+            Continua solo si estas corrigiendo un dato capturado por error.
+          </p>
+        </div>
+        <v-card-actions class="completed-confirm-actions">
+          <button type="button" class="completed-confirm-secondary" @click="dismissCompletedAppointmentEdit">
+            Volver a revisar
+          </button>
+          <button type="button" class="completed-confirm-primary" @click="confirmCompletedAppointmentEdit">
+            Continuar y guardar
+          </button>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -275,6 +370,9 @@ export default {
       appointments: getAppointments(),
       appointmentDialog: false,
       followUpDialog: false,
+      completedEditConfirmDialog: false,
+      completedEditAcknowledged: false,
+      completedEditPendingAction: '',
       dialogError: '',
       editingAppointment: {},
       originalAppointment: null,
@@ -286,13 +384,7 @@ export default {
       patientSearchRequestId: 0,
       patientSearchAbortController: null,
       patientSearchCache: Object.create(null),
-      headers: [
-        { text: 'Nombre', value: 'name' },
-        { text: 'Prox. Cita', value: 'quote_date_after' },
-        { text: 'Prox. Tratamiento', value: 'treatment_after' },
-        { text: 'Telefono', value: 'telephone' },
-        { text: 'Accion', value: 'action' }
-      ],
+      followUpSearch: '',
       statusLegend: [
         { status: APPOINTMENT_STATUSES.AVAILABLE, label: 'Disponible' },
         { status: APPOINTMENT_STATUSES.BLOCKED, label: 'Bloqueado' },
@@ -316,6 +408,9 @@ export default {
   computed: {
     ...mapGetters(moduleTypes.MONITORING, {
       allMonitorings: fnTypes.getAllTracing
+    }),
+    ...mapGetters(moduleTypes.AUTH, {
+      hasPermission: fnTypes.hasPermission
     }),
 
     weekDates: function() {
@@ -404,6 +499,34 @@ export default {
       return 'Sin coincidencias'
     },
 
+    filteredFollowUps: function() {
+      const query = normalizePatientSearchText(this.followUpSearch).toLowerCase()
+      const rows = this.allMonitorings || []
+
+      if(!query) {
+        return rows
+      }
+
+      return rows.filter((patient) => [
+        patient.name,
+        patient.quote_date_after,
+        patient.treatment_after,
+        patient.telephone
+      ].some((value) => String(value || '').toLowerCase().includes(query)))
+    },
+
+    canOpenPatientRecords: function() {
+      return typeof this.hasPermission === 'function' && this.hasPermission('px.all')
+    },
+
+    isEditingCompletedAppointment: function() {
+      return Boolean(
+        this.originalAppointment
+        && this.originalAppointment.id
+        && this.originalAppointment.status === APPOINTMENT_STATUSES.COMPLETED
+      )
+    },
+
     dialogTitle: function() {
       if(!this.editingAppointment.date || !this.editingAppointment.startTime) {
         return 'Selecciona fecha y hora'
@@ -432,6 +555,10 @@ export default {
 
     canOpenAppointmentWhatsApp: function() {
       return hasWhatsAppPhone(this.editingAppointment ? this.editingAppointment.contactPhone : '')
+    },
+
+    contactPhoneCharacterCount: function() {
+      return String(this.editingAppointment && this.editingAppointment.contactPhone || '').length
     },
 
     appointmentWhatsAppTooltip: function() {
@@ -710,6 +837,9 @@ export default {
         contactPhone: normalizeAppointmentContactPhoneValue(appointment && (appointment.contactPhone || appointment.contact_phone))
       })
       this.originalAppointment = appointment && appointment.id ? Object.assign({}, appointment) : null
+      this.completedEditAcknowledged = false
+      this.completedEditPendingAction = ''
+      this.completedEditConfirmDialog = false
       this.resetPatientSearchState()
       this.refreshDialogEndTime()
       this.appointmentDialog = true
@@ -720,6 +850,9 @@ export default {
       this.dialogError = ''
       this.editingAppointment = {}
       this.originalAppointment = null
+      this.completedEditAcknowledged = false
+      this.completedEditPendingAction = ''
+      this.completedEditConfirmDialog = false
       this.resetPatientSearchState()
     },
 
@@ -738,6 +871,29 @@ export default {
         && this.originalAppointment
         && this.editingAppointment.status === APPOINTMENT_STATUSES.RESCHEDULED
         && this.hasAppointmentTimeChanged()
+    },
+
+    shouldConfirmCompletedAppointmentEdit: function() {
+      return this.isEditingCompletedAppointment && !this.completedEditAcknowledged
+    },
+
+    dismissCompletedAppointmentEdit: function() {
+      this.completedEditConfirmDialog = false
+      this.completedEditPendingAction = ''
+    },
+
+    confirmCompletedAppointmentEdit: async function() {
+      const action = this.completedEditPendingAction || 'save'
+      this.completedEditAcknowledged = true
+      this.completedEditConfirmDialog = false
+      this.completedEditPendingAction = ''
+
+      if(action === 'cancel') {
+        await this.cancelAppointment()
+        return
+      }
+
+      await this.saveAppointment()
     },
 
     saveRescheduledAppointment: async function() {
@@ -804,6 +960,12 @@ export default {
         return
       }
 
+      if(this.shouldConfirmCompletedAppointmentEdit()) {
+        this.completedEditPendingAction = 'save'
+        this.completedEditConfirmDialog = true
+        return
+      }
+
       if(this.shouldCreateRescheduledAppointment()) {
         await this.saveRescheduledAppointment()
         return
@@ -839,6 +1001,12 @@ export default {
     },
 
     cancelAppointment: async function() {
+      if(this.shouldConfirmCompletedAppointmentEdit()) {
+        this.completedEditPendingAction = 'cancel'
+        this.completedEditConfirmDialog = true
+        return
+      }
+
       this.editingAppointment.status = APPOINTMENT_STATUSES.CANCELLED
       this.editingAppointment.blocksAvailability = false
       await this.saveAppointment()
@@ -948,6 +1116,34 @@ export default {
       return `background:${colors.text};border-color:${colors.border};`
     },
 
+    followUpKey: function(patient, index) {
+      return [
+        patient.id_tracing,
+        patient.id_person,
+        patient.telephone,
+        patient.quote_date_after,
+        patient.name,
+        index
+      ].filter((item) => item).join('-')
+    },
+
+    followUpPatientId: function(patient) {
+      return patient ? (patient.id_person || patient.patientId || patient.id || '') : ''
+    },
+
+    canOpenFollowUpRecord: function(patient) {
+      return this.canOpenPatientRecords && Boolean(this.followUpPatientId(patient))
+    },
+
+    openFollowUpRecord: function(patient) {
+      if(!this.canOpenFollowUpRecord(patient)) {
+        return
+      }
+
+      this.followUpDialog = false
+      this.$router.push(`/px/history/${this.followUpPatientId(patient)}`).catch(() => {})
+    },
+
     goTo(phone,nombre,fecha){
       const message = buildAppointmentWhatsAppMessage({
         patientName: nombre,
@@ -960,12 +1156,267 @@ export default {
   watch: {
     selectedDate: function() {
       this.reloadAppointments()
+    },
+    followUpDialog: function(value) {
+      if(value) {
+        this.followUpSearch = ''
+      }
     }
   }
 }
 </script>
 
 <style scoped>
+.follow-up-card {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.follow-up-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.5rem 1.25rem;
+  border-bottom: 1px solid #e5eef1;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfefe 100%);
+}
+
+.follow-up-body {
+  padding: 1.35rem 1.5rem 1.5rem !important;
+}
+
+.follow-up-search {
+  max-width: 28rem;
+  margin-bottom: 1rem;
+}
+
+.follow-up-table-shell {
+  border: 1px solid #dcebed;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.follow-up-table-scroll {
+  width: 100%;
+  max-height: min(56vh, 35rem);
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.follow-up-table {
+  width: 100%;
+  min-width: 790px;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #334155;
+  font-size: 0.88rem;
+}
+
+.follow-up-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.82rem 1rem;
+  border-bottom: 1px solid #dcebed;
+  color: #0f766e;
+  background: #f1fbfa;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.follow-up-table th:last-child {
+  text-align: center;
+}
+
+.follow-up-table td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #edf4f5;
+  background: #ffffff;
+  vertical-align: middle;
+}
+
+.follow-up-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.follow-up-table tbody tr:hover td {
+  background: #fbfefe;
+}
+
+.follow-up-name {
+  display: block;
+  color: #12313a;
+  font-weight: 800;
+}
+
+.follow-up-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.follow-up-record-button,
+.follow-up-contact-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 8.5rem;
+  min-height: 2.15rem;
+  padding: 0 0.85rem;
+  border: 1px solid #b7e4df;
+  border-radius: 8px;
+  color: #0f766e;
+  background: #f0fdfa;
+  font-size: 0.82rem;
+  font-weight: 900;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.follow-up-record-button {
+  color: #0f766e;
+  background: #ffffff;
+}
+
+.follow-up-record-button .v-icon,
+.follow-up-contact-button .v-icon {
+  color: currentColor;
+}
+
+.follow-up-record-button:not(:disabled):hover,
+.follow-up-record-button:not(:disabled):focus,
+.follow-up-contact-button:not(:disabled):hover,
+.follow-up-contact-button:not(:disabled):focus {
+  border-color: #0f766e;
+  color: #ffffff;
+  background: #0f766e;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.follow-up-contact-button:disabled {
+  border-color: #d5d9de;
+  color: #94a3b8;
+  background: #f8fafc;
+  cursor: not-allowed;
+}
+
+.follow-up-empty {
+  display: grid;
+  place-items: center;
+  gap: 0.35rem;
+  min-height: 8rem;
+  padding: 1.25rem;
+  border-top: 1px solid #edf4f5;
+  color: #64748b;
+  text-align: center;
+}
+
+.follow-up-empty .v-icon {
+  color: #0f766e;
+}
+
+.follow-up-empty p {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.completed-appointment-alert {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #fde3bd;
+  border-radius: 8px;
+  color: #6f4b12;
+  background: #fffaf0;
+}
+
+.completed-appointment-alert .v-icon {
+  color: #b7791f;
+}
+
+.completed-appointment-alert strong {
+  display: block;
+  color: #4f4634;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.completed-appointment-alert p {
+  margin: 0.15rem 0 0;
+  color: #6f4b12;
+  font-size: 0.82rem;
+  line-height: 1.25rem;
+}
+
+.completed-confirm-card {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.completed-confirm-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+  padding: 1.25rem 1.35rem 1rem;
+  border-bottom: 1px solid #edf1f3;
+  background: #ffffff;
+}
+
+.completed-confirm-header .v-icon {
+  color: #b7791f;
+}
+
+.completed-confirm-body {
+  padding: 1rem 1.35rem;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.45rem;
+}
+
+.completed-confirm-body p {
+  margin: 0;
+}
+
+.completed-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 0 1.35rem 1.25rem !important;
+}
+
+.completed-confirm-secondary,
+.completed-confirm-primary {
+  min-height: 2.35rem;
+  padding: 0 0.95rem;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.completed-confirm-secondary {
+  border: 1px solid #dcebed;
+  color: #475569;
+  background: #ffffff;
+}
+
+.completed-confirm-primary {
+  border: 1px solid #0f766e;
+  color: #ffffff;
+  background: #0f766e;
+}
+
 .agenda-grid {
   display: grid;
   grid-template-columns: 76px repeat(7, minmax(142px, 1fr));
@@ -997,14 +1448,15 @@ export default {
 }
 
 .appointment-contact-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  display: block;
+  margin-bottom: 1rem;
 }
 
-.appointment-contact-field {
-  flex: 1 1 auto;
-  min-width: 0;
+.appointment-contact-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.65rem;
+  align-items: start;
+  gap: 0.6rem;
 }
 
 .appointment-whatsapp-trigger {
@@ -1048,7 +1500,51 @@ export default {
   transform: none;
 }
 
+.appointment-contact-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  padding: 0 0.25rem;
+  color: #6b7280;
+  font-size: 0.74rem;
+  line-height: 1.15;
+}
+
+.appointment-contact-meta span:first-child {
+  min-width: 0;
+}
+
+.appointment-contact-meta span:last-child {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
+  .follow-up-header {
+    padding: 1.1rem 1rem 1rem;
+  }
+
+  .follow-up-body {
+    padding: 1rem !important;
+  }
+
+  .follow-up-search {
+    max-width: none;
+  }
+
+  .follow-up-actions,
+  .completed-confirm-actions {
+    justify-content: stretch;
+  }
+
+  .follow-up-record-button,
+  .follow-up-contact-button,
+  .completed-confirm-secondary,
+  .completed-confirm-primary {
+    width: 100%;
+  }
+
   .appointment-dialog-actions {
     justify-content: stretch !important;
   }
@@ -1057,17 +1553,21 @@ export default {
     width: 100%;
   }
 
-  .appointment-contact-row {
-    align-items: stretch;
-    flex-direction: column;
+  .appointment-contact-control {
+    grid-template-columns: minmax(0, 1fr) 2.45rem;
+    gap: 0.45rem;
   }
 
   .appointment-whatsapp-button {
-    width: 100%;
+    width: 2.38rem;
+    height: 2.38rem;
+    flex-basis: 2.38rem;
   }
 
-  .appointment-whatsapp-trigger {
-    width: 100%;
+  .appointment-contact-meta {
+    align-items: flex-start;
+    font-size: 0.72rem;
+    padding-right: 0;
   }
 }
 </style>

@@ -18,6 +18,7 @@ const actions = {
                 commit(types.SET_ADD_MONITORING,[])
                 commit(types.SET_MONITORING_EXCEPTION, new DAHasErrorModel(true, response.message) )
             }
+            return response
     },
 
         /**
@@ -34,6 +35,7 @@ const actions = {
                 commit(types.SET_UPD_MONITORING,[])
                 commit(types.SET_MONITORING_EXCEPTION, new DAHasErrorModel(true, response.message) )
             }
+            return response
     },
 
     /**
