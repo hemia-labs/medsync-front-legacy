@@ -1,8 +1,10 @@
 <template>
     <aside class="admin-settings-sidebar">
         <div class="sticky top-24 bg-white border border-gray-200 shadow-md p-3">
+          <div v-for="group in groups" :key="group.label">
+            <p class="px-4 pt-3 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider">{{ group.label }}</p>
             <button
-                v-for="section in sections"
+                v-for="section in group.sections"
                 :key="section.key"
                 type="button"
                 class="w-full text-left px-4 py-3 mb-2 border transition duration-150 ease-in-out"
@@ -17,12 +19,23 @@
                     </div>
                 </div>
             </button>
+          </div>
         </div>
     </aside>
 </template>
 
 <script>
 export default {
+    computed: {
+        groups() {
+            return this.sections.reduce((groups,section)=>{
+                let group=groups.find(item=>item.label===section.scope)
+                if(!group) {group={label:section.scope,sections:[]};groups.push(group)}
+                group.sections.push(section)
+                return groups
+            },[])
+        }
+    },
     props: {
         sections: {
             type: Array,

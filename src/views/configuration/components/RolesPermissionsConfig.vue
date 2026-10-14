@@ -13,7 +13,15 @@
     </div>
 
     <v-alert type="info" dense text class="mb-4">
-      Los cambios aplican a todos los usuarios que tengan este puesto.
+      Los cambios aplican a los usuarios con este puesto dentro de este consultorio. Las otras clinicas conservan sus accesos.
+      Los accesos administrativos se reservan al puesto administrador y se conservan para evitar perder acceso al consultorio.
+    </v-alert>
+
+    <v-alert type="info" dense text class="mb-4">
+      Recepción: agenda y ficha administrativa; habilita «Captura inicial en recepción» sólo si puede registrar el motivo y relato del paciente.
+      Asistencia clínica: asigna por separado consulta de historia, borradores, seguimiento y tratamientos según sus funciones.
+      Finalizar, emitir y firmar conservan sus permisos y requisitos profesionales. Los indicadores económicos requieren autorización explícita;
+      «Todo el consultorio» amplía únicamente las familias de indicadores ya autorizadas.
     </v-alert>
 
     <v-alert v-if="errorMessage" type="error" dense text class="mb-4">
@@ -103,7 +111,7 @@
                     <v-switch
                       v-model="selectedPermissions"
                       :value="permission.code"
-                      :disabled="isPermissionLocked(permission)"
+                      :disabled="isPermissionLocked(permission) || isAdministrativePermission(permission)"
                       color="primary"
                       hide-details
                       dense
@@ -129,6 +137,10 @@
 
 <script>
 import { DARolService } from '../../../services/context/core-proccess-context';
+import moduleTypes from '../../../store/modules/common/module-types';
+import fnTypes from '../../../store/modules/common/fn-types';
+import mutationTypes from '../../../store/modules/common/mutation-types';
+import { isD2AuthMode } from '../../../services/config/authTransport.config';
 
 export default {
   data: function() {
@@ -242,6 +254,11 @@ export default {
           .filter((permission) => permission.allowed)
           .map((permission) => permission.code);
         this.successMessage = 'Accesos actualizados correctamente.';
+        if(isD2AuthMode()) await this.$store.dispatch(`${moduleTypes.AUTH}/${fnTypes.getToken}`);
+        else {
+          const actor=this.$store.getters[`${moduleTypes.AUTH}/${fnTypes.getUser}`] || {};
+          if(actor.id_rol===this.selectedRoleId) this.$store.commit(`${moduleTypes.AUTH}/${mutationTypes.SET_AUTH_PERMISSIONS}`,this.selectedPermissions);
+        }
       } else {
         this.errorMessage = this.buildErrorMessage(response);
       }
@@ -260,6 +277,7 @@ export default {
     isPermissionPremium: function(permission) {
       return Boolean(permission && permission.licensing && permission.licensing.isPremium);
     },
+    isAdministrativePermission(permission) { return ['admin.users','admin.config'].includes(permission.code); },
 
     isPermissionLocked: function(permission) {
       const isSelected = this.selectedPermissions.includes(permission.code);

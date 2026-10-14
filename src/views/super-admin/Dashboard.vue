@@ -483,7 +483,7 @@ export default {
     fetchBusinesses: async function() {
       this.isLoadingBusinesses = true;
 
-      const response = await DASuperAdminService.getBusinesses({
+      const response = await DASuperAdminService.getBusinessOptions({
         page: 1,
         pageSize: 100,
         sortBy: 'name',

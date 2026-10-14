@@ -8,6 +8,12 @@ import {
 import { DACore } from '../../config/axios.context';
 
 export default {
+    getIntake(idPerson) {
+        return DACore.get(`${DAC_CLINICAL_HISTORY_PATIENT}${idPerson}/intake`);
+    },
+    saveIntake(idPerson, data) {
+        return DACore.put(`${DAC_CLINICAL_HISTORY_PATIENT}${idPerson}/intake`, data);
+    },
     getByPatient(idPerson) {
         return DACore.get(DAC_CLINICAL_HISTORY_PATIENT + idPerson);
     },
@@ -23,8 +29,8 @@ export default {
     updateDraft(idClinicalHistory, data) {
         return DACore.put(`${DAC_CLINICAL_HISTORY_GET}${idClinicalHistory}/draft`, data);
     },
-    finalize(idClinicalHistory) {
-        return DACore.post(`${DAC_CLINICAL_HISTORY_FINALIZE}${idClinicalHistory}/finalize`);
+    finalize(idClinicalHistory, expectedRevision) {
+        return DACore.post(`${DAC_CLINICAL_HISTORY_FINALIZE}${idClinicalHistory}/finalize`, { expected_revision: expectedRevision });
     },
     markPrinted(idClinicalHistory) {
         return DACore.post(`${DAC_CLINICAL_HISTORY_GET}${idClinicalHistory}/printed`);

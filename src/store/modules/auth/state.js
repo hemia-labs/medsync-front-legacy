@@ -18,6 +18,7 @@ const state = () => {
         tenantOperational: !d2Mode && session ? session.get('tenantOperational') : null,
         accessExpiresAt: null,
         sessionState:   null,
+        accessRevision: 0,
         user:           null,
         security:       null,
         hasError:       new DAHasErrorModel(),

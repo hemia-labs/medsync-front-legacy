@@ -3,6 +3,7 @@ import Vue from 'vue';
 import decode from 'jwt-decode';
 import { setSessionPermissions, normalizePermissions } from '../../../security/permissions';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
+import { authorizationFingerprint } from '../../../security/authorizationContext';
 
 const getSessionPayload = (payload) => payload && payload.data ? payload.data : payload;
 
@@ -132,6 +133,29 @@ const mutations = {
         state.sessionState = sessionPayload.sessionState || null
         state.unauthorized = false
     },
+    [types.SET_AUTH_ACCESS_SESSION] (state, payload) {
+        const session = getSessionPayload(payload);
+        if(!session || !session.authenticated) { setAnonymousRuntimeState(state); return; }
+        state.authenticated = true;
+        state.user = session.user || null;
+        state.role = getRoleCode(session);
+        state.permissions = normalizePermissions(session.permissions);
+        state.business = session.business || null;
+        state.tenantOperational = session.tenantOperational || null;
+        state.sessionState = session.sessionState || null;
+        state.unauthorized = false;
+        if(!isD2AuthMode()) {
+            if(session.accessToken) {
+                state.token = session.accessToken;
+                state.refreshtoken = session.refreshToken || null;
+                Vue.prototype.$session.set('token', state.token);
+                Vue.prototype.$session.set('refreshtoken', state.refreshtoken);
+            }
+            setSessionPermissions(Vue.prototype.$session, state.permissions);
+            Vue.prototype.$session.set('business', state.business);
+            Vue.prototype.$session.set('tenantOperational', state.tenantOperational);
+        }
+    },
     [types.SET_AUTH_LOGIN_EXCEPTION] (state, payload) {
         if(payload) {
             state.hasError = payload
@@ -181,4 +205,12 @@ const mutations = {
     },
 }
 
-export default mutations
+// Only access identity/rights changes invalidate protected views. Token renewal,
+// expiry timestamps and unrelated UI flags do not interrupt an open form.
+export default Object.fromEntries(Object.entries(mutations).map(([key, mutate]) => [key, (state, payload) => {
+    const before = authorizationFingerprint(state);
+    mutate(state, payload);
+    if(before !== authorizationFingerprint(state) || (key === types.SET_AUTH_ACCESS_SESSION && !payload)) {
+        state.accessRevision = (state.accessRevision || 0) + 1;
+    }
+}]))

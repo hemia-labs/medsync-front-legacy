@@ -500,36 +500,9 @@
   <da-header-title :title="'Alergias'" class="font-medium tracking-wider" />
 
   <div class="px-5 py-5">
-    <div class="grid px-1 py-1 gap-5">
-      <div class="flex items-center gap-2 text-gray-500 " >
-        ¿Presenta alguna alergia?
-        <div class="flex gap-2">
-          <v-checkbox
-            :label="'Sí'"
-            color="gray"
-            v-model="$v.patient.allergy.has_allergy.$model"
-            hide-details
-            class="mt-0 pt-0"
-            :disabled="isReadOnly"
-            :error="$v.patient.allergy.has_allergy.$invalid && $v.patient.allergy.has_allergy.$anyDirty" 
-          ></v-checkbox>
-
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-1 px-1 py-1 gap-5" >
-            <da-text-area-primary 
-                v-if="patient.allergy.has_allergy"
-                :label="'Mencione cuales:'"
-                :value="$v.patient.allergy.description"
-                v-model="$v.patient.allergy.description.$model"
-                text
-                :error="$v.patient.allergy.description.$invalid && $v.patient.allergy.description.$anyDirty" 
-                outlined
-                :disabled="isReadOnly"
-            />
-        </div>
-    </div>
+    <AllergyFields v-if="!id" v-model="patient.allergy" :disabled="isReadOnly" group-name="new-patient-allergies" />
+    <div v-else><strong>{{ allergyStateLabel }}</strong><p>{{ patient.allergy.description }}</p><button v-if="!isReadOnly" type="button" class="px-4 py-3 rounded-full border" @click="showAllergyEditor = true">Revisar alergias</button></div>
+    <AllergyEditor v-if="id" v-model="showAllergyEditor" :patient-id="id" :patient-name="patient.person.name" :record="patient.allergy" @saved="onAllergyReviewed" />
   </div>
 
 
@@ -627,6 +600,9 @@
 
 <script>
 import DAFamilyModel from '../../models/patient/DAFamily.model';
+import AllergyFields from './components/AllergyFields.vue';
+import AllergyEditor from './components/AllergyEditor.vue';
+import { allergyLabels, allergyStatus } from '../../domain/patient/allergy';
 import DAFamilyGrandparentsModel from '../../models/patient/DAFamilyGrandparents.model'
 import { SYS_PATH_FATHER, SYS_PATH_MOTHER, SYS_PATH_GRANDFATHER, SYS_PATH_GRANDMOTHER } from '../../utils/familypathcode';
 import { mapGetters } from 'vuex';
@@ -659,12 +635,14 @@ export default {
     }
   },
   components: {
+    AllergyFields, AllergyEditor,
     'da-upload-file': DAUploadFile,
     'da-sweet-confirm': DASweetConfirm,
   },
   data: function() {
           return {
               patient: new PatientModel(),
+              showAllergyEditor: false,
               mother: new DAFamilyModel(),
               father: new DAFamilyModel(),
               grandfather: new DAFamilyGrandparentsModel(),
@@ -776,11 +754,11 @@ export default {
             },
             allergy: {
               has_allergy: {
-                required
+                required: false
               },
               description: {
                 required: requiredIf(function() {
-                  return this.patient.allergy.has_allergy
+                  return !this.id && ['HAS_ALLERGIES', 'UNKNOWN'].includes(this.patient.allergy.review_status)
                 })
               }
             }
@@ -790,6 +768,10 @@ export default {
       this.init()
   },
   methods: {
+    onAllergyReviewed(record) {
+      this.patient.allergy = record;
+      this.$store.commit(`${moduleTypes.PX}/SET_ALLERGY`, record);
+    },
     formatFecha,
     revertFormatFecha,
     // ...mapActions(moduleTypes.PX, [
@@ -862,7 +844,7 @@ export default {
       await this.ActionWrapp(moduleTypes.PX, fnTypes.getById, id );
       
       if(this.px) {
-       const { family_brothers, family_grandparents, family_parents } = this.px;
+        const { family_brothers, family_grandparents = [], family_parents = [] } = this.px;
 
         const patientForm = mapPatientResponseToForm(this.px, this.revertFormatFecha);
         this.patient.person = patientForm.person;
@@ -944,6 +926,7 @@ export default {
     },
   },
   computed: {
+    allergyStateLabel() { return allergyLabels[allergyStatus(this.patient.allergy)]; },
         ...mapGetters(moduleTypes.FAMILYPATH, {
             familyPath: fnTypes.getFamilyPath,
         }),

@@ -133,7 +133,7 @@ const ensureD2SessionSource = getFunctionSource(sources.router, 'ensureD2Session
 const d2BeforeEachSource = getFunctionSource(sources.router, 'd2BeforeEach');
 const logoutAction = getActionBlock(sources.authActions, 'logout');
 const refreshAction = getActionBlock(sources.authActions, 'getRefreshtoken');
-const d2LogoutBranch = getBlock(logoutAction, 'if(isD2AuthMode())') || getBlock(logoutAction, 'if (isD2AuthMode())');
+const d2LogoutBranch = logoutAction; // S18 cleanup is shared by both transports.
 const clinicalD2Blocks = [
     getD2GuardBlock(sources.medicalHistory, 'currentUser()'),
     getD2GuardBlock(sources.documentsAndSignatures, 'currentUser: function()'),
@@ -149,7 +149,8 @@ assertIncludesAll(
         'const shouldHydrate = requiredAuth || to.name === \'login\'',
         'await ensureD2SessionHydrated()',
         'store.dispatch(`${AUTH_NAMESPACE}/getToken`)',
-        'const response = await DAAuthService.session()',
+        "return dispatch('refreshAccess', { hydrate: true })",
+        'let response = await DAAuthService.session()',
         'DASessionService.bootstrapSession()',
         'DAC_AUTH_SESSION',
         'withCredentials: true'
@@ -234,13 +235,13 @@ assertIncludesAll(
     `${d2LogoutBranch}\n${sources.d2AuthCleanup}\n${sources.authStorageCleanup}`,
     [
         'await DAAuthService.close()',
-        'commit(types.SET_D2_AUTH_SESSION, null)',
+        'commit(types.SET_AUTH_ACCESS_SESSION, null)',
         'commit(types.SET_AUTH_UNAUTHORIZED, false)',
         'clearD2ClientAuthArtifacts(Vue.prototype.$session)',
         'DACsrfService.clearCsrfToken()',
         'clearLegacyAuthStorageForD2(session)'
     ],
-    'D2 logout closes backend then clears local runtime, CSRF and legacy storage.'
+    'D2 logout clears runtime immediately, closes backend and always clears CSRF/legacy storage.'
 );
 
 assertIncludesAll(
@@ -250,11 +251,11 @@ assertIncludesAll(
         'try {',
         'await DAAuthService.close()',
         '} finally {',
-        'commit(types.SET_D2_AUTH_SESSION, null)',
+        'commit(types.SET_AUTH_ACCESS_SESSION, null)',
         'clearD2ClientAuthArtifacts(Vue.prototype.$session)',
         'window.location.href = \'/auth/login\''
     ],
-    'D2 logout local cleanup runs in finally even if backend close fails.'
+    'Runtime is cleared before HTTP; artifact cleanup runs in finally even if backend close fails.'
 );
 
 assertIncludesAll(

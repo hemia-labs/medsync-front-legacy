@@ -7,15 +7,17 @@
             <p class="allergy-label">{{ statusTitle }}</p>
             <p class="allergy-text">{{ statusText }}</p>
         </div>
-        <button v-if="status !== 'safe'" type="button" class="allergy-action" @click="$emit('edit')">
+        <button v-if="canEdit" type="button" class="allergy-action" @click="$emit('edit')">
             Actualizar
         </button>
     </section>
 </template>
 
 <script>
+import { allergyStatus, allergyLabels } from '../../../domain/patient/allergy';
 export default {
     props: {
+        canEdit: { type: Boolean, default: true },
         px: {
             type: Object,
             default: function(){return {}}
@@ -26,10 +28,10 @@ export default {
             return this.px && this.px.allergy ? this.px.allergy : {};
         },
         hasRecord() {
-            return Boolean(this.allergy.id_allergy);
+            return allergyStatus(this.allergy) === 'NONE_KNOWN';
         },
         hasAllergy() {
-            return Number(this.allergy.has_allergy) === 1 || this.allergy.has_allergy === true;
+            return allergyStatus(this.allergy) === 'HAS_ALLERGIES';
         },
         description() {
             return this.allergy.description || '';
@@ -44,12 +46,7 @@ export default {
             return 'pending';
         },
         statusTitle() {
-            const map = {
-                danger: 'Alergias registradas',
-                safe: 'Sin alergias registradas',
-                pending: 'Alergias sin confirmar'
-            };
-            return map[this.status];
+            return allergyLabels[allergyStatus(this.allergy)];
         },
         statusText() {
             if(this.status === 'danger') {
@@ -58,7 +55,7 @@ export default {
             if(this.status === 'safe') {
                 return 'El expediente indica que el paciente no reporta alergias.';
             }
-            return 'Pregunta al paciente y actualiza esta informacion antes de continuar el tratamiento.';
+            return allergyStatus(this.allergy) === 'UNKNOWN' ? this.description : 'Pregunta al paciente y actualiza esta informacion antes de continuar el tratamiento.';
         },
         statusIcon() {
             const map = {

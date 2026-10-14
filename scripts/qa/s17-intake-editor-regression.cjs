@@ -1,0 +1,46 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const source = fs.readFileSync(path.join(__dirname, '../../src/views/Patient/Sections/ClinicalIntake.vue'), 'utf8');
+const context = { component: null, HistoryService: {} };
+vm.runInNewContext(source.split('<script>')[1].split('</script>')[0].replace(/^import[^\n]*\r?\n/gm, '').replace('export default', 'component ='), context);
+const component = context.component;
+const state = { ...component.data(), px: { person: { id_person: 'qa', fullname: 'QA Patient' } } };
+for(const [key, method] of Object.entries(component.methods)) state[key] = method.bind(state);
+for(const [key, getter] of Object.entries(component.computed)) Object.defineProperty(state, key, { get: () => getter.call(state) });
+const initial = { editable: true, history: { id_clinical_history: 'history', revision: 0, status: 'DRAFT' }, consultation: { reason: 'Original' },
+  doctors: [{ id_doctor_professional_profile: 'doctor', professional_name: 'QA Doctor' }],
+  responsible_doctor: { id_doctor_professional_profile: 'doctor', professional_name: 'QA Doctor' }, doctor_assignment_locked: true, assigned_doctor_available: true };
+(async () => {
+  state.apply(initial); assert.equal(state.dirty, false); state.form.reason = 'Unsaved intake';
+  let sent;
+  context.HistoryService.saveIntake = async (id, body) => { sent = body; return { success: false, status: 409, message: 'Changed elsewhere' }; };
+  assert.equal(await state.save(), false); assert.equal(state.form.reason, 'Unsaved intake'); assert.equal(state.dirty, true);
+  assert.equal(state.conflict, true); assert.equal(sent.expected_revision, 0); assert.equal(sent.clinical_snapshot_json, undefined);
+  assert.equal(await state.save(), false, 'Cannot silently rebase stale capture');
+  state.requestReload(); assert.equal(state.showLeaveDialog, true);
+  await state.resolveLeave('stay'); assert.equal(state.form.reason, 'Unsaved intake');
+  context.HistoryService.getIntake = async () => ({ success: false, message: 'Load failed' });
+  state.requestReload(); await state.resolveLeave('discard');
+  assert.equal(state.form.reason, 'Unsaved intake', 'Failed recovery does not discard local capture');
+  assert.equal(state.conflict, true);
+  context.HistoryService.getIntake = async () => ({ success: true, data: { ...initial, history: { ...initial.history, revision: 1 }, consultation: { reason: 'Other session value' } } });
+  state.requestReload(); await state.resolveLeave('discard');
+  assert.equal(state.form.reason, 'Other session value'); assert.equal(state.conflict, false); assert.equal(state.dirty, false);
+  state.form.reason = 'New unsaved intake';
+  let decision = state.confirmLeave(); assert.equal(state.showLeaveDialog, true);
+  await state.resolveLeave('stay'); assert.equal(await decision, false); assert.equal(state.form.reason, 'New unsaved intake');
+  context.HistoryService.saveIntake = async () => ({ success: false, message: 'Network failed' });
+  decision = state.confirmLeave(); await state.resolveLeave('save');
+  assert.equal(state.showLeaveDialog, true); assert.equal(state.form.reason, 'New unsaved intake');
+  await state.resolveLeave('stay'); assert.equal(await decision, false);
+  context.HistoryService.saveIntake = async () => ({ success: true, data: { ...initial, history: { ...initial.history, revision: 2 }, consultation: { ...state.form } } });
+  decision = state.confirmLeave(); await state.resolveLeave('save'); assert.equal(await decision, true); assert.equal(state.dirty, false);
+  let response;
+  context.HistoryService.getIntake = () => new Promise(resolve => { response = resolve; });
+  const pending = state.load(); state.px = { person: { id_person: 'other' } };
+  response({ success: true, data: initial }); await pending;
+  assert.notEqual(state.form.reason, 'Original', 'Late response cannot populate another patient');
+  console.log('PASS S17 intake editor: revision zero preserved, conflict/error retains capture, retry and explicit discard, save before leave, stale patient response rejected.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

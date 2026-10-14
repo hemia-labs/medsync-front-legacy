@@ -1,6 +1,7 @@
 import types from '../common/mutation-types';
 
 const mutations = {
+    SET_ALLERGY(state, record) { state.px = { ...state.px, allergy: record }; },
     [types.SET_ERROR_SERVICE] (state, payload) {
             state.hasErrorInService = payload ? payload : false
     },

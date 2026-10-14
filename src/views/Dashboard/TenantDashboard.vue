@@ -4,8 +4,8 @@
       <header class="dashboard-hero">
         <div class="hero-copy">
           <p class="eyebrow">Panel del consultorio</p>
-          <h1>Resumen del consultorio</h1>
-          <p>Revisa como va tu consultorio en este periodo. Mostramos informacion general, sin datos clinicos de pacientes.</p>
+          <h1>{{ scopeLabel }}</h1>
+          <p>Revisa los indicadores disponibles para tus permisos en este periodo, sin datos personales de pacientes.</p>
           <div class="hero-meta">
             <span v-if="businessName">
               <v-icon size="17">mdi-domain</v-icon>
@@ -18,6 +18,10 @@
             <span>
               <v-icon size="17">mdi-calendar-range-outline</v-icon>
               {{ rangeLabel }}
+            </span>
+            <span v-if="scopeDoctorLabel">
+              <v-icon size="17">mdi-account-tie-outline</v-icon>
+              {{ scopeDoctorLabel }}
             </span>
           </div>
         </div>
@@ -40,11 +44,23 @@
         </div>
 
         <div class="range-actions">
+          <template v-if="canChangeScope">
+            <button
+              v-for="option in scopeOptions"
+              :key="option.key"
+              type="button"
+              :class="['range-button', { 'is-active': dashboardScope.mode === option.key }]"
+              :aria-pressed="dashboardScope.mode === option.key"
+              :disabled="isDashboardBusy"
+              @click="changeScope(option.key)"
+            >{{ option.label }}</button>
+          </template>
           <button
             v-for="preset in rangePresets"
             :key="preset.key"
             type="button"
             :class="['range-button', { 'is-active': selectedPreset === preset.key }]"
+            :aria-pressed="selectedPreset === preset.key"
             :disabled="isDashboardBusy"
             @click="applyPreset(preset.key)"
           >
@@ -128,7 +144,7 @@
           </article>
         </section>
 
-        <section class="summary-card plan-scope-card is-compact" aria-labelledby="plan-scope-title">
+        <section v-if="canShowPlanStatus" class="summary-card plan-scope-card is-compact" aria-labelledby="plan-scope-title">
           <div class="card-heading">
             <div>
               <p class="eyebrow">Lo que incluye tu plan</p>
@@ -191,7 +207,7 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Actividad del periodo</p>
-              <h2 id="activity-title">Actividad del consultorio</h2>
+              <h2 id="activity-title">{{ scopeLabel }}</h2>
             </div>
             <span class="privacy-note">Sin datos personales</span>
           </div>
@@ -209,7 +225,7 @@
             </article>
           </div>
 
-          <div v-if="!hasActivity && !isDashboardBusy" class="state-panel is-empty">
+          <div v-if="hasMeasuredActivity && !hasActivity && !isDashboardBusy" class="state-panel is-empty">
             <v-icon size="32">mdi-chart-box-outline</v-icon>
             <div>
               <strong>No hay actividad registrada en este periodo.</strong>
@@ -296,6 +312,8 @@ import DashboardOperationalSummary from './components/DashboardOperationalSummar
 import DashboardProfessionalBreakdown from './components/DashboardProfessionalBreakdown.vue';
 import DashboardTeamBreakdown from './components/DashboardTeamBreakdown.vue';
 import { buildPlanFeatureMessage, isPlanFeatureResponse } from '../../utils/licenseLimitMessage';
+import moduleTypes from '../../store/modules/common/module-types';
+import { formatMetric, hasMetric, metricNumber } from '../../domain/dashboard/metrics';
 
 const DAY_IN_MS = 86400000;
 
@@ -341,6 +359,10 @@ export default {
   data: function() {
     return {
       isLoading: false,
+      dashboardDisposed: false,
+      requestGeneration: 0,
+      requestVersions: {},
+      selectedScope: '',
       errorMessage: '',
       summary: null,
       trendsLoading: false,
@@ -371,7 +393,46 @@ export default {
   created: function() {
     this.fetchDashboard();
   },
+  beforeDestroy: function() {
+    this.dashboardDisposed = true;
+    this.clearDashboard();
+  },
+  watch: {
+    sessionKey: function() {
+      this.selectedScope = '';
+      this.clearDashboard();
+      if(this.sessionKey && !this.dashboardDisposed) this.fetchDashboard();
+    }
+  },
   computed: {
+    sessionKey: function() {
+      const getters = this.$store.getters;
+      const user = getters[moduleTypes.AUTH + '/getUser'] || {};
+      const business = getters[moduleTypes.AUTH + '/getBusiness'] || {};
+      const actor = user.id_login || user.id;
+      const tenant = business.id_business || user.id_business;
+      return actor && tenant
+        ? JSON.stringify([actor, tenant, [...(getters[moduleTypes.AUTH + '/getPermissions'] || [])].sort()]) : '';
+    },
+    dashboardAccess: function() {
+      return (this.summary && this.summary.access) || this.dashboardConfig.access || {};
+    },
+    dashboardScope: function() {
+      return this.dashboardAccess.scope || {};
+    },
+    scopeLabel: function() {
+      if(!this.dashboardScope.mode) return 'Resumen de actividad';
+      return this.dashboardScope.mode === 'own' ? 'Mi actividad' : 'Todo el consultorio';
+    },
+    scopeDoctorLabel: function() {
+      return this.dashboardScope.mode === 'own' ? this.dashboardScope.doctorName || '' : '';
+    },
+    canChangeScope: function() {
+      return Boolean(this.dashboardAccess.canSelectTenant && this.dashboardAccess.canSelectOwn);
+    },
+    scopeOptions: function() {
+      return [{ key: 'own', label: 'Mi actividad' }, { key: 'tenant', label: 'Todo el consultorio' }];
+    },
     isDashboardBusy: function() {
       return Boolean(
         this.isLoading
@@ -394,17 +455,7 @@ export default {
       return this.summary && this.summary.dashboard ? this.summary.dashboard : {};
     },
     dashboardCapabilities: function() {
-      return this.dashboardConfig.capabilities || {
-        planStatus: true,
-        licenseUsage: true,
-        basicActivity: true,
-        administrativeAlerts: true,
-        trends: false,
-        operationalAnalysis: false,
-        teamBreakdown: false,
-        professionalBreakdown: false,
-        advancedReports: false
-      };
+      return this.dashboardConfig.capabilities || {};
     },
     dashboardLevel: function() {
       return this.dashboardConfig.level || 'simple';
@@ -447,6 +498,7 @@ export default {
     showProLockedPanel: function() {
       return Boolean(
         this.summary
+        && this.canShowPlanStatus
         && !this.canShowTrends
         && !this.canShowOperationalAnalysis
       );
@@ -454,6 +506,7 @@ export default {
     showEnterpriseLockedPanel: function() {
       return Boolean(
         this.summary
+        && this.canShowPlanStatus
         && this.dashboardLevel === 'operational'
         && !this.canShowProfessionalBreakdown
         && !this.canShowTeamBreakdown
@@ -485,8 +538,8 @@ export default {
             key: 'enterprise-ready',
             tone: 'included',
             icon: 'mdi-chart-line-variant',
-            title: 'Vista administrativa activa',
-            message: 'Puedes revisar actividad por profesional y uso del equipo sin mostrar datos de pacientes.'
+            title: 'Indicadores habilitados segun permisos',
+            message: 'Se muestran las familias autorizadas para tu puesto y el alcance seleccionado, dentro de lo que incluye tu plan.'
           }
         ];
       }
@@ -531,13 +584,14 @@ export default {
       return this.business.name || '';
     },
     businessPlan: function() {
-      return this.business.plan || 'Sin plan';
+      return this.business.plan || '';
     },
     planName: function() {
       return this.business.planName || this.businessPlan || 'Plan no disponible';
     },
     planLabel: function() {
-      return this.planName ? `Plan ${this.planName}` : '';
+      const name = this.business.planName || this.business.plan;
+      return this.canShowPlanStatus && name ? `Plan ${name}` : '';
     },
     subscriptionLabel: function() {
       const labels = {
@@ -620,10 +674,16 @@ export default {
           icon: 'mdi-clipboard-check-outline',
           value: this.activity.clinicalHistoriesFinalized
         }
-      ];
+      ].filter(card => hasMetric(this.activity, card.key)).map(card => {
+        const definition = (this.summary && this.summary.metricDefinitions || {})[card.key] || {};
+        return { ...card, description: definition.reason || card.description };
+      });
     },
     hasActivity: function() {
       return this.activityCards.some((card) => normalizeNumber(card.value) > 0);
+    },
+    hasMeasuredActivity: function() {
+      return this.activityCards.length > 0 && this.activityCards.every(card => metricNumber(card.value) !== null);
     },
     dashboardAlerts: function() {
       const backendAlerts = Array.isArray(this.summary && this.summary.alerts)
@@ -650,206 +710,122 @@ export default {
     }
   },
   methods: {
+    clearDashboard: function() {
+      this.requestGeneration += 1;
+      this.summary = null;
+      this.errorMessage = '';
+      this.isLoading = false;
+      this.resetDashboardWidgets();
+    },
+    dashboardParams: function(extra = {}) {
+      return { from: this.filters.from, to: this.filters.to, scope: this.selectedScope, ...extra };
+    },
+    beginDashboardRequest: function(key) {
+      const version = (this.requestVersions[key] || 0) + 1;
+      this.requestVersions[key] = version;
+      return { key, version, generation: this.requestGeneration, session: this.sessionKey };
+    },
+    isCurrentDashboardRequest: function(request) {
+      return !this.dashboardDisposed && Boolean(this.sessionKey)
+        && request.session === this.sessionKey
+        && request.generation === this.requestGeneration
+        && request.version === this.requestVersions[request.key];
+    },
+    changeScope: function(scope) {
+      if(!this.canChangeScope || scope === this.dashboardScope.mode) return;
+      this.selectedScope = scope;
+      this.fetchDashboard();
+    },
     fetchDashboard: async function() {
       await this.fetchSummary();
     },
     fetchSummary: async function() {
+      this.clearDashboard();
+      if(!this.sessionKey || this.dashboardDisposed) return;
+      const request = this.beginDashboardRequest('summary');
       this.isLoading = true;
-      this.errorMessage = '';
-      this.resetDashboardWidgets();
-
       try {
-        const response = await DABusinessDashboardService.getSummary({
-          from: this.filters.from,
-          to: this.filters.to
-        });
-
+        const response = await DABusinessDashboardService.getSummary(this.dashboardParams());
+        if(!this.isCurrentDashboardRequest(request)) return;
         if(response && response.success && response.data) {
           this.summary = response.data;
           this.loadDashboardWidgetsForSummary(response.data);
         }
         else {
-          this.summary = null;
           this.errorMessage = response && response.message
-            ? response.message
-            : 'No fue posible recuperar la informacion del resumen.';
+            ? response.message : 'No fue posible recuperar la informacion del resumen.';
         }
       }
       catch(error) {
-        this.summary = null;
-        this.errorMessage = 'No fue posible recuperar la informacion del resumen.';
+        if(this.isCurrentDashboardRequest(request)) {
+          this.errorMessage = 'No fue posible recuperar la informacion del resumen.';
+        }
       }
       finally {
-        this.isLoading = false;
+        if(this.isCurrentDashboardRequest(request)) this.isLoading = false;
       }
     },
     loadDashboardWidgetsForSummary: function(summary) {
       const capabilities = this.resolveDashboardCapabilities(summary);
-
-      if(capabilities.trends) {
-        this.fetchTrends();
-      }
-
-      if(capabilities.operationalAnalysis) {
-        this.fetchOperationalSummary();
-      }
-
-      if(capabilities.professionalBreakdown) {
-        this.fetchProfessionalBreakdown();
-      }
-
-      if(capabilities.teamBreakdown) {
-        this.fetchTeamBreakdown();
-      }
+      if(capabilities.trends) this.fetchTrends();
+      if(capabilities.operationalAnalysis) this.fetchOperationalSummary();
+      if(capabilities.professionalBreakdown) this.fetchProfessionalBreakdown();
+      if(capabilities.teamBreakdown) this.fetchTeamBreakdown();
     },
     resolveDashboardCapabilities: function(summary) {
-      return summary
-        && summary.dashboard
-        && summary.dashboard.capabilities
-        ? summary.dashboard.capabilities
-        : {};
+      return summary && summary.dashboard && summary.dashboard.capabilities
+        ? summary.dashboard.capabilities : {};
     },
     resetDashboardWidgets: function() {
-      this.trendsLoading = false;
-      this.trendsError = '';
-      this.trendsData = null;
-      this.operationalLoading = false;
-      this.operationalError = '';
-      this.operationalData = null;
-      this.professionalBreakdownLoading = false;
-      this.professionalBreakdownError = '';
-      this.professionalBreakdownData = null;
-      this.teamBreakdownLoading = false;
-      this.teamBreakdownError = '';
-      this.teamBreakdownData = null;
+      ['trends', 'operational', 'professionalBreakdown', 'teamBreakdown'].forEach(key => {
+        this[key + 'Loading'] = false;
+        this[key + 'Error'] = '';
+        this[key + 'Data'] = null;
+      });
     },
-    fetchTrends: async function() {
-      if(!this.canShowTrends) {
-        return;
-      }
-
-      this.trendsLoading = true;
-      this.trendsError = '';
-
+    fetchWidget: async function(key, serviceMethod, feature, extra = {}) {
+      if(!this.sessionKey || this.dashboardDisposed) return;
+      const request = this.beginDashboardRequest(key);
+      this[key + 'Loading'] = true;
+      this[key + 'Error'] = '';
+      this[key + 'Data'] = null;
       try {
-        const response = await DABusinessDashboardService.getTrends({
-          from: this.filters.from,
-          to: this.filters.to,
-          granularity: this.trendsGranularity
-        });
-
+        const response = await DABusinessDashboardService[serviceMethod](this.dashboardParams(extra));
+        if(!this.isCurrentDashboardRequest(request)) return;
         if(response && response.success && response.data) {
-          this.trendsData = response.data;
+          this[key + 'Data'] = response.data;
         }
         else {
-          this.trendsData = null;
-          this.trendsError = response && response.message
-            ? this.dashboardFeatureMessage(response, 'trends')
-            : 'No fue posible recuperar la tendencia de actividad.';
+          this[key + 'Error'] = this.dashboardFeatureMessage(response, feature);
         }
       }
       catch(error) {
-        this.trendsData = null;
-        this.trendsError = 'No fue posible recuperar la tendencia de actividad.';
+        if(this.isCurrentDashboardRequest(request)) {
+          this[key + 'Error'] = 'No fue posible recuperar los indicadores. Intenta nuevamente.';
+        }
       }
       finally {
-        this.trendsLoading = false;
+        if(this.isCurrentDashboardRequest(request)) this[key + 'Loading'] = false;
+      }
+    },
+    fetchTrends: async function() {
+      if(this.canShowTrends) {
+        await this.fetchWidget('trends', 'getTrends', 'trends', { granularity: this.trendsGranularity });
       }
     },
     fetchOperationalSummary: async function() {
-      if(!this.canShowOperationalAnalysis) {
-        return;
-      }
-
-      this.operationalLoading = true;
-      this.operationalError = '';
-
-      try {
-        const response = await DABusinessDashboardService.getOperationalSummary({
-          from: this.filters.from,
-          to: this.filters.to
-        });
-
-        if(response && response.success && response.data) {
-          this.operationalData = response.data;
-        }
-        else {
-          this.operationalData = null;
-          this.operationalError = response && response.message
-            ? this.dashboardFeatureMessage(response, 'operational_analysis')
-            : 'No fue posible recuperar el resumen operativo.';
-        }
-      }
-      catch(error) {
-        this.operationalData = null;
-        this.operationalError = 'No fue posible recuperar el resumen operativo.';
-      }
-      finally {
-        this.operationalLoading = false;
+      if(this.canShowOperationalAnalysis) {
+        await this.fetchWidget('operational', 'getOperationalSummary', 'operational_analysis');
       }
     },
     fetchProfessionalBreakdown: async function() {
-      if(!this.canShowProfessionalBreakdown) {
-        return;
-      }
-
-      this.professionalBreakdownLoading = true;
-      this.professionalBreakdownError = '';
-
-      try {
-        const response = await DABusinessDashboardService.getProfessionalBreakdown({
-          from: this.filters.from,
-          to: this.filters.to
-        });
-
-        if(response && response.success && response.data) {
-          this.professionalBreakdownData = response.data;
-        }
-        else {
-          this.professionalBreakdownData = null;
-          this.professionalBreakdownError = response && response.message
-            ? this.dashboardFeatureMessage(response, 'professional_activity_metrics')
-            : 'No fue posible recuperar la actividad por profesional.';
-        }
-      }
-      catch(error) {
-        this.professionalBreakdownData = null;
-        this.professionalBreakdownError = 'No fue posible recuperar la actividad por profesional.';
-      }
-      finally {
-        this.professionalBreakdownLoading = false;
+      if(this.canShowProfessionalBreakdown) {
+        await this.fetchWidget('professionalBreakdown', 'getProfessionalBreakdown', 'professional_activity_metrics');
       }
     },
     fetchTeamBreakdown: async function() {
-      if(!this.canShowTeamBreakdown) {
-        return;
-      }
-
-      this.teamBreakdownLoading = true;
-      this.teamBreakdownError = '';
-
-      try {
-        const response = await DABusinessDashboardService.getTeamBreakdown({
-          from: this.filters.from,
-          to: this.filters.to
-        });
-
-        if(response && response.success && response.data) {
-          this.teamBreakdownData = response.data;
-        }
-        else {
-          this.teamBreakdownData = null;
-          this.teamBreakdownError = response && response.message
-            ? this.dashboardFeatureMessage(response, 'team_usage_metrics')
-            : 'No fue posible recuperar el uso por equipo.';
-        }
-      }
-      catch(error) {
-        this.teamBreakdownData = null;
-        this.teamBreakdownError = 'No fue posible recuperar el uso por equipo.';
-      }
-      finally {
-        this.teamBreakdownLoading = false;
+      if(this.canShowTeamBreakdown) {
+        await this.fetchWidget('teamBreakdown', 'getTeamBreakdown', 'team_usage_metrics');
       }
     },
     changeTrendsGranularity: function(granularity) {
@@ -934,7 +910,7 @@ export default {
       return response && response.message ? response.message : 'Esta vista no esta disponible para tu plan actual.';
     },
     formatNumber: function(value) {
-      return normalizeNumber(value).toLocaleString('es-MX');
+      return formatMetric(value);
     },
     formatDate: function(value) {
       if(!value) {

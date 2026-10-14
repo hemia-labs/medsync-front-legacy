@@ -1,6 +1,7 @@
 import {
     DAC_SUPER_ADMIN_AUDIT,
     DAC_SUPER_ADMIN_BUSINESSES,
+    DAC_SUPER_ADMIN_BUSINESS_OPTIONS,
     DAC_SUPER_ADMIN_BUSINESS_PLAN,
     DAC_SUPER_ADMIN_BUSINESS_LICENSE_OVERRIDES,
     DAC_SUPER_ADMIN_BUSINESS_SUBSCRIPTION_STATUS,
@@ -46,6 +47,11 @@ export default {
     getBusinesses(params = {}) {
         const query = new URLSearchParams(cleanParams(params)).toString();
         return DACore.get(query ? `${DAC_SUPER_ADMIN_BUSINESSES}?${query}` : DAC_SUPER_ADMIN_BUSINESSES);
+    },
+    getBusinessOptions(params = {}) {
+        const query = new URLSearchParams(cleanParams(params)).toString();
+        const url = DAC_SUPER_ADMIN_BUSINESS_OPTIONS;
+        return DACore.get(query ? `${url}?${query}` : url);
     },
     createBusiness(payload = {}) {
         return DACore.post(DAC_SUPER_ADMIN_BUSINESSES, payload);

@@ -384,6 +384,10 @@ export default {
     return {
       isLoading: false,
       documents: [],
+      documentsLoaded: false,
+      handledDocumentFocusRequest: null,
+      documentFocusAlive: true,
+      documentHighlightTimer: null,
       templates: [],
       doctors: [],
       showCreateDialog: false,
@@ -608,7 +612,7 @@ export default {
       return 'El documento se generara con los datos profesionales de este doctor.';
     },
     themePrimaryColor: function() {
-      return getComputedStyle(document.documentElement).getPropertyValue('--color-primary-500').trim() || '#1BA6C9';
+      return 'var(--color-primary-500)';
     }
   },
   watch: {
@@ -634,6 +638,10 @@ export default {
       }
     }
   },
+  beforeDestroy() {
+    this.documentFocusAlive = false;
+    if(this.documentHighlightTimer) window.clearTimeout(this.documentHighlightTimer);
+  },
   methods: {
     emptyCreateForm: function() {
       return {
@@ -649,14 +657,17 @@ export default {
     },
     load: async function() {
       this.isLoading = true;
+      this.documentsLoaded = false;
       try {
         const docs = await DADocumentService.getPatientDocuments(this.patientId);
         const templates = await DADocumentService.getTemplates();
         const doctors = await DAPrescriptionService.doctors();
         this.documents = docs && docs.success ? this.asArray(docs.data) : [];
+        this.documentsLoaded = Boolean(docs && docs.success);
         this.templates = templates && templates.success ? this.asArray(templates.data) : [];
         this.doctors = doctors && doctors.success ? this.asArray(doctors.data) : [];
       } catch (error) {
+        this.documentsLoaded = false;
         this.documents = [];
         this.templates = [];
         this.doctors = [];
@@ -736,10 +747,14 @@ export default {
       DADocumentService.auditAction({ id_patient_document: item.id_patient_document, event_type: 'VIEWED' });
     },
     focusRequestedDocument: function(request) {
-      if(!request || this.documents.length === 0) {
+      if(!request || !this.documentFocusAlive || !this.documentsLoaded || request === this.handledDocumentFocusRequest
+          || request.id_person && request.id_person !== this.patientId) {
         return;
       }
       const requestedDocument = this.findRequestedDocument(request);
+      // Consume before queued DOM work so reloads/remounts cannot replay a completed request.
+      this.handledDocumentFocusRequest = request;
+      this.$emit('document-focus-consumed', request);
       if(!requestedDocument) {
         this.documentFilter = 'ALL';
         this.notify('warning', 'No se encontró el consentimiento solicitado en Documentos y firmas.');
@@ -748,6 +763,7 @@ export default {
       this.documentFilter = this.filterForDocument(requestedDocument);
       this.highlightedDocumentId = requestedDocument.id_patient_document;
       this.$nextTick(() => {
+        if(!this.documentFocusAlive || this.handledDocumentFocusRequest !== request || request.id_person && request.id_person !== this.patientId) return;
         const ref = this.$refs[`document-${requestedDocument.id_patient_document}`];
         const element = Array.isArray(ref) ? ref[0] : ref;
         if(element && typeof element.scrollIntoView === 'function') {
@@ -756,7 +772,8 @@ export default {
         if(request.open !== false) {
           this.openView(requestedDocument);
         }
-        window.setTimeout(() => {
+        if(this.documentHighlightTimer) window.clearTimeout(this.documentHighlightTimer);
+        this.documentHighlightTimer = window.setTimeout(() => {
           if(this.highlightedDocumentId === requestedDocument.id_patient_document) {
             this.highlightedDocumentId = null;
           }

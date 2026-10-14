@@ -86,21 +86,12 @@ export function createDefaultAppointmentConfig() {
 }
 
 export function getAppointmentConfig() {
-  const storedConfig = window.localStorage.getItem(CONFIG_KEY);
-  if (!storedConfig) {
-    return createDefaultAppointmentConfig();
-  }
-
-  try {
-    return normalizeAppointmentConfig(Object.assign(createDefaultAppointmentConfig(), JSON.parse(storedConfig)));
-  } catch (error) {
-    return createDefaultAppointmentConfig();
-  }
+  return Object.assign(createDefaultAppointmentConfig(), { enabled: false });
 }
 
 export function saveAppointmentConfig(config) {
   const nextConfig = Object.assign({}, normalizeAppointmentConfig(config), { updatedAt: new Date().toISOString() });
-  window.localStorage.setItem(CONFIG_KEY, JSON.stringify(nextConfig));
+  window.localStorage.removeItem(CONFIG_KEY);
   return nextConfig;
 }
 
@@ -118,6 +109,7 @@ export function normalizeAppointmentConfig(config) {
     enabled: day.enabled === true || day.enabled === 1 || day.enabled === '1',
     timeRanges: day.timeRanges || []
   }));
+  nextConfig.workingDays = WEEK_DAYS.map(day => nextConfig.workingDays.find(item => item.dayOfWeek === day.value) || {dayOfWeek:day.value,enabled:false,timeRanges:[]});
 
   nextConfig.blockedDates = (nextConfig.blockedDates || []).map((block) => Object.assign({}, block, {
     repeats: block.repeats === true || block.repeats === 1 || block.repeats === '1',
@@ -133,20 +125,11 @@ export function normalizeAppointmentConfig(config) {
 }
 
 export function getAppointments() {
-  const storedAppointments = window.localStorage.getItem(APPOINTMENTS_KEY);
-  if (!storedAppointments) {
-    return [];
-  }
-
-  try {
-    return JSON.parse(storedAppointments);
-  } catch (error) {
-    return [];
-  }
+  return [];
 }
 
 export function saveAppointments(appointments) {
-  window.localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(appointments || []));
+  window.localStorage.removeItem(APPOINTMENTS_KEY);
   return appointments || [];
 }
 

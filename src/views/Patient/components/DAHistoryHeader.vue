@@ -2,11 +2,11 @@
     <section class="patient-summary-card">
         <div class="patient-summary-main">
             <div class="patient-avatar-wrap">
-                <button type="button" class="patient-avatar" @click="$emit('edit', $attrs.value)">
+                <button type="button" class="patient-avatar" :disabled="!canEdit" @click="$emit('edit', $attrs.value)">
                     <img v-if="patient.profile" :src="patient.profile" class="patient-avatar-img" v-viewer>
                     <span v-else class="patient-avatar-initials">{{ initials }}</span>
                 </button>
-                <button type="button" class="patient-photo-action" title="Actualizar foto" @click="$emit('edit', $attrs.value)">
+                <button v-if="canEdit" type="button" class="patient-photo-action" title="Actualizar foto" @click="$emit('edit', $attrs.value)">
                     <v-icon small>mdi-camera-outline</v-icon>
                 </button>
             </div>
@@ -18,16 +18,16 @@
                     <span class="patient-code">Exp #{{ patient.code || 'Sin folio' }}</span>
                 </div>
                 <div class="patient-meta">
-                    <span>{{ patient.age || '0' }} años</span>
-                    <span class="patient-dot"></span>
-                    <span>Afecciones: {{ condition }}</span>
+                    <span>{{ patient.age === null || patient.age === undefined ? 'Edad sin registrar' : patient.age + ' años' }}</span>
+                    <span v-if="showClinical" class="patient-dot"></span>
+                    <span v-if="showClinical">Afecciones: {{ condition }}</span>
                 </div>
                 <div class="patient-badges">
                     <span class="patient-badge patient-badge--soft">
                         <v-icon x-small>mdi-account-check-outline</v-icon>
-                        Paciente activo
+                        {{ Number(patient.active) === 0 ? 'Paciente inactivo' : 'Paciente activo' }}
                     </span>
-                    <span class="patient-badge" :class="hasCondition ? 'patient-badge--warning' : 'patient-badge--soft'">
+                    <span v-if="showClinical" class="patient-badge" :class="hasCondition ? 'patient-badge--warning' : 'patient-badge--soft'">
                         <v-icon x-small>{{ hasCondition ? 'mdi-alert-circle-outline' : 'mdi-shield-check-outline' }}</v-icon>
                         {{ hasCondition ? condition : 'Sin afecciones registradas' }}
                     </span>
@@ -36,9 +36,9 @@
         </div>
 
         <div class="patient-summary-actions">
-            <v-tooltip bottom>
+            <v-tooltip v-if="canEdit" bottom>
                 <template v-slot:activator="{ on, attrs }">
-                    <button type="button" class="patient-icon-action" v-bind="attrs" v-on="on" @click="$emit('edit', $attrs.value)">
+                    <button type="button" class="patient-icon-action" v-bind="attrs" v-on="on" aria-label="Actualizar foto" @click="$emit('edit', $attrs.value)">
                         <v-icon small>mdi-camera-outline</v-icon>
                     </button>
                 </template>
@@ -46,7 +46,7 @@
             </v-tooltip>
             <v-tooltip bottom>
                 <template v-slot:activator="{ on, attrs }">
-                    <button type="button" class="patient-icon-action patient-icon-action--close" v-bind="attrs" v-on="on" @click="$router.push('/px/all')">
+                    <button type="button" class="patient-icon-action patient-icon-action--close" v-bind="attrs" v-on="on" aria-label="Cerrar expediente" @click="$router.push('/px/all')">
                         <v-icon small>mdi-close</v-icon>
                     </button>
                 </template>
@@ -59,6 +59,8 @@
 <script>
 export default {
     props: {
+        canEdit: { type: Boolean, default: false },
+        showClinical: { type: Boolean, default: true },
         px: {
             type: Object,
             default: function(){return {}}

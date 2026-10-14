@@ -28,7 +28,7 @@
     </div>
 
     <div v-else class="operational-content">
-      <div class="priority-panel">
+      <div v-if="priorityActions.length" class="priority-panel">
         <div class="decision-heading">
           <div>
             <p class="eyebrow">Que atender primero</p>
@@ -55,16 +55,16 @@
       </div>
 
       <div class="summary-groups">
-        <article class="operation-group">
+        <article v-if="hasGroup('appointments')" class="operation-group">
           <div class="group-heading">
             <v-icon size="22">mdi-calendar-check-outline</v-icon>
             <div>
               <strong>Citas</strong>
-              <span>{{ formatNumber(appointments.total) }} registradas</span>
+              <span>{{ formatNumber(appointments.total) }} creadas en el periodo</span>
             </div>
           </div>
           <div class="metric-grid">
-            <span class="metric-tile"><strong>{{ formatNumber(appointments.scheduled) }}</strong> programadas</span>
+            <span class="metric-tile"><strong>{{ formatNumber(appointments.scheduled) }}</strong> con fecha en el periodo</span>
           </div>
           <div class="status-list">
             <span v-for="item in appointmentStatuses" :key="item.status">
@@ -73,11 +73,11 @@
             </span>
           </div>
           <p class="interpretation-note">
-            Como leerlo: muestra la carga real de agenda. Muchos pendientes, cancelaciones o no asistencias indican trabajo administrativo por resolver antes de que afecte ingresos y continuidad.
+            {{ appointments.dateBasis || 'Estado actual de citas con fecha en el periodo.' }}. Las citas creadas pueden estar programadas para otro periodo.
           </p>
         </article>
 
-        <article class="operation-group">
+        <article v-if="hasGroup('prescriptions')" class="operation-group">
           <div class="group-heading">
             <v-icon size="22">mdi-file-document-edit-outline</v-icon>
             <div>
@@ -91,11 +91,11 @@
             <span class="metric-tile"><strong>{{ formatNumber(prescriptions.cancelled) }}</strong> canceladas</span>
           </div>
           <p class="interpretation-note">
-            Como leerlo: mide documentacion farmacologica. Muchos borradores pueden indicar recetas sin cerrar; muchas canceladas pueden apuntar a errores de captura o cambios frecuentes de indicacion.
+            {{ prescriptions.dateBasis || 'Estado actual de recetas creadas en el periodo.' }}. El indicador Recetas emitidas del resumen usa la fecha de emision.
           </p>
         </article>
 
-        <article class="operation-group">
+        <article v-if="hasGroup('clinicalHistories')" class="operation-group">
           <div class="group-heading">
             <v-icon size="22">mdi-clipboard-check-outline</v-icon>
             <div>
@@ -106,19 +106,19 @@
           <div class="metric-grid">
             <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.finalized) }}</strong> finalizadas</span>
             <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.drafts) }}</strong> borradores</span>
-            <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.pending) }}</strong> pendientes</span>
+            <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.pending) }}</strong> pendientes de finalizar</span>
           </div>
           <p class="interpretation-note">
-            Como leerlo: habla de calidad y cierre clinico. Si hay muchas pendientes, puede haber riesgo de expedientes incompletos y perdida de trazabilidad medica.
+            {{ clinicalHistories.dateBasis || 'Estado actual de historias creadas en el periodo.' }}. Las pendientes corresponden a borradores; este conteo no mide por si solo la calidad de la atencion.
           </p>
         </article>
       </div>
 
-      <div class="economics-panel">
+      <div v-if="hasMetricGroup('treatmentEconomics')" class="economics-panel">
         <div class="decision-heading">
           <div>
             <p class="eyebrow">Planes de tratamiento</p>
-            <h3>Valor estimado por paciente</h3>
+            <h3>Costos estimados de tratamientos</h3>
           </div>
           <small>Sin montos por paciente</small>
         </div>
@@ -132,11 +132,11 @@
         </div>
 
         <p class="interpretation-note panel-note">
-          Como leerlo: es una estimacion comercial basada en costos capturados en planes de tratamiento del periodo; no significa dinero cobrado. Sirve para ver el potencial promedio de cada paciente con plan y detectar si faltan costos por capturar.
+          {{ treatmentEconomics.reason || treatmentEconomics.definition || 'Suma los costos capturados en tratamientos no cancelados creados en el periodo. No representa ingresos ni cobros.' }}
         </p>
       </div>
 
-      <div class="decision-panel">
+      <div v-if="decisionCards.length" class="decision-panel">
         <div class="decision-heading">
           <div>
             <p class="eyebrow">Indicadores de decision</p>
@@ -155,7 +155,7 @@
         </div>
       </div>
 
-      <div class="comparison-panel">
+      <div v-if="comparisonCards.length" class="comparison-panel">
         <div class="comparison-heading">
           <div>
             <p class="eyebrow">Comparativo</p>
@@ -180,6 +180,8 @@
 </template>
 
 <script>
+import { formatMetric, hasMetric, metricNumber } from '../../../domain/dashboard/metrics';
+
 function normalizeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -244,7 +246,7 @@ export default {
         { key: 'appointmentsCreated', label: 'Citas creadas', ...this.metricComparison('appointmentsCreated') },
         { key: 'prescriptionsIssued', label: 'Recetas emitidas', ...this.metricComparison('prescriptionsIssued') },
         { key: 'clinicalHistoriesFinalized', label: 'Historias finalizadas', ...this.metricComparison('clinicalHistoriesFinalized') }
-      ].map((item) => ({
+      ].filter(item => hasMetric(this.comparison, item.key)).map((item) => ({
         ...item,
         interpretation: this.comparisonInterpretation(item.key)
       }));
@@ -253,19 +255,19 @@ export default {
       return [
         {
           key: 'totalEstimatedTreatmentValue',
-          label: 'Valor estimado',
+          label: 'Costo total estimado',
           value: this.formatCurrency(this.treatmentEconomics.totalEstimatedTreatmentValue),
           helper: 'Suma de tratamientos con costo capturado'
         },
         {
           key: 'averageTreatmentValuePerPatient',
-          label: 'Promedio por paciente',
+          label: 'Costo promedio por paciente',
           value: this.formatCurrency(this.treatmentEconomics.averageTreatmentValuePerPatient),
           helper: 'Promedio entre pacientes con tratamiento valuado'
         },
         {
           key: 'patientsWithEstimatedTreatment',
-          label: 'Pacientes con plan valuado',
+          label: 'Pacientes con costo registrado',
           value: this.formatNumber(this.treatmentEconomics.patientsWithEstimatedTreatment),
           helper: 'Pacientes con al menos un tratamiento con costo'
         },
@@ -283,7 +285,8 @@ export default {
       const cancelled = normalizeNumber(this.appointmentHealth.cancelled);
       const followUpsDue = normalizeNumber(this.followUps.due);
       const followUpsScheduled = normalizeNumber(this.followUps.scheduled);
-      const followUpsWithoutAppointment = Math.max(0, followUpsDue - followUpsScheduled);
+      const followUpsWithoutAppointment = metricNumber(this.followUps.due) !== null && metricNumber(this.followUps.scheduled) !== null
+        ? Math.max(0, followUpsDue - followUpsScheduled) : 0;
       const clinicalPending = normalizeNumber(this.clinicalHistories.pending);
       const prescriptionDrafts = normalizeNumber(this.prescriptions.drafts);
       const actions = [
@@ -313,10 +316,10 @@ export default {
           key: 'clinicalPending',
           count: clinicalPending,
           score: clinicalPending * 3,
-          label: 'Cierra expedientes',
+          label: 'Revisa historias pendientes',
           value: `${this.formatNumber(clinicalPending)} pendientes`,
-          impact: 'Historias sin cerrar pueden afectar trazabilidad clinica y seguimiento medico.',
-          nextStep: 'Revisa expedientes pendientes antes de que se acumulen.',
+          impact: 'Son borradores de historia clinica pendientes de finalizar.',
+          nextStep: 'Revisa si corresponde completarlos o continuar la captura.',
           icon: 'mdi-clipboard-text-clock-outline',
           tone: clinicalPending >= 3 ? 'danger' : 'warning'
         },
@@ -358,13 +361,17 @@ export default {
         .sort((a, b) => b.score - a.score);
 
       if(!actions.length) {
+        const measured = [this.appointmentHealth.pendingConfirmation, this.appointmentHealth.noShow,
+          this.appointmentHealth.cancelled, this.clinicalHistories.pending, this.prescriptions.drafts]
+          .some(value => metricNumber(value) !== null);
+        if(!measured) return [];
         return [
           {
             key: 'steady',
-            label: 'Sin alertas fuertes',
-            value: 'Todo estable',
-            impact: 'No detectamos pendientes operativos importantes en este periodo.',
-            nextStep: 'Manten confirmaciones, expedientes y seguimientos al dia.',
+            label: 'Datos disponibles',
+            value: 'Sin pendientes detectados',
+            impact: 'No hay pendientes en los indicadores disponibles para este periodo.',
+            nextStep: 'Los indicadores no disponibles quedan fuera de esta lectura.',
             icon: 'mdi-check-circle-outline',
             tone: 'success'
           }
@@ -377,22 +384,27 @@ export default {
       return [
         {
           key: 'retention',
-          label: 'Retencion primera cita',
+          group: 'retention',
+          label: 'Retorno efectivo tras primera cita',
           value: this.formatPercent(this.retention.retentionRate),
-          helper: `${this.formatNumber(this.retention.retainedPatients)} de ${this.formatNumber(this.retention.firstVisitPatients)} pacientes volvieron`,
-          interpretation: 'Alto significa que la primera experiencia si esta generando continuidad.',
+          helper: metricNumber(this.retention.firstVisitPatients) === 0 ? 'Sin primeras citas completadas en el periodo'
+            : `${this.formatNumber(this.retention.retainedPatients)} de ${this.formatNumber(this.retention.firstVisitPatients)} pacientes volvieron`,
+          interpretation: this.retention.reason || this.retention.definition || 'Pacientes con primera cita completada en el periodo y otra cita completada posterior, antes de su cierre. No cuenta citas futuras.',
           tone: 'accent'
         },
         {
           key: 'followUps',
+          group: 'followUps',
           label: 'Seguimientos con cita',
           value: this.formatPercent(this.followUps.coverageRate),
-          helper: `${this.formatNumber(this.followUps.scheduled)} de ${this.formatNumber(this.followUps.due)} seguimientos`,
-          interpretation: 'Bajo significa que hay pacientes que deberian volver y aun no tienen cita.',
+          helper: this.followUps.available === false ? 'Sin una atribucion verificable al doctor'
+            : `${this.formatNumber(this.followUps.scheduled)} de ${this.formatNumber(this.followUps.due)} seguimientos`,
+          interpretation: this.followUps.reason || this.followUps.definition || 'Seguimientos pendientes que ya tienen una cita registrada.',
           tone: 'success'
         },
         {
           key: 'noShow',
+          group: 'appointmentHealth',
           label: 'No asistio',
           value: this.formatPercent(this.appointmentHealth.noShowRate),
           helper: `${this.formatNumber(this.appointmentHealth.noShow)} citas del periodo`,
@@ -401,6 +413,7 @@ export default {
         },
         {
           key: 'pending',
+          group: 'appointmentHealth',
           label: 'Pendientes de confirmar',
           value: this.formatPercent(this.appointmentHealth.pendingConfirmationRate),
           helper: `${this.formatNumber(this.appointmentHealth.pendingConfirmation)} de ${this.formatNumber(this.appointmentHealth.scheduled)} programadas`,
@@ -409,6 +422,7 @@ export default {
         },
         {
           key: 'completion',
+          group: 'appointmentHealth',
           label: 'Citas completadas',
           value: this.formatPercent(this.appointmentHealth.completedRate),
           helper: `${this.formatNumber(this.appointmentHealth.completed)} completadas`,
@@ -417,13 +431,14 @@ export default {
         },
         {
           key: 'cancelled',
+          group: 'appointmentHealth',
           label: 'Cancelacion',
           value: this.formatPercent(this.appointmentHealth.cancelledRate),
           helper: `${this.formatNumber(this.appointmentHealth.cancelled)} canceladas`,
           interpretation: 'Al subir, revisa motivos y si se estan reagendando a tiempo.',
           tone: normalizeNumber(this.appointmentHealth.cancelled) > 0 ? 'warning' : 'neutral'
         }
-      ];
+      ].filter(card => this.hasMetricGroup(card.group));
     },
     previousRangeLabel: function() {
       const range = this.data && this.data.previousRange ? this.data.previousRange : null;
@@ -434,25 +449,22 @@ export default {
       return `${this.formatDate(range.from)} - ${this.formatDate(range.to)}`;
     },
     isEmpty: function() {
-      if(!this.data) {
-        return true;
-      }
-
-      return normalizeNumber(this.appointments.total) === 0
-        && normalizeNumber(this.appointments.scheduled) === 0
-        && normalizeNumber(this.prescriptions.total) === 0
-        && normalizeNumber(this.clinicalHistories.total) === 0
-        && normalizeNumber(this.treatmentEconomics.totalEstimatedTreatmentValue) === 0
-        && this.comparisonCards.every((item) => normalizeNumber(item.current) === 0);
+      return !this.data;
     }
   },
   methods: {
+    hasGroup: function(key) {
+      return hasMetric(this.data, key);
+    },
+    hasMetricGroup: function(key) {
+      return hasMetric(this.decisionMetrics, key);
+    },
     metricComparison: function(key) {
       const item = this.comparison[key] || {};
       return {
-        current: normalizeNumber(item.current),
-        previous: normalizeNumber(item.previous),
-        delta: normalizeNumber(item.delta),
+        current: metricNumber(item.current),
+        previous: metricNumber(item.previous),
+        delta: metricNumber(item.delta),
         deltaPercent: item.deltaPercent === null || item.deltaPercent === undefined ? null : Number(item.deltaPercent)
       };
     },
@@ -461,7 +473,7 @@ export default {
         patientsCreated: 'Ayuda a ver si esta entrando gente nueva al consultorio.',
         appointmentsCreated: 'Ayuda a ver si la demanda de agenda esta creciendo o bajando.',
         prescriptionsIssued: 'Ayuda a ver movimiento clinico documentado en recetas.',
-        clinicalHistoriesFinalized: 'Ayuda a ver si los expedientes se estan cerrando correctamente.'
+        clinicalHistoriesFinalized: 'Compara cuantas historias se finalizaron durante cada periodo.'
       };
       return labels[key] || 'Compara el periodo actual contra el anterior.';
     },
@@ -493,6 +505,7 @@ export default {
       return labels[status] || status || 'Sin estado';
     },
     deltaLabel: function(item) {
+      if(item.delta === null || item.current === null || item.previous === null) return 'Comparacion no disponible';
       const sign = item.delta > 0 ? '+' : '';
       const percent = item.deltaPercent === null
         ? 'sin porcentaje comparable'
@@ -500,15 +513,16 @@ export default {
       return `${sign}${this.formatNumber(item.delta)} vs anterior (${percent})`;
     },
     formatNumber: function(value) {
-      return normalizeNumber(value).toLocaleString('es-MX');
+      return formatMetric(value);
     },
     formatPercent: function(value) {
-      return `${normalizeNumber(value).toLocaleString('es-MX', {
+      if(metricNumber(value) === null) return 'No disponible';
+      return `${formatMetric(value, {
         maximumFractionDigits: 1
       })}%`;
     },
     formatCurrency: function(value) {
-      return normalizeNumber(value).toLocaleString('es-MX', {
+      return formatMetric(value, {
         style: 'currency',
         currency: 'MXN',
         maximumFractionDigits: 0

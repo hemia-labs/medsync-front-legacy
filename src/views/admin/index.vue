@@ -2,11 +2,13 @@
     <div class="admin-page-shell mx-auto px-5 py-5">
         <admin-settings-header
             :value="mobileSection"
+            :administrator="administrator"
             :sections="availableSections"
             @change="goToSection"
         ></admin-settings-header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <v-alert v-if="deniedSection" type="warning" dense text role="alert">No tienes acceso a ese apartado. Se muestran los ajustes que tienes autorizados.</v-alert>
+        <div v-if="availableSections.length" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
             <admin-settings-sidebar
                 :sections="availableSections"
                 :active-section="activeSection"
@@ -23,6 +25,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import { getSettingsSections, isTenantAdministrator } from '../../security/settingsAccess';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import AdminSettingsHeader from './components/AdminSettingsHeader.vue';
@@ -42,97 +45,16 @@ export default {
     },
     computed: {
         ...mapGetters(moduleTypes.AUTH, {
-            hasPermission: fnTypes.hasPermission
+            hasPermission: fnTypes.hasPermission,
+            role: fnTypes.getRole
         }),
-        sections: function() {
-            return [
-                {
-                    key: 'summary',
-                    title: 'Resumen',
-                    description: 'Vista general del consultorio',
-                    icon: 'mdi-view-dashboard-outline'
-                },
-                {
-                    key: 'identity',
-                    title: 'Informacion del consultorio',
-                    description: 'Datos del consultorio',
-                    icon: 'mdi-card-account-details-outline'
-                },
-                {
-                    key: 'account-legal',
-                    title: 'Cuenta y legal',
-                    description: 'Documentos SaaS y legales',
-                    icon: 'mdi-file-certificate-outline',
-                    permission: 'admin.config'
-                },
-                {
-                    key: 'users',
-                    title: 'Personal y usuarios',
-                    description: 'Doctores, asistentes y recepcion',
-                    icon: 'mdi-account-group-outline'
-                },
-                {
-                    key: 'roles-permissions',
-                    title: 'Puestos y accesos',
-                    description: 'Lo que puede hacer cada puesto',
-                    icon: 'mdi-shield-key-outline'
-                },
-                {
-                    key: 'doctor-identity',
-                    title: 'Identidad del doctor',
-                    description: 'Cedula, especialidad y firma',
-                    icon: 'mdi-doctor'
-                },
-                {
-                    key: 'prescriptions',
-                    title: 'Recetas medicas',
-                    description: 'Datos que aparecen en la receta',
-                    icon: 'mdi-file-document-edit',
-                    permission: 'prescriptions.config'
-                },
-                {
-                    key: 'agenda',
-                    title: 'Agenda clinica',
-                    description: 'Horarios y dias no disponibles',
-                    icon: 'mdi-calendar-clock'
-                },
-                {
-                    key: 'clinical-modules',
-                    title: 'Secciones clínicas',
-                    description: 'Apartados visibles del expediente',
-                    icon: 'mdi-view-module-outline'
-                },
-                {
-                    key: 'clinical-history-template',
-                    title: 'Plantilla de historia clínica',
-                    description: 'Preguntas de la historia clínica',
-                    icon: 'mdi-clipboard-text-outline',
-                    permission: 'clinical_history_template.view'
-                },
-                {
-                    key: 'documents',
-                    title: 'Documentos y consentimientos',
-                    description: 'Plantillas y consentimientos de pacientes',
-                    icon: 'mdi-file-document-outline'
-                },
-                {
-                    key: 'appearance',
-                    title: 'Apariencia',
-                    description: 'Logo y colores del sistema',
-                    icon: 'mdi-palette-outline'
-                }
-            ]
-        },
-        availableSections: function() {
-            return this.sections.filter((section) => {
-                const allowedByPermission = !section.permission || this.hasPermission(section.permission)
-                return allowedByPermission
-            })
-        },
+        administrator() { return isTenantAdministrator(this.role) },
+        availableSections() { return getSettingsSections(this.role, this.hasPermission) },
+        deniedSection() { return Boolean(this.$route.query.section && !this.availableSections.some(section=>section.key===this.$route.query.section)) },
         activeSection: function() {
             const requested = this.$route.query.section || 'summary'
             const exists = this.availableSections.some((section) => section.key === requested)
-            return exists ? requested : 'summary'
+            return exists ? requested : (this.availableSections[0] || {}).key || ''
         }
     },
     created() {

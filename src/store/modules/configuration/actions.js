@@ -1,6 +1,7 @@
 import { DAConfigService } from '../../../services/context/core-proccess-context';
 import DAHasErrorModel from '../../../models/error/DAHasErrorModel';
 import types from '../common/mutation-types';
+import { getThemeContext, loadTheme, saveTheme } from '../../../plugins/theme';
 
 const actions = {
     /**
@@ -90,29 +91,37 @@ const actions = {
         }
     },
 
-    async getTheme({commit}) {
-        let response = await DAConfigService.getTheme();
-        if(response.success) {
+    async getTheme({commit, rootState}, options = {}) {
+        if(!rootState.CORE.AUTH.authenticated && !options.allowAnonymous) return { success: false, themeAccepted: false };
+        const context = getThemeContext(rootState.CORE.AUTH);
+        const response = await loadTheme(context, () => DAConfigService.getTheme(),
+            () => getThemeContext(rootState.CORE.AUTH) === context, options);
+        if(response.success && response.themeAccepted) {
             commit(types.SET_THEME, response.data)
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel() )
         }
-        else {
-            commit(types.SET_THEME,[])
+        else if(getThemeContext(rootState.CORE.AUTH) === context && !response.success) {
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel(true, response.message) )
         }
+        return response;
     },
 
-    async saveTheme({commit}, data) {
-        let response = await DAConfigService.saveTheme(data);
+    async saveTheme({commit, rootState}, data) {
+        if(!rootState.CORE.AUTH.authenticated) return { success: false, themeAccepted: false };
+        const context = getThemeContext(rootState.CORE.AUTH);
+        const response = await saveTheme(context, () => DAConfigService.saveTheme(data),
+            () => getThemeContext(rootState.CORE.AUTH) === context);
+        if(getThemeContext(rootState.CORE.AUTH) !== context) return response;
         if(response.success) {
             commit(types.SET_SAVE_THEME, response.data)
-            commit(types.SET_THEME, response.data)
+            if(response.themeAccepted) commit(types.SET_THEME, response.data)
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel() )
         }
         else {
             commit(types.SET_SAVE_THEME,[])
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel(true, response.message) )
         }
+        return response;
     },
 
     async getClinicalModules({commit}) {

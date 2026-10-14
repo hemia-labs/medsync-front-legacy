@@ -6,8 +6,13 @@ export default {
         return DACore.get(DAC_BIRTHDAY_LIST);
     },
 
-    getContinuitySummary() {
-        return DACore.get(DAC_HOME_CONTINUITY_SUMMARY);
+    getContinuitySummary(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        return DACore.get(query ? `${DAC_HOME_CONTINUITY_SUMMARY}?${query}` : DAC_HOME_CONTINUITY_SUMMARY);
+    },
+
+    getAppointments(params = {}) {
+        return DACore.get(`api/home/appointments?${new URLSearchParams(params).toString()}`);
     },
 
     getPatients(data) {

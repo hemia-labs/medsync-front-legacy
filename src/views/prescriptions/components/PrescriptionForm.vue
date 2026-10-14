@@ -1,513 +1,376 @@
 <template>
-    <v-dialog v-model="internalShow" persistent max-width="980">
-        <v-card>
-            <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200 bg-primary-100">
+    <v-dialog v-model="internalShow" persistent :retain-focus="!leaveDialogOpen" :fullscreen="$vuetify.breakpoint.xsOnly" max-width="1100" content-class="rx-sheet-dialog">
+        <v-card v-dialog-name="{ id: `${uid}-title` }" class="rx-sheet" @keydown="trapFocus">
+            <header class="rx-sheet-header">
                 <div>
-                    <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Receta medica</p>
-                    <h3 class="m-0 mt-1 text-gray-700 text-xl font-semibold">{{ form.id_prescription ? 'Editar borrador' : 'Nueva receta' }}</h3>
-                    <p class="m-0 mt-1 text-gray-500 text-sm">Paciente: {{ patientName }}</p>
+                    <p class="rx-eyebrow">Receta médica · {{ step === 'review' ? 'Revisión' : 'Borrador' }}</p>
+                    <h2 :id="`${uid}-title`" tabindex="-1">{{ step === 'review' ? 'Revisar antes de emitir' : form.id_prescription ? 'Editar borrador' : 'Nueva receta' }}</h2>
+                    <p>{{ patientName }} <span v-if="patientMeta">· {{ patientMeta }}</span></p>
                 </div>
-                <v-btn icon @click="close"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+                <v-btn icon :disabled="busy" aria-label="Cerrar hoja de receta" @click="close"><v-icon>mdi-close</v-icon></v-btn>
+            </header>
+            <div ref="body" class="rx-sheet-body">
+                <p v-if="loading" role="status">Cargando paciente, doctor y receta…</p>
+                <div v-else-if="loadError" class="rx-message rx-message--error" role="alert">
+                    <p>{{ loadError }}</p><button class="rx-button" @click="loadContext">Reintentar carga</button>
+                </div>
+                <template v-else>
+                    <div class="rx-allergies" :class="{ 'rx-allergies--warning': allergyState !== 'none' }">
+                        <div><strong>{{ allergyTitle }}</strong><p v-if="allergyDescription">{{ allergyDescription }}</p></div>
+                        <div class="rx-context-actions">
+                            <a :href="`/px/history/${form.id_person}`" target="_blank" rel="noopener">Revisar expediente <span class="sr-only">(abre otra pestaña)</span></a>
+                            <button :disabled="busy || refreshingContext" @click="refreshPatient">{{ refreshingContext ? 'Actualizando…' : 'Actualizar datos' }}</button>
+                        </div>
+                    </div>
+                    <div v-if="contextError" class="rx-message rx-message--error" role="alert">{{ contextError }}</div>
+                    <div v-if="errors.length || error" ref="errorSummary" class="rx-message rx-message--error" tabindex="-1" role="alert">
+                        <strong>{{ error || 'Revisa los siguientes datos para continuar:' }}</strong>
+                        <ul v-if="errors.length"><li v-for="entry in errors" :key="entry.key"><button @click="focusField(entry.key)">{{ entry.message }}</button></li></ul>
+                    </div>
+                    <p v-if="savedMessage" class="rx-message" role="status">{{ savedMessage }}</p>
+                    <section v-if="step === 'edit'" class="rx-paper" aria-label="Captura de receta">
+                        <div class="rx-metadata">
+                            <v-select v-field-error="{ id: fieldId('doctor'), invalid: !!fieldErrors('doctor').length }" :id="fieldId('doctor')" v-model="form.issuer_doctor_id" :items="doctorOptions" item-text="display_name" item-value="id_login" label="Doctor emisor *" :disabled="currentUserIsDoctor || busy" :error-messages="fieldErrors('doctor')" outlined dense hide-details="auto"></v-select>
+                            <v-text-field v-field-error="{ id: fieldId('date'), invalid: !!fieldErrors('date').length }" :id="fieldId('date')" v-model="form.issue_date" label="Fecha de receta *" type="date" :disabled="busy" :error-messages="fieldErrors('date')" outlined dense hide-details="auto"></v-text-field>
+                        </div>
+                        <p v-if="selectedDoctorWarning" class="rx-message rx-message--warning">{{ selectedDoctorWarning }}</p>
+                        <div class="rx-prescription-heading"><div><h3>Prescripción</h3><p>* Obligatorio para emitir. Puedes guardar un borrador incompleto.</p></div><span class="rx-symbol" aria-hidden="true">℞</span></div>
+                        <article v-for="(item, index) in form.items" :key="item.local_id" class="rx-medication">
+                            <div class="rx-medication-heading"><h4>Medicamento {{ index + 1 }}</h4><v-btn icon :disabled="busy || form.items.length === 1" :aria-label="`Quitar medicamento ${index + 1}`" @click="removeItem(index)"><v-icon>mdi-delete-outline</v-icon></v-btn></div>
+                            <div class="rx-core-fields">
+                                <v-text-field v-for="field in coreFields" :key="field.key" v-field-error="{ id: fieldId(`${index}-${field.key}`), invalid: !!fieldErrors(`${index}-${field.key}`).length }" :id="fieldId(`${index}-${field.key}`)" v-model="item[field.key]" :label="`${field.label} *`" :class="{ 'rx-drug-name': field.key === 'generic_name' }" :disabled="busy" :error-messages="fieldErrors(`${index}-${field.key}`)" outlined dense hide-details="auto"></v-text-field>
+                            </div>
+                            <v-textarea :id="fieldId(`${index}-indications`)" v-model="item.indications" label="Indicaciones para el paciente (opcionales)" placeholder="Escribe las instrucciones adicionales con tus propias palabras." :disabled="busy" rows="2" auto-grow outlined hide-details="auto" class="rx-indications"></v-textarea>
+                            <button class="rx-details-toggle" :aria-expanded="String(item.detailsOpen)" :aria-controls="`${uid}-details-${item.local_id}`" :disabled="busy" @click="item.detailsOpen = !item.detailsOpen"><v-icon small>{{ item.detailsOpen ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>{{ item.detailsOpen ? 'Ocultar detalles' : 'Agregar presentación, concentración y otros detalles' }}</button>
+                            <div v-if="item.detailsOpen" :id="`${uid}-details-${item.local_id}`" class="rx-details-fields"><v-text-field v-for="field in detailFields" :key="field.key" v-model="item[field.key]" :label="`${field.label} (opcional)`" :disabled="busy" outlined dense hide-details="auto"></v-text-field></div>
+                        </article>
+                        <div v-if="removedItem" class="rx-message rx-undo" role="status"><span>Medicamento retirado de la hoja.</span><button @click="undoRemove" :disabled="busy">Deshacer</button></div>
+                        <button class="rx-button rx-add" :disabled="busy" @click="addItem"><v-icon small>mdi-plus</v-icon>Agregar medicamento</button>
+                        <details class="rx-general"><summary>Diagnóstico y notas generales (opcionales)</summary><v-text-field v-model="form.diagnosis" label="Diagnóstico" :disabled="busy" outlined dense hide-details="auto"></v-text-field><v-textarea v-model="form.notes" label="Notas generales" :disabled="busy" rows="2" auto-grow outlined hide-details="auto"></v-textarea></details>
+                    </section>
+                    <section v-else class="rx-paper rx-review" aria-label="Revisión de receta">
+                        <div class="rx-review-meta"><div><h3>{{ selectedDoctor ? selectedDoctor.display_name : '' }}</h3><p v-if="selectedDoctor">Cédula: {{ selectedDoctor.professional_license || 'Sin registrar' }}</p></div><p>{{ form.issue_date }}</p></div>
+                        <p><strong>Paciente:</strong> {{ patientName }} <span v-if="patientMeta">· {{ patientMeta }}</span></p>
+                        <p v-if="form.diagnosis"><strong>Diagnóstico:</strong> {{ form.diagnosis }}</p>
+                        <article v-for="(item, index) in form.items" :key="item.local_id" class="rx-review-item"><h4>{{ index + 1 }}. {{ item.generic_name }}</h4><p>{{ item.dose }} · {{ item.administration_route }} · {{ item.frequency }} · {{ item.duration }}</p><p v-for="field in filledDetails(item)" :key="field.key">{{ field.label }}: {{ item[field.key] }}</p><p v-if="item.indications" class="rx-free-text"><strong>Indicaciones:</strong> {{ item.indications }}</p></article>
+                        <p v-if="form.notes" class="rx-free-text"><strong>Notas generales:</strong> {{ form.notes }}</p>
+                        <div class="rx-message rx-message--warning">Al emitir, esta receta quedará bloqueada como documento histórico. Para corregir una receta emitida tendrás que cancelarla y crear otra.</div>
+                    </section>
+                </template>
             </div>
-
-            <v-card-text class="pt-5">
-                <div class="mb-4 px-4 py-3 border border-yellow-200 bg-yellow-50 text-yellow-800 text-sm leading-relaxed">
-                    Puedes guardar como borrador para continuar despues. Al emitir la receta quedara bloqueada como documento clinico historico.
+            <footer class="rx-sheet-footer">
+                <p>{{ busy ? (issuing ? 'Emitiendo receta…' : 'Guardando borrador…') : 'El borrador se guarda al pulsar Guardar.' }}</p>
+                <div class="rx-footer-actions">
+                    <button class="rx-button" :disabled="busy" @click="step === 'review' ? backToEdit() : close()">{{ step === 'review' ? 'Volver a editar' : 'Cerrar' }}</button>
+                    <button class="rx-button" :disabled="busy || loading || !!loadError" @click="saveDraft()">Guardar borrador</button>
+                    <button v-if="canIssue" class="rx-button rx-button--primary" :disabled="busy || loading || !!loadError" @click="step === 'review' ? issue() : review()">{{ step === 'review' ? 'Confirmar emisión' : 'Revisar y emitir' }}</button>
                 </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div class="md:col-span-2 bg-primary-100 border border-primary-200 p-4">
-                        <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Paciente</p>
-                        <h4 class="m-0 mt-1 text-gray-700 font-semibold">{{ patientName }}</h4>
-                        <p class="m-0 mt-1 text-gray-500 text-sm">{{ patientMeta }}</p>
-                    </div>
-
-                    <v-select
-                        v-model="form.issuer_doctor_id"
-                        :items="doctorOptions"
-                        item-text="display_name"
-                        item-value="id_login"
-                        label="Doctor emisor"
-                        dense
-                        outlined
-                        :disabled="currentUserIsDoctor"
-                        color="var(--color-primary-700)"
-                    ></v-select>
-                </div>
-                <div v-if="selectedDoctorWarning" class="mb-4 px-4 py-3 border border-yellow-200 bg-yellow-50 text-yellow-800 text-sm leading-relaxed">
-                    {{ selectedDoctorWarning }}
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <v-text-field v-model="form.issue_date" type="date" label="Fecha de receta" dense outlined color="var(--color-primary-700)"></v-text-field>
-                    <v-text-field v-model="form.diagnosis" label="Diagnostico opcional" dense outlined color="var(--color-primary-700)"></v-text-field>
-                </div>
-
-                <v-textarea v-model="form.notes" label="Notas generales" rows="2" outlined color="var(--color-primary-700)"></v-textarea>
-
-                <div class="flex items-center justify-between gap-3 mb-3">
-                    <div>
-                        <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Medicamentos</p>
-                        <h4 class="m-0 text-gray-700 font-semibold">Prescripcion</h4>
-                    </div>
-                    <button type="button" class="rx-form-action rx-form-action--add" @click="addItem">
-                        <v-icon small>mdi-plus</v-icon>
-                        <span>Medicamento</span>
-                    </button>
-                </div>
-
-                <div class="space-y-4">
-                    <article v-for="(item, index) in form.items" :key="item.local_id" class="border border-gray-200 bg-gray-50 p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <p class="m-0 text-gray-700 font-semibold">Medicamento {{ index + 1 }}</p>
-                            <v-btn icon small @click="removeItem(index)" :disabled="form.items.length === 1">
-                                <v-icon color="#A6001E">mdi-delete-outline</v-icon>
-                            </v-btn>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <v-text-field v-model="item.generic_name" label="Nombre generico" dense outlined color="var(--color-primary-700)"></v-text-field>
-                            <v-text-field v-model="item.commercial_name" label="Nombre comercial opcional" dense outlined color="var(--color-primary-700)"></v-text-field>
-                            <v-text-field v-model="item.presentation" label="Presentacion" dense outlined color="var(--color-primary-700)"></v-text-field>
-                            <v-text-field v-model="item.concentration" label="Concentracion" dense outlined color="var(--color-primary-700)"></v-text-field>
-                            <v-text-field v-model="item.pharmaceutical_form" label="Forma farmaceutica" dense outlined color="var(--color-primary-700)"></v-text-field>
-                            <v-text-field v-model="item.quantity" label="Cantidad" dense outlined color="var(--color-primary-700)"></v-text-field>
-                            <v-text-field v-model="item.dose" label="Dosis" dense outlined color="var(--color-primary-700)"></v-text-field>
-                            <v-text-field v-model="item.administration_route" label="Via de administracion" dense outlined color="var(--color-primary-700)"></v-text-field>
-                            <v-text-field v-model="item.frequency" label="Frecuencia" dense outlined color="var(--color-primary-700)"></v-text-field>
-                            <v-text-field v-model="item.duration" label="Duracion" dense outlined color="var(--color-primary-700)"></v-text-field>
-                        </div>
-                        <v-textarea v-model="item.indications" label="Indicaciones" rows="2" outlined color="var(--color-primary-700)"></v-textarea>
-                    </article>
-                </div>
-
-                <p v-if="error" class="mt-4 text-red-600 font-semibold">{{ error }}</p>
-            </v-card-text>
-
-            <v-card-actions class="px-6 pb-5 justify-end">
-                <div class="rx-form-actions">
-                    <button type="button" class="rx-form-action rx-form-action--close" @click="close">
-                        <v-icon small>mdi-close</v-icon>
-                        <span>Cerrar</span>
-                    </button>
-                    <button type="button" class="rx-form-action rx-form-action--draft" @click="saveDraft" :disabled="saving || issuing">
-                        <v-icon small>mdi-content-save-outline</v-icon>
-                        <span>{{ saving ? 'Guardando...' : 'Guardar borrador' }}</span>
-                    </button>
-                    <button type="button" class="rx-form-action rx-form-action--issue" @click="issue" :disabled="saving || issuing">
-                        <v-icon small>mdi-check-decagram-outline</v-icon>
-                        <span>{{ issuing ? 'Emitiendo...' : 'Emitir receta' }}</span>
-                    </button>
-                </div>
-            </v-card-actions>
+            </footer>
         </v-card>
     </v-dialog>
 </template>
-
 <script>
 import { mapGetters } from 'vuex';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
-import { DAPrescriptionService } from '../../../services/context/core-proccess-context';
-
-const today = () => new Date().toISOString().slice(0, 10);
-const localId = () => `item-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-const emptyItem = () => ({
-    local_id: localId(),
-    generic_name: '',
-    commercial_name: '',
-    presentation: '',
-    concentration: '',
-    pharmaceutical_form: '',
-    dose: '',
-    administration_route: '',
-    frequency: '',
-    duration: '',
-    quantity: '',
-    indications: ''
-});
-
-const emptyForm = (idPerson) => ({
-    id_prescription: '',
-    id_person: idPerson,
-    issuer_doctor_id: '',
-    issue_date: today(),
-    diagnosis: '',
-    notes: '',
-    items: [emptyItem()]
-});
-
+import { DAPrescriptionService, DAPxService } from '../../../services/context/core-proccess-context';
+import { coreFields, detailFields, emptyItem, emptyForm, payload, snapshot, validate, saveAndIssue } from '../../../domain/prescriptions/prescription.editor';
+import dialogName from '../../../core/directives/dialog-name';
+import fieldError from '../../../core/directives/field-error';
+import { uuid } from 'vue-uuid';
 export default {
-    props: {
-        show: {
-            type: Boolean,
-            default: false
-        },
-        px: {
-            type: Object,
-            default: () => ({})
-        },
-        prescription: {
-            type: Object,
-            default: null
-        }
-    },
+    directives: { dialogName, fieldError },
+    props: { show: { type: Boolean, default: false }, px: { type: Object, default: () => ({}) }, prescription: { type: Object, default: null } },
     data() {
-        return {
-            internalShow: false,
-            form: emptyForm(''),
-            doctors: [],
-            error: '',
-            saving: false,
-            issuing: false
-        };
+        return { internalShow: false, form: emptyForm(''), patientContext: {}, doctors: [], coreFields, detailFields,
+            error: '', errors: [], loading: false, loadError: '', saving: false, issuing: false, refreshingContext: false,
+            contextError: '', baseline: '', step: 'edit', removedItem: null, savedMessage: '', request: 0, leaveDialogOpen: false };
     },
     computed: {
-        patient() {
-            return this.px && this.px.person ? this.px.person : {};
-        },
-        patientName() {
-            return this.patient.fullname || `${this.patient.name || ''} ${this.patient.surname || ''}`.trim() || 'Paciente';
-        },
-        patientMeta() {
-            const parts = [];
-            if(this.patient.age !== undefined && this.patient.age !== null) {
-                parts.push(`${this.patient.age} anios`);
-            }
-            if(this.patient.birthday) {
-                parts.push(`Nacimiento: ${this.patient.birthday}`);
-            }
-            return parts.join(' | ');
-        },
-        ...mapGetters(moduleTypes.AUTH, {
-            authUser: fnTypes.getUser
-        }),
-        currentUserIsDoctor() {
-            return this.authUser && ['doctor'].includes(this.authUser.rol);
-        },
-        doctorOptions() {
-            return (this.doctors || []).map((doctor) => ({
-                ...doctor,
-                display_name: doctor.professional_name || doctor.name
-            }));
-        },
-        selectedDoctor() {
-            return this.doctors.find((doctor) => doctor.id_login === this.form.issuer_doctor_id) || null;
-        },
-        selectedDoctorWarning() {
-            const doctor = this.selectedDoctor;
-            if(!doctor) {
-                return '';
-            }
-            if(Number(doctor.professional_profile_complete) !== 1) {
-                return 'Para emitir recetas, completa el perfil profesional del doctor en Configuracion > Personal y usuarios > Perfil profesional.';
-            }
-            return '';
-        }
+        ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, authRole: fnTypes.getRole, hasPermission: fnTypes.hasPermission }),
+        uid() { return `rx-editor-${this._uid}`; },
+        busy() { return this.saving || this.issuing; },
+        dirty() { return this.internalShow && !this.loading && !!this.baseline && snapshot(this.form) !== this.baseline; },
+        patient() { return this.patientContext.person || {}; },
+        patientName() { return this.patient.fullname || `${this.patient.name || ''} ${this.patient.surname || ''}`.trim() || 'Cargando paciente'; },
+        patientMeta() { return [this.patient.age == null ? '' : `${this.patient.age} años`, this.patient.number ? `Exp. ${this.patient.number}` : ''].filter(Boolean).join(' · '); },
+        currentUserIsDoctor() { return (typeof this.authRole === 'object' ? this.authRole && this.authRole.code : this.authRole) === 'doctor' || (this.authUser && this.authUser.rol === 'doctor'); },
+        canIssue() { return this.hasPermission('prescriptions.issue'); },
+        doctorOptions() { return this.doctors.map(doctor => ({ ...doctor, display_name: doctor.professional_name || doctor.name })); },
+        selectedDoctor() { return this.doctorOptions.find(doctor => doctor.id_login === this.form.issuer_doctor_id); },
+        selectedDoctorWarning() { return this.selectedDoctor && Number(this.selectedDoctor.professional_profile_complete) !== 1 ? 'Completa el perfil profesional en Configuración > Personal y usuarios > Perfil profesional antes de emitir. Puedes guardar el borrador.' : ''; },
+        allergyState() { const allergy = this.patientContext.allergy || {}; return !allergy.id_allergy || allergy.has_allergy == null ? 'unknown' : Number(allergy.has_allergy) === 1 ? 'registered' : 'none'; },
+        allergyTitle() { return { unknown: 'Alergias sin confirmar: consulta al paciente antes de continuar.', registered: 'Alergias registradas', none: 'Sin alergias registradas' }[this.allergyState]; },
+        allergyDescription() { const allergy = this.patientContext.allergy || {}; return this.allergyState === 'registered' ? (allergy.description || allergy.allergy || 'Revisa el detalle en el expediente.') : ''; }
     },
     watch: {
-        show(value) {
-            this.internalShow = value;
-            if(value) {
-                this.init();
-            }
-        },
-        internalShow(value) {
-            if(!value) {
-                this.$emit('close');
-            }
-        }
+        show: { immediate: true, handler(value) { this.internalShow = value; if (value) this.init(); } },
+        internalShow(value) { if (!value) { this.request += 1; this.$emit('close'); } }
+    },
+    mounted() {
+        window.addEventListener('beforeunload', this.beforeUnload);
+        this.removeNavigationGuard = this.$router.beforeEach((to, from, next) => {
+            this.confirmLeave().then(allowed => next(allowed)).catch(() => next(false));
+        });
+    },
+    beforeDestroy() {
+        this.request += 1;
+        window.removeEventListener('beforeunload', this.beforeUnload);
+        if(this.removeNavigationGuard) this.removeNavigationGuard();
     },
     methods: {
-        async init() {
-            this.error = '';
-            const idPerson = this.patient.id_person || '';
-            this.form = emptyForm(idPerson);
-            await this.loadDoctors();
-
-            if(this.prescription) {
-                const response = await DAPrescriptionService.getById(this.prescription.id_prescription);
-                if(response.success) {
-                    this.fillForm(response.data);
-                }
-            }
+        init() {
+            this.step = 'edit'; this.error = ''; this.errors = []; this.savedMessage = ''; this.removedItem = null; this.baseline = ''; this.contextError = '';
+            this.form = emptyForm(this.px.person && this.px.person.id_person || '', uuid.v4()); this.patientContext = {}; this.loadContext();
         },
-        async loadDoctors() {
-            const response = await DAPrescriptionService.doctors();
-            this.doctors = response.success ? response.data : [];
-            if(this.currentUserIsDoctor && this.authUser && this.authUser.id_login) {
-                this.form.issuer_doctor_id = this.authUser.id_login;
-                return;
-            }
-            if(!this.form.issuer_doctor_id && this.doctors.length === 1) {
-                this.form.issuer_doctor_id = this.doctors[0].id_login;
-            }
+        async loadContext() {
+            const request = ++this.request; this.loading = true; this.loadError = '';
+            try {
+                const [patient, doctors, draft] = await Promise.all([
+                    DAPxService.getById(this.form.id_person), DAPrescriptionService.doctors(),
+                    this.prescription ? DAPrescriptionService.getById(this.prescription.id_prescription) : Promise.resolve(null)
+                ]);
+                if (request !== this.request) return;
+                if (!patient.success || !patient.data || !patient.data.person || patient.data.person.id_person !== this.form.id_person) throw new Error('No se pudo cargar el paciente seleccionado. Reintenta antes de capturar la receta.');
+                if (!doctors.success) throw new Error(doctors.message || 'No se pudieron cargar los doctores.');
+                if (draft && (!draft.success || draft.data.status !== 'draft' || draft.data.id_person !== this.form.id_person)) throw new Error('No se pudo abrir este borrador. Consulta su estado en el historial.');
+                this.patientContext = patient.data; this.doctors = doctors.data || [];
+                if (draft) this.form = { ...emptyForm(draft.data.id_person), ...draft.data, issue_date: String(draft.data.issue_date || '').slice(0, 10), items: (draft.data.items || []).map(emptyItem) };
+                else if (this.currentUserIsDoctor && this.authUser) this.form.issuer_doctor_id = this.authUser.id_login;
+                else if (this.doctors.length === 1) this.form.issuer_doctor_id = this.doctors[0].id_login;
+                this.baseline = snapshot(this.form);
+            } catch (error) { if (request === this.request) this.loadError = error.message || 'No se pudo cargar la hoja.'; }
+            finally { if (request === this.request) this.loading = false; }
         },
-        fillForm(data) {
-            this.form = {
-                id_prescription: data.id_prescription,
-                id_person: data.id_person,
-                issuer_doctor_id: data.issuer_doctor_id,
-                issue_date: data.issue_date ? data.issue_date.slice(0, 10) : today(),
-                diagnosis: data.diagnosis || '',
-                notes: data.notes || '',
-                items: (data.items || []).map((item) => ({
-                    ...item,
-                    local_id: item.id_prescription_item || localId()
-                }))
-            };
-
-            if(this.form.items.length === 0) {
-                this.form.items = [emptyItem()];
-            }
+        async refreshPatient() {
+            this.refreshingContext = true; this.contextError = '';
+            try {
+                const response = await DAPxService.getById(this.form.id_person);
+                if (!response.success || !response.data.person || response.data.person.id_person !== this.form.id_person) throw new Error('No se pudo actualizar el expediente. Los datos capturados en la receta se conservaron.');
+                this.patientContext = response.data;
+            } catch (error) { this.contextError = error.message; }
+            finally { this.refreshingContext = false; }
         },
-        addItem() {
-            this.form.items.push(emptyItem());
+        fieldId(key) { return `${this.uid}-${key}`; },
+        fieldErrors(key) { return this.errors.filter(entry => entry.key === key).map(entry => entry.message); },
+        focusField(key) { this.$nextTick(() => { const field = document.getElementById(this.fieldId(key)); if (field) { field.focus(); field.scrollIntoView({ block: 'center' }); } }); },
+        async showErrors() { await this.$nextTick(); if (this.$refs.errorSummary) this.$refs.errorSummary.focus(); },
+        check(forIssue) {
+            this.error = ''; this.errors = validate(this.form, forIssue);
+            if (this.currentUserIsDoctor && this.form.issuer_doctor_id !== this.authUser.id_login) this.errors.push({ key: 'doctor', message: 'Solo puedes emitir con tu propio perfil profesional.' });
+            if (forIssue && this.selectedDoctorWarning) this.errors.push({ key: 'doctor', message: this.selectedDoctorWarning });
+            if (this.errors.length) { this.step = 'edit'; this.showErrors(); return false; }
+            return true;
         },
-        removeItem(index) {
-            if(this.form.items.length > 1) {
-                this.form.items.splice(index, 1);
-            }
-        },
-        validate() {
-            if(!this.form.id_person) {
-                return 'No se encontro el paciente del expediente.';
-            }
-            if(!this.form.issuer_doctor_id) {
-                return 'Selecciona el doctor emisor.';
-            }
-            if(this.currentUserIsDoctor && this.authUser && this.form.issuer_doctor_id !== this.authUser.id_login) {
-                return 'El doctor solo puede emitir recetas con su propio perfil profesional.';
-            }
-            if(!this.form.issue_date) {
-                return 'Selecciona fecha de receta.';
-            }
-            return '';
-        },
-        validateForIssue() {
-            const baseError = this.validate();
-            if(baseError) {
-                return baseError;
-            }
-            if(this.selectedDoctorWarning) {
-                return this.selectedDoctorWarning;
-            }
-
-            if(!this.form.items || this.form.items.length === 0) {
-                return 'Agrega al menos un medicamento.';
-            }
-
-            for(let index = 0; index < this.form.items.length; index += 1) {
-                const item = this.form.items[index] || {};
-                const prefix = `Medicamento ${index + 1}:`;
-                if(!item.generic_name) {
-                    return `${prefix} captura nombre generico.`;
-                }
-                if(!item.dose) {
-                    return `${prefix} captura dosis.`;
-                }
-                if(!item.administration_route) {
-                    return `${prefix} captura via de administracion.`;
-                }
-                if(!item.frequency) {
-                    return `${prefix} captura frecuencia.`;
-                }
-                if(!item.duration) {
-                    return `${prefix} captura duracion.`;
-                }
-            }
-
-            return '';
-        },
-        async saveDraft() {
-            if(this.saving || this.issuing) {
-                return;
-            }
-            this.error = this.validate();
-            if(this.error) {
-                return;
-            }
-
+        addItem() { this.form.items.push(emptyItem()); this.focusField(`${this.form.items.length - 1}-generic_name`); },
+        removeItem(index) { this.removedItem = { item: this.form.items[index], index }; this.form.items.splice(index, 1); this.errors = []; },
+        undoRemove() { this.form.items.splice(this.removedItem.index, 0, this.removedItem.item); this.removedItem = null; this.errors = []; },
+        filledDetails(item) { return detailFields.filter(field => item[field.key]); },
+        backToEdit() { this.step = 'edit'; this.error = ''; },
+        review() { if (this.check(true)) { this.step = 'review'; this.$nextTick(() => { this.$refs.body.scrollTop = 0; document.getElementById(`${this.uid}-title`).focus(); }); } },
+        async saveDraft(closeAfter = true) {
+            if (this.busy || this.loading || this.loadError || !this.check(false)) return false;
             this.saving = true;
-            const response = await DAPrescriptionService.save(this.form);
-            this.saving = false;
-            if(response.success) {
-                this.$emit('saved', response.data);
-                this.close();
-                return;
-            }
-
-            this.error = response.message || 'No fue posible guardar la receta.';
+            try {
+                const response = await DAPrescriptionService.save(payload(this.form));
+                if (!response.success) throw new Error(response.message || 'No se pudo guardar. Tus cambios siguen en la hoja; reintenta.');
+                this.form.id_prescription = response.data.id_prescription; this.baseline = snapshot(this.form); this.$emit('saved', response.data);
+                if (closeAfter || response.data.status === 'issued') this.internalShow = false;
+                return true;
+            } catch (error) { this.error = error.message; this.showErrors(); return false; }
+            finally { this.saving = false; }
         },
         async issue() {
-            if(this.saving || this.issuing) {
-                return;
-            }
-
-            this.error = this.validateForIssue();
-            if(this.error) {
-                return;
-            }
-
-            const confirm = await this.$swal({
-                title: 'Emitir receta',
-                text: 'Despues de emitirla ya no podra editarse. Si hay un error, deberas cancelarla y crear una nueva.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Emitir receta',
-                cancelButtonText: 'Revisar',
-                buttonsStyling: false,
-                customClass: {
-                    confirmButton: 'rx-swal-confirm',
-                    cancelButton: 'rx-swal-cancel'
-                }
-            });
-            if(!confirm.value) {
-                return;
-            }
-
+            if (this.busy || this.step !== 'review' || !this.check(true)) return;
             this.issuing = true;
-            const draft = await DAPrescriptionService.save(this.form);
-            if(!draft.success) {
-                this.issuing = false;
-                this.error = draft.message || 'No fue posible guardar el borrador.';
-                return;
-            }
-
-            const issued = await DAPrescriptionService.issue(draft.data.id_prescription);
-            this.issuing = false;
-            if(issued.success) {
-                this.$emit('saved', issued.data);
-                this.close();
-                return;
-            }
-
-            this.error = issued.message || 'No fue posible emitir la receta.';
+            try {
+                const response = await saveAndIssue(DAPrescriptionService, this.form, draft => { this.baseline = snapshot(this.form); this.savedMessage = `Borrador ${draft.folio || ''} guardado.`; this.$emit('draft-saved', draft); });
+                if (!response.success) throw new Error(response.message || 'No se pudo confirmar la emisión. Reintenta sobre esta misma receta.');
+                this.baseline = snapshot(this.form); this.$emit('saved', response.data); this.internalShow = false;
+            } catch (error) { this.error = error.message; this.showErrors(); }
+            finally { this.issuing = false; }
         },
-        close() {
-            this.internalShow = false;
-        }
+        async confirmLeave() {
+            if (!this.internalShow) return true;
+            if (this.busy) return false;
+            if (!this.dirty) return true;
+            this.leaveDialogOpen = true;
+            await this.$nextTick();
+            let result;
+            try {
+                result = await this.$swal({
+                    title: 'Tienes cambios sin guardar',
+                    text: 'Puedes guardar el borrador antes de salir.',
+                    showDenyButton: true,
+                    showCancelButton: true,
+                    confirmButtonText: 'Guardar y salir',
+                    denyButtonText: 'Descartar cambios',
+                    cancelButtonText: 'Seguir editando',
+                    focusCancel: true,
+                    buttonsStyling: false,
+                    customClass: {
+                        popup: 'rx-leave-dialog',
+                        title: 'rx-leave-title',
+                        htmlContainer: 'rx-leave-description',
+                        actions: 'rx-leave-actions',
+                        confirmButton: 'rx-leave-button rx-leave-confirm',
+                        denyButton: 'rx-leave-button rx-leave-discard',
+                        cancelButton: 'rx-leave-button rx-leave-continue'
+                    }
+                });
+            }
+            finally { this.leaveDialogOpen = false; }
+            if (result.isConfirmed) return this.saveDraft(false);
+            return result.isDenied;
+        },
+        async close() { if (await this.confirmLeave()) this.internalShow = false; },
+        trapFocus(event) {
+            if(event.key !== 'Tab' || this.leaveDialogOpen) return;
+            const controls = [...event.currentTarget.querySelectorAll('button, a[href], input, textarea, select, summary, [tabindex]')]
+                .filter(element => !element.disabled && element.tabIndex >= 0 && element.getClientRects().length);
+            if(!controls.length) return;
+            const first = controls[0], last = controls[controls.length - 1];
+            if(event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if(!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        },
+        beforeUnload(event) { if (this.dirty || this.busy) { event.preventDefault(); event.returnValue = ''; } }
     }
 };
 </script>
-
 <style scoped>
-.rx-form-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.6rem;
+.rx-sheet { display: flex; flex-direction: column; max-height: calc(100vh - 80px); color: #334155; }
+.rx-sheet-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 24px; border-bottom: 1px solid #dbe5e9; background: #f1fafb; gap: 12px; flex-shrink: 0; }
+.rx-sheet h2 { font-size: 22px; line-height: 1.3; margin: 3px 0; color: #1e293b; }
+.rx-sheet h3 { font-size: 18px; color: #1e293b; }
+.rx-sheet h4 { font-size: 15px; color: #334155; }
+.rx-sheet p { margin: 0; }
+.rx-sheet-header p { font-size: 14px; }
+.rx-eyebrow { color: #116c70; font-size: 11px !important; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.rx-sheet-body { overflow-y: auto; padding: 20px 24px; flex: 1 1 auto; min-height: 0; background: #f4f7f8; }
+.rx-paper { padding: 22px; background: white; border: 1px solid #dbe5e9; border-radius: 8px; }
+.rx-metadata { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; }
+.rx-prescription-heading { display: flex; align-items: center; justify-content: space-between; margin: 20px 0 8px; }
+.rx-prescription-heading p { font-size: 12px; margin-top: 4px; }
+.rx-symbol { font-size: 32px; color: #116c70; }
+.rx-medication { border-top: 1px solid #dbe5e9; padding: 8px 0 18px; }
+.rx-medication-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.rx-core-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.rx-drug-name { grid-column: 1 / -1; }
+.rx-indications { margin-top: 12px; }
+.rx-details-toggle { color: #116c70; display: flex; align-items: center; min-height: 44px; text-align: left; font-size: 13px; gap: 4px; }
+.rx-details-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 8px; }
+.rx-general { border-top: 1px solid #dbe5e9; margin-top: 18px; padding-top: 10px; }
+.rx-general summary { cursor: pointer; min-height: 44px; padding: 10px 0; font-size: 14px; }
+.rx-general .v-input { margin: 10px 0; }
+.rx-sheet-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-shrink: 0; padding: 14px 24px; background: white; border-top: 1px solid #dbe5e9; }
+.rx-sheet-footer > p { font-size: 12px; max-width: 180px; }
+.rx-footer-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.rx-button { display: inline-flex; justify-content: center; align-items: center; gap: 6px; min-height: 44px; padding: 9px 14px; border-radius: 8px; border: 1px solid #b8cbd0; background: white; color: #116c70; font-weight: 600; font-size: 14px; }
+.rx-button--primary { background: #116c70; color: white; border-color: #116c70; }
+.rx-button:disabled { opacity: .55; cursor: not-allowed; }
+.rx-button .v-icon { color: inherit; }
+.rx-button:focus-visible, .rx-sheet button:focus-visible, .rx-sheet a:focus-visible, .rx-general summary:focus-visible { outline: 3px solid #176ea6; outline-offset: 2px; }
+.rx-allergies { padding: 12px 14px; background: #eaf6ef; border: 1px solid #b7dbca; border-radius: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.rx-allergies--warning { background: #fff9e8; border-color: #e7ca78; color: #674600; }
+.rx-context-actions { display: flex; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
+.rx-context-actions a, .rx-context-actions button { display: inline-flex; align-items: center; min-height: 36px; text-decoration: underline; color: #116c70; }
+.rx-message { padding: 12px 14px; background: #edf7fa; border: 1px solid #b8d6df; border-radius: 6px; margin-bottom: 16px; font-size: 14px; }
+.rx-message--error { color: #991b1b; background: #fff1f2; border-color: #fecdd3; }
+.rx-message--error ul { margin: 8px 0 0; padding-left: 20px; }
+.rx-message--error li button { text-decoration: underline; text-align: left; padding: 4px 0; }
+.rx-message--warning { color: #674600; background: #fff9e8; border-color: #e7ca78; margin-top: 16px; }
+.rx-undo { display: flex; justify-content: space-between; align-items: center; }
+.rx-undo button { text-decoration: underline; padding: 10px; }
+.rx-review-meta { display: flex; justify-content: space-between; border-bottom: 1px solid #dbe5e9; padding-bottom: 14px; margin-bottom: 16px; gap: 12px; }
+.rx-review-item { margin: 16px 0; padding: 14px 0; border-bottom: 1px solid #dbe5e9; }
+.rx-review-item p { margin-top: 6px; }
+.rx-free-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+    .rx-sheet { height: 100vh; max-height: 100vh; }
+    .rx-sheet-header { padding: 14px 16px; }
+    .rx-sheet-body { padding: 12px; }
+    .rx-paper { padding: 14px; }
+    .rx-metadata, .rx-details-fields { grid-template-columns: 1fr; }
+    .rx-core-fields { grid-template-columns: 1fr 1fr; }
+    .rx-allergies { display: block; }
+    .rx-context-actions { margin-top: 4px; }
+    .rx-sheet-footer { padding: 10px 12px; display: block; }
+    .rx-sheet-footer > p { display: none; }
+    .rx-footer-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    .rx-button--primary { grid-column: 1 / -1; }
+    .rx-footer-actions .rx-button { padding: 8px; font-size: 13px; }
 }
-
-.rx-form-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    min-height: 2.35rem;
-    padding: 0.45rem 0.9rem;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    font-size: 0.82rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    line-height: 1;
-    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.1);
-    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
-}
-
-.rx-form-action:hover:not(:disabled) {
-    transform: translateY(-1px);
-}
-
-.rx-form-action:disabled {
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-.rx-form-action .v-icon {
-    color: currentColor;
-}
-
-.rx-form-action--close {
-    background: #fff;
-    border-color: #e5e7eb;
-    color: #64748b;
-}
-
-.rx-form-action--close:hover:not(:disabled) {
-    background: #f8fafc;
-}
-
-.rx-form-action--draft {
-    background: #eef9fc;
-    border-color: #bdebf5;
-    color: var(--color-primary-700);
-}
-
-.rx-form-action--draft:hover:not(:disabled) {
-    background: #ddf5fa;
-}
-
-.rx-form-action--issue {
-    background: #e8f8ef;
-    border-color: #b8e8ca;
-    color: #137445;
-}
-
-.rx-form-action--issue:hover:not(:disabled) {
-    background: #d9f4e5;
-}
-
-.rx-form-action--add {
-    background: #fff7ed;
-    border-color: #fed7aa;
-    color: #b45309;
-}
-
-.rx-form-action--add:hover:not(:disabled) {
-    background: #ffedd5;
-}
+@media (max-width: 360px) { .rx-core-fields { grid-template-columns: 1fr; } }
 </style>
-
 <style>
-.rx-swal-confirm,
-.rx-swal-cancel {
-    min-width: 9rem;
-    min-height: 2.65rem;
-    margin: 0 0.35rem;
-    padding: 0.65rem 1.1rem;
+.swal2-popup.rx-leave-dialog {
+    width: 36rem;
+    max-width: calc(100vw - 32px);
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-primary-200, #cdeef7);
+    border-radius: 16px;
+    background: #fff;
+    font-family: inherit;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
+}
+.rx-leave-dialog .rx-leave-title {
+    margin: 0;
+    padding: 22px 24px 18px;
+    background: linear-gradient(180deg, var(--color-primary-100, #e6f7fb), #fff);
+    color: #334155;
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1.4;
+    text-align: left;
+}
+.rx-leave-dialog .rx-leave-description {
+    margin: 0;
+    padding: 0 24px 22px;
+    color: #64748b;
+    font-size: .9rem;
+    line-height: 1.6;
+    text-align: left;
+}
+.rx-leave-dialog .rx-leave-actions {
+    /* SweetAlert applies display:flex inline; keep the responsive button layout. */
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+    padding: 16px 20px;
+    border-top: 1px solid var(--color-primary-200, #cdeef7);
+    background: #f8fcfd;
+}
+.rx-leave-dialog .rx-leave-button {
+    min-height: 44px;
+    margin: 0;
+    padding: 10px 12px;
     border: 1px solid transparent;
     border-radius: 999px;
-    font-size: 0.9rem;
+    font-size: .82rem;
     font-weight: 700;
-    letter-spacing: 0.02em;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
-    transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    line-height: 1.3;
+    transition: background-color .16s ease, box-shadow .16s ease;
 }
-
-.rx-swal-confirm:hover,
-.rx-swal-cancel:hover {
-    transform: translateY(-1px);
+.rx-leave-dialog .rx-leave-confirm {
+    background: var(--color-primary-900, #086783);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(8, 103, 131, .16);
 }
-
-.rx-swal-confirm {
-    background: #e8f8ef;
-    border-color: #b8e8ca;
-    color: #137445;
+.rx-leave-dialog .rx-leave-confirm:hover { background: var(--color-primary-1000, #064e63); }
+.rx-leave-dialog .rx-leave-discard { border-color: #fecdd3; background: #fff1f2; color: #a6001e; }
+.rx-leave-dialog .rx-leave-discard:hover { background: #ffe4e6; }
+.rx-leave-dialog .rx-leave-continue { border-color: var(--color-primary-200, #cdeef7); background: var(--color-primary-100, #e6f7fb); color: var(--color-primary-900, #086783); }
+.rx-leave-dialog .rx-leave-continue:hover { background: var(--color-primary-200, #cdeef7); }
+.rx-leave-dialog .rx-leave-button:focus-visible { outline: 3px solid var(--color-primary-900, #086783); outline-offset: 3px; }
+@media (max-width: 600px) {
+    .rx-leave-dialog .rx-leave-title { padding: 20px 20px 14px; font-size: 1.15rem; }
+    .rx-leave-dialog .rx-leave-description { padding: 0 20px 20px; }
+    .rx-leave-dialog .rx-leave-actions { grid-template-columns: 1fr; padding: 14px 20px; }
 }
-
-.rx-swal-confirm:hover {
-    background: #d9f4e5;
-}
-
-.rx-swal-cancel {
-    background: #eef9fc;
-    border-color: #bdebf5;
-    color: var(--color-primary-700);
-}
-
-.rx-swal-cancel:hover {
-    background: #ddf5fa;
-}
+.rx-swal-confirm, .rx-swal-cancel { min-height: 44px; margin: 6px; padding: 10px 16px; border-radius: 8px; font-weight: 600; }
+.rx-swal-confirm { background: #116c70; color: white; }
+.rx-swal-cancel { background: #edf7fa; color: #116c70; border: 1px solid #b8cbd0; }
 </style>

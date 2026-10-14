@@ -78,15 +78,11 @@ const addCheck = (name, ok, evidence) => {
 };
 
 const includesAll = (source, needles) => needles.every((needle) => source.includes(needle));
-const matches = (source, pattern) => pattern.test(source);
 
 const assertIncludesAll = (name, source, needles, evidence) => {
     addCheck(name, includesAll(source, needles), evidence);
 };
 
-const assertMatches = (name, source, pattern, evidence) => {
-    addCheck(name, matches(source, pattern), evidence);
-};
 
 const assertNoMatches = (name, sourceMap, patterns, evidence) => {
     const offenders = [];
@@ -104,7 +100,6 @@ const assertNoMatches = (name, sourceMap, patterns, evidence) => {
 
 const d2BeforeEachSource = getFunctionSource(sources.router, 'd2BeforeEach');
 const ensureD2SessionSource = getFunctionSource(sources.router, 'ensureD2SessionHydrated');
-const legacyBeforeEachSource = getFunctionSource(sources.router, 'legacyBeforeEach');
 const d2TenantSource = getFunctionSource(sources.router, 'getD2TenantOperationalState');
 const d2SuperAdminSource = getFunctionSource(sources.router, 'isD2SuperAdminSession');
 const patientViewSources = readTreeSources('src/views/Patient');
@@ -205,7 +200,8 @@ assertIncludesAll(
     [
         'catch {',
         'return false',
-        'commitD2Session(commit, response && response.success ? response : null)',
+        'commit(types.SET_AUTH_ACCESS_SESSION, null)',
+        'response.unauthorized || response.status === 401 || response.success',
         'setAnonymousRuntimeState(state)',
         'state.unauthorized = true'
     ],

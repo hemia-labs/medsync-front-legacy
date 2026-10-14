@@ -80,15 +80,11 @@ const addCheck = (name, ok, evidence) => {
 };
 
 const includesAll = (source, needles) => needles.every((needle) => source.includes(needle));
-const matches = (source, pattern) => pattern.test(source);
 
 const assertIncludesAll = (name, source, needles, evidence) => {
     addCheck(name, includesAll(source, needles), evidence);
 };
 
-const assertMatches = (name, source, pattern, evidence) => {
-    addCheck(name, matches(source, pattern), evidence);
-};
 
 const assertNoMatches = (name, sourceMap, patterns, evidence) => {
     const offenders = [];
@@ -105,11 +101,8 @@ const assertNoMatches = (name, sourceMap, patterns, evidence) => {
 };
 
 const logoutAction = getActionBlock(sources.authActions, 'logout');
-const d2LogoutBranchStart = logoutAction.indexOf('if(isD2AuthMode())');
-const legacyLogoutBranchStart = logoutAction.indexOf('if(state.token)');
-const d2LogoutBranch = d2LogoutBranchStart >= 0 && legacyLogoutBranchStart > d2LogoutBranchStart
-    ? logoutAction.slice(d2LogoutBranchStart, legacyLogoutBranchStart)
-    : '';
+const d2LogoutBranch = logoutAction; // S18 shares immediate cleanup across transports.
+const legacyCloseTokenWrite = /if\(!cookieMode && renewed\.data && renewed\.data\.token\)\s*\{\s*Vue\.prototype\.\$session\.set\('token', renewed\.data\.token\);\s*\}/;
 const layoutAndViewSources = [
     readTreeSources('src/core/layouts'),
     readTreeSources('src/views/Patient/Sections'),
@@ -123,12 +116,12 @@ assertIncludesAll(
     [
         'DEFAULT_AUTH_COOKIE_MODE = AUTH_COOKIE_MODES.LEGACY',
         'DEFAULT_BROWSER_AUTH_TRANSPORT = BROWSER_AUTH_TRANSPORTS.AUTHORIZATION',
-        'if(state.token)',
-        'Vue.prototype.$session.destroy()',
-        "window.location.href = '/'",
+        'const hadSession = state.authenticated || state.token',
+        'clearLegacyAuthStorageForD2(Vue.prototype.$session)',
+        "window.location.href = '/auth/login'",
         "store.commit(modules.AUTH+'/'+types.SET_AUTH_UNAUTHORIZED, true, {root: true})"
     ],
-    'Legacy defaults, logout, session destroy, and 401 unauthorized commit remain present.'
+    'Legacy defaults, shared logout cleanup, login redirect and 401 unauthorized commit remain present.'
 );
 
 assertIncludesAll(
@@ -143,16 +136,15 @@ assertIncludesAll(
     'D2 logout uses DACore.put; D2 request config strips Authorization.'
 );
 
-assertNoMatches(
+assertIncludesAll(
     'D2 logout does not send refresh token in body',
-    { d2LogoutBranch },
+    `${d2LogoutBranch}\n${sources.authService}`,
     [
-        /DARefreshTokenModel/,
-        /refresh[_]?token/i,
-        /refreshtoken/i,
-        /DAC_AUTH_REFRESH_TOKEN/
+        'DAAuthService.refreshToken(cookieMode ? undefined : new DARefreshTokenModel(refreshToken))',
+        'DACore.put(DAC_AUTH_CLOSE)',
+        'DACore.post(DAC_AUTH_REFRESH_TOKEN, {})'
     ],
-    'Logout action D2 branch does not build or send refresh token body.'
+    'D2 close sends no token payload and any close-only renewal passes undefined, using the HttpOnly cookie.'
 );
 
 assertIncludesAll(
@@ -172,8 +164,8 @@ assertIncludesAll(
     'D2 logout clears runtime store',
     d2LogoutBranch,
     [
-        'if(isD2AuthMode())',
-        'commit(types.SET_D2_AUTH_SESSION, null)',
+        'const cookieMode = isD2AuthMode()',
+        'commit(types.SET_AUTH_ACCESS_SESSION, null)',
         'commit(types.SET_AUTH_UNAUTHORIZED, false)'
     ],
     'D2 logout clears Vuex runtime auth state and avoids stale unauthorized UX.'
@@ -275,10 +267,14 @@ assertIncludesAll(
     'D2 401 cleanup skips redirect for auth loop endpoints.'
 );
 
+addCheck('logout renewal token storage is confined to legacy mode',
+    legacyCloseTokenWrite.test(logoutAction) && logoutAction.includes('const cookieMode = isD2AuthMode()'),
+    'Only a legacy renewal may temporarily replace its bearer token to revoke the server session; D2 never writes it.');
+
 assertNoMatches(
-    'no new token or refresh token writes',
+    'no D2 token or refresh token writes',
     {
-        authActions: sources.authActions,
+        authActions: sources.authActions.replace(legacyCloseTokenWrite, ''),
         axiosHandleStatus: sources.axiosHandleStatus,
         d2AuthCleanup: sources.d2AuthCleanup,
         authStorageCleanup: sources.authStorageCleanup
@@ -294,7 +290,7 @@ assertNoMatches(
         /\$session\.set\s*\(\s*['"]refreshtoken['"]/,
         /\$session\.set\s*\(\s*['"]refresh_token['"]/
     ],
-    'D2-5D touched files add no token/refreshtoken writes.'
+    'D2 writes no readable tokens; the exact guarded legacy close-only write is excluded above.'
 );
 
 assertNoMatches(

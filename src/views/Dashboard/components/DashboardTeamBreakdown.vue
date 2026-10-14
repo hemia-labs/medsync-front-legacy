@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">Equipo y capacidad</p>
         <h2 id="team-breakdown-title">Uso por equipo</h2>
-        <span class="widget-description">Resumen del equipo por estado, rol y capacidad incluida.</span>
+        <span class="widget-description">{{ data && data.dateBasis || 'Estado actual del equipo; no depende del periodo seleccionado.' }}</span>
       </div>
       <span class="privacy-note">Sin nombres ni correos</span>
     </div>
@@ -90,6 +90,8 @@
 </template>
 
 <script>
+import { formatMetric, metricNumber } from '../../../domain/dashboard/metrics';
+
 function normalizeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -169,15 +171,15 @@ export default {
   methods: {
     buildLicenseCard: function(key, label) {
       const source = this.license[key] || (key === 'staffUsers' ? this.license.auxiliaryUsers : {}) || {};
-      const used = normalizeNumber(source.used);
+      const used = metricNumber(source.used);
       const limit = source.limit;
-      const unlimited = limit === null || limit === undefined || Number(limit) < 0;
-      const numericLimit = Number(limit);
-      const safeLimit = Number.isFinite(numericLimit) && numericLimit > 0 ? numericLimit : 0;
-      const remaining = unlimited ? null : normalizeNumber(source.remaining);
-      const progress = unlimited || safeLimit === 0
-        ? 100
-        : Math.min(100, Math.round((used / safeLimit) * 100));
+      const unlimited = limit === null || Number(limit) < 0;
+      const numericLimit = metricNumber(limit);
+      const reportedRemaining = metricNumber(source.remaining);
+      const remaining = unlimited ? null : reportedRemaining !== null ? reportedRemaining
+        : numericLimit !== null && used !== null ? Math.max(0, numericLimit - used) : null;
+      const progress = unlimited ? 100 : used === null || numericLimit === null ? 0
+        : numericLimit === 0 ? 100 : Math.min(100, Math.round((used / numericLimit) * 100));
 
       return {
         key,
@@ -188,7 +190,8 @@ export default {
         remaining,
         unlimited,
         progress,
-        helper: unlimited ? 'Sin limite configurado' : `${this.formatNumber(remaining)} disponibles`
+        helper: unlimited ? 'Sin limite configurado' : remaining === null ? 'Disponibilidad: No disponible'
+          : `${this.formatNumber(remaining)} disponibles`
       };
     },
     roleLabel: function(value) {
@@ -213,7 +216,7 @@ export default {
       return Math.max(8, Math.round((count / this.maxRoleTotal) * 100));
     },
     formatNumber: function(value) {
-      return normalizeNumber(value).toLocaleString('es-MX');
+      return formatMetric(value);
     }
   }
 };

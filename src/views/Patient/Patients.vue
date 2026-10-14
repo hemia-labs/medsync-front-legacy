@@ -60,25 +60,41 @@
           </div>
         </div>
 
-        <div class="patients-toolbar">
-          <v-text-field
-            v-model.trim="searchTerm"
-            aria-label="Buscar pacientes"
-            placeholder="Buscar por nombre, apellido, ocupacion, telefono o folio"
-            prepend-inner-icon="mdi-magnify"
-            clearable
-            outlined
-            dense
-            hide-details
-            :color="themePrimaryColor"
-            class="patients-search-field"
-            @click:clear="onClearSearch"
-          ></v-text-field>
+        <div class="patients-toolbar" :class="{ 'patients-toolbar-search-only': !canCreatePatient }">
+          <div v-if="canCreatePatient" class="patients-archive-filter">
+            <v-checkbox
+              v-model="includeArchived"
+              label="Incluir archivados"
+              aria-describedby="patients-archive-help"
+              hide-details
+              :color="themePrimaryColor"
+              class="patients-archive-checkbox"
+              @change="loadPatients"
+            />
+            <p id="patients-archive-help" class="patients-archive-help">Muestra también los pacientes archivados, sin reactivarlos.</p>
+          </div>
 
-          <button type="button" class="patients-secondary-action" :disabled="!searchTerm" @click="onClearSearch">
-            <v-icon size="18">mdi-close-circle-outline</v-icon>
-            <span>Limpiar</span>
-          </button>
+          <div class="patients-search-group">
+            <label class="patients-search-label" for="patients-search">Buscar paciente</label>
+            <div class="patients-search-controls">
+              <v-text-field
+                id="patients-search"
+                v-model.trim="searchTerm"
+                placeholder="Nombre, teléfono o folio"
+                prepend-inner-icon="mdi-magnify"
+                outlined
+                dense
+                hide-details
+                :color="themePrimaryColor"
+                class="patients-search-field"
+              ></v-text-field>
+
+              <button type="button" class="patients-clear-search" :disabled="!searchTerm" aria-label="Limpiar búsqueda" @click="onClearSearch">
+                <v-icon size="18" aria-hidden="true">mdi-close</v-icon>
+                <span>Limpiar</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <v-progress-linear
@@ -134,7 +150,7 @@
                       <span class="patient-avatar">{{ patientInitials(patient) }}</span>
                       <div class="patient-cell-copy">
                         <strong>{{ patientName(patient) }}</strong>
-                        <small>{{ patientFolio(patient) }}</small>
+                        <small>{{ patientFolio(patient) }}{{ Number(patient.active) === 0 ? ' · Archivado' : '' }}</small>
                       </div>
                     </div>
                   </td>
@@ -177,7 +193,7 @@
                 <span class="patient-avatar">{{ patientInitials(patient) }}</span>
                 <div>
                   <strong>{{ patientName(patient) }}</strong>
-                  <small>{{ patientFolio(patient) }}</small>
+                  <small>{{ patientFolio(patient) }}{{ Number(patient.active) === 0 ? ' · Archivado' : '' }}</small>
                 </div>
               </div>
 
@@ -228,6 +244,7 @@ export default {
     data: function() {
         return {
             searchTerm: '',
+            includeArchived: false,
             page: 1,
             itemsPerPage: 8,
             isPatientsLoading: false,
@@ -304,11 +321,7 @@ export default {
       },
 
       themePrimaryColor: function() {
-        if(typeof window === 'undefined') {
-          return '#1497BD'
-        }
-
-        return getComputedStyle(document.documentElement).getPropertyValue('--color-primary-700').trim() || '#1497BD'
+        return 'var(--color-primary-700)'
       }
     },
     methods: {
@@ -321,7 +334,7 @@ export default {
         this.patientsServiceError = false
 
         try {
-          const response = await this.ActionWrapp(moduleTypes.DASHBOARD, fnTypes.getPatients, { param: '' })
+          const response = await this.ActionWrapp(moduleTypes.DASHBOARD, fnTypes.getPatients, { param: '', include_archived: this.includeArchived })
           this.patientsServiceError = !(response && response.success)
         }
         catch(error) {
@@ -649,16 +662,99 @@ export default {
 
 .patients-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.8rem;
+  grid-template-columns: minmax(13rem, 0.8fr) minmax(0, 1.7fr);
+  gap: 1.75rem;
   align-items: center;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid #edf2f5;
   background: #fbfdfe;
 }
 
-.patients-search-field {
+.patients-toolbar-search-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.patients-archive-checkbox {
+  margin: 0;
+  padding: 0;
+}
+
+.patients-archive-checkbox ::v-deep .v-label {
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.patients-archive-help {
+  max-width: 19rem;
+  margin: 0.3rem 0 0 2rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.2rem;
+}
+
+.patients-search-group {
   min-width: 0;
+}
+
+.patients-search-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.patients-search-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.patients-search-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.patients-search-field ::v-deep .v-input__slot {
+  min-height: 44px !important;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.patients-clear-search {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 44px;
+  padding: 0 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.patients-clear-search .v-icon {
+  color: currentColor;
+}
+
+.patients-clear-search:disabled {
+  color: #94a3b8;
+  cursor: default;
+}
+
+.patients-clear-search:not(:disabled):hover {
+  color: var(--color-primary-900, #086783);
+  background: var(--color-primary-100, #e6f7fb);
+}
+
+.patients-clear-search:focus-visible {
+  outline: 2px solid var(--color-primary-700, #1497bd);
+  outline-offset: 2px;
 }
 
 .patients-progress {
@@ -876,12 +972,23 @@ html[data-theme="clinical-night"] .patients-state strong {
 }
 
 html[data-theme="clinical-night"] .patients-hero p:not(.patients-eyebrow),
+html[data-theme="clinical-night"] .patients-archive-help,
 html[data-theme="clinical-night"] .patients-summary-card small,
 html[data-theme="clinical-night"] .patient-cell-copy small,
 html[data-theme="clinical-night"] .patient-mobile-head small,
 html[data-theme="clinical-night"] .patient-muted,
 html[data-theme="clinical-night"] .patients-state p {
   color: #94a3b8;
+}
+
+html[data-theme="clinical-night"] .patients-search-label,
+html[data-theme="clinical-night"] .patients-archive-checkbox ::v-deep .v-label,
+html[data-theme="clinical-night"] .patients-clear-search:not(:disabled) {
+  color: #cbd5e1;
+}
+
+html[data-theme="clinical-night"] .patients-search-field ::v-deep .v-input__slot {
+  background: rgba(30, 41, 59, 0.68);
 }
 
 html[data-theme="clinical-night"] .patients-panel-header,
@@ -997,6 +1104,7 @@ html[data-theme="clinical-night"] .patient-open-button {
 
   .patients-toolbar {
     grid-template-columns: 1fr;
+    gap: 1rem;
   }
 
   .patients-actions {
@@ -1028,6 +1136,21 @@ html[data-theme="clinical-night"] .patient-open-button {
 
   .patient-mobile-meta {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .patients-search-controls {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .patients-search-field {
+    flex-basis: 100%;
+  }
+
+  .patients-clear-search {
+    margin-left: auto;
   }
 }
 </style>

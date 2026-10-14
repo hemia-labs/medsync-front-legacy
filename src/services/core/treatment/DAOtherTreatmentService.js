@@ -1,4 +1,4 @@
-import { DAC_ADD_OTREATMENT, DAC_GET_OTREATMENT, DAC_DELETE_OTREATMENT,DAC_UPD_OTREATMENT, DAC_TRATAMENT_GET, DAC_TRATAMENT_SAVED, DAC_TREATMENT_PLAN_GET, DAC_TREATMENT_PLAN_CREATE, DAC_TREATMENT_PLAN_CLOSE, DAC_TREATMENT_PLAN_SAVE_TREATMENT, DAC_TREATMENT_PLAN_STATUS, DAC_TREATMENT_PLAN_DELETE_TREATMENT, DAC_TREATMENT_PLAN_CONSENT_SAVE} from '../../common/apiurl';
+import { DAC_ADD_OTREATMENT, DAC_GET_OTREATMENT, DAC_DELETE_OTREATMENT,DAC_UPD_OTREATMENT, DAC_TRATAMENT_GET, DAC_TRATAMENT_SAVED, DAC_TREATMENT_PLAN_GET, DAC_TREATMENT_PLAN_CREATE, DAC_TREATMENT_PLAN_UPDATE, DAC_TREATMENT_PLAN_CLOSE, DAC_TREATMENT_PLAN_SAVE_TREATMENT, DAC_TREATMENT_PLAN_STATUS, DAC_TREATMENT_PLAN_DELETE_TREATMENT, DAC_TREATMENT_PLAN_CONSENT_SAVE, DAC_TREATMENT_PLAN_CONSENT_PREPARE, DAC_TREATMENT_PLAN_CONSENT_DOCUMENT_SIGN} from '../../common/apiurl';
 import { DACore } from '../../config/axios.context'
 
 export default {
@@ -60,8 +60,16 @@ export default {
         return DACore.get(DAC_TREATMENT_PLAN_GET + idPerson);
     },
 
+    async getSigningDoctors(idPerson) {
+        return DACore.get(DAC_TREATMENT_PLAN_GET + idPerson + '/doctors');
+    },
+
     async createTreatmentPlan(data) {
         return DACore.post(DAC_TREATMENT_PLAN_CREATE, data);
+    },
+
+    async updateTreatmentPlan(data) {
+        return DACore.post(DAC_TREATMENT_PLAN_UPDATE, data);
     },
 
     async closeTreatmentPlan(data) {
@@ -78,6 +86,13 @@ export default {
 
     async deletePlanTreatment(data) {
         return DACore.delete(DAC_TREATMENT_PLAN_DELETE_TREATMENT, { data });
+    },
+
+    async prepareConsentDocument(data) {
+        return DACore.post(DAC_TREATMENT_PLAN_CONSENT_PREPARE, data);
+    },
+    async signPreparedConsent(data) {
+        return DACore.post(DAC_TREATMENT_PLAN_CONSENT_DOCUMENT_SIGN, data);
     },
 
     async saveTreatmentPlanConsent(data) {

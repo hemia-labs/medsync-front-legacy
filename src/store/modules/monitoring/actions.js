@@ -68,6 +68,7 @@ const actions = {
             commit(types.SET_DELETE_MONITORING,[])
             commit(types.SET_MONITORING_EXCEPTION, new DAHasErrorModel(true, response.message) )
         }
+        return response
     },
 
     /**

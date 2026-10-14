@@ -13,7 +13,7 @@ export default [
             title: 'Dashboard',
             requireAuth: true,
             layout: 'admin',
-            permissionsAny: ['dashboard.tenant', 'reports.dashboard', 'dashboard']
+            permissionsAny: ['dashboard.tenant', 'reports.dashboard', 'dashboard', 'dashboard.operations', 'dashboard.clinical', 'dashboard.financial']
         },
     }
 ]

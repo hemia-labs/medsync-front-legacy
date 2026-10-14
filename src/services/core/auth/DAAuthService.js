@@ -90,12 +90,20 @@ export default {
      */
     async refreshToken(data) {
         if(isD2AuthMode()) {
+            // Expired/missing access cookies change CSRF from session to
+            // pre-auth context. A cached session token cannot authorize refresh.
+            try {
+                await DACsrfService.ensureCsrfToken({ force: true });
+            } catch {
+                return { success: false, message: 'No fue posible preparar la renovacion segura.' };
+            }
             const refreshResponse = await DACore.post(DAC_AUTH_REFRESH_TOKEN, {});
 
             if(!refreshResponse || !refreshResponse.success) {
                 return refreshResponse;
             }
 
+            DACsrfService.clearCsrfToken();
             const sessionResponse = await DASessionService.bootstrapSession();
 
             return {

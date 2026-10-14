@@ -10,6 +10,7 @@ const getters = {
     getRole:        state => state.role,
     getAccessExpiresAt: state => state.accessExpiresAt,
     getSessionState: state => state.sessionState,
+    getAccessRevision: state => state.accessRevision || 0,
     hasPermission:  state => permission => !permission || state.permissions.includes(permission),
     hasError:       state => state.hasError,
     hasErrorOTP:    state => state.hasErrorOTP,

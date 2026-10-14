@@ -20,10 +20,12 @@
                 </div>
             </div>
 
-            <div v-if="items.length === 0" class="bg-white border border-gray-200 shadow-md p-8 text-center">
+            <div v-if="loading" class="p-8 text-center" role="status">Cargando recetas…</div>
+            <div v-else-if="loadError" class="p-8 text-center" role="alert"><p>{{ loadError }}</p><button class="rx-action rx-action--ghost" @click="load">Reintentar</button></div>
+            <div v-else-if="items.length === 0" class="bg-white border border-gray-200 shadow-md p-8 text-center">
                 <h3 class="m-0 text-gray-700 text-lg font-semibold">Sin recetas registradas</h3>
                 <p class="m-0 mt-2 text-gray-500">Las recetas creadas para este paciente apareceran aqui.</p>
-                <da-button-primary v-if="canCreate" @click.native="openNew" :label="'Nueva receta'" rxl swpr class="mt-4 py-1 px-4 font-light"></da-button-primary>
+                <button v-if="canCreate" class="rx-action rx-action--primary mt-4" @click="openNew">Nueva receta</button>
             </div>
 
             <div v-else class="grid grid-cols-1 gap-3">
@@ -56,11 +58,11 @@
                                 <v-icon small>mdi-lock-outline</v-icon>
                                 <span>Emitir</span>
                             </button>
-                            <button v-if="canPrint && item.status !== 'draft'" type="button" class="rx-action rx-action--ghost" title="Imprimir receta" @click="print(item)">
+                            <button v-if="canPrint && item.status === 'issued'" :disabled="outputBusy" type="button" class="rx-action rx-action--ghost" title="Imprimir receta" @click="print(item)">
                                 <v-icon small>mdi-printer-outline</v-icon>
                                 <span>Imprimir</span>
                             </button>
-                            <button v-if="canDownload && item.status !== 'draft'" type="button" class="rx-action rx-action--ghost" title="Descargar PDF" @click="download(item)">
+                            <button v-if="canDownload && item.status === 'issued'" :disabled="outputBusy" type="button" class="rx-action rx-action--ghost" title="Descargar PDF" @click="download(item)">
                                 <v-icon small>mdi-file-pdf-box</v-icon>
                                 <span>PDF</span>
                             </button>
@@ -83,23 +85,29 @@
         </div>
 
         <prescription-form
+            ref="editor"
             :show="formDialog"
             :px="px"
             :prescription="selected"
             @close="formDialog = false"
             @saved="onSaved"
+            @draft-saved="load"
         ></prescription-form>
 
-        <v-dialog v-model="previewDialog" max-width="760">
-            <v-card>
+        <v-dialog v-model="previewDialog" max-width="760" aria-label="Vista previa de receta">
+            <v-card v-dialog-name="'Vista previa de receta'">
                 <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
                     <div>
                         <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Vista previa</p>
                         <h3 class="m-0 mt-1 text-gray-700 text-xl font-semibold">{{ previewData ? previewData.folio : '' }}</h3>
                     </div>
-                    <v-btn icon @click="previewDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+                    <v-btn icon aria-label="Cerrar vista previa" @click="previewDialog = false"><v-icon color="#64748B">mdi-close</v-icon></v-btn>
                 </div>
                 <v-card-text v-if="previewData" class="pt-5">
+                    <div v-if="previewData.status !== 'issued'" class="mb-4 p-3 border rounded text-sm" :class="statusClass(previewData.status)" role="status">
+                        <strong>{{ previewData.status === 'cancelled' ? 'Receta cancelada · solo para consulta del histórico.' : 'Borrador · pendiente de emisión.' }}</strong>
+                        <p class="m-0 mt-1">{{ previewData.status === 'cancelled' ? 'No se permite imprimir ni generar PDF de una receta cancelada.' : 'PDF e impresión estarán disponibles cuando el doctor emita la receta.' }}</p>
+                    </div>
                     <div class="border border-gray-200 bg-white p-6">
                         <div class="flex justify-between border-b border-gray-200 pb-4">
                             <div>
@@ -120,6 +128,7 @@
                         </div>
                         <p v-if="previewData.notes" class="m-0 mt-4 text-sm text-gray-600"><strong>Notas:</strong> {{ previewData.notes }}</p>
                         <p v-if="previewData.cancellation_reason" class="m-0 mt-4 text-sm text-red-600"><strong>Motivo de cancelacion:</strong> {{ previewData.cancellation_reason }}</p>
+                        <p v-if="previewData.cancelled_at" class="m-0 mt-1 text-sm text-red-700"><strong>Fecha de cancelación:</strong> {{ formatDateTime(previewData.cancelled_at) }}</p>
                     </div>
                 </v-card-text>
                 <v-card-actions v-if="previewData" class="px-6 pb-5 justify-end flex-wrap">
@@ -132,11 +141,11 @@
                             <v-icon small>mdi-lock-outline</v-icon>
                             <span>Emitir receta</span>
                         </button>
-                        <button v-if="canPrint && previewData.status !== 'draft'" type="button" class="rx-action rx-action--ghost" title="Imprimir receta" @click="print(previewData)">
+                        <button v-if="canPrint && previewData.status === 'issued'" :disabled="outputBusy" type="button" class="rx-action rx-action--ghost" title="Imprimir receta" @click="print(previewData)">
                             <v-icon small>mdi-printer-outline</v-icon>
                             <span>Imprimir</span>
                         </button>
-                        <button v-if="canDownload && previewData.status !== 'draft'" type="button" class="rx-action rx-action--ghost" title="Descargar PDF" @click="download(previewData)">
+                        <button v-if="canDownload && previewData.status === 'issued'" :disabled="outputBusy" type="button" class="rx-action rx-action--ghost" title="Descargar PDF" @click="download(previewData)">
                             <v-icon small>mdi-file-pdf-box</v-icon>
                             <span>PDF</span>
                         </button>
@@ -158,8 +167,10 @@ import fnTypes from '../../../store/modules/common/fn-types';
 import { DAPrescriptionService } from '../../../services/context/core-proccess-context';
 import PrescriptionForm from '../../prescriptions/components/PrescriptionForm.vue';
 import { openPrescriptionPrintWindow } from '../../../domain/prescriptions/prescription.print';
+import dialogName from '../../../core/directives/dialog-name';
 
 export default {
+    directives: { dialogName },
     props: {
         px: {
             type: Object,
@@ -172,6 +183,10 @@ export default {
     data() {
         return {
             items: [],
+            loading: true,
+            outputBusy: false,
+            loadError: '',
+            loadRequest: 0,
             selected: null,
             formDialog: false,
             previewDialog: false,
@@ -225,13 +240,25 @@ export default {
     },
     methods: {
         async load() {
+            const request = ++this.loadRequest;
+            this.loading = true;
+            this.loadError = '';
             const idPerson = this.patient.id_person;
             if(!idPerson) {
+                this.loading = false;
+                this.loadError = 'No se pudo identificar al paciente.';
                 return;
             }
-
-            const response = await DAPrescriptionService.listByPatient(idPerson);
-            this.items = response.success ? response.data : [];
+            try {
+                const response = await DAPrescriptionService.listByPatient(idPerson);
+                if(request !== this.loadRequest) return;
+                if(!response.success) throw new Error(response.message || 'No se pudo cargar el historial de recetas.');
+                this.items = response.data || [];
+            } catch(error) { if(request === this.loadRequest) this.loadError = error.message; }
+            finally { if(request === this.loadRequest) this.loading = false; }
+        },
+        confirmLeave() {
+            return this.$refs.editor ? this.$refs.editor.confirmLeave() : Promise.resolve(true);
         },
         openNew() {
             this.selected = null;
@@ -261,19 +288,36 @@ export default {
             await this.openPrintable(item, 'downloaded');
         },
         async openPrintable(item, action) {
-            const response = await DAPrescriptionService.getById(item.id_prescription);
-            if(!response.success) {
-                return;
+            if(this.outputBusy) return false;
+            if(!item || item.status !== 'issued') {
+                this.toast('warning', 'Solo las recetas emitidas pueden imprimirse o generar PDF.');
+                return false;
             }
-
-            if(response.data.status === 'draft') {
-                this.toast('warning', 'La receta debe emitirse antes de imprimir o generar PDF.');
-                return;
+            if(action === 'printed' ? !this.canPrint : !this.canDownload) {
+                this.toast('warning', 'No tienes permiso para esta acción de receta.');
+                return false;
             }
-
-            const config = await DAPrescriptionService.getConfig();
-            await DAPrescriptionService.auditAction(item.id_prescription, action, { source: 'patient_record' });
-            openPrescriptionPrintWindow(response.data, config.success ? config.data : {}, true);
+            this.outputBusy = true;
+            try {
+                const response = await DAPrescriptionService.prepareOutput(item.id_prescription, action, { source: 'patient_record' });
+                const document = response.data && response.data.prescription;
+                if(!response.success || !document || document.status !== 'issued' || document.id_prescription !== item.id_prescription) {
+                    this.toast('error', response.message || 'No se autorizó la impresión o el PDF. Reintenta consultando su estado.');
+                    if(response.data && response.data.status) {
+                        if(this.previewData && this.previewData.id_prescription === item.id_prescription) this.previewData = { ...this.previewData, ...response.data };
+                        await this.load();
+                    }
+                    return false;
+                }
+                if(!openPrescriptionPrintWindow(document, response.data.config || {}, true)) {
+                    this.toast('warning', 'El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes y reintenta.');
+                    return false;
+                }
+                return true;
+            } catch(error) {
+                this.toast('error', 'No se pudo autorizar la copia. Reintenta cuando haya conexión.');
+                return false;
+            } finally { this.outputBusy = false; }
         },
         async deleteDraft(item) {
             const confirm = await this.$swal({
@@ -297,43 +341,8 @@ export default {
             await this.load();
         },
         async issueDraft(item) {
-            if(this.loadingAction) {
-                return;
-            }
-
-            const confirm = await this.$swal({
-                title: 'Emitir receta',
-                text: 'Despues de emitirla ya no podra editarse ni eliminarse. Si hay un error, deberas cancelarla y crear una nueva.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Emitir receta',
-                cancelButtonText: 'Revisar primero',
-                buttonsStyling: false,
-                customClass: {
-                    confirmButton: 'rx-swal-confirm',
-                    cancelButton: 'rx-swal-cancel'
-                }
-            });
-            if(!confirm.value) {
-                if(confirm.dismiss === 'cancel') {
-                    this.previewDialog = false;
-                    this.edit(item);
-                }
-                return;
-            }
-
-            this.loadingAction = true;
-            const response = await DAPrescriptionService.issue(item.id_prescription);
-            this.loadingAction = false;
-
-            if(!response.success) {
-                this.toast('error', response.message || 'No fue posible emitir la receta.');
-                return;
-            }
-
-            this.toast('success', 'Receta emitida.');
             this.previewDialog = false;
-            await this.load();
+            this.edit(item);
         },
         showMissingIssuePermission() {
             this.toast('warning', 'Tu rol no tiene permiso para emitir recetas.');
@@ -364,9 +373,8 @@ export default {
             this.previewDialog = false;
             await this.load();
         },
-        async onSaved() {
-            this.formDialog = false;
-            this.toast('success', 'Receta guardada.');
+        async onSaved(document) {
+            this.toast('success', `${document.status === 'issued' ? 'Receta emitida' : 'Borrador guardado'}: ${document.folio}.`);
             await this.load();
         },
         statusText(status) {
@@ -406,6 +414,7 @@ export default {
 </script>
 
 <style scoped>
+.rx-action.rx-action--primary { background: #116c70; color: white; border-color: #116c70; }
 .prescription-body {
     padding: 1.25rem;
 }

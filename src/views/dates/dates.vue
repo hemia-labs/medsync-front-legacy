@@ -16,11 +16,18 @@
             <v-icon color="#6B7280">mdi-chevron-right</v-icon>
           </v-btn>
           <da-button-secondary @click.native="followUpDialog = true" :label="'Seguimientos'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
-          <da-button-primary @click.native="openManualAppointment()" :label="'Nueva cita'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+          <da-button-primary :disabled="!selectedDoctorId || agendaLoading || !!agendaError" @click.native="openManualAppointment()" :label="'Nueva cita'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
         </div>
       </div>
 
       <div class="px-6 py-4 border-b border-gray-200">
+        <v-select v-model="selectedDoctorId" :items="doctors" item-text="display_name" item-value="id_doctor_professional_profile" label="Agenda del doctor" :readonly="doctors.length === 1" :disabled="agendaLoading" outlined dense :color="themePrimaryColor" @change="changeCalendarDoctor"></v-select>
+        <div class="flex flex-wrap items-center gap-3 mb-3">
+          <strong v-if="selectedDoctor" class="text-gray-700">{{ selectedDoctor.display_name }}</strong>
+          <button v-if="canConfigureAgenda" type="button" class="text-primary-900 font-semibold" @click="agendaConfigDialog = true">Configurar agenda</button>
+        </div>
+        <p v-if="agendaLoading" role="status">Cargando disponibilidad del doctor…</p>
+        <p v-if="agendaError" role="alert" class="text-red-700">{{ agendaError }} <button type="button" @click="doctors.length ? changeCalendarDoctor() : init()">Reintentar</button></p>
         <div class="flex flex-wrap gap-2">
           <span
             v-for="item in statusLegend"
@@ -34,11 +41,11 @@
         </div>
       </div>
 
-      <div v-if="!appointmentConfig.enabled" class="m-6 p-5 border border-gray-200 bg-gray-50 text-gray-600">
-        La agenda esta desactivada. Activa la agenda desde Configuracion para generar disponibilidad.
+      <div v-if="!selectedDoctorId || !appointmentConfig.enabled || appointmentConfig.businessEnabled === false" class="m-6 p-5 border border-gray-200 bg-gray-50 text-gray-600">
+        {{ !selectedDoctorId ? 'Selecciona un doctor para consultar su disponibilidad.' : 'Esta agenda no esta disponible. Revisa su configuracion y los cierres del consultorio.' }}
       </div>
 
-      <div v-else class="p-4 overflow-x-auto">
+      <div v-else-if="!agendaLoading && !agendaError" class="p-4 overflow-x-auto">
         <div class="agenda-grid min-w-agenda">
           <div class="sticky left-0 z-10 bg-white border-b border-r border-gray-200 py-3 px-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Hora</div>
           <div v-for="day in weekDates" :key="day" class="border-b border-gray-200 py-3 px-2 text-center">
@@ -164,6 +171,11 @@
         </div>
 
         <v-card-text class="pt-5">
+          <v-select v-model="editingAppointment.doctorProfileId" :items="doctors" item-text="display_name" item-value="id_doctor_professional_profile" label="Doctor que atendera *" :readonly="doctors.length === 1" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment" @change="loadDialogDoctor(true)"></v-select>
+          <p v-if="dialogLoading" role="status">Consultando horarios del doctor…</p>
+          <p v-else-if="!dialogConfig.enabled || dialogConfig.businessEnabled === false" role="status" class="text-yellow-800">La agenda de este doctor no esta disponible. Revisa su configuracion o selecciona otro doctor.</p>
+          <p v-else-if="!dialogAvailableTimes.length" role="status">No hay horarios disponibles en esta fecha. Selecciona otra fecha.</p>
+          <p v-if="originalAppointment && originalAppointment.doctorProfileId !== editingAppointment.doctorProfileId" class="text-yellow-800">Cambiaste el doctor de esta cita. Revisa su nuevo horario antes de guardar.</p>
           <div v-if="isEditingCompletedAppointment" class="completed-appointment-alert">
             <v-icon size="22">mdi-alert-circle-outline</v-icon>
             <div>
@@ -173,10 +185,10 @@
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <v-text-field v-model="editingAppointment.date" type="date" label="Fecha" outlined dense :color="themePrimaryColor" @change="refreshDialogEndTime"></v-text-field>
-            <v-select v-model="editingAppointment.startTime" :items="dialogAvailableTimes" item-text="label" item-value="value" label="Hora" outlined dense :color="themePrimaryColor" @change="refreshDialogEndTime"></v-select>
-            <v-text-field :value="editingAppointment.endTime" label="Fin" outlined dense readonly :color="themePrimaryColor"></v-text-field>
-            <v-select v-model="editingAppointment.status" :items="appointmentStatusOptions" item-text="text" item-value="value" label="Estado" outlined dense :color="themePrimaryColor" @change="syncBlocksAvailability"></v-select>
+            <v-text-field v-model="editingAppointment.date" type="date" label="Fecha" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment" @change="loadDialogDoctor(true)"></v-text-field>
+            <v-select v-model="editingAppointment.startTime" :disabled="dialogLoading || savingAppointment" :items="dialogAvailableTimes" item-text="label" item-value="value" label="Hora" outlined dense :color="themePrimaryColor" @change="refreshDialogEndTime"></v-select>
+            <v-text-field :value="editingAppointment.endTime" label="Fin" outlined dense readonly :color="themePrimaryColor" :disabled="savingAppointment"></v-text-field>
+            <v-select v-model="editingAppointment.status" :items="appointmentStatusOptions" item-text="text" item-value="value" label="Estado" outlined dense :color="themePrimaryColor" @change="syncBlocksAvailability" :disabled="savingAppointment"></v-select>
           </div>
 
           <v-autocomplete
@@ -197,7 +209,7 @@
             @update:search-input="onPatientSearchInput"
             @change="syncPatientName"
             @click:clear="clearSelectedPatient"
-          >
+           :disabled="savingAppointment">
             <template #item="{ item }">
               <v-list-item-content>
                 <v-list-item-title>{{ item.name }}</v-list-item-title>
@@ -209,7 +221,7 @@
             </template>
           </v-autocomplete>
 
-          <v-text-field v-model="editingAppointment.patientName" label="Nombre del paciente" hint="Usa este campo si es paciente nuevo o no tiene expediente." persistent-hint outlined dense :color="themePrimaryColor"></v-text-field>
+          <v-text-field v-model="editingAppointment.patientName" label="Nombre del paciente" hint="Usa este campo si es paciente nuevo o no tiene expediente." persistent-hint outlined dense :color="themePrimaryColor" :disabled="savingAppointment"></v-text-field>
           <div class="appointment-contact-row">
             <div class="appointment-contact-control">
               <v-text-field
@@ -222,7 +234,7 @@
                 class="appointment-contact-field"
                 hide-details
                 @blur="normalizeAppointmentContactPhone"
-              ></v-text-field>
+               :disabled="savingAppointment"></v-text-field>
               <v-tooltip bottom>
                 <template #activator="{ on, attrs }">
                   <span
@@ -249,9 +261,9 @@
               <span>{{ contactPhoneCharacterCount }} / 40</span>
             </div>
           </div>
-          <v-text-field v-model="editingAppointment.title" label="Motivo o titulo" outlined dense :color="themePrimaryColor"></v-text-field>
-          <v-textarea v-model="editingAppointment.description" label="Descripcion" outlined dense :color="themePrimaryColor" rows="3"></v-textarea>
-          <v-textarea v-if="editingAppointment.status === 'cancelled'" v-model="editingAppointment.cancellationReason" label="Motivo de cancelacion" outlined dense :color="themePrimaryColor" rows="2"></v-textarea>
+          <v-text-field v-model="editingAppointment.title" label="Motivo o titulo" outlined dense :color="themePrimaryColor" :disabled="savingAppointment"></v-text-field>
+          <v-textarea v-model="editingAppointment.description" label="Descripcion" outlined dense :color="themePrimaryColor" rows="3" :disabled="savingAppointment"></v-textarea>
+          <v-textarea v-if="editingAppointment.status === 'cancelled'" v-model="editingAppointment.cancellationReason" label="Motivo de cancelacion" outlined dense :color="themePrimaryColor" rows="2" :disabled="savingAppointment"></v-textarea>
 
           <p v-if="dialogError" class="text-red-600 font-semibold">{{ dialogError }}</p>
         </v-card-text>
@@ -259,7 +271,7 @@
         <v-card-actions class="appointment-dialog-actions px-6 pb-5 justify-end">
           <da-button-secondary @click.native="closeDialog()" :label="'Cerrar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-secondary>
           <da-button-900 v-if="editingAppointment.id" @click.native="cancelAppointment()" :label="'Cancelar cita'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-900>
-          <da-button-primary @click.native="saveAppointment()" :label="'Guardar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-primary>
+          <da-button-primary :disabled="dialogLoading || savingAppointment" @click.native="saveAppointment()" :label="savingAppointment ? 'Guardando…' : 'Guardar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-primary>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -289,12 +301,17 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="agendaConfigDialog" persistent max-width="1050" :fullscreen="$vuetify.breakpoint.xsOnly">
+      <v-card class="agenda-config-card"><div class="p-3 text-right"><v-btn text @click="closeAgendaConfig">Cerrar configuracion</v-btn></div><professional-agenda-config v-if="agendaConfigDialog" ref="agendaEditor" class="agenda-config-editor" :initial-doctor-id="selectedDoctorId" :theme-color="themePrimaryColor" @saved="changeCalendarDoctor" @close="agendaConfigDialog = false" /></v-card>
+    </v-dialog>
   </div>
 </template>
  
 <script>
 import { mapActions, mapGetters } from 'vuex';
 import VuexMixin from '../../mixins/VuexMixin';
+import ProfessionalAgendaConfig from '../configuration/components/ProfessionalAgendaConfig.vue';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import { DAAppointmentService, DAPxService } from '../../services/context/core-proccess-context';
@@ -362,10 +379,14 @@ const mapPatientSearchOption = (patient = {}) => {
 }
 
 export default {
+  components: { ProfessionalAgendaConfig },
   mixins: [VuexMixin],
   data: function() {
     return {
       selectedDate: toIsoDate(new Date()),
+      doctors: [], selectedDoctorId: '', agendaLoading: false, agendaError: '', agendaRequest: 0,
+      dialogConfig: getAppointmentConfig(), dialogAppointments: [], dialogLoading: false, dialogRequest: 0,
+      savingAppointment: false, agendaConfigDialog: false,
       appointmentConfig: getAppointmentConfig(),
       appointments: getAppointments(),
       appointmentDialog: false,
@@ -410,8 +431,12 @@ export default {
       allMonitorings: fnTypes.getAllTracing
     }),
     ...mapGetters(moduleTypes.AUTH, {
-      hasPermission: fnTypes.hasPermission
+      hasPermission: fnTypes.hasPermission,
+      authUser: fnTypes.getUser
     }),
+
+    selectedDoctor() { return this.doctors.find(d => d.id_doctor_professional_profile === this.selectedDoctorId); },
+    canConfigureAgenda() { return this.hasPermission('admin.config') || this.doctors.some(d => d.id_login === (this.authUser || {}).id_login); },
 
     weekDates: function() {
       return getWeekDates(this.selectedDate)
@@ -535,8 +560,8 @@ export default {
     },
 
     dialogAvailableTimes: function() {
-      const appointments = this.appointments.filter((appointment) => appointment.id !== this.editingAppointment.id)
-      const slots = generateDaySlots(this.editingAppointment.date, this.appointmentConfig, appointments)
+      const appointments = this.dialogAppointments.filter((appointment) => appointment.id !== this.editingAppointment.id)
+      const slots = generateDaySlots(this.editingAppointment.date, this.dialogConfig, appointments)
       const currentTime = this.editingAppointment.startTime
       const options = slots
         .filter((slot) => slot.selectable || slot.startTime === currentTime)
@@ -568,11 +593,7 @@ export default {
     },
 
     themePrimaryColor: function() {
-      if(typeof window === 'undefined') {
-        return '#E7AC18'
-      }
-
-      return getComputedStyle(document.documentElement).getPropertyValue('--color-primary-700').trim() || '#E7AC18'
+      return 'var(--color-primary-700)'
     }
   },
   methods: {
@@ -746,9 +767,52 @@ export default {
     },
 
     init: async function() {
-      await this.loadAppointmentConfig()
-      await this.reloadAppointments()
+      this.agendaLoading = true; this.agendaError = ''
+      try {
+      const response = await DAAppointmentService.doctors()
+      if(!response.success) { this.agendaError = response.message || 'No se pudieron cargar los doctores.'; return }
+      this.doctors = response.data || []
+      const own = this.doctors.find(d => d.id_login === (this.authUser || {}).id_login)
+      this.selectedDoctorId = own ? own.id_doctor_professional_profile : this.doctors.length === 1 ? this.doctors[0].id_doctor_professional_profile : ''
+      if(this.selectedDoctorId) await this.changeCalendarDoctor()
       await this.onSearch()
+      } catch(error) { this.agendaError = 'No se pudieron cargar los doctores. Reintenta.' }
+      finally { this.agendaLoading = false }
+    },
+
+    async changeCalendarDoctor() {
+      if(!this.selectedDoctorId) return
+      const request = ++this.agendaRequest
+      this.agendaLoading = true; this.agendaError = ''; this.appointments = []; this.appointmentConfig = getAppointmentConfig()
+      try {
+        const [config, appointments] = await Promise.all([DAAppointmentService.getConfig(this.selectedDoctorId), DAAppointmentService.list({doctor_profile_id:this.selectedDoctorId,date_from:this.weekDates[0],date_to:this.weekDates[6]})])
+        if(request !== this.agendaRequest) return
+        if(!config.success || !appointments.success) throw new Error(config.message || appointments.message || 'No se pudo cargar esta agenda.')
+        if(config.data.doctorProfileId !== this.selectedDoctorId) throw new Error('La agenda recibida no corresponde al doctor seleccionado.')
+        this.appointmentConfig = normalizeAppointmentConfig(config.data); this.appointments = appointments.data || []
+      } catch(error) { if(request === this.agendaRequest) this.agendaError = error.message }
+      finally { if(request === this.agendaRequest) this.agendaLoading = false }
+    },
+
+    async closeAgendaConfig() {
+      if(this.$refs.agendaEditor && this.$refs.agendaEditor.dirty) { this.$refs.agendaEditor.pending = '__close__'; this.$refs.agendaEditor.leaveOpen = true; return }
+      this.agendaConfigDialog = false
+      await this.changeCalendarDoctor()
+    },
+
+    async loadDialogDoctor(clearTime = false) {
+      const request = ++this.dialogRequest
+      if(clearTime) { this.editingAppointment.startTime = ''; this.editingAppointment.endTime = '' }
+      this.dialogLoading = true; this.dialogError = ''; this.dialogConfig = getAppointmentConfig(); this.dialogAppointments = []
+      try {
+        const id = this.editingAppointment.doctorProfileId
+        const [config, appointments] = await Promise.all([DAAppointmentService.getConfig(id), DAAppointmentService.list({doctor_profile_id:id,date_from:this.editingAppointment.date,date_to:this.editingAppointment.date})])
+        if(request !== this.dialogRequest) return
+        if(!config.success || !appointments.success) throw new Error(config.message || appointments.message || 'No se pudo consultar disponibilidad.')
+        if(config.data.doctorProfileId !== id) throw new Error('La agenda recibida no corresponde al doctor seleccionado.')
+        this.dialogConfig = normalizeAppointmentConfig(config.data); this.dialogAppointments = appointments.data || []
+      } catch(error) { if(request === this.dialogRequest) this.dialogError = error.message }
+      finally { if(request === this.dialogRequest) this.dialogLoading = false }
     },
 
     onSearch: async function() {
@@ -756,7 +820,7 @@ export default {
     },
 
     loadAppointmentConfig: async function() {
-      const response = await DAAppointmentService.getConfig()
+      const response = await DAAppointmentService.getConfig(this.selectedDoctorId)
       if(response && response.success && response.data) {
         this.appointmentConfig = normalizeAppointmentConfig(response.data)
         saveAppointmentConfig(this.appointmentConfig)
@@ -765,6 +829,7 @@ export default {
 
     reloadAppointments: async function() {
       const response = await DAAppointmentService.list({
+        doctor_profile_id: this.selectedDoctorId,
         date_from: this.weekDates[0],
         date_to: this.weekDates[this.weekDates.length - 1]
       })
@@ -773,7 +838,8 @@ export default {
         this.appointments = response.data || []
       }
       else {
-        this.appointments = getAppointments()
+        this.appointments = []
+        this.agendaError = response && response.message || 'No se pudieron cargar las citas.'
       }
     },
 
@@ -814,6 +880,7 @@ export default {
 
     openManualAppointment: function() {
       const firstSlot = this.weekDates
+        .filter(date => date >= this.selectedDate)
         .map((date) => generateDaySlots(date, this.appointmentConfig, this.appointments).find((slot) => slot.selectable))
         .find((slot) => slot)
 
@@ -834,6 +901,7 @@ export default {
     openAppointment: function(appointment) {
       this.dialogError = ''
       this.editingAppointment = Object.assign({}, appointment, {
+        doctorProfileId: appointment.doctorProfileId || this.selectedDoctorId,
         contactPhone: normalizeAppointmentContactPhoneValue(appointment && (appointment.contactPhone || appointment.contact_phone))
       })
       this.originalAppointment = appointment && appointment.id ? Object.assign({}, appointment) : null
@@ -843,9 +911,14 @@ export default {
       this.resetPatientSearchState()
       this.refreshDialogEndTime()
       this.appointmentDialog = true
+      this.dialogConfig = this.appointmentConfig
+      this.dialogAppointments = this.appointments
+      this.loadDialogDoctor()
     },
 
     closeDialog: function() {
+      if(this.savingAppointment) return
+      this.dialogRequest++
       this.appointmentDialog = false
       this.dialogError = ''
       this.editingAppointment = {}
@@ -897,7 +970,7 @@ export default {
     },
 
     saveRescheduledAppointment: async function() {
-      const appointmentsToValidate = this.appointments.filter((appointment) => appointment.id !== this.editingAppointment.id)
+      const appointmentsToValidate = this.dialogAppointments.filter((appointment) => appointment.id !== this.editingAppointment.id)
       const newAppointment = Object.assign({}, this.editingAppointment, {
         id: undefined,
         status: APPOINTMENT_STATUSES.PENDING,
@@ -912,7 +985,7 @@ export default {
         return
       }
 
-      const validation = validateAppointmentSlot(newAppointment, this.appointmentConfig, appointmentsToValidate)
+      const validation = validateAppointmentSlot(newAppointment, this.dialogConfig, appointmentsToValidate)
 
       if(!validation.valid) {
         this.dialogError = validation.message
@@ -944,6 +1017,8 @@ export default {
     },
 
     saveAppointment: async function() {
+      if(this.dialogLoading || this.savingAppointment) return
+      if(!this.editingAppointment.doctorProfileId) { this.dialogError = 'Selecciona el doctor que atendera.'; return }
       if(!this.editingAppointment.date || !this.editingAppointment.startTime) {
         this.dialogError = 'Selecciona fecha y hora.'
         return
@@ -971,8 +1046,8 @@ export default {
         return
       }
 
-      const appointmentsToValidate = this.appointments.filter((appointment) => appointment.id !== this.editingAppointment.id)
-      const validation = validateAppointmentSlot(this.editingAppointment, this.appointmentConfig, appointmentsToValidate)
+      const appointmentsToValidate = this.dialogAppointments.filter((appointment) => appointment.id !== this.editingAppointment.id)
+      const validation = validateAppointmentSlot(this.editingAppointment, this.dialogConfig, appointmentsToValidate)
       if(!validation.valid && appointmentBlocksAvailability(this.editingAppointment.status)) {
         this.dialogError = validation.message
         return
@@ -983,13 +1058,16 @@ export default {
         ? this.editingAppointment.followUpId
         : null
 
-      const response = await DAAppointmentService.save(Object.assign({}, this.editingAppointment, {
+      this.savingAppointment = true
+      let response
+      try { response = await DAAppointmentService.save(Object.assign({}, this.editingAppointment, {
         patientId: normalizedPatientId,
         followUpId: normalizedFollowUpId,
         contactPhone: this.editingAppointment.contactPhone || null,
         date: toIsoDate(this.editingAppointment.date),
         blocksAvailability: appointmentBlocksAvailability(this.editingAppointment.status)
-      }))
+      })) } catch(error) { this.dialogError = 'No se pudo guardar. Tu captura se conservo; reintenta.'; return }
+      finally { this.savingAppointment = false }
 
       if(!response || !response.success) {
         this.dialogError = response && response.message ? response.message : 'No se pudo guardar la cita.'
@@ -1014,7 +1092,7 @@ export default {
 
     refreshDialogEndTime: function() {
       if(this.editingAppointment.startTime) {
-        this.editingAppointment.endTime = addMinutesToTime(this.editingAppointment.startTime, this.appointmentConfig.defaultAppointmentDuration || 30)
+        this.editingAppointment.endTime = addMinutesToTime(this.editingAppointment.startTime, this.dialogConfig.defaultAppointmentDuration || 30)
       }
     },
 
@@ -1155,7 +1233,7 @@ export default {
   },
   watch: {
     selectedDate: function() {
-      this.reloadAppointments()
+      this.changeCalendarDoctor()
     },
     followUpDialog: function(value) {
       if(value) {
@@ -1167,6 +1245,7 @@ export default {
 </script>
 
 <style scoped>
+.agenda-config-card{max-height:90vh;display:flex;flex-direction:column}.agenda-config-card>div{flex-shrink:0}.agenda-config-editor{overflow-y:auto;min-height:0}.agenda-config-card .agenda-config-editor{flex:1}
 .follow-up-card {
   border-radius: 8px;
   overflow: hidden;

@@ -9,7 +9,7 @@
             <h3>Registros del paciente</h3>
             <p>Consulta tratamientos realizados, próxima cita y notas clínicas.</p>
           </div>
-          <button type="button" class="monitoring-add tab-create-action" @click="openModalAdd()">
+          <button v-if="canCreateMonitoring" type="button" class="monitoring-add tab-create-action" @click="openModalAdd()">
             <v-icon small>mdi-plus</v-icon>
             <span>Nuevo seguimiento</span>
           </button>
@@ -29,8 +29,8 @@
                   <tr>
                     <th>Fecha del seguimiento</th>
                     <th>Tratamiento realizado</th>
-                    <th>Tratamiento sugerido para próxima cita</th>
-                    <th>Próxima cita</th>
+                    <th>Próximo procedimiento o indicación</th>
+                    <th>Fecha sugerida de próxima atención</th>
                     <th class="monitoring-table-action">Acciones</th>
                   </tr>
                 </thead>
@@ -41,7 +41,7 @@
                         <span class="monitoring-date-icon"><v-icon size="18">mdi-calendar-check-outline</v-icon></span>
                         <div>
                           <strong>{{ displayMonitoringDate(item.quote_date_now, 'Sin fecha registrada') }}</strong>
-                          <small>Fecha del registro</small>
+                          <small>{{ item.status === 'cancelled' ? 'Anulado · solo consulta' : 'Fecha del registro' }}</small>
                         </div>
                       </div>
                     </td>
@@ -58,7 +58,7 @@
                     </td>
                     <td>
                       <span :class="['monitoring-next-date', hasNextAppointmentDate(item.quote_date_after) ? 'has-date' : 'is-empty']">
-                        {{ displayMonitoringDate(item.quote_date_after, 'Sin próxima cita') }}
+                        {{ displayMonitoringDate(item.quote_date_after, 'Sin fecha sugerida') }}
                       </span>
                     </td>
                     <td>
@@ -67,9 +67,9 @@
                           <v-icon small>mdi-eye-outline</v-icon>
                           <span>Ver detalle</span>
                         </button>
-                        <button type="button" class="monitoring-action monitoring-action--danger" @click="showDelete(item.id_tracing)">
+                        <button v-if="canCancelMonitoring && item.status !== 'cancelled'" type="button" class="monitoring-action monitoring-action--danger" @click="showDelete(item)">
                           <v-icon small>mdi-trash-can-outline</v-icon>
-                          <span>Eliminar</span>
+                          <span>Anular</span>
                         </button>
                       </div>
                     </td>
@@ -84,7 +84,7 @@
                   <span class="monitoring-date-icon"><v-icon size="18">mdi-calendar-check-outline</v-icon></span>
                   <div>
                     <strong>{{ displayMonitoringDate(item.quote_date_now, 'Sin fecha registrada') }}</strong>
-                    <small>Seguimiento clínico</small>
+                    <small>{{ item.status === 'cancelled' ? 'Anulado · solo consulta' : 'Seguimiento clínico' }}</small>
                   </div>
                 </div>
 
@@ -98,8 +98,8 @@
                     <dd>{{ displayMonitoringText(item.treatment_after, 'Sin tratamiento definido') }}</dd>
                   </div>
                   <div>
-                    <dt>Próxima cita</dt>
-                    <dd>{{ displayMonitoringDate(item.quote_date_after, 'Sin próxima cita') }}</dd>
+                    <dt>Fecha sugerida de próxima atención</dt>
+                    <dd>{{ displayMonitoringDate(item.quote_date_after, 'Sin fecha sugerida') }}</dd>
                   </div>
                 </dl>
 
@@ -112,9 +112,9 @@
                     <v-icon small>mdi-eye-outline</v-icon>
                     <span>Ver detalle</span>
                   </button>
-                  <button type="button" class="monitoring-action monitoring-action--danger" @click="showDelete(item.id_tracing)">
+                  <button v-if="canCancelMonitoring && item.status !== 'cancelled'" type="button" class="monitoring-action monitoring-action--danger" @click="showDelete(item)">
                     <v-icon small>mdi-trash-can-outline</v-icon>
-                    <span>Eliminar</span>
+                    <span>Anular</span>
                   </button>
                 </div>
               </article>
@@ -122,7 +122,7 @@
           </template>
         </div>
 
-        <section class="appointment-history-section" aria-labelledby="appointment-history-title">
+        <section v-if="canViewAppointmentHistory" class="appointment-history-section" aria-labelledby="appointment-history-title">
           <div class="appointment-history-head">
             <div>
               <p class="monitoring-kicker">Agenda del paciente</p>
@@ -154,7 +154,7 @@
             <div v-if="nextAppointmentHistory" class="appointment-history-next">
               <span>Proxima cita</span>
               <strong>{{ appointmentDateLabel(nextAppointmentHistory) }} - {{ appointmentTimeLabel(nextAppointmentHistory) }}</strong>
-              <small>{{ appointmentReason(nextAppointmentHistory) }}</small>
+              <small>{{ appointmentReason(nextAppointmentHistory) }} · {{ nextAppointmentHistory.doctorName || 'Sin doctor asignado' }}</small>
             </div>
 
             <div class="appointment-history-table-wrap">
@@ -182,7 +182,7 @@
                       <small v-if="isUpcomingAppointment(appointment)" class="appointment-history-upcoming">Proxima</small>
                     </td>
                     <td>
-                      <strong>{{ appointmentReason(appointment) }}</strong>
+                      <strong>{{ appointmentReason(appointment) }}</strong><small class="block">{{ appointment.doctorName || 'Sin doctor asignado' }}</small>
                       <small v-if="appointmentNotes(appointment)">{{ appointmentNotes(appointment) }}</small>
                     </td>
                     <td>{{ appointmentUpdatedLabel(appointment) || 'Sin registro' }}</td>
@@ -209,7 +209,7 @@
                   </div>
                   <div>
                     <dt>Motivo</dt>
-                    <dd>{{ appointmentReason(appointment) }}</dd>
+                    <dd>{{ appointmentReason(appointment) }} · {{ appointment.doctorName || 'Sin doctor asignado' }}</dd>
                   </div>
                   <div v-if="appointmentNotes(appointment)">
                     <dt>Notas</dt>
@@ -233,12 +233,12 @@
       <v-card class="monitoring-dialog-card">
         <div class="monitoring-dialog-header">
           <div>
-            <p class="monitoring-dialog-kicker">Seguimiento clÃ­nico</p>
+            <p class="monitoring-dialog-kicker">Seguimiento clínico</p>
             <h3>Agregar seguimiento</h3>
-            <span>Registra el tratamiento realizado y programa la prÃ³xima atenciÃ³n del paciente.</span>
+            <span>Registra el tratamiento realizado y programa la próxima atención del paciente.</span>
           </div>
             <div class="flex justify-end items-center mr-4 mt-2">
-                <svg xmlns="http://www.w3.org/2000/svg" @click="show = false" class="icon icon-tabler icon-tabler-square-x text-gray-400 cursor-pointer" width="35" height="35" viewBox="0 0 24 24" stroke-width="1" stroke="#BDBDBD" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" @click="closeNewMonitoring()" class="icon icon-tabler icon-tabler-square-x text-gray-400 cursor-pointer" width="35" height="35" viewBox="0 0 24 24" stroke-width="1" stroke="#BDBDBD" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <rect x="4" y="4" width="16" height="16" rx="2" />
                 <path d="M10 10l4 4m0 -4l-4 4" />
@@ -246,9 +246,12 @@
             </div>
         </div>
         <v-card-text class="monitoring-dialog-body">
+          <p v-if="newMonitoringError" role="alert" class="text-red-700">{{ newMonitoringError }}</p>
+          <p v-if="savedNewMonitoring" role="status">El seguimiento ya está guardado. Sólo se reintentará la cita. Su fecha sugerida original se conserva; el horario final se consulta en Historial de citas.</p>
+          <p v-if="!canManageAppointments" class="text-gray-500 text-sm">Puedes guardar el seguimiento. Pide a recepción o a una persona con acceso a Agenda que programe la cita si se necesita.</p>
 
           <v-text-field
-            v-model="objCita3.quote_date_now"
+            v-model="objCita3.quote_date_now" :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring"
             type="date"
             label="Fecha actual"
             dense
@@ -256,14 +259,14 @@
             :color="themePrimaryColor"
           ></v-text-field>
 
-          <div class="w-ful text-right">
+          <div v-if="!savedNewMonitoring && !isSavingMonitoring" class="w-ful text-right">
             <span v-if="showtto2 == true" class="text-primary-700 cursor-pointer" @click="showtto2 = !showtto2">Escribir tratamiento</span>
             <span v-else class="text-primary-700 cursor-pointer" @click="showtto2 = !showtto2">Seleccionar tratamiento</span>
           </div>
 
           <v-text-field
             v-if="showtto2 == false"
-            v-model="objCita3.id_cat_treatment_now"
+            v-model="objCita3.id_cat_treatment_now" :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring"
             class="animate-fade-in-up"
             label="Tratamiento realizado"
             dense
@@ -271,19 +274,25 @@
             :color="themePrimaryColor"
           ></v-text-field>
 
-          <v-autocomplete v-if="showtto2 == true" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado1" item-value="id" label="Tratamiento realizado" dense outlined :color="themePrimaryColor"></v-autocomplete>
+          <v-autocomplete :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring" v-if="showtto2 == true" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado1" item-value="id" label="Tratamiento realizado" dense outlined :color="themePrimaryColor"></v-autocomplete>
 
+          <v-checkbox v-if="canManageAppointments" v-model="scheduleNewAppointment" :disabled="isSavingMonitoring" label="Agendar próxima cita (opcional)" :color="themePrimaryColor" hide-details />
           <v-text-field
+            v-if="canManageAppointments && scheduleNewAppointment"
             :value="objCita3.quote_date_after"
             type="date"
-            label="Fecha proximo tratamiento"
+            label="Fecha de la cita"
+            :readonly="isSavingMonitoring"
             dense
             outlined
             :color="themePrimaryColor"
             @input="onNewAppointmentDateChange($event)"
           ></v-text-field>
 
-          <div class="monitoring-schedule-panel mt-2 mb-5 border border-gray-200 bg-gray-50 p-4">
+          <div v-if="canManageAppointments && scheduleNewAppointment" class="monitoring-schedule-panel mt-2 mb-5 border border-gray-200 bg-gray-50 p-4">
+            <p class="text-gray-500 text-sm mb-3">Elige doctor, fecha y horario para crear una cita pendiente de confirmar. Desmarca Agendar próxima cita para guardar sólo el seguimiento.</p>
+            <v-select :disabled="isSavingMonitoring" v-model="appointmentDoctorId" :items="appointmentDoctors" item-text="display_name" item-value="id_doctor_professional_profile" label="Doctor de la proxima cita" :readonly="appointmentDoctors.length === 1" outlined dense :color="themePrimaryColor" @change="onAppointmentDoctorChange"></v-select>
+            <p v-if="appointmentDataLoading" role="status">Consultando disponibilidad…</p><p v-if="appointmentDataError" role="alert" class="text-red-700">{{ appointmentDataError }}</p>
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
               <div>
                 <p class="m-0 text-gray-700 font-semibold">Hora de próxima cita</p>
@@ -298,7 +307,7 @@
                 type="button"
                 class="monitoring-slot px-3 py-2 border text-sm font-semibold focus:outline-none"
                 :class="selectedAppointmentTime === slot.startTime ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-green-700 border-green-200'"
-                @click="selectNewAppointmentSlot(slot)"
+                @click="selectNewAppointmentSlot(slot)" :disabled="isSavingMonitoring"
               >
                 {{ slot.startTime }}
               </button>
@@ -309,25 +318,26 @@
             </p>
           </div>
 
-          <div class="w-ful text-right">
+          <div v-if="!savedNewMonitoring && !isSavingMonitoring" class="w-ful text-right">
             <span v-if="showtto3 == true" class="text-primary-700 cursor-pointer" @click="showtto3 = !showtto3">Escribir tratamiento</span>
             <span v-else class="text-primary-700 cursor-pointer" @click="showtto3 = !showtto3">Seleccionar tratamiento</span>
           </div>
 
           <v-text-field
             v-if="showtto3 == false"
-            v-model ="objCita3.id_cat_treatment_after"
+            v-model ="objCita3.id_cat_treatment_after" :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring"
             class="animate-fade-in-up"
-            label="Tratamiento proxima cita"
+            label="Próximo procedimiento o indicación"
             dense
             outlined
             :color="themePrimaryColor"
           ></v-text-field>
 
-         <v-autocomplete v-if="showtto3 == true" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado" item-value="id" label="Tratamiento proxima cita" dense outlined :color="themePrimaryColor"></v-autocomplete>
+         <v-autocomplete :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring" v-if="showtto3 == true" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado" item-value="id" label="Próximo procedimiento o indicación" dense outlined :color="themePrimaryColor"></v-autocomplete>
 
+          <p class="text-gray-500 text-sm">El próximo procedimiento o indicación puede ser Revisión de rutina o Sin retorno previsto. Este texto no agenda una cita.</p>
           <v-textarea
-            v-model="objCita3.note"
+            v-model="objCita3.note" :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring"
             label="Notas"
             rows="3"
             dense
@@ -337,13 +347,13 @@
           ></v-textarea>
 
           <div class="flex justify-end flex-wrap gap-2">
-              <button type="button" class="monitoring-dialog-action monitoring-dialog-action--save mt-5" @click="onSaveMonitoring()">
+              <button type="button" class="monitoring-dialog-action monitoring-dialog-action--save mt-5" :disabled="isSavingMonitoring" @click="onSaveMonitoring()">
                 <v-icon small>mdi-content-save-outline</v-icon>
-                <span>Guardar</span>
+                <span>{{ isSavingMonitoring ? 'Guardando…' : savedNewMonitoring ? (scheduleNewAppointment && canManageAppointments ? 'Reintentar cita' : 'Cerrar sin agendar') : 'Guardar' }}</span>
               </button>
-              <button type="button" class="monitoring-dialog-action monitoring-dialog-action--close mt-5" @click="show = false">
+              <button type="button" :disabled="isSavingMonitoring" class="monitoring-dialog-action monitoring-dialog-action--close mt-5" @click="closeNewMonitoring()">
                 <v-icon small>mdi-close</v-icon>
-                <span>Cancelar</span>
+                <span>{{ savedNewMonitoring ? 'Cerrar' : 'Cancelar' }}</span>
               </button>
           </div>
         </v-card-text>
@@ -353,13 +363,19 @@
     <da-dialog v-model="isDelete" :persist="true" :maxWidth="'500px'">
         <template #body>
             <da-sweet-confirm 
-            :title="'Eliminar Registro'" 
-            :message="'¿Esta seguro de eliminar el registro de seguimiento seleccionado?'"
+            :title="'Anular seguimiento'"
+            :message="'Se conservarán el contenido y sus cambios para consulta. Esta acción no cancela las citas de la agenda.'"
             :lottiepath="DELETE"
             :iconwidth="150"
             :iconheight="150"
+            confirmbtntext="Anular seguimiento"
+            calcelbtntext="Conservar seguimiento"
             v-on:confirm="onDelete()" 
             v-on:close="isDelete = false">
+          <template #content>
+            <v-textarea v-model="cancellationReason" class="mt-4" label="Motivo de anulación (obligatorio)" outlined dense rows="2" maxlength="1000" />
+            <p v-if="cancellationError" role="alert">{{ cancellationError }}</p>
+          </template>
         </da-sweet-confirm>
         </template>
     </da-dialog>
@@ -377,6 +393,9 @@
             </div>
         </div>
         <v-card-text v-if="isReadOnly" class="monitoring-dialog-body monitoring-dialog-body--readonly">
+
+          <p>Capturado por: {{ selectedMonitoring.author_name || selectedMonitoring.created_by || 'Autor no registrado' }} · Revisión {{ selectedMonitoring.revision || 1 }}</p>
+          <p v-if="selectedMonitoring.status === 'cancelled'" role="status">Anulado: {{ selectedMonitoring.cancellation_reason }}</p>
 
           <v-text-field
             v-model="objCita2.quote_date_now"
@@ -398,7 +417,7 @@
 
           <v-text-field
             v-model="objCita2.quote_date_after"
-            label="Fecha proximo tratamiento"
+            label="Fecha sugerida de próxima atención (opcional)"
             dense
             outlined
             readonly
@@ -407,7 +426,7 @@
 
           <v-text-field
             v-model ="objCita2.id_cat_treatment_after"
-            label="Tratamiento proxima cita"
+            label="Próximo procedimiento o indicación"
             dense
             outlined
             readonly
@@ -426,11 +445,11 @@
           ></v-textarea>
 
       <div class="flex justify-end flex-wrap gap-2">
-            <button v-if="!isEdit" type="button" class="monitoring-dialog-action monitoring-dialog-action--edit mt-5" @click="changeButton()">
+            <button v-if="!isEdit && canCorrectMonitoring && selectedMonitoring.status !== 'cancelled'" type="button" class="monitoring-dialog-action monitoring-dialog-action--edit mt-5" @click="changeButton()">
               <v-icon small>mdi-pencil-outline</v-icon>
-              <span>Editar</span>
+              <span>Corregir</span>
             </button>
-            <button v-if="isEdit" type="button" class="monitoring-dialog-action monitoring-dialog-action--save mt-5" @click="onUPDMonitoring()">
+            <button v-if="isEdit && canCorrectMonitoring" type="button" class="monitoring-dialog-action monitoring-dialog-action--save mt-5" @click="onUPDMonitoring()">
               <v-icon small>mdi-content-save-outline</v-icon>
               <span>Guardar</span>
             </button>
@@ -439,12 +458,31 @@
               <span>Cerrar</span>
             </button>
       </div>
+          <details @toggle="loadMonitoringRevisions($event)">
+            <summary>Ver cambios conservados</summary>
+            <p v-if="revisionsLoading" role="status">Cargando cambios…</p>
+            <p v-if="revisionsError" role="alert">{{ revisionsError }}</p>
+            <p v-if="revisionsLoaded && !monitoringRevisions.length">Registro anterior al control de versiones; su contenido se conservará al corregirlo o anularlo.</p>
+            <article v-for="revision in monitoringRevisions" :key="revision.id_tracing_revision">
+              <strong>Revisión {{ revision.revision }} · {{ revisionAction(revision.action) }}</strong>
+              <p>{{ revision.actor_name || revision.recorded_by || 'Autoría original conservada en el registro' }} · {{ revision.recorded_at }}</p>
+              <p v-if="revision.change_reason">Motivo: {{ revision.change_reason }}</p>
+              <p>Fecha: {{ displayMonitoringDate(revision.snapshot.quote_date_now) }} · Tratamiento: {{ revision.snapshot.treatment_now }}</p>
+              <p>Próxima cita: {{ displayMonitoringDate(revision.snapshot.quote_date_after, 'Sin próxima cita') }} · {{ revision.snapshot.treatment_after }}</p>
+              <p style="white-space: pre-wrap">{{ revision.snapshot.note }}</p>
+            </article>
+          </details>
         </v-card-text>
 
         <v-card-text v-else class="monitoring-dialog-body monitoring-dialog-body--edit">
+          <p>Se conservará la versión anterior junto con tu corrección.</p>
+          <p v-if="savedEditMonitoring" role="status">La corrección ya está guardada. Sólo se reintentará la cita. La fecha sugerida guardada se conserva; consulta el horario final en Historial de citas.</p>
+          <p v-if="!canManageAppointments" class="text-gray-500 text-sm">Puedes corregir el seguimiento. Para programar una cita pide apoyo a recepción o a una persona con acceso a Agenda.</p>
+          <v-textarea v-model="correctionReason" :readonly="Boolean(savedEditMonitoring) || isSavingMonitoring" label="Motivo de corrección (obligatorio)" outlined dense rows="2" maxlength="1000" />
+          <p v-if="correctionError" role="alert">{{ correctionError }}</p>
 
           <v-text-field
-            v-model="objCita.quote_date_now"
+            v-model="objCita.quote_date_now" :readonly="Boolean(savedEditMonitoring) || isSavingMonitoring"
             type="date"
             label="Fecha actual"
             dense
@@ -452,14 +490,14 @@
             :color="themePrimaryColor"
           ></v-text-field>
 
-          <div class="w-ful text-right">
+          <div v-if="!savedEditMonitoring && !isSavingMonitoring" class="w-ful text-right">
             <span v-if="showtto1 == true" class="text-primary-700 cursor-pointer" @click="showtto1 = !showtto1">Seleccionar tratamiento</span>
             <span v-else class="text-primary-700 cursor-pointer" @click="showtto1 = !showtto1">Escribir tratamiento</span>
           </div>
 
           <v-text-field
               v-show="showtto1 == true"
-              v-model="objCita.id_cat_treatment_now"
+              v-model="objCita.id_cat_treatment_now" :readonly="Boolean(savedEditMonitoring) || isSavingMonitoring"
               class="animate-fade-in-up"
               label="Tratamiento realizado"
               dense
@@ -467,24 +505,35 @@
               :color="themePrimaryColor"
           ></v-text-field>
 
-          <v-autocomplete v-show="showtto1 == false" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado2" item-value="name" label="Tratamiento realizado" dense outlined :color="themePrimaryColor"></v-autocomplete>
+          <v-autocomplete :readonly="Boolean(savedEditMonitoring) || isSavingMonitoring" v-show="showtto1 == false" class="animate-fade-in-up" :items="performedTreatmentOptions" item-text="name" v-model="ttoSelecionado2" item-value="id" label="Tratamiento realizado" dense outlined :color="themePrimaryColor"></v-autocomplete>
+          <div v-if="canManageAppointments && !editAppointmentRequested" class="monitoring-schedule-panel p-4">
+            <p>Corregir el seguimiento no cambia las citas existentes.</p>
+            <p v-if="editAppointmentLookupError" role="alert" class="text-red-700">{{ editAppointmentLookupError }}</p>
+            <button type="button" class="monitoring-dialog-action monitoring-dialog-action--edit" :disabled="isLoading || isSavingMonitoring" @click="requestEditAppointment()">{{ editLinkedAppointment ? 'Modificar cita vinculada' : 'Agendar nueva cita' }}</button>
+            <p v-if="!editLinkedAppointment" class="text-gray-500 text-sm mt-2">Las citas completadas, canceladas o reprogramadas se conservan en el historial.</p>
+          </div>
           <v-text-field
+            v-if="canManageAppointments && editAppointmentRequested"
             v-model="objCita.quote_date_after"
             type="date"
-            label="Fecha proximo tratamiento"
+            label="Fecha de la cita"
+            :readonly="isSavingMonitoring"
             dense
             outlined
             :color="themePrimaryColor"
             @input="onEditAppointmentDateChange($event)"
           ></v-text-field>
 
-          <div class="monitoring-schedule-panel mt-2 mb-5 border border-gray-200 bg-gray-50 p-4">
+          <div v-if="canManageAppointments && editAppointmentRequested" class="monitoring-schedule-panel mt-2 mb-5 border border-gray-200 bg-gray-50 p-4">
+            <button type="button" :disabled="isSavingMonitoring" class="monitoring-dialog-action monitoring-dialog-action--close mb-3" @click="cancelAppointmentChange()">Dejar agenda sin cambios</button>
+            <v-select :disabled="isSavingMonitoring" v-model="appointmentDoctorId" :items="appointmentDoctors" item-text="display_name" item-value="id_doctor_professional_profile" label="Doctor de la proxima cita" :readonly="appointmentDoctors.length === 1" outlined dense :color="themePrimaryColor" @change="onAppointmentDoctorChange"></v-select>
+            <p v-if="appointmentDataLoading" role="status">Consultando disponibilidad…</p><p v-if="appointmentDataError" role="alert" class="text-red-700">{{ appointmentDataError }}</p>
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
               <div>
                 <p class="m-0 text-gray-700 font-semibold">Hora de próxima cita</p>
                 <p class="m-0 text-gray-500 text-sm">Solo se muestran horarios disponibles según la agenda configurada.</p>
               </div>
-              <v-chip v-if="selectedEditAppointmentTime" color="#FFF3CD" text-color="#8A5A00" small>Pendiente de confirmar</v-chip>
+              <v-chip v-if="selectedEditAppointmentTime" color="#FFF3CD" text-color="#8A5A00" small>{{ editLinkedAppointment ? appointmentStatusLabel(editLinkedAppointment.status) : 'Pendiente de confirmar' }}</v-chip>
             </div>
             <div v-if="availableEditAppointmentSlots.length > 0" class="flex flex-wrap gap-2">
               <button
@@ -493,7 +542,7 @@
                 type="button"
                 class="monitoring-slot px-3 py-2 border text-sm font-semibold focus:outline-none"
                 :class="selectedEditAppointmentTime === slot.startTime ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-green-700 border-green-200'"
-                @click="selectEditAppointmentSlot(slot)"
+                @click="selectEditAppointmentSlot(slot)" :disabled="isSavingMonitoring"
               >
                 {{ slot.startTime }}
               </button>
@@ -504,25 +553,26 @@
             </p>
           </div>
 
-          <div class="w-ful text-right">
+          <div v-if="!savedEditMonitoring && !isSavingMonitoring" class="w-ful text-right">
             <span v-if="showtto == true" class="text-primary-700 cursor-pointer" @click="showtto = !showtto">Seleccionar tratamiento</span>
             <span v-else class="text-primary-700 cursor-pointer" @click="showtto = !showtto">Escribir tratamiento</span>
           </div>
 
           <v-text-field
             v-show="showtto == true"
-            v-model ="objCita.id_cat_treatment_after"
+            v-model ="objCita.id_cat_treatment_after" :readonly="Boolean(savedEditMonitoring) || isSavingMonitoring"
             class="animate-fade-in-up"
-            label="Tratamiento proxima cita"
+            label="Próximo procedimiento o indicación"
             dense
             outlined
             :color="themePrimaryColor"
           ></v-text-field>
 
-         <v-autocomplete v-show="showtto == false" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado3" item-value="name" label="Tratamiento proxima cita" dense outlined :color="themePrimaryColor"></v-autocomplete>
+         <v-autocomplete :readonly="Boolean(savedEditMonitoring) || isSavingMonitoring" v-show="showtto == false" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado3" item-value="name" label="Próximo procedimiento o indicación" dense outlined :color="themePrimaryColor"></v-autocomplete>
 
+          <p class="text-gray-500 text-sm">El próximo procedimiento o indicación puede ser Revisión de rutina o Sin retorno previsto; no implica agendar una cita.</p>
           <v-textarea
-            v-model="objCita.note"
+            v-model="objCita.note" :readonly="Boolean(savedEditMonitoring) || isSavingMonitoring"
             label="Notas"
             rows="3"
             dense
@@ -532,13 +582,13 @@
           ></v-textarea>
 
       <div class="flex justify-end flex-wrap gap-2">
-            <button type="button" class="monitoring-dialog-action monitoring-dialog-action--save mt-5" @click="onUPDMonitoring()">
+            <button type="button" class="monitoring-dialog-action monitoring-dialog-action--save mt-5" :disabled="isSavingMonitoring" @click="onUPDMonitoring()">
               <v-icon small>mdi-content-save-outline</v-icon>
-              <span>Guardar</span>
+              <span>{{ isSavingMonitoring ? 'Guardando…' : savedEditMonitoring && editAppointmentRequested ? 'Reintentar cita' : 'Guardar' }}</span>
             </button>
-            <button type="button" class="monitoring-dialog-action monitoring-dialog-action--close mt-5" @click="cancelEditButton()">
+            <button type="button" class="monitoring-dialog-action monitoring-dialog-action--close mt-5" @click="cancelEditButton()" :disabled="isSavingMonitoring">
               <v-icon small>mdi-close</v-icon>
-              <span>Cancelar</span>
+              <span>{{ savedEditMonitoring ? 'Cerrar' : 'Cancelar' }}</span>
             </button>
       </div>
         </v-card-text>
@@ -552,11 +602,13 @@
 
 <script>
 import { mapActions, mapGetters } from 'vuex';
+import { uuid } from 'vue-uuid';
 import VuexMixin from '../../../mixins/VuexMixin';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
 import DASweetConfirm from '../../../core/components/form/dialog/components/DASweetConfirm.vue';
 import { DAAppointmentService } from '../../../services/context/core-proccess-context';
+import DAMonitoringService from '../../../services/core/monitoring/DAMonitoringService';
 import { DELETE } from '../../../utils/lottieicon';
 import { formatFecha, revertFormatFecha } from '../../../utils/date';
 import DAMonitorPlanModel from '../../../models/monitor/DAMonitorPlan.model';
@@ -605,7 +657,14 @@ export default {
             idtracing:  '',
             dateNow: '',
             ida: '',
+            selectedMonitoring: {}, cancelRevision: null, cancellationReason: '', cancellationError: '',
+            correctionReason: '', correctionError: '', monitoringRevisions: [], revisionsLoading: false,
+            revisionsError: '', revisionsLoaded: false,
+            newTracingId: '', savedNewMonitoring: null, newMonitoringError: '', isSavingMonitoring: false, scheduleNewAppointment: false,
+            savedEditMonitoring: null, editAppointmentRequested: false, editAppointmentLookupError: '', editCreatesNewAppointment: false,
+            appointmentHistoryRequest: 0, nextPatientAppointment: null,
             appointmentConfig: getAppointmentConfig(),
+            appointmentDoctors: [], appointmentDoctorId: '', appointmentDataLoading: false, appointmentDataError: '', appointmentDataRequest: 0,
             appointments: getAppointments(),
             selectedAppointmentTime: '',
             selectedAppointmentEndTime: '',
@@ -662,6 +721,12 @@ export default {
       this.isLoading = false
   },
   computed: {
+    ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, hasPermission: fnTypes.hasPermission }),
+    canCreateMonitoring() { return this.hasPermission('px.tab.monitoring') && this.hasPermission('tracing.create') },
+    canCorrectMonitoring() { return this.hasPermission('px.tab.monitoring') && this.hasPermission('tracing.correct') },
+    canCancelMonitoring() { return this.hasPermission('px.tab.monitoring') && this.hasPermission('tracing.cancel') },
+    canManageAppointments() { return this.hasPermission('px.dates') || this.hasPermission('admin.config') },
+    canViewAppointmentHistory() { return this.hasPermission('px.tab.monitoring') || this.canManageAppointments },
     ...mapGetters(moduleTypes.MONITORING, {
       saveMonitorings:    fnTypes.saveTracing,
       updMonitorings:     fnTypes.updTracing,
@@ -679,17 +744,24 @@ export default {
     },
 
     nextAppointmentHistory: function() {
-      const now = new Date()
-      return this.appointmentHistoryRows
-        .filter((appointment) => this.appointmentDateTime(appointment) >= now)
-        .sort((left, right) => this.appointmentDateTime(left) - this.appointmentDateTime(right))[0] || null
+      return this.isUpcomingAppointment(this.nextPatientAppointment) ? this.nextPatientAppointment : null
+    },
+
+    performedTreatmentOptions() {
+      const treatments = Array.isArray(this.getAllTreatments) ? this.getAllTreatments : []
+      const original = this.selectedMonitoring || {}
+      if (!original.id_patient_treatment) return treatments
+      return [{ id: original.id_patient_treatment, name: original.treatment_now }]
+        .concat(treatments.filter(item => String(item.id) !== String(original.id_patient_treatment)))
     },
 
     themePrimaryColor: function() {
-      return getComputedStyle(document.documentElement).getPropertyValue('--color-primary-700').trim() || '#1497bd'
+      return 'var(--color-primary-700)'
     },
 
     availableNewAppointmentSlots: function() {
+      if (!this.canManageAppointments) return []
+      if(!this.appointmentDoctorId || this.appointmentDataLoading || this.appointmentDataError) return []
       if(!this.objCita3.quote_date_after) {
         return []
       }
@@ -702,6 +774,8 @@ export default {
     },
 
     availableEditAppointmentSlots: function() {
+      if (!this.canManageAppointments || !this.editAppointmentRequested) return []
+      if(!this.appointmentDoctorId || this.appointmentDataLoading || this.appointmentDataError) return []
       if(!this.objCita.quote_date_after) {
         return []
       }
@@ -722,7 +796,32 @@ export default {
   },
   watch: {
     'px.person.id_person': function() {
+      this.show = false
+      this.isNote = false
+      this.savedNewMonitoring = null
+      this.savedEditMonitoring = null
       this.loadAppointmentHistory(true)
+    },
+    canViewAppointmentHistory(allowed) {
+      if (allowed) this.loadAppointmentHistory(true)
+      else { ++this.appointmentHistoryRequest; this.appointmentHistory = []; this.nextPatientAppointment = null; this.appointmentHistoryLoading = false }
+    },
+    canManageAppointments(allowed) {
+      if (allowed) { this.loadAppointmentDoctors(); this.loadAppointmentHistory(true); return }
+      ++this.appointmentDataRequest
+      ++this.appointmentHistoryRequest
+      this.appointmentHistory = []
+      this.nextPatientAppointment = null
+      this.appointmentDoctors = []
+      this.appointments = []
+      this.appointmentDoctorId = ''
+      this.editAppointmentRequested = false
+      this.scheduleNewAppointment = false
+      this.selectedAppointmentTime = ''
+      this.selectedEditAppointmentTime = ''
+      this.appointmentDataLoading = false
+      this.appointmentHistoryLoading = false
+      if (this.canViewAppointmentHistory) this.loadAppointmentHistory(true)
     }
   },
   methods: {
@@ -736,11 +835,22 @@ export default {
         fnTypes.getAllPxTreatment
       ]),
 
-      init(){
+      async init(){
         this.onGetMonitoring()
         this.onGetAllTreatment()
         this.getCurrentDate()
         this.loadAppointmentHistory(true)
+        await this.loadAppointmentDoctors()
+      },
+
+      async loadAppointmentDoctors() {
+        if (!this.canManageAppointments) return
+        const response = await DAAppointmentService.doctors()
+        if(response && response.success && this.canManageAppointments) {
+          this.appointmentDoctors = response.data || []
+          const own = this.appointmentDoctors.find(d => d.id_login === (this.authUser || {}).id_login)
+          this.appointmentDoctorId = own ? own.id_doctor_professional_profile : this.appointmentDoctors.length === 1 ? this.appointmentDoctors[0].id_doctor_professional_profile : ''
+        }
       },
 
       monitoringKey: function(item) {
@@ -762,7 +872,7 @@ export default {
           return fallback
         }
 
-        return String(value).trim()
+        return formatDisplayDate(value)
       },
 
       monitoringNotePreview: function(item) {
@@ -838,7 +948,11 @@ export default {
       },
 
       isUpcomingAppointment: function(appointment) {
-        return this.appointmentDateTime(appointment) >= new Date()
+        return Boolean(appointment && this.isActiveAppointment(appointment) && this.appointmentDateTime(appointment) >= new Date())
+      },
+
+      isActiveAppointment(appointment) {
+        return Boolean(appointment && [APPOINTMENT_STATUSES.PENDING, APPOINTMENT_STATUSES.CONFIRMED].includes(appointment.status))
       },
 
       loadMoreAppointmentHistory: async function() {
@@ -846,238 +960,183 @@ export default {
       },
 
       loadAppointmentHistory: async function(reset) {
+        const request = ++this.appointmentHistoryRequest
         const patientId = this.px && this.px.person ? this.px.person.id_person : ''
-        if(!patientId) {
+        if (!this.canViewAppointmentHistory || !patientId) {
           this.appointmentHistory = []
+          this.nextPatientAppointment = null
           this.appointmentHistoryHasMore = false
           return
         }
-
-        if(reset) {
+        if (reset) {
           this.appointmentHistoryOffset = 0
           this.appointmentHistoryHasMore = false
+          this.appointmentHistory = []
+          this.nextPatientAppointment = null
         }
-
         this.appointmentHistoryLoading = true
         this.appointmentHistoryError = ''
-
-        const response = await DAAppointmentService.patientHistory(patientId, {
-          limit: this.appointmentHistoryLimit,
-          offset: this.appointmentHistoryOffset
-        })
-
-        if(response && response.success) {
+        try {
+          const responses = await Promise.all([
+            DAAppointmentService.patientHistory(patientId, { limit: this.appointmentHistoryLimit, offset: this.appointmentHistoryOffset }),
+            reset ? DAAppointmentService.patientHistory(patientId, { upcoming_from: toIsoDate(new Date()), upcoming_time: new Date().toTimeString().slice(0, 5), limit: 1, offset: 0 }) : Promise.resolve(null)
+          ])
+          if (request !== this.appointmentHistoryRequest || !this.canViewAppointmentHistory || this.px.person.id_person !== patientId) return
+          const response = responses[0]
+          if (!response || !response.success) throw new Error(response && response.message || 'No se pudo cargar el historial de citas.')
           const payload = response.data || {}
-          const appointments = Array.isArray(payload.appointments)
-            ? payload.appointments
-            : (Array.isArray(payload) ? payload : [])
-
-          this.appointmentHistory = reset
-            ? appointments
-            : this.appointmentHistory.concat(appointments)
-
+          const appointments = Array.isArray(payload.appointments) ? payload.appointments : (Array.isArray(payload) ? payload : [])
+          this.appointmentHistory = reset ? appointments : this.appointmentHistory.concat(appointments)
           const pagination = payload.pagination || {}
           this.appointmentHistoryHasMore = Boolean(pagination.hasMore)
-          this.appointmentHistoryOffset = pagination.nextOffset !== undefined
-            ? pagination.nextOffset
-            : this.appointmentHistory.length
+          this.appointmentHistoryOffset = pagination.nextOffset !== undefined ? pagination.nextOffset : this.appointmentHistory.length
+          if (reset && responses[1] && responses[1].success) {
+            const future = responses[1].data || {}
+            const rows = Array.isArray(future.appointments) ? future.appointments : (Array.isArray(future) ? future : [])
+            this.nextPatientAppointment = rows.find(appointment => this.isUpcomingAppointment(appointment)) || null
+          }
+        } catch (error) {
+          if (request === this.appointmentHistoryRequest) this.appointmentHistoryError = error.message || 'No se pudo cargar el historial de citas.'
+        } finally {
+          if (request === this.appointmentHistoryRequest) this.appointmentHistoryLoading = false
         }
-        else {
-          this.appointmentHistoryError = response && response.message ? response.message : 'No se pudo cargar el historial de citas.'
-        }
-
-        this.appointmentHistoryLoading = false
       },
-    
+
       onDelete: async function(){
+        if (!this.canCancelMonitoring || this.isLoading) return
+        if (!this.cancellationReason.trim()) { this.cancellationError = 'Escribe el motivo de anulación.'; return }
+        this.cancellationError = ''
         this.isLoading = true
         let data = {
           "id_tracing": this.ida,
-          "id_person":  this.px.person.id_person
+          "id_person":  this.px.person.id_person,
+          revision: this.cancelRevision, change_reason: this.cancellationReason
         }
-        await this.deleteTracing(data)
-        this.onGetMonitoring()
-        this.isDelete = false
+        const response = await this.deleteTracing(data)
+        if (response && response.success) {
+          await this.onGetMonitoring()
+          this.isDelete = false
+          this.toastFunction('success', response.message)
+        } else this.cancellationError = response && response.message ? response.message : 'No se pudo anular; vuelve a intentar.'
         this.isLoading = false
       },
 
       onSaveMonitoring: async function(){
-
-        let objeto = this.getAllTreatments.find((elemento) => elemento.id === this.ttoSelecionado1);//Tto Actual
-        let objeto1 = this.getAllTreatments.find((elemento) => elemento.id === this.ttoSelecionado); //prox Tto
-
-        var ttoActual = ''
-        var ttoProximo = ''
-        
-        //Validacion tto Actual
-        if (this.showtto2 == true){
-          ttoActual = objeto.name
-        }
-        else {
-          ttoActual = this.objCita3.id_cat_treatment_now
-        }
-
-        if (this.showtto3 == true){
-          ttoProximo = objeto1.name
-        }
-        else{
-          ttoProximo =  this.objCita3.id_cat_treatment_after 
-        }
-
-        if (ttoActual == '' || ttoProximo == '') {
-          this.isLoading = false
-          return 
-        }
-
-        if(this.objCita3.quote_date_after == '' || this.objCita3.quote_date_after == undefined){
-          this.objCita3.quote_date_after = '00-00-0000'
-        }
-
-        if(this.objCita3.quote_date_after !== '00-00-0000' && !this.selectedAppointmentTime) {
-          this.toastFunction('error','Selecciona un horario disponible para la próxima cita.')
+        if (!this.canCreateMonitoring || this.isLoading || this.isSavingMonitoring) return
+        this.newMonitoringError = ''
+        const performed = this.getAllTreatments.find(item => String(item.id) === String(this.ttoSelecionado1))
+        const next = this.getAllTreatments.find(item => String(item.id) === String(this.ttoSelecionado))
+        const treatmentNow = String(this.showtto2 ? performed && performed.name || '' : this.objCita3.id_cat_treatment_now || '').trim()
+        const treatmentAfter = this.savedNewMonitoring ? this.savedNewMonitoring.treatment_after
+          : String(this.showtto3 ? next && next.name || '' : this.objCita3.id_cat_treatment_after || '').trim()
+        if (!this.savedNewMonitoring && (!treatmentNow || !treatmentAfter)) {
+          this.newMonitoringError = 'Escribe el procedimiento realizado y el próximo procedimiento o indicación. Puedes indicar Revisión de rutina o Sin retorno previsto.'
           return
         }
-
-        if(this.objCita3.quote_date_now == '' || this.objCita3.quote_date_now == undefined){
-          this.objCita3.quote_date_now = this.dateNow
-        }
-
-        this.isLoading = true
-
-        let data  = {
-          "tracing":    [
-          {
-            "quote_date_now":    this.formatFecha(this.objCita3.quote_date_now),
-            "treatment_now":    ttoActual,
-            "quote_date_after": this.formatFecha(this.objCita3.quote_date_after),
-            "treatment_after":  ttoProximo,
-            "note":             this.objCita3.note,
-          }
-        ],
-          "id_person":  this.px.person.id_person
-        }
-
-          const saveResponse = await this.saveTracing(data)
-        
-        if(this.hasMonitoringActionResult(this.saveMonitorings)){
-          await this.onGetMonitoring()
-          const savedMonitoringId = this.extractMonitoringId(saveResponse) || this.extractMonitoringId(this.saveMonitorings)
-          const savedMonitoring = this.findMonitoringRecordByPayload({
-            quote_date_now: this.objCita3.quote_date_now,
-            treatment_now: ttoActual,
-            quote_date_after: this.objCita3.quote_date_after,
-            treatment_after: ttoProximo,
-            note: this.objCita3.note
-          })
-          const appointmentSynced = await this.createFollowUpAppointment(
-            ttoProximo,
-            savedMonitoringId || (savedMonitoring ? savedMonitoring.id_tracing : '')
-          )
-          if(appointmentSynced === false) {
-            this.isLoading = false
-            return
-          }
-          this.show = false
-        }
-        this.isLoading = false
-      },
-
-      onUPDMonitoring: async function(){
-
-        let objeto = this.getAllTreatments.find((elemento) => elemento.name === this.ttoSelecionado3);
-
-        let objeto1 = this.getAllTreatments.find((elemento) => elemento.name === this.ttoSelecionado2);
-
-        var tto = ''
-        var tto1 = ''
-
-        if (this.showtto){
-          tto = this.objCita.id_cat_treatment_after 
-        }
-        else{
-          if(objeto != undefined)
-          {
-            tto =  objeto.name
-          }
-          else {
-              tto = this.objCita.id_cat_treatment_after 
-          }
-        }
-
-        if (this.showtto1){
-          tto1 = this.objCita.id_cat_treatment_now
-        }
-        else{
-          if(objeto1 != undefined)
-          {
-            tto1 =  objeto1.name
-          }
-          else {
-              tto1 = this.objCita.id_cat_treatment_now 
-          }
-        }
-
-        this.isLoading = true
-
-        if (tto == '' || tto1 == '') {
-           this.isLoading = false
-          return 
-        }
-
-
-        if(this.objCita.quote_date_after == '' || this.objCita.quote_date_after == undefined){
-          this.objCita.quote_date_after = '00-00-0000'
-        }
-
-        const hasNextAppointmentDate = this.hasNextAppointmentDate(this.objCita.quote_date_after)
-        const nextAppointmentDateChanged = hasNextAppointmentDate
-          && toIsoDate(this.objCita.quote_date_after) !== toIsoDate(this.originalEditNextDate)
-
-        if(nextAppointmentDateChanged && !this.selectedEditAppointmentTime) {
-          this.toastFunction('error','Selecciona un horario disponible para la próxima cita.')
-          this.isLoading = false
+        const patientId = this.px.person.id_person
+        const wantsAppointment = this.canManageAppointments && this.scheduleNewAppointment
+        if (wantsAppointment && (!this.hasNextAppointmentDate(this.objCita3.quote_date_after) || !this.appointmentDoctorId || !this.selectedAppointmentTime || this.appointmentDataLoading || this.appointmentDataError)) {
+          this.newMonitoringError = 'Selecciona doctor, fecha y un horario disponible para agendar. También puedes desmarcar Agendar próxima cita para guardar sólo el seguimiento.'
           return
         }
-
-        if(this.objCita.quote_date_now == '' || this.objCita.quote_date_now == undefined){
-          this.objCita.quote_date_now = this.dateNow
-        }
-
-        const shouldSyncEditAppointment = hasNextAppointmentDate && this.selectedEditAppointmentTime
-
-        let data  = {
-          "tracing":    [
-              {
-                "id_tracing":       this.idtracing,
-                "quote_date_now":    this.formatFecha(this.objCita.quote_date_now),
-                "treatment_now":    tto1,
-                "quote_date_after":  this.formatFecha(this.objCita.quote_date_after),
-                "treatment_after":  tto,
-                "note":             this.objCita.note,
-              }
-        ],
-          "id_person":  this.px.person.id_person
-        }
-
-
-          await this.updTracing(data)
-        
-        
-        if(this.hasMonitoringActionResult(this.updMonitorings)){
-          if(shouldSyncEditAppointment) {
-            const appointmentSynced = await this.syncEditedFollowUpAppointment(tto)
-            if(!appointmentSynced) {
-              this.isLoading = false
+        this.isLoading = true
+        this.isSavingMonitoring = true
+        try {
+          if (!this.savedNewMonitoring) {
+            if (!this.newTracingId) this.newTracingId = uuid.v4()
+            const row = {
+              id_tracing: this.newTracingId,
+              quote_date_now: this.formatFecha(this.objCita3.quote_date_now || this.dateNow),
+              treatment_now: treatmentNow,
+              id_patient_treatment: this.showtto2 && performed ? performed.id : null,
+              quote_date_after: wantsAppointment ? this.formatFecha(this.objCita3.quote_date_after) : '00-00-0000',
+              treatment_after: treatmentAfter,
+              note: this.objCita3.note
+            }
+            const response = await this.saveTracing({ tracing: [row], id_person: patientId })
+            if (this.px.person.id_person !== patientId || !this.canCreateMonitoring) return
+            if (!response || !response.success || !this.extractMonitoringId(response)) {
+              this.newMonitoringError = response && response.message || 'No se confirmó el guardado. Reintenta con esta misma captura.'
+              return
+            }
+            const confirmed = Array.isArray(response.data) ? response.data[0] : response.data
+            this.savedNewMonitoring = { ...row, ...(confirmed || {}), id_tracing: this.extractMonitoringId(response) }
+          }
+          if (wantsAppointment) {
+            const synced = await this.createFollowUpAppointment(this.savedNewMonitoring.treatment_after, this.savedNewMonitoring.id_tracing)
+            if (!synced) {
+              this.newMonitoringError = this.newMonitoringError || 'Seguimiento guardado; la cita sigue pendiente. Reintenta sólo la cita o cierra para programarla después.'
               return
             }
           }
+          this.show = false
+          this.toastFunction('success', wantsAppointment ? 'Seguimiento y cita guardados.' : 'Seguimiento guardado sin crear una cita.')
+          await this.onGetMonitoring()
+        } catch (error) {
+          this.newMonitoringError = this.savedNewMonitoring
+            ? 'Seguimiento guardado; no se confirmó la cita. Reintenta sólo la cita.'
+            : 'No se confirmó el guardado. Reintenta con esta misma captura.'
+        } finally { this.isLoading = false; this.isSavingMonitoring = false }
+      },
 
+      onUPDMonitoring: async function(){
+        if (!this.canCorrectMonitoring || this.isLoading || this.isSavingMonitoring || this.selectedMonitoring.status === 'cancelled') return
+        if (!this.savedEditMonitoring && !this.correctionReason.trim()) { this.correctionError = 'Escribe el motivo de corrección.'; return }
+        this.correctionError = ''
+        const performed = this.performedTreatmentOptions.find(item => String(item.id) === String(this.ttoSelecionado2))
+        const next = this.getAllTreatments.find(item => item.name === this.ttoSelecionado3)
+        const treatmentNow = String(this.showtto1 ? this.objCita.id_cat_treatment_now || '' : performed && performed.name || '').trim()
+        const treatmentAfter = this.savedEditMonitoring ? this.savedEditMonitoring.treatment_after
+          : String(this.showtto ? this.objCita.id_cat_treatment_after || '' : next && next.name || this.objCita.id_cat_treatment_after || '').trim()
+        if (!this.savedEditMonitoring && (!treatmentNow || !treatmentAfter)) {
+          this.correctionError = 'Escribe el procedimiento realizado y el próximo procedimiento o indicación.'
+          return
+        }
+        const patientId = this.px.person.id_person
+        const tracingId = this.idtracing
+        const syncAppointment = this.canManageAppointments && this.editAppointmentRequested
+        if (syncAppointment && (!this.hasNextAppointmentDate(this.objCita.quote_date_after) || !this.appointmentDoctorId || !this.selectedEditAppointmentTime || this.appointmentDataLoading || this.appointmentDataError)) {
+          this.correctionError = 'Selecciona doctor, fecha y un horario disponible, o cancela el cambio de agenda.'
+          return
+        }
+        this.isLoading = true
+        this.isSavingMonitoring = true
+        try {
+          if (!this.savedEditMonitoring) {
+            const row = {
+              id_tracing: this.idtracing,
+              revision: this.selectedMonitoring.revision,
+              change_reason: this.correctionReason,
+              quote_date_now: this.formatFecha(this.objCita.quote_date_now || this.dateNow),
+              treatment_now: treatmentNow,
+              id_patient_treatment: this.showtto1 ? null : performed && performed.id || null,
+              quote_date_after: syncAppointment ? this.formatFecha(this.objCita.quote_date_after)
+                : this.selectedMonitoring.quote_date_after || '00-00-0000',
+              treatment_after: treatmentAfter,
+              note: this.objCita.note
+            }
+            const response = await this.updTracing({ tracing: [row], id_person: patientId })
+            if (this.px.person.id_person !== patientId || this.idtracing !== tracingId || !this.canCorrectMonitoring) return
+            if (!response || !response.success) {
+              this.correctionError = response && response.message || 'No se pudo guardar la corrección. Tu captura sigue abierta.'
+              return
+            }
+            const updated = Array.isArray(response.data) ? response.data[0] : response.data
+            this.savedEditMonitoring = { ...row, ...(updated || {}) }
+            this.selectedMonitoring = { ...this.selectedMonitoring, ...this.savedEditMonitoring }
+          }
+          if (syncAppointment && !await this.syncEditedFollowUpAppointment(treatmentAfter)) {
+            this.correctionError = this.correctionError || 'Corrección guardada; el cambio de cita sigue pendiente. Reintenta sólo la cita.'
+            return
+          }
           this.isReadOnly = true
           this.isEdit = false
-           this.isNote = false
-          this.onGetMonitoring()
-        }
-        this.isLoading = false
+          this.isNote = false
+          await this.onGetMonitoring()
+          this.toastFunction('success', syncAppointment ? 'Corrección y cita guardadas.' : 'Corrección guardada. La agenda no se modificó.')
+        } catch (error) {
+          this.correctionError = this.savedEditMonitoring ? 'Corrección guardada; no se confirmó la cita. Reintenta sólo la cita.' : 'No se confirmó la corrección. Tu captura sigue abierta.'
+        } finally { this.isLoading = false; this.isSavingMonitoring = false }
       },
 
       onGetMonitoring: async function(){
@@ -1103,7 +1162,14 @@ export default {
       },
 
       openModalAdd: async function(){
-        await this.reloadAppointmentData()
+        if (!this.canCreateMonitoring || this.isSavingMonitoring) return
+        this.newTracingId = uuid.v4()
+        this.savedNewMonitoring = null
+        this.scheduleNewAppointment = false
+        this.newMonitoringError = ''
+        this.showtto2 = false
+        this.showtto3 = false
+        if (this.canManageAppointments) await this.reloadAppointmentData()
         this.getCurrentDate()
         this.show = true
         this.objCita3.id_cat_treatment_now   = ''
@@ -1117,6 +1183,7 @@ export default {
       },
 
       onNewAppointmentDateChange: async function(date) {
+        if (!this.canManageAppointments) return
         this.objCita3.quote_date_after = date
         this.selectedAppointmentTime = ''
         this.selectedAppointmentEndTime = ''
@@ -1124,11 +1191,13 @@ export default {
       },
 
       selectNewAppointmentSlot(slot) {
+        if (!this.canManageAppointments) return
         this.selectedAppointmentTime = slot.startTime
         this.selectedAppointmentEndTime = slot.endTime
       },
 
       onEditAppointmentDateChange: async function(date) {
+        if (!this.canManageAppointments || !this.editAppointmentRequested) return
         this.objCita.quote_date_after = date
         this.selectedEditAppointmentTime = ''
         this.selectedEditAppointmentEndTime = ''
@@ -1136,170 +1205,134 @@ export default {
       },
 
       selectEditAppointmentSlot(slot) {
+        if (!this.canManageAppointments || !this.editAppointmentRequested) return
         this.selectedEditAppointmentTime = slot.startTime
         this.selectedEditAppointmentEndTime = slot.endTime
       },
 
-      prepareEditAppointmentData: async function(date) {
+      prepareEditAppointmentData: async function() {
+        this.editAppointmentRequested = false
         this.selectedEditAppointmentTime = ''
         this.selectedEditAppointmentEndTime = ''
-        this.editLinkedAppointment = await this.resolveLinkedFollowUpAppointment()
-
-        await this.reloadAppointmentData(date)
-
-        const linkedAppointment = this.editLinkedAppointment || await this.resolveLinkedFollowUpAppointment()
-        if(linkedAppointment && toIsoDate(linkedAppointment.date) === toIsoDate(date)) {
-          this.selectedEditAppointmentTime = linkedAppointment.startTime || ''
-          this.selectedEditAppointmentEndTime = linkedAppointment.endTime || ''
-        }
+        this.editLinkedAppointment = null
+        if (!this.canManageAppointments) return
+        await this.resolveLinkedFollowUpAppointment()
       },
 
-      findLinkedFollowUpAppointment: function(appointments) {
+      async requestEditAppointment() {
+        if (!this.canManageAppointments || this.isLoading) return
+        this.editAppointmentLookupError = ''
+        const linked = await this.resolveLinkedFollowUpAppointment()
+        if (this.editAppointmentLookupError) return
+        this.editAppointmentRequested = true
+        this.editCreatesNewAppointment = !linked
+        this.objCita.quote_date_after = linked ? toIsoDate(linked.date) : ''
+        if (linked) this.appointmentDoctorId = linked.doctorProfileId || ''
+        await this.reloadAppointmentData(this.objCita.quote_date_after)
+        this.selectedEditAppointmentTime = linked ? linked.startTime || '' : ''
+        this.selectedEditAppointmentEndTime = linked ? linked.endTime || '' : ''
+      },
+
+      cancelAppointmentChange() {
+        this.editAppointmentRequested = false
+        this.objCita.quote_date_after = this.originalEditNextDate
+        this.selectedEditAppointmentTime = ''
+        this.selectedEditAppointmentEndTime = ''
+      },
+
+      findLinkedFollowUpAppointment(appointments) {
         const tracingId = String(this.idtracing || '')
-        if(!tracingId || !Array.isArray(appointments)) {
-          return null
-        }
-
-        return appointments.find((appointment) => String(appointment.followUpId || '') === tracingId) || null
+        const patientId = String(this.px && this.px.person && this.px.person.id_person || '')
+        if (!tracingId || !patientId || !Array.isArray(appointments)) return null
+        const matching = appointments.filter(appointment => this.isActiveAppointment(appointment)
+          && String(appointment.followUpId || '') === tracingId && String(appointment.patientId || '') === patientId)
+        if (matching.length > 1) throw new Error('Hay más de una cita activa vinculada. Revisa las citas desde Agenda antes de modificarlas.')
+        return matching[0] || null
       },
 
-      normalizeFollowUpText: function(value) {
-        return String(value || '').trim().toLowerCase()
-      },
-
-      hasMonitoringActionResult: function(value) {
+      hasMonitoringActionResult(value) {
         return Array.isArray(value) ? value.length > 0 : Boolean(value)
       },
 
-      extractMonitoringId: function(value) {
+      extractMonitoringId(value) {
         const payload = value && value.data !== undefined ? value.data : value
-        if(Array.isArray(payload)) {
-          const record = payload.find((item) => item && item.id_tracing)
+        if (Array.isArray(payload)) {
+          const record = payload.find(item => item && item.id_tracing)
           return record ? record.id_tracing : ''
         }
-
-        return payload && payload.id_tracing ? payload.id_tracing : ''
+        return payload && payload.id_tracing || ''
       },
 
-      findMonitoringRecordByPayload: function(payload) {
-        const expectedQuoteDateNow = toIsoDate(payload.quote_date_now)
-        const expectedQuoteDateAfter = this.hasNextAppointmentDate(payload.quote_date_after)
-          ? toIsoDate(payload.quote_date_after)
-          : ''
-        const expectedTreatmentNow = this.normalizeFollowUpText(payload.treatment_now)
-        const expectedTreatmentAfter = this.normalizeFollowUpText(payload.treatment_after)
-        const expectedNote = this.normalizeFollowUpText(payload.note)
-
-        return this.monitoringRows.find((monitoring) => {
-          const quoteDateAfter = this.hasNextAppointmentDate(monitoring.quote_date_after)
-            ? toIsoDate(monitoring.quote_date_after)
-            : ''
-
-          return toIsoDate(monitoring.quote_date_now) === expectedQuoteDateNow
-            && quoteDateAfter === expectedQuoteDateAfter
-            && this.normalizeFollowUpText(monitoring.treatment_now) === expectedTreatmentNow
-            && this.normalizeFollowUpText(monitoring.treatment_after) === expectedTreatmentAfter
-            && this.normalizeFollowUpText(monitoring.note) === expectedNote
-        }) || null
-      },
-
-      findUnlinkedFollowUpAppointment: function(appointments) {
-        if(!Array.isArray(appointments)) {
+      async resolveLinkedFollowUpAppointment() {
+        if (!this.canManageAppointments) return null
+        const patientId = this.px && this.px.person && this.px.person.id_person
+        const tracingId = this.idtracing
+        if (!patientId || !tracingId) return null
+        this.editAppointmentLookupError = ''
+        try {
+          const response = await DAAppointmentService.patientHistory(patientId, { follow_up_id: tracingId, active_only: true, limit: 2 })
+          if (!this.canManageAppointments || this.idtracing !== tracingId || this.px.person.id_person !== patientId) return null
+          if (!response || !response.success) throw new Error(response && response.message || 'No se pudo comprobar la cita vinculada. Vuelve a intentar antes de modificar la agenda.')
+          const payload = response.data || {}
+          const appointments = Array.isArray(payload.appointments) ? payload.appointments : (Array.isArray(payload) ? payload : [])
+          this.editLinkedAppointment = this.findLinkedFollowUpAppointment(appointments)
+          return this.editLinkedAppointment
+        } catch (error) {
+          this.editAppointmentLookupError = error.message || 'No se pudo comprobar la cita vinculada.'
           return null
         }
-
-        const originalDate = toIsoDate(this.originalEditNextDate || this.objCita.quote_date_after)
-        const treatmentAfter = this.normalizeFollowUpText(this.objCita2.id_cat_treatment_after || this.objCita.id_cat_treatment_after)
-        const patientId = this.px && this.px.person ? String(this.px.person.id_person || '') : ''
-
-        if(!originalDate || !treatmentAfter || !patientId) {
-          return null
-        }
-
-        return appointments.find((appointment) => {
-          return !appointment.followUpId
-            && appointment.source === 'follow_up'
-            && String(appointment.patientId || '') === patientId
-            && toIsoDate(appointment.date) === originalDate
-            && this.normalizeFollowUpText(appointment.title) === treatmentAfter
-        }) || null
-      },
-
-      resolveLinkedFollowUpAppointment: async function() {
-        const candidateAppointments = [
-          this.editLinkedAppointment,
-          ...this.appointments,
-          ...this.appointmentHistoryRows
-        ].filter(Boolean)
-
-        const currentAppointment = this.findLinkedFollowUpAppointment(candidateAppointments)
-          || this.findUnlinkedFollowUpAppointment(candidateAppointments)
-
-        if(currentAppointment) {
-          this.editLinkedAppointment = currentAppointment
-          return currentAppointment
-        }
-
-        const patientId = this.px && this.px.person ? this.px.person.id_person : ''
-        if(!patientId) {
-          return null
-        }
-
-        const response = await DAAppointmentService.patientHistory(patientId, {
-          limit: 50,
-          offset: 0
-        })
-
-        if(!response || !response.success) {
-          return null
-        }
-
-        const payload = response.data || {}
-        const appointments = Array.isArray(payload.appointments)
-          ? payload.appointments
-          : (Array.isArray(payload) ? payload : [])
-        const linkedAppointment = this.findLinkedFollowUpAppointment(appointments)
-          || this.findUnlinkedFollowUpAppointment(appointments)
-
-        if(linkedAppointment) {
-          this.editLinkedAppointment = linkedAppointment
-        }
-
-        return linkedAppointment
       },
 
       reloadAppointmentData: async function(date) {
-        const configResponse = await DAAppointmentService.getConfig()
+        const request = ++this.appointmentDataRequest
+        if (!this.canManageAppointments) return
+        this.appointmentConfig = getAppointmentConfig(); this.appointments = []; this.appointmentDataError = ''
+        if(!this.appointmentDoctorId) { this.appointmentDataLoading = false; return }
+        this.appointmentDataLoading = true
+        try {
+        const configResponse = await DAAppointmentService.getConfig(this.appointmentDoctorId)
+        if(request !== this.appointmentDataRequest) return
         if(configResponse && configResponse.success && configResponse.data) {
           this.appointmentConfig = normalizeAppointmentConfig(configResponse.data)
           saveAppointmentConfig(this.appointmentConfig)
         }
         else {
-          this.appointmentConfig = getAppointmentConfig()
+          throw new Error(configResponse.message || 'No se pudo cargar la agenda del doctor.')
         }
 
         const targetDate = date || this.objCita3.quote_date_after || this.dateNow
         const listResponse = await DAAppointmentService.list({
+          doctor_profile_id: this.appointmentDoctorId,
           date_from: toIsoDate(targetDate),
           date_to: toIsoDate(targetDate)
         })
+        if(request !== this.appointmentDataRequest) return
 
         if(listResponse && listResponse.success) {
           this.appointments = listResponse.data || []
         }
         else {
-          this.appointments = getAppointments()
+          throw new Error(listResponse.message || 'No se pudo consultar la disponibilidad.')
         }
+        } catch(error) { if(request === this.appointmentDataRequest)this.appointmentDataError = error.message }
+        finally { if(request === this.appointmentDataRequest)this.appointmentDataLoading = false }
+      },
+
+      async onAppointmentDoctorChange() {
+        if (!this.canManageAppointments) return
+        this.selectedAppointmentTime = ''; this.selectedAppointmentEndTime = ''; this.selectedEditAppointmentTime = ''; this.selectedEditAppointmentEndTime = ''
+        await this.reloadAppointmentData(this.isEdit ? this.objCita.quote_date_after : this.objCita3.quote_date_after)
       },
 
       createFollowUpAppointment: async function(treatmentAfter, followUpId) {
+        if (!this.canManageAppointments) return false
         if(!this.selectedAppointmentTime || this.objCita3.quote_date_after === '00-00-0000') {
           return
         }
 
-        const normalizedFollowUpId = followUpId || (this.saveMonitorings && this.saveMonitorings.id_tracing ? this.saveMonitorings.id_tracing : '')
+        const normalizedFollowUpId = followUpId
         if(!normalizedFollowUpId) {
-          this.toastFunction('error','No se pudo vincular la cita con el seguimiento. Intenta guardar de nuevo.')
+          this.newMonitoringError = 'No se confirmó el identificador del seguimiento. Cierra y consulta el registro antes de agendar.'
           return false
         }
 
@@ -1307,6 +1340,7 @@ export default {
         const endTime = this.selectedAppointmentEndTime || addMinutesToTime(startTime, this.appointmentConfig.defaultAppointmentDuration || 30)
         const patientName = `${this.px.person.name || ''} ${this.px.person.surname || ''}`.trim()
         const response = await DAAppointmentService.save({
+          doctorProfileId: this.appointmentDoctorId,
           patientId: this.px.person.id_person,
           patientName,
           followUpId: normalizedFollowUpId,
@@ -1318,25 +1352,31 @@ export default {
           description: this.objCita3.note || '',
           source: 'follow_up',
           blocksAvailability: appointmentBlocksAvailability(APPOINTMENT_STATUSES.PENDING)
-        })
+        }, { syncFollowUp: true })
 
         if(response && response.success) {
           await this.reloadAppointmentData(this.objCita3.quote_date_after)
           await this.loadAppointmentHistory(true)
-          this.toastFunction('success',`Cita creada como pendiente de confirmar a las ${startTime}.`)
+          this.toastFunction('success', response.message || 'Cita guardada. Consulta su horario en el historial de citas.')
           return true
         }
 
-        this.toastFunction('error', response && response.message ? response.message : 'No se pudo crear la cita en agenda.')
+        this.newMonitoringError = 'Seguimiento guardado. ' + (response && response.message ? response.message : 'No se pudo crear la cita en agenda.')
         return false
       },
 
       syncEditedFollowUpAppointment: async function(treatmentAfter) {
+        if (!this.canManageAppointments || !this.editAppointmentRequested) return false
         if(!this.selectedEditAppointmentTime || !this.hasNextAppointmentDate(this.objCita.quote_date_after)) {
           return true
         }
 
-        const existingAppointment = await this.resolveLinkedFollowUpAppointment()
+        const existingAppointment = this.editLinkedAppointment
+        if (existingAppointment && !this.isActiveAppointment(existingAppointment)) {
+          this.correctionError = 'Corrección guardada. Esta cita ya no está activa; consúltala en Agenda.'
+          return false
+        }
+        if (!existingAppointment && !this.editCreatesNewAppointment) return false
         const startTime = this.selectedEditAppointmentTime
         const endTime = this.selectedEditAppointmentEndTime || addMinutesToTime(startTime, this.appointmentConfig.defaultAppointmentDuration || 30)
         const patientName = `${this.px.person.name || ''} ${this.px.person.surname || ''}`.trim()
@@ -1348,6 +1388,7 @@ export default {
           : APPOINTMENT_STATUSES.PENDING
 
         const appointment = Object.assign({}, existingAppointment || {}, {
+          doctorProfileId: this.appointmentDoctorId,
           patientId: this.px.person.id_person,
           patientName,
           followUpId: this.idtracing,
@@ -1361,25 +1402,45 @@ export default {
           blocksAvailability: appointmentBlocksAvailability(status)
         })
 
-        const response = await DAAppointmentService.save(appointment)
+        const response = await DAAppointmentService.save(appointment, {
+          syncFollowUp: true,
+          explicitNewFollowUp: this.editCreatesNewAppointment
+        })
 
         if(response && response.success) {
           await this.reloadAppointmentData(this.objCita.quote_date_after)
           await this.loadAppointmentHistory(true)
-          this.toastFunction('success',`Cita ${existingAppointment ? 'actualizada' : 'creada'} a las ${startTime}.`)
+          this.toastFunction('success', response.message || 'Cita guardada. Consulta su horario en el historial de citas.')
           return true
         }
 
-        this.toastFunction('error', response && response.message ? response.message : 'No se pudo actualizar la cita en agenda.')
+        this.correctionError = 'Corrección guardada. ' + (response && response.message ? response.message : 'No se pudo actualizar la cita en agenda.')
         return false
       },
 
-      showDelete(id){
-        this.ida = id
+      showDelete(item){
+        if (!this.canCancelMonitoring || item.status === 'cancelled') return
+        this.ida = item.id_tracing
+        this.cancelRevision = item.revision
+        this.cancellationReason = ''
+        this.cancellationError = ''
         this.isDelete = true
       },
 
       showModalData(obj){
+        if (this.isSavingMonitoring) return
+        this.selectedMonitoring = { ...obj }
+        this.savedEditMonitoring = null
+        this.editAppointmentRequested = false
+        this.editCreatesNewAppointment = false
+        this.editAppointmentLookupError = ''
+        this.isReadOnly = true
+        this.isEdit = false
+        this.correctionReason = ''
+        this.correctionError = ''
+        this.monitoringRevisions = []
+        this.revisionsLoaded = false
+        this.revisionsError = ''
         this.objCita2 = {};
 
         this.objCita2.quote_date_now         = obj.quote_date_now
@@ -1391,14 +1452,14 @@ export default {
         this.idtracing        = obj.id_tracing
         this.ttoSelecionado   =  obj.treatment_after
         this.ttoSelecionado1  =  obj.treatment_now
-        this.ttoSelecionado2  =  obj.treatment_now
+        this.ttoSelecionado2  =  obj.id_patient_treatment || ''
         this.ttoSelecionado3  =  obj.treatment_after
         this.selectedEditAppointmentTime = ''
         this.selectedEditAppointmentEndTime = ''
         this.editLinkedAppointment = null
 
         let proxTtoExisteEnLista = this.getAllTreatments.find((elemento) => elemento.name === obj.treatment_after);
-        let actualTtoExisteEnLista = this.getAllTreatments.find((elemento) => elemento.name === obj.treatment_now);
+
 
         if(proxTtoExisteEnLista != undefined)
           {
@@ -1408,13 +1469,7 @@ export default {
             this.showtto = true
           }
 
-          if(actualTtoExisteEnLista != undefined)
-          {
-            this.showtto1 = false
-          }
-          else {
-            this.showtto1 = true
-          }
+        this.showtto1 = !obj.id_patient_treatment
 
         const quoteDateAfter = this.hasNextAppointmentDate(obj.quote_date_after) ? toIsoDate(obj.quote_date_after) : ''
         this.originalEditNextDate = quoteDateAfter
@@ -1422,13 +1477,41 @@ export default {
       },
 
       changeButton: async function(){
+        if (!this.canCorrectMonitoring || this.selectedMonitoring.status === 'cancelled') return
         this.isReadOnly = false
         this.isEdit = true
         this.isLoading = true
         await this.prepareEditAppointmentData(this.objCita.quote_date_after)
         this.isLoading = false
       },
-      cancelEditButton(){
+      revisionAction(action) {
+        return { created: 'Captura', corrected: 'Corrección', cancelled: 'Anulación', legacy_baseline: 'Contenido previo conservado' }[action] || action
+      },
+      async loadMonitoringRevisions(event) {
+        if (!event.target.open || this.revisionsLoading || this.revisionsLoaded) return
+        const id = this.idtracing
+        this.revisionsLoading = true
+        this.revisionsError = ''
+        try {
+          const response = await DAMonitoringService.revisions(this.px.person.id_person, id)
+          if (this.idtracing !== id) return
+          if (response && response.success) {
+            this.monitoringRevisions = Array.isArray(response.data) ? response.data : []
+            this.revisionsLoaded = true
+          } else this.revisionsError = response && response.message ? response.message : 'No se pudieron consultar los cambios. Cierra y abre esta sección para reintentar.'
+        } catch (error) {
+          if (this.idtracing === id) this.revisionsError = 'No se pudieron consultar los cambios. Cierra y abre esta sección para reintentar.'
+        } finally { this.revisionsLoading = false }
+      },
+      async closeNewMonitoring() {
+        if (this.isSavingMonitoring) return
+        this.show = false
+        if (this.savedNewMonitoring) await this.onGetMonitoring()
+      },
+
+      async cancelEditButton(){
+        if (this.isSavingMonitoring) return
+        if (this.savedEditMonitoring) { this.isNote = false; await this.onGetMonitoring() }
         this.isReadOnly = true
         this.isEdit     = false
         this.showtto    = false
@@ -1439,6 +1522,8 @@ export default {
       },
 
       closeModalEdit(){
+        if (this.isSavingMonitoring) return
+        if (this.savedEditMonitoring) { this.cancelEditButton(); return }
         this.isEdit = false
         this.showtto = false
         this.showtto1 = false

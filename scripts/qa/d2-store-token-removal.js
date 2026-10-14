@@ -216,8 +216,11 @@ assertIncludesAll(
     'D2 bootstrap uses auth session endpoint',
     d2ActionSource,
     [
-        'const response = await DAAuthService.session()',
-        'commitD2Session(commit, response && response.success ? response : null)'
+        "return dispatch('refreshAccess', { hydrate: true })",
+        'let response = await DAAuthService.session()',
+        'response && response.success && response.data && response.data.authenticated',
+        'if(isD2AuthMode()) commitD2Session(commit, response)',
+        'commit(types.SET_AUTH_ACCESS_SESSION, null)'
     ],
     'D2 getToken action hydrates runtime session from /api/auth/session service.'
 );

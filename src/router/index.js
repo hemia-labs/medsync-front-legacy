@@ -11,6 +11,7 @@ import business from './routes/business';
 import prescription from './routes/prescription';
 import publicSignature from './routes/public-signature';
 import { getSessionPermissions, hasAnyPermission, hasPermission } from '../security/permissions';
+import { canAccessSettings } from '../security/settingsAccess';
 import store from '../store';
 import { isD2AuthMode } from '../services/config/authTransport.config';
 
@@ -19,6 +20,8 @@ Vue.use(VueRouter)
 const AUTH_NAMESPACE = 'CORE/AUTH';
 
 function getLegacyTokenPayload() {
+    const current = store.getters[`${AUTH_NAMESPACE}/getUser`];
+    if(current) return { ...current, rol: store.getters[`${AUTH_NAMESPACE}/getRole`] || current.rol };
     const token = Vue.prototype.$session ? Vue.prototype.$session.get('token') : null;
     if(!token) {
         return null;
@@ -162,6 +165,9 @@ const router = new VueRouter({
     }
 
     const runtimePermissions = store.getters[`${AUTH_NAMESPACE}/getPermissions`] || [];
+    if(to.matched.some(record=>record.meta.settingsAccess) && !canAccessSettings(store.getters[`${AUTH_NAMESPACE}/getRole`], permission=>hasPermission(runtimePermissions,permission))) {
+        next({name:'home'});return;
+    }
     const requiredPermission = to.matched.map(record => record.meta.permission).find(permission => permission);
     const requiredPermissionOptions = to.matched.map(record => record.meta.permissionsAny).find(permissions => Array.isArray(permissions) && permissions.length);
 
@@ -210,6 +216,9 @@ const router = new VueRouter({
     }
 
     const sessionPermissions = getSessionPermissions(Vue.prototype.$session);
+    if(requiredAuth && to.matched.some(record=>record.meta.settingsAccess) && !canAccessSettings((getLegacyTokenPayload() || {}).rol, permission=>hasPermission(sessionPermissions,permission))) {
+        next({name:'home'});return;
+    }
     const requiredPermission = to.matched.map(record => record.meta.permission).find(permission => permission);
     const requiredPermissionOptions = to.matched.map(record => record.meta.permissionsAny).find(permissions => Array.isArray(permissions) && permissions.length);
 

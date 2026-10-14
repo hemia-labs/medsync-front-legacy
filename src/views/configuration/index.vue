@@ -1,5 +1,5 @@
 <template>
-    <div class="w-full pb-8">
+    <div v-if="sectionAllowed" class="w-full pb-8">
         <admin-summary v-if="activeSection === 'summary'" :items="configurationSummary"></admin-summary>
 
         <roles-permissions-config
@@ -447,7 +447,7 @@
                     <p class="m-0 mt-2 text-gray-500 text-sm">Elige la paleta de colores que verán los usuarios en el sistema.</p>
                 </div>
                 <div class="flex flex-wrap justify-start lg:justify-end gap-2">
-                    <da-button-primary @click.native="onSaveTheme()" :label="'Guardar tema'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+                    <da-button-primary @click.native="onSaveTheme()" :disabled="isThemeSaving" :label="isThemeSaving ? 'Guardando...' : 'Guardar tema'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
                 </div>
             </div>
 
@@ -480,198 +480,8 @@
             </div>
         </section>
 
-        <section v-if="activeSection === 'agenda'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
-                <div>
-                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Agenda clinica</p>
-                    <h2 class="m-0 text-gray-600 text-2xl font-normal">Configuracion de citas</h2>
-                    <p class="m-0 mt-2 text-gray-500 text-sm">Configura horarios, duracion de citas y bloqueos de disponibilidad.</p>
-                </div>
-                <div class="flex flex-wrap justify-start lg:justify-end items-center gap-3">
-                    <v-switch v-model="appointmentConfig.enabled" inset :color="themePrimaryColor" label="Agenda activa" class="m-0"></v-switch>
-                    <da-button-primary @click.native="onSaveAppointmentConfig()" :label="'Guardar cambios'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
-                </div>
-            </div>
-
-            <div class="p-7">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <article v-for="item in appointmentSummary" :key="item.label" class="bg-white border border-gray-200 shadow-md p-4">
-                        <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">{{ item.label }}</p>
-                        <h3 class="m-0 mt-2 text-gray-700 text-2xl font-semibold">{{ item.value }}</h3>
-                        <p class="m-0 mt-1 text-gray-500 text-sm">{{ item.detail }}</p>
-                    </article>
-                </div>
-
-                <v-tabs v-model="agendaTab" background-color="transparent" :color="themePrimaryColor" grow>
-                    <v-tab>Horarios</v-tab>
-                    <v-tab>Bloqueos</v-tab>
-                    <v-tab>Vista previa</v-tab>
-                </v-tabs>
-
-                <v-tabs-items v-model="agendaTab" class="bg-transparent mt-5">
-                    <v-tab-item>
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                            <article class="border border-gray-200 bg-white shadow-md p-5">
-                                <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">General</p>
-                                <h3 class="m-0 text-gray-700 text-lg font-semibold">Reglas base</h3>
-                                <p class="m-0 mt-1 text-gray-500 text-sm">Define como se generan los espacios disponibles.</p>
-
-                                <v-select
-                                    v-model="appointmentConfig.defaultAppointmentDuration"
-                                    :items="appointmentDurationOptions"
-                                    item-text="text"
-                                    item-value="value"
-                                    label="Duracion base"
-                                    :color="themePrimaryColor"
-                                    dense
-                                    outlined
-                                    class="mt-5"
-                                ></v-select>
-
-                                <v-text-field
-                                    v-model="appointmentConfig.timezone"
-                                    label="Zona horaria"
-                                    :color="themePrimaryColor"
-                                    dense
-                                    outlined
-                                ></v-text-field>
-
-                                <div class="mt-3 bg-gray-50 border border-gray-200 p-3 text-sm text-gray-600">
-                                    Las citas creadas desde seguimiento inician como pendientes de confirmar.
-                                </div>
-                            </article>
-
-                            <article class="lg:col-span-2 border border-gray-200 bg-white shadow-md p-5">
-                                <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
-                                    <div>
-                                        <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Semana</p>
-                                        <h3 class="m-0 text-gray-700 text-lg font-semibold">Horarios semanales</h3>
-                                        <p class="m-0 mt-1 text-gray-500 text-sm">Edita un dia solo cuando necesites cambiar sus rangos.</p>
-                                    </div>
-                                </div>
-
-                                <div class="space-y-3">
-                                    <div v-for="day in orderedWorkingDays" :key="day.id" class="border border-gray-200 bg-gray-50 px-4 py-3">
-                                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                                            <div class="min-w-0">
-                                                <div class="flex flex-wrap items-center gap-2">
-                                                    <h4 class="m-0 text-gray-700 text-base font-semibold">{{ dayName(day.dayOfWeek) }}</h4>
-                                                    <span class="px-2 py-1 text-xs font-semibold border" :class="day.enabled ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'">
-                                                        {{ day.enabled ? 'Activo' : 'Inactivo' }}
-                                                    </span>
-                                                </div>
-                                                <div class="flex flex-wrap gap-2 mt-2">
-                                                    <span v-if="!day.enabled || day.timeRanges.length === 0" class="text-sm text-gray-500">Sin atencion</span>
-                                                    <span v-for="range in day.timeRanges" v-else :key="range.id" class="px-3 py-1 bg-white border border-primary-200 text-primary-900 text-sm font-semibold">
-                                                        {{ range.startTime }} - {{ range.endTime }}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div class="flex flex-wrap gap-2">
-                                                <da-button-secondary @click.native="openEditDay(day)" :label="'Editar'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
-                                                <da-button-secondary v-if="day.enabled && day.timeRanges.length > 0" @click.native="openCopyDay(day)" :label="'Copiar'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </article>
-                        </div>
-                    </v-tab-item>
-
-                    <v-tab-item>
-                        <article class="border border-gray-200 bg-white shadow-md p-5">
-                            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
-                                <div>
-                                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Bloqueos</p>
-                                    <h3 class="m-0 text-gray-700 text-lg font-semibold">Dias y horarios no disponibles</h3>
-                                    <p class="m-0 mt-1 text-gray-500 text-sm">Agrega vacaciones, cursos, comida o actividades internas.</p>
-                                </div>
-                                <div class="flex flex-wrap gap-2">
-                                    <da-button-secondary @click.native="openBlockDialog('date')" :label="'+ Bloquear dia'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
-                                    <da-button-primary @click.native="openBlockDialog('hour')" :label="'+ Bloquear horario'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
-                                </div>
-                            </div>
-
-                            <div v-if="blockItems.length === 0" class="bg-gray-50 border border-gray-200 p-6 text-center">
-                                <h4 class="m-0 text-gray-700 font-semibold">No tienes bloqueos configurados</h4>
-                                <p class="m-0 mt-2 text-gray-500 text-sm">Agrega dias festivos, vacaciones u horarios no disponibles.</p>
-                            </div>
-
-                            <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div v-for="block in blockItems" :key="block.key" class="border border-gray-200 bg-gray-50 p-4">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <p class="m-0 text-gray-700 font-semibold">{{ block.title }}</p>
-                                            <p class="m-0 mt-1 text-gray-500 text-sm">{{ block.subtitle }}</p>
-                                            <p class="m-0 mt-2 text-gray-600 text-sm">{{ block.reason }}</p>
-                                        </div>
-                                        <div class="flex gap-1">
-                                            <v-btn icon small @click="openBlockDialog(block.type, block.raw)">
-                                                <v-icon color="#6B7280">mdi-pencil-outline</v-icon>
-                                            </v-btn>
-                                            <v-btn icon small @click="removeBlock(block)">
-                                                <v-icon color="#A6001E">mdi-delete-outline</v-icon>
-                                            </v-btn>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </article>
-                    </v-tab-item>
-
-                    <v-tab-item>
-                        <article class="border border-gray-200 bg-white shadow-md p-5">
-                            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-5">
-                                <div>
-                                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Vista previa</p>
-                                    <h3 class="m-0 text-gray-700 text-lg font-semibold">Disponibilidad generada</h3>
-                                    <p class="m-0 mt-1 text-gray-500 text-sm">Valida como quedaria la agenda antes de guardar cambios.</p>
-                                </div>
-                                <v-text-field v-model="previewDate" type="date" label="Fecha" dense outlined :color="themePrimaryColor" hide-details class="max-w-xs"></v-text-field>
-                            </div>
-
-                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                                <div class="border border-gray-200 bg-gray-50 p-4">
-                                    <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Horario laboral</p>
-                                    <h4 class="m-0 mt-2 text-gray-700 font-semibold">{{ previewDayName }}</h4>
-                                    <div class="flex flex-wrap gap-2 mt-3">
-                                        <span v-if="!previewWorkingDay || !previewWorkingDay.enabled" class="text-sm text-gray-500">Dia sin atencion</span>
-                                        <span v-for="range in previewWorkingRanges" v-else :key="range.id" class="px-3 py-1 bg-white border border-primary-200 text-primary-900 text-sm font-semibold">
-                                            {{ range.startTime }} - {{ range.endTime }}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div class="lg:col-span-2 border border-gray-200 bg-gray-50 p-4">
-                                    <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Horarios disponibles</p>
-                                    <div v-if="previewIsBlockedDate" class="mt-3 bg-red-50 border border-red-100 text-red-700 p-3 text-sm">
-                                        Este dia esta bloqueado completo.
-                                    </div>
-                                    <div v-else class="flex flex-wrap gap-2 mt-3">
-                                        <span v-if="previewAvailableSlots.length === 0" class="text-sm text-gray-500">No hay horarios disponibles para esta fecha.</span>
-                                        <span v-for="slot in previewAvailableSlots" :key="slot.startTime" class="px-3 py-2 bg-green-50 border border-green-200 text-green-700 text-sm font-semibold">
-                                            {{ slot.startTime }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mt-5 border border-gray-200 bg-gray-50 p-4">
-                                <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Bloqueos aplicados</p>
-                                <div class="flex flex-wrap gap-2 mt-3">
-                                    <span v-if="previewBlockedHours.length === 0 && !previewIsBlockedDate" class="text-sm text-gray-500">Sin bloqueos para esta fecha.</span>
-                                    <span v-for="block in previewBlockedHours" :key="block.id" class="px-3 py-2 bg-gray-100 border border-gray-300 text-gray-600 text-sm">
-                                        {{ block.startTime }} - {{ block.endTime }} {{ block.reason }}
-                                    </span>
-                                </div>
-                            </div>
-                        </article>
-                    </v-tab-item>
-                </v-tabs-items>
-            </div>
-        </section>
-
-        <v-dialog v-if="activeSection === 'agenda'" v-model="dayDialog" persistent max-width="680">
+        <professional-agenda-config v-if="activeSection === 'agenda'" :theme-color="themePrimaryColor" @saved="onGetAppointmentConfig" />
+    <v-dialog v-if="activeSection === 'agenda'" v-model="dayDialog" persistent max-width="680">
             <v-card>
                 <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
                     <div>
@@ -1008,11 +818,13 @@
 
 <script>
 import { mapActions, mapGetters } from 'vuex';
+import ProfessionalAgendaConfig from './components/ProfessionalAgendaConfig.vue';
+import { getSettingsSections } from '../../security/settingsAccess';
 import VuexMixin from '../../mixins/VuexMixin';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import { resizeImage } from '../../utils/file';
-import { DEFAULT_THEME, applyTheme } from '../../plugins/theme';
+import { DEFAULT_THEME, applyTheme, themeState, getThemeContext } from '../../plugins/theme';
 import { setStoredLoginLogo } from '../../utils/branding';
 import { DAAppointmentService, DAPrescriptionService, DAUserService, DABusinessService, DADocumentService } from '../../services/context/core-proccess-context';
 import { buildLicenseLimitMessage } from '../../utils/licenseLimitMessage';
@@ -1040,6 +852,7 @@ import {
 export default {
     mixins:[VuexMixin],
     components: {
+        ProfessionalAgendaConfig,
         PrescriptionConfig,
         AdminSummary,
         ClinicalHistoryTemplateConfig,
@@ -1069,6 +882,7 @@ export default {
             loginImageError: '',
             loginImageInputKey: 0,
             selectedThemeCode: DEFAULT_THEME.code,
+            isThemeSaving: false,
             businessInfo: {
                 id_business: '',
                 name: '',
@@ -1293,13 +1107,16 @@ export default {
             hasErrorConfiguration:  fnTypes.hasErrorInService,
             getLoginImageData:      fnTypes.getLoginImage,
             themeList:              fnTypes.getThemeList,
-            activeTheme:            fnTypes.getTheme,
             clinicalModules:        fnTypes.clinicalModules
         }),
         ...mapGetters(moduleTypes.AUTH, {
             authUser: fnTypes.getUser,
-            authBusiness: fnTypes.getBusiness
+            authBusiness: fnTypes.getBusiness,
+            role: fnTypes.getRole,
+            hasPermission: fnTypes.hasPermission
         }),
+        sectionAllowed() { return getSettingsSections(this.role,this.hasPermission).some(section=>section.key===this.activeSection) },
+        activeTheme() { return themeState.currentTheme },
 
         loginImagePreviewStyle: function() {
             return this.loginImagePreview ? `background-image: url('${this.loginImagePreview}')` : '';
@@ -1324,11 +1141,7 @@ export default {
         },
 
         themePrimaryColor: function() {
-            if(typeof window === 'undefined') {
-                return '#E7AC18'
-            }
-
-            return getComputedStyle(document.documentElement).getPropertyValue('--color-primary-700').trim() || '#E7AC18'
+            return 'var(--color-primary-700)'
         },
 
         businessPlanLabel: function() {
@@ -1477,7 +1290,7 @@ export default {
                 {
                     label: 'Agenda',
                     value: agendaActive ? 'Activa' : 'Inactiva',
-                    detail: `${this.appointmentConfig.defaultAppointmentDuration || 30} min por cita`,
+                    detail: 'Horarios y duracion configurables por doctor',
                     statusClass: agendaActive ? 'bg-green-500' : 'bg-gray-400'
                 },
                 {
@@ -1488,8 +1301,8 @@ export default {
                 },
                 {
                     label: 'Recetas',
-                    value: hasPrescription ? 'Configuradas' : 'Incompletas',
-                    detail: 'Plantilla y datos del consultorio',
+                    value: !this.prescriptionConfigStatus ? 'Por doctor' : hasPrescription ? 'Configuradas' : 'Incompletas',
+                    detail: 'Formato independiente en Recetas medicas',
                     statusClass: hasPrescription ? 'bg-green-500' : 'bg-yellow-400'
                 }
             ]
@@ -1621,18 +1434,22 @@ export default {
         ]),
 
         init: async function() {
-            await this.onGetConfiguration()
-            await this.onGetBusinessInfo()
-            await this.getLoginImage()
-            await this.getThemeList()
-            await this.getTheme()
-            await this.getClinicalModules()
-            this.applyClinicalModules()
-            this.ensureSelectedTheme()
-            await this.onGetAppointmentConfig()
-            await this.onGetPrescriptionConfigStatus()
-            await this.onGetProfessionalProfileStatus()
-            await this.onGetDocumentTemplates()
+            if(!this.sectionAllowed) return
+            const section=this.activeSection
+            if(['summary','documents'].includes(section)) await this.onGetConfiguration()
+            if(['summary','identity'].includes(section)) await this.onGetBusinessInfo()
+            if(['summary','appearance'].includes(section)) {
+                await this.getLoginImage();await this.getThemeList();await this.getTheme({ force: true });this.ensureSelectedTheme()
+            }
+            if(['summary','clinical-modules'].includes(section)) {
+                await this.getClinicalModules();this.applyClinicalModules()
+            }
+            if(section==='summary') {
+                await this.onGetAppointmentConfig()
+                if(this.hasPermission('prescriptions.config')) await this.onGetPrescriptionConfigStatus()
+                await this.onGetProfessionalProfileStatus()
+            }
+            if(['summary','documents'].includes(section) && this.hasPermission('documents.config')) await this.onGetDocumentTemplates()
         },
 
         isDocumentTierLocked: function(tier) {
@@ -2173,39 +1990,35 @@ export default {
         },
 
         onSelectTheme: function(theme) {
-            this.selectedThemeCode = theme.code
-            applyTheme(theme)
+            if(applyTheme(theme)) this.selectedThemeCode = theme.code
         },
 
         ensureSelectedTheme: function() {
             if(this.activeTheme && this.activeTheme.code) {
                 this.selectedThemeCode = this.activeTheme.code
-                applyTheme(this.activeTheme)
-                return
             }
-
-            const defaultTheme = (this.themeList || []).find((theme) => theme.code === DEFAULT_THEME.code)
-
-            this.selectedThemeCode = DEFAULT_THEME.code
-            applyTheme(defaultTheme || DEFAULT_THEME)
         },
 
         onSaveTheme: async function() {
+            if(this.isThemeSaving) return
             if(!this.selectedThemeCode) {
                 this.toastFunction('error','Selecciona un tema primero.')
                 return
             }
 
-            await this.saveTheme({ code: this.selectedThemeCode })
-
-            if(this.hasErrorConfiguration && this.hasErrorConfiguration.error) {
-                this.toastFunction('error', this.hasErrorConfiguration.message)
-                return
+            const context = getThemeContext(this.$store.state.CORE.AUTH)
+            this.isThemeSaving = true
+            try {
+                const response = await this.saveTheme({ code: this.selectedThemeCode })
+                if(getThemeContext(this.$store.state.CORE.AUTH) !== context) return
+                if(!response || !response.success) {
+                    this.toastFunction('error', (response && response.message) || 'No fue posible guardar el tema.')
+                    return
+                }
+                this.toastFunction('success','Tema guardado.')
+            } finally {
+                this.isThemeSaving = false
             }
-
-            applyTheme(this.activeTheme && this.activeTheme.code ? this.activeTheme : { code: this.selectedThemeCode })
-            this.toastFunction('success','Tema guardado.')
-            await this.getTheme()
         },
 
         applyClinicalModules: function() {
@@ -2511,7 +2324,7 @@ export default {
         },
 
         onGetAppointmentConfig: async function() {
-            const response = await DAAppointmentService.getConfig()
+            const response = await DAAppointmentService.getConfig('business')
             if(response && response.success && response.data) {
                 this.appointmentConfig = normalizeAppointmentConfig(response.data)
                 saveAppointmentConfig(this.appointmentConfig)
@@ -2578,6 +2391,7 @@ export default {
         }
     },
     watch: {
+        activeSection() { this.init() },
         getConfigurations: function() {
             if(this.getConfigurations) {
                 this.consentimiento         = this.getConfigurations.consent
@@ -2597,13 +2411,7 @@ export default {
             }
         },
         activeTheme: function() {
-            if(this.activeTheme && this.activeTheme.code) {
-                this.selectedThemeCode = this.activeTheme.code
-                applyTheme(this.activeTheme)
-            }
-            else {
-                this.ensureSelectedTheme()
-            }
+            this.ensureSelectedTheme()
         },
         themeList: function() {
             this.ensureSelectedTheme()
