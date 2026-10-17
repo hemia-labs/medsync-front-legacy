@@ -9,6 +9,7 @@ const load = (file, context) => {
   return context.component;
 };
 const context = { component: null, mapGetters: () => ({}), mapActions: () => ({}), VuexMixin: {}, moduleTypes: {}, fnTypes: {}, DAHistoryHeader: {}, DAAlergyAlert: {}, AllergyEditor: {}, PatientAdministrativeForm: {}, DASweetConfirm: {}, DocumentsAndSignatures: {}, DELETE: {}, DAPxService: {} };
+vm.runInNewContext(fs.readFileSync(path.join(root, 'src/domain/patient/administrative.validation.js'), 'utf8').replace(/export const /g, 'var '), context);
 const parent = load('src/views/Patient/PatientShow.vue', context);
 const editor = load('src/views/Patient/components/PatientAdministrativeForm.vue', context);
 let permissions = ['px.all', 'px.new', 'px.tab.history', 'documents.view'];
@@ -34,6 +35,7 @@ const patient = { person: { id_person: 'qa', name: 'QA', surname: 'Paciente', bi
 const view = { patient, $refs: { form: { validate: () => true } }, $emit: (...event) => notices.push(event) };
 Object.assign(view, editor.data.call(view));
 for (const [key, method] of Object.entries(editor.methods)) view[key] = method.bind(view);
+for (const [key, getter] of Object.entries(editor.computed)) Object.defineProperty(view, key, { get: getter.bind(view) });
 assert.equal(view.form.person.birthday, '2000-02-01');
 assert.equal(patient.person.birthday, '01-02-2000', 'Opening administrative editor does not mutate shared patient');
 view.form.person.name = 'Captura pendiente';

@@ -10,8 +10,12 @@
         </div>
 
         <div class="px-7 pt-5">
-            <v-select :key="selectedDoctorId + '-' + selectorRevision" :value="selectedDoctorId" :items="doctorOptions" item-text="label" item-value="id" label="Configuracion de recetas del doctor" :readonly="doctorOptions.length === 1" :disabled="loading || saving" outlined dense :color="themeColor" @change="chooseDoctor"></v-select>
-            <p v-if="!selectedDoctorId">Selecciona el doctor cuyo formato quieres configurar.</p>
+            <v-select :key="selectedDoctorId + '-' + selectorRevision" :value="selectedDoctorId" :items="doctorOptions" item-text="label" item-value="id" label="Configuracion de recetas del doctor" no-data-text="No hay doctores con perfil activo" :readonly="doctorOptions.length === 1" :disabled="loading || saving || !doctorOptions.length" outlined dense :color="themeColor" @change="chooseDoctor"></v-select>
+            <div v-if="!loading && !loadError && !doctorOptions.length" role="status" class="mb-4 p-4 rounded-lg border border-yellow-200 bg-yellow-50 text-yellow-900">
+                <p>Primero completa y guarda el perfil profesional del doctor. Después podrás revisar el formato de sus recetas. La autorización para emitir se revisa por separado.</p>
+                <router-link to="/admin?section=doctor-identity" class="underline">Completar mi perfil profesional</router-link>
+            </div>
+            <p v-else-if="!selectedDoctorId && !loading">Selecciona el doctor cuyo formato quieres configurar.</p>
             <p v-if="loading" role="status">Cargando formato del doctor…</p>
             <p v-if="loadError" role="alert" class="text-red-700">{{ loadError }} <button type="button" @click="selectedDoctorId ? load() : init()">Reintentar</button></p>
         </div>

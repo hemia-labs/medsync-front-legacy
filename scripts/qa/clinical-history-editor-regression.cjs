@@ -6,11 +6,13 @@ const vm = require('node:vm');
 (async () => {
     const source = fs.readFileSync(path.join(__dirname, '../../src/domain/clinical-history/history.editor.js'), 'utf8');
     const helper = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+    const vitalSigns = await import(`data:text/javascript;base64,${Buffer.from(fs.readFileSync(path.join(__dirname, '../../src/domain/clinical-history/vitalSigns.validation.js'), 'utf8')).toString('base64')}`);
+    const settings = await import(`data:text/javascript;base64,${Buffer.from(fs.readFileSync(path.join(__dirname, '../../src/security/settingsAccess.js'), 'utf8')).toString('base64')}`);
     const sfc = fs.readFileSync(path.join(__dirname, '../../src/views/Patient/Sections/MedicalHistory.vue'), 'utf8');
     const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component =');
     const services = {};
     const context = { component: null, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {},
-        isD2AuthMode: () => true, dialogName: {}, fieldError: {}, ...helper,
+        isD2AuthMode: () => true, dialogName: {}, fieldError: {}, ...helper, ...vitalSigns, ...settings,
         DAClinicalHistoryService: services, DADocumentService: {}, DAPrescriptionService: {}, DAClinicalHistoryTemplateService: {},
         window: {}, document: {}, setTimeout, clearTimeout };
     vm.runInNewContext(script, context);
@@ -175,6 +177,36 @@ const vm = require('node:vm');
     assert.match(state.selectedDoctorLabel, /Historic doctor/);
     const print = state.printableDoctorFields({}, { status: 'FINALIZED' });
     assert.equal(print[1].value, 'Sin copia histórica disponible.');
+    state = fresh();
+    state.form.vital_signs.weight = '-5'; state.form.vital_signs.oxygen_saturation = '150';
+    let clinicalWrites = 0;
+    services.updateDraft = async () => { clinicalWrites++; return { success: true }; };
+    assert.equal(await state.saveDraft(false), false);
+    assert.equal(clinicalWrites, 0, 'Invalid measurements never reach draft persistence');
+    assert.equal(state.form.vital_signs.weight, '-5', 'Validation retains capture for correction');
+    assert.equal(state.validationErrors.length, 2);
+    state.form.vital_signs.weight = '70'; state.form.vital_signs.oxygen_saturation = '98';
+    for(const height of ['1.68', '168']) {
+        state.form.vital_signs.height = height; delete state.form.vital_signs.height_unit;
+        assert.equal(Number(state.getDynamicFieldValue({ key: 'vital_signs' }, { key: 'height' })), 168);
+        state.updateBmi(); assert.equal(state.form.vital_signs.bmi, '24.80');
+        assert.equal(state.form.vital_signs.height, height, 'Reading/recalculating never rewrites historical height');
+        const printField = state.printableField({ key: 'vital_signs' }, { key: 'height', label: 'Talla', type: 'number' }, state.form, {});
+        assert.equal(Number(printField.value), 168); assert.match(printField.label, /cm/);
+    }
+    state.setDynamicFieldValue({ key: 'vital_signs' }, { key: 'height' }, '0.5');
+    assert.equal(state.form.vital_signs.height_unit, 'cm');
+    assert.equal(state.getDynamicFieldValue({ key: 'vital_signs' }, { key: 'height' }), '0.5', 'Explicit new cm captures bypass the legacy metre heuristic');
+    state.authUser = { id_login: 'qa-doctor' }; state.authRole = 'doctor'; state.doctors = [];
+    assert.match(state.profilePreparationMessage, /Mi perfil profesional/);
+    assert.equal(state.canPrepareOwnProfile, true);
+    state.hasPermission = permission => permission !== 'documents.config';
+    assert.equal(state.canPrepareDocuments, false, 'Document setup action respects the real settings section permission');
+    await state.createSensitiveConsent(); assert.equal(state.showConsentSetupDialog, true);
+    assert.equal(clinicalWrites, 0);
+    state.clinicalHistory.status = 'FINALIZED'; state.documents = [{ document_type: 'SENSITIVE_DATA_CONSENT', status: 'FIRMADO' }];
+    assert.doesNotMatch(state.sensitiveConsentHelpText, /puede finalizarse/);
+    assert.match(state.responsibleDoctorHelp, /registrado al cerrar/);
     console.log('PASS clinical history: configured requirements, zero requirements, typed values, all length errors, save failure/retry, leave decisions, quick-action protection/undo and stale/error loads. No browser storage or database writes.');
     console.log('PASS S16: expected revision, conflict preserves text/base, explicit recovery, failed recovery preserves capture, allergy-only revision refresh and historical professional identity.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

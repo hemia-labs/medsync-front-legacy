@@ -47,7 +47,7 @@ function fixture(componentId = treatmentId) {
     const calls = { save: [], status: [], delete: [], history: 0 };
     const qa = { scenario: 'ok', gate: null, wrote: false };
     let records = [
-        { id_odontogramv1: 'qa-odontogram', code: 'QA-ACTUAL', description: 'Permanente', created_at: '2026-10-16', active: true },
+        { id_odontogramv1: 'qa-odontogram', code: 'QA-ACTUAL', description: 'Permanente', created_at: '17-10-2026 02:48:06', created_at_utc: '2026-10-17T02:48:06.000Z', timezone: 'America/Mexico_City', active: true },
         { id_odontogramv1: 'qa-previous', code: 'QA-ANTERIOR', description: 'Temporal', created_at: '2026-10-15', active: false }
     ];
     const tooth = { id_odontogram_detailv1: 'qa-detail', id_tooth: 'qa-tooth', treatment: 'Diagnóstico inicial', sec: 11 };
@@ -193,6 +193,7 @@ function fixture(componentId = treatmentId) {
     f = fixture(historyId);
     try {
         await until(() => !f.vm.loading, 'history load'); await f.Vue.nextTick();
+        assert.match(f.query('.record-date').textContent, /16.*oct.*2026/, 'UTC midnight must render the clinic day, not the server day');
         const search = f.query('input[type="text"]'); assert.ok(search, 'History exposes search');
         search.value = 'QA-ANTERIOR'; search.dispatchEvent(new f.w.Event('input', { bubbles: true })); await f.Vue.nextTick();
         assert.match(f.query('.history-list').textContent, /QA-ANTERIOR/); assert.doesNotMatch(f.query('.history-list').textContent, /QA-ACTUAL/);

@@ -8,11 +8,11 @@
           <p class="m-0 mt-2 text-gray-500 text-sm">Consulta disponibilidad, bloqueos y citas de la semana.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <v-btn icon @click="moveWeek(-7)">
+          <v-btn icon aria-label="Consultar semana anterior" @click="moveWeek(-7)">
             <v-icon color="#6B7280">mdi-chevron-left</v-icon>
           </v-btn>
           <v-text-field v-model="selectedDate" type="date" label="Semana" dense outlined hide-details :color="themePrimaryColor" class="w-44"></v-text-field>
-          <v-btn icon @click="moveWeek(7)">
+          <v-btn icon aria-label="Consultar semana siguiente" @click="moveWeek(7)">
             <v-icon color="#6B7280">mdi-chevron-right</v-icon>
           </v-btn>
           <da-button-secondary @click.native="followUpDialog = true" :label="'Seguimientos'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
@@ -21,7 +21,7 @@
       </div>
 
       <div class="px-6 py-4 border-b border-gray-200">
-        <v-select v-model="selectedDoctorId" :items="doctors" item-text="display_name" item-value="id_doctor_professional_profile" label="Agenda del doctor" :readonly="doctors.length === 1" :disabled="agendaLoading" outlined dense :color="themePrimaryColor" @change="changeCalendarDoctor"></v-select>
+        <v-select v-if="doctors.length || agendaLoading || agendaError" v-model="selectedDoctorId" :items="doctors" item-text="display_name" item-value="id_doctor_professional_profile" label="Agenda del doctor" no-data-text="No hay doctores con perfil activo" :readonly="doctors.length === 1" :disabled="agendaLoading" outlined dense :color="themePrimaryColor" @change="changeCalendarDoctor"></v-select>
         <div class="flex flex-wrap items-center gap-3 mb-3">
           <strong v-if="selectedDoctor" class="text-gray-700">{{ selectedDoctor.display_name }}</strong>
           <button v-if="canConfigureAgenda" type="button" class="text-primary-900 font-semibold" @click="agendaConfigDialog = true">Configurar agenda</button>
@@ -41,11 +41,26 @@
         </div>
       </div>
 
-      <div v-if="!selectedDoctorId || !appointmentConfig.enabled || appointmentConfig.businessEnabled === false" class="m-6 p-5 border border-gray-200 bg-gray-50 text-gray-600">
+      <section v-if="!agendaLoading && !agendaError && !doctors.length" class="agenda-setup-state" aria-labelledby="agenda-setup-title">
+        <v-icon size="32">mdi-calendar-account-outline</v-icon>
+        <div>
+          <h3 id="agenda-setup-title">Prepara un doctor antes de agendar</h3>
+          <p>Aún no hay doctores con perfil profesional activo en este consultorio. Primero completa el nombre y la cédula del doctor y verifica que su perfil esté activo. Después configura sus días y horarios de atención.</p>
+          <div class="agenda-setup-actions">
+            <router-link v-if="canCompleteOwnProfile" :to="{ path: '/admin', query: { section: 'doctor-identity', returnTo: '/px/dates' } }">Completar mi perfil profesional</router-link>
+            <router-link v-if="canConfigureDoctors" :to="{ path: '/admin', query: { section: 'users', returnTo: '/px/dates' } }">Configurar doctores</router-link>
+            <button type="button" :disabled="agendaLoading" @click="init">Ya lo configuré: actualizar doctores</button>
+          </div>
+          <p v-if="!canCompleteOwnProfile && !canConfigureDoctors">Pide al administrador que active el perfil del doctor y configure su agenda. Podrás crear citas cuando esté listo.</p>
+        </div>
+      </section>
+
+      <div v-else-if="!agendaLoading && !agendaError && (!selectedDoctorId || !appointmentConfig.enabled || appointmentConfig.businessEnabled === false)" class="m-6 p-5 border border-gray-200 bg-gray-50 text-gray-600">
         {{ !selectedDoctorId ? 'Selecciona un doctor para consultar su disponibilidad.' : 'Esta agenda no esta disponible. Revisa su configuracion y los cierres del consultorio.' }}
       </div>
 
-      <div v-else-if="!agendaLoading && !agendaError" class="p-4 overflow-x-auto">
+      <div v-else-if="!agendaLoading && !agendaError" class="p-4 overflow-x-auto" role="region" aria-label="Disponibilidad semanal" :aria-describedby="'agenda-week-description'" tabindex="0">
+        <p id="agenda-week-description" class="sr-only" aria-live="polite">Agenda de {{ selectedDoctor && selectedDoctor.display_name }}. Semana del {{ formatDisplayDate(weekDates[0]) }} al {{ formatDisplayDate(weekDates[6]) }}. Cada horario indica su día, hora y estado.</p>
         <div class="agenda-grid min-w-agenda">
           <div class="sticky left-0 z-10 bg-white border-b border-r border-gray-200 py-3 px-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Hora</div>
           <div v-for="day in weekDates" :key="day" class="border-b border-gray-200 py-3 px-2 text-center">
@@ -64,6 +79,8 @@
               class="agenda-slot border-b border-r text-left p-2 focus:outline-none"
               :class="{ 'cursor-pointer': getSlot(day, time).selectable || getSlot(day, time).appointment, 'cursor-not-allowed': !getSlot(day, time).selectable && !getSlot(day, time).appointment }"
               :style="slotStyle(getSlot(day, time))"
+              :aria-label="slotAccessibleName(day, getSlot(day, time))"
+              :aria-disabled="String(!getSlot(day, time).selectable && !getSlot(day, time).appointment)"
               @click="onSlotClick(getSlot(day, time))"
             >
               <span class="block text-xs font-bold truncate">{{ slotTitle(getSlot(day, time)) }}</span>
@@ -85,7 +102,7 @@
             <h3 class="m-0 mt-1 text-gray-700 text-xl font-semibold">Pacientes por seguimiento</h3>
             <p class="m-0 mt-1 text-gray-500 text-sm">Lista de apoyo para contactar pacientes con proxima cita registrada en seguimiento.</p>
           </div>
-          <v-btn icon @click="followUpDialog = false">
+          <v-btn icon aria-label="Cerrar pacientes por seguimiento" @click="followUpDialog = false">
             <v-icon color="#9CA3AF">mdi-close</v-icon>
           </v-btn>
         </div>
@@ -165,7 +182,7 @@
             <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">{{ editingAppointment.id ? 'Detalle de cita' : 'Nueva cita' }}</p>
             <h3 class="m-0 mt-1 text-gray-700 text-xl font-semibold">{{ dialogTitle }}</h3>
           </div>
-          <v-btn icon @click="closeDialog()">
+          <v-btn icon aria-label="Cerrar cita" @click="closeDialog()">
             <v-icon color="#9CA3AF">mdi-close</v-icon>
           </v-btn>
         </div>
@@ -311,6 +328,7 @@
 <script>
 import { mapActions, mapGetters } from 'vuex';
 import VuexMixin from '../../mixins/VuexMixin';
+import { getSettingsSections } from '../../security/settingsAccess';
 import ProfessionalAgendaConfig from '../configuration/components/ProfessionalAgendaConfig.vue';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
@@ -432,11 +450,14 @@ export default {
     }),
     ...mapGetters(moduleTypes.AUTH, {
       hasPermission: fnTypes.hasPermission,
-      authUser: fnTypes.getUser
+      authUser: fnTypes.getUser,
+      role: fnTypes.getRole
     }),
 
     selectedDoctor() { return this.doctors.find(d => d.id_doctor_professional_profile === this.selectedDoctorId); },
     canConfigureAgenda() { return this.hasPermission('admin.config') || this.doctors.some(d => d.id_login === (this.authUser || {}).id_login); },
+    canCompleteOwnProfile() { return getSettingsSections(this.role, this.hasPermission).some(section => section.key === 'doctor-identity'); },
+    canConfigureDoctors() { return getSettingsSections(this.role, this.hasPermission).some(section => section.key === 'users'); },
 
     weekDates: function() {
       return getWeekDates(this.selectedDate)
@@ -1148,6 +1169,14 @@ export default {
       return day ? day.short : ''
     },
 
+    slotAccessibleName(day, slot) {
+      const weekday = new Intl.DateTimeFormat('es-MX', { weekday: 'long' }).format(new Date(`${day}T12:00:00`))
+      const date = `${weekday} ${formatDisplayDate(day)}`
+      const status = APPOINTMENT_STATUS_LABELS[slot.status] || 'Horario'
+      const detail = slot.appointment ? this.slotTitle(slot) : slot.reason
+      return [date, `${slot.startTime} a ${slot.endTime}`, status, detail].filter(Boolean).join(', ')
+    },
+
     slotTitle: function(slot) {
       if(slot.appointment) {
         return slot.appointment.patientName || slot.appointment.title || APPOINTMENT_STATUS_LABELS[slot.status]
@@ -1245,6 +1274,14 @@ export default {
 </script>
 
 <style scoped>
+.agenda-setup-state { display: flex; align-items: flex-start; gap: 14px; margin: 24px; padding: 20px; border: 1px solid var(--color-primary-200, #b8edf7); border-radius: 12px; color: var(--color-text, #25364d); background: var(--color-primary-50, #effbfe); }
+.agenda-setup-state > .v-icon { color: var(--color-primary-700, #0e7490); flex-shrink: 0; }
+.agenda-setup-state h3 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 700; }
+.agenda-setup-state p { margin: 0 0 12px; line-height: 1.6; font-size: .88rem; }
+.agenda-setup-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.agenda-setup-actions a, .agenda-setup-actions button { display: inline-flex; align-items: center; min-height: 40px; padding: 9px 12px; border: 1px solid var(--color-primary-200, #b8edf7); border-radius: 8px; font-weight: 600; font-size: .82rem; color: var(--color-primary-900, #086783); background: var(--color-surface, #fff); }
+.agenda-slot:focus-visible, .agenda-setup-actions a:focus-visible, .agenda-setup-actions button:focus-visible { outline: 3px solid var(--color-primary-500, #0e7490); outline-offset: -3px; }
+@media (max-width: 600px) { .agenda-setup-state { margin: 16px; padding: 16px; flex-direction: column; } .agenda-setup-actions { flex-direction: column; } }
 .agenda-config-card{max-height:90vh;display:flex;flex-direction:column}.agenda-config-card>div{flex-shrink:0}.agenda-config-editor{overflow-y:auto;min-height:0}.agenda-config-card .agenda-config-editor{flex:1}
 .follow-up-card {
   border-radius: 8px;

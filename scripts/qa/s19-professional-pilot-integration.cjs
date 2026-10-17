@@ -29,7 +29,8 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const patient = { person: { id_person: 'QA_S19_FRONT_PATIENT', name: 'Paciente ficticio', surname: 'Piloto', age: 30 },
   allergy: { id_allergy: 'QA_S19_ALLERGY', has_allergy: 0, revision: 1 } };
 const doctor = { id_login: 'QA_S19_DOCTOR', id_doctor_professional_profile: 'QA_S19_PROFILE',
-  professional_name: 'Doctora ficticia', professional_license: 'QA_ONLY', professional_profile_active: 1, professional_profile_complete: 1 };
+  professional_name: 'Doctora ficticia', professional_license: 'QA_ONLY', professional_profile_active: 1, professional_profile_complete: 1,
+  can_issue_prescriptions: 1, signature_image: 'QA_SYNTHETIC_SIGNATURE_PLACEHOLDER' };
 const template = { sections: [
   { key: 'consultation', label: 'Consulta', fields: [{ key: 'reason', label: 'Motivo', required: true }] },
   { key: 'allergies_medications', label: 'Alergias', fields: [{ key: 'allergy_status', label: 'Estado', required: true }] }
@@ -129,6 +130,7 @@ const MonitoringService = service('monitoring/DAMonitoringService.js');
 const PatientService = service('px/DAPxService.js');
 const TemplateService = service('clinicalHistoryTemplate/DAClinicalHistoryTemplateService.js');
 const bindings = { mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {}, VuexMixin: {},
+  getSettingsSections: load('src/security/settingsAccess.js', {}, ['getSettingsSections']).getSettingsSections,
   dialogName: {}, fieldError: {}, window: {}, document: {}, isD2AuthMode: () => true,
   HistoryService, DAClinicalHistoryService: HistoryService, DAPrescriptionService: RxService, DADocumentService: DocumentService,
   DAPxService: PatientService, DAClinicalHistoryTemplateService: TemplateService };
@@ -144,6 +146,8 @@ function role(name, permissions) { auth.role = name; auth.user.rol = name; auth.
 
 (async () => {
   const historyHelper = await import(`data:text/javascript;base64,${Buffer.from(read('src/domain/clinical-history/history.editor.js')).toString('base64')}`);
+  const vitalSigns = await import(`data:text/javascript;base64,${Buffer.from(read('src/domain/clinical-history/vitalSigns.validation.js')).toString('base64')}`);
+  const settings = await import(`data:text/javascript;base64,${Buffer.from(read('src/security/settingsAccess.js')).toString('base64')}`);
   const allergies = await import(`data:text/javascript;base64,${Buffer.from(read('src/domain/patient/allergy.js')).toString('base64')}`);
   const rxHelper = await import(`data:text/javascript;base64,${Buffer.from(read('src/domain/prescriptions/prescription.editor.js')).toString('base64')}`);
   const intake = state(load('src/views/Patient/Sections/ClinicalIntake.vue', bindings));
@@ -154,7 +158,7 @@ function role(name, permissions) { auth.role = name; auth.user.rol = name; auth.
   assert.equal(intake.dirty, false); assert.match(intake.feedback, /Doctora ficticia/);
 
   role('doctor', ['clinical_history.view', 'clinical_history.edit_draft', 'clinical_history.finalize', 'prescriptions.create', 'prescriptions.edit_draft', 'prescriptions.issue', 'prescriptions.print', 'prescriptions.download', 'px.tab.monitoring', 'tracing.create', 'px.dates']);
-  const history = state(load('src/views/Patient/Sections/MedicalHistory.vue', { ...bindings, ...historyHelper, ...allergies }));
+  const history = state(load('src/views/Patient/Sections/MedicalHistory.vue', { ...bindings, ...historyHelper, ...allergies, ...vitalSigns, ...settings }));
   await history.loadInitialData();
   assert.equal(history.form.consultation.reason, intake.form.reason, 'Doctor receives reception snapshot through service/core contract');
   assert.equal(history.doctorResponsibleUserId, doctor.id_login);

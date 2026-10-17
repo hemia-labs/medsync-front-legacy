@@ -85,9 +85,7 @@
         <a v-if="hasSupportEmail" class="tenant-footer-support-link" :href="`mailto:${supportEmail}`">
           <span>Contacto</span><span class="tenant-footer-support-email">: {{ supportEmail }}</span>
         </a>
-        <span v-else class="tenant-footer-contact-pending">
-          Contacto legal/soporte pendiente
-        </span>
+        <button v-else type="button" @click="$swal.fire({icon:'info',title:'Ayuda con tu cuenta',text:'Solicita ayuda al administrador que te entregó el acceso. Si eres titular del consultorio, utiliza el canal por el que contrataste MedSync e indica la pantalla y la acción que necesitas realizar.',confirmButtonText:'Entendido'})">Ayuda y contacto</button>
       </nav>
     </footer>
   </div>

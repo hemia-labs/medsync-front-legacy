@@ -20,6 +20,10 @@
         </div>
       </div>
       <p v-if="loading" role="status" class="mt-4 text-gray-600">Cargando configuracion…</p>
+      <div v-if="!loading && !error && !doctors.length" role="status" class="agenda-notice">
+        <p>Todavía no hay doctores con perfil activo. Completa y guarda tu perfil profesional; después configura sus horarios de atención. Los cierres generales no sustituyen la agenda del doctor.</p>
+        <router-link to="/admin?section=doctor-identity&returnTo=%2Fpx%2Fdates" class="agenda-link underline">Completar mi perfil profesional</router-link>
+      </div>
       <div v-if="error" role="alert" class="agenda-notice agenda-notice-error">
         {{ error }} <button v-if="!loading" type="button" class="agenda-link" @click="loaded ? save() : selected ? load() : init()">Reintentar</button>
       </div>

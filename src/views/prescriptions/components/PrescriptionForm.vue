@@ -25,7 +25,7 @@
                     <div v-if="contextError" class="rx-message rx-message--error" role="alert">{{ contextError }}</div>
                     <div v-if="errors.length || error" ref="errorSummary" class="rx-message rx-message--error" tabindex="-1" role="alert">
                         <strong>{{ error || 'Revisa los siguientes datos para continuar:' }}</strong>
-                        <ul v-if="errors.length"><li v-for="entry in errors" :key="entry.key"><button @click="focusField(entry.key)">{{ entry.message }}</button></li></ul>
+                        <ul v-if="errors.length"><li v-for="entry in errors" :key="entry.code || entry.key"><a v-if="entry.href" :href="entry.href" target="_blank" rel="noopener">{{ entry.message }} <span class="sr-only">(abre otra pestaña)</span></a><button v-else @click="focusField(entry.key)">{{ entry.message }}</button></li></ul>
                     </div>
                     <p v-if="savedMessage" class="rx-message" role="status">{{ savedMessage }}</p>
                     <section v-if="step === 'edit'" class="rx-paper" aria-label="Captura de receta">
@@ -33,7 +33,17 @@
                             <v-select v-field-error="{ id: fieldId('doctor'), invalid: !!fieldErrors('doctor').length }" :id="fieldId('doctor')" v-model="form.issuer_doctor_id" :items="doctorOptions" item-text="display_name" item-value="id_login" label="Doctor emisor *" :disabled="currentUserIsDoctor || busy" :error-messages="fieldErrors('doctor')" outlined dense hide-details="auto"></v-select>
                             <v-text-field v-field-error="{ id: fieldId('date'), invalid: !!fieldErrors('date').length }" :id="fieldId('date')" v-model="form.issue_date" label="Fecha de receta *" type="date" :disabled="busy" :error-messages="fieldErrors('date')" outlined dense hide-details="auto"></v-text-field>
                         </div>
-                        <p v-if="selectedDoctorWarning" class="rx-message rx-message--warning">{{ selectedDoctorWarning }}</p>
+                        <div v-if="selectedDoctorWarning || !doctors.length" class="rx-message rx-message--warning" role="status">
+                            <p>{{ selectedDoctorWarning || 'Aún no hay doctores disponibles. Primero prepara el perfil profesional de un doctor del consultorio.' }}</p>
+                            <p v-if="selectedDoctor && !selectedDoctorIsMe && doctorIdentityIncomplete">Pide al doctor seleccionado que complete Mi perfil profesional con su propia cuenta.</p>
+                            <p v-if="doctorAuthorizationMissing && !canManageUsers">Solicita a la administración del consultorio la autorización como doctor emisor.</p>
+                            <div class="rx-context-actions">
+                                <a v-if="canOpenOwnProfile && (!selectedDoctor || selectedDoctorIsMe) && (!doctors.length || doctorIdentityIncomplete)" href="/admin?section=doctor-identity" target="_blank" rel="noopener">Completar mi perfil profesional <span class="sr-only">(abre otra pestaña)</span></a>
+                                <a v-if="canManageUsers && (!doctors.length || doctorAuthorizationMissing || !selectedDoctorIsMe)" href="/admin?section=users" target="_blank" rel="noopener">Revisar doctores y autorizaciones <span class="sr-only">(abre otra pestaña)</span></a>
+                                <button type="button" :disabled="busy || refreshingDoctors" @click="refreshDoctors">{{ refreshingDoctors ? 'Actualizando…' : 'Actualizar doctores sin perder la receta' }}</button>
+                            </div>
+                            <p>La configuración se abre en otra pestaña. Vuelve aquí y actualiza los doctores; tu captura se conserva.</p>
+                        </div>
                         <div class="rx-prescription-heading"><div><h3>Prescripción</h3><p>* Obligatorio para emitir. Puedes guardar un borrador incompleto.</p></div><span class="rx-symbol" aria-hidden="true">℞</span></div>
                         <article v-for="(item, index) in form.items" :key="item.local_id" class="rx-medication">
                             <div class="rx-medication-heading"><h4>Medicamento {{ index + 1 }}</h4><v-btn icon :disabled="busy || form.items.length === 1" :aria-label="`Quitar medicamento ${index + 1}`" @click="removeItem(index)"><v-icon>mdi-delete-outline</v-icon></v-btn></div>
@@ -78,13 +88,14 @@ import { coreFields, detailFields, emptyItem, emptyForm, payload, snapshot, vali
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
 import { uuid } from 'vue-uuid';
+import { getSettingsSections } from '../../../security/settingsAccess';
 export default {
     directives: { dialogName, fieldError },
     props: { show: { type: Boolean, default: false }, px: { type: Object, default: () => ({}) }, prescription: { type: Object, default: null } },
     data() {
         return { internalShow: false, form: emptyForm(''), patientContext: {}, doctors: [], coreFields, detailFields,
             error: '', errors: [], loading: false, loadError: '', saving: false, issuing: false, refreshingContext: false,
-            contextError: '', baseline: '', step: 'edit', removedItem: null, savedMessage: '', request: 0, leaveDialogOpen: false };
+            contextError: '', baseline: '', step: 'edit', removedItem: null, savedMessage: '', request: 0, leaveDialogOpen: false, refreshingDoctors: false };
     },
     computed: {
         ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, authRole: fnTypes.getRole, hasPermission: fnTypes.hasPermission }),
@@ -98,7 +109,15 @@ export default {
         canIssue() { return this.hasPermission('prescriptions.issue'); },
         doctorOptions() { return this.doctors.map(doctor => ({ ...doctor, display_name: doctor.professional_name || doctor.name })); },
         selectedDoctor() { return this.doctorOptions.find(doctor => doctor.id_login === this.form.issuer_doctor_id); },
-        selectedDoctorWarning() { return this.selectedDoctor && Number(this.selectedDoctor.professional_profile_complete) !== 1 ? 'Completa el perfil profesional en Configuración > Personal y usuarios > Perfil profesional antes de emitir. Puedes guardar el borrador.' : ''; },
+        settingsSections() { const role = typeof this.authRole === 'object' ? this.authRole && this.authRole.code : this.authRole; return getSettingsSections(role || this.authUser && this.authUser.rol, this.hasPermission); },
+        canOpenOwnProfile() { return this.settingsSections.some(section => section.key === 'doctor-identity'); },
+        canManageUsers() { return this.settingsSections.some(section => section.key === 'users'); },
+        selectedDoctorIsMe() { return this.selectedDoctor && this.authUser && this.selectedDoctor.id_login === this.authUser.id_login; },
+        doctorIdentityIncomplete() { const doctor = this.selectedDoctor; return Boolean(doctor && (!doctor.id_doctor_professional_profile || Number(doctor.professional_profile_active) !== 1 || !doctor.professional_name || !doctor.professional_license || !doctor.signature_image)); },
+        doctorAuthorizationMissing() { return Boolean(this.selectedDoctor && Number(this.selectedDoctor.can_issue_prescriptions) !== 1); },
+        selectedDoctorWarning() {
+            return [this.doctorIdentityIncomplete ? 'Para emitir, el doctor necesita un perfil activo con nombre profesional, cédula y firma en Configuración > Mi perfil profesional.' : '', this.doctorAuthorizationMissing ? 'La administración debe autorizar al doctor como emisor en Configuración > Personal y usuarios; completar el perfil no concede esa autorización.' : '', this.doctorIdentityIncomplete || this.doctorAuthorizationMissing ? 'Puedes guardar un borrador mientras completas la preparación.' : ''].filter(Boolean).join(' ');
+        },
         allergyState() { const allergy = this.patientContext.allergy || {}; return !allergy.id_allergy || allergy.has_allergy == null ? 'unknown' : Number(allergy.has_allergy) === 1 ? 'registered' : 'none'; },
         allergyTitle() { return { unknown: 'Alergias sin confirmar: consulta al paciente antes de continuar.', registered: 'Alergias registradas', none: 'Sin alergias registradas' }[this.allergyState]; },
         allergyDescription() { const allergy = this.patientContext.allergy || {}; return this.allergyState === 'registered' ? (allergy.description || allergy.allergy || 'Revisa el detalle en el expediente.') : ''; }
@@ -151,6 +170,19 @@ export default {
             } catch (error) { this.contextError = error.message; }
             finally { this.refreshingContext = false; }
         },
+        async refreshDoctors() {
+            if(this.refreshingDoctors || this.busy) return;
+            const request = this.request;
+            this.refreshingDoctors = true; this.contextError = '';
+            try {
+                const response = await DAPrescriptionService.doctors();
+                if(request !== this.request) return;
+                if(!response.success) throw new Error(response.message || 'No se pudieron actualizar los doctores. Tu receta se conservó; reintenta.');
+                this.doctors = response.data || [];
+                this.errors = this.errors.filter(entry => entry.code !== 'doctor-profile' && entry.code !== 'doctor-authorization');
+            } catch(error) { if(request === this.request) this.contextError = error.message || 'No se pudieron actualizar los doctores. Tu receta se conservó; reintenta.'; }
+            finally { this.refreshingDoctors = false; }
+        },
         fieldId(key) { return `${this.uid}-${key}`; },
         fieldErrors(key) { return this.errors.filter(entry => entry.key === key).map(entry => entry.message); },
         focusField(key) { this.$nextTick(() => { const field = document.getElementById(this.fieldId(key)); if (field) { field.focus(); field.scrollIntoView({ block: 'center' }); } }); },
@@ -158,7 +190,8 @@ export default {
         check(forIssue) {
             this.error = ''; this.errors = validate(this.form, forIssue);
             if (this.currentUserIsDoctor && this.form.issuer_doctor_id !== this.authUser.id_login) this.errors.push({ key: 'doctor', message: 'Solo puedes emitir con tu propio perfil profesional.' });
-            if (forIssue && this.selectedDoctorWarning) this.errors.push({ key: 'doctor', message: this.selectedDoctorWarning });
+            if (forIssue && this.doctorIdentityIncomplete) this.errors.push({ key: 'doctor', code: 'doctor-profile', message: this.selectedDoctorIsMe ? 'Completa tu identidad y firma en Mi perfil profesional; después actualiza los doctores de esta receta.' : 'El doctor seleccionado debe completar su perfil profesional y firma; después actualiza los doctores.', href: this.selectedDoctorIsMe && this.canOpenOwnProfile ? '/admin?section=doctor-identity' : undefined });
+            if (forIssue && this.doctorAuthorizationMissing) this.errors.push({ key: 'doctor', code: 'doctor-authorization', message: this.canManageUsers ? 'Revisa la autorización como doctor emisor en Personal y usuarios; después actualiza los doctores de esta receta.' : 'Solicita a la administración que autorice al doctor seleccionado como emisor.', href: this.canManageUsers ? '/admin?section=users' : undefined });
             if (this.errors.length) { this.step = 'edit'; this.showErrors(); return false; }
             return true;
         },
@@ -278,6 +311,7 @@ export default {
 .rx-message--error { color: #991b1b; background: #fff1f2; border-color: #fecdd3; }
 .rx-message--error ul { margin: 8px 0 0; padding-left: 20px; }
 .rx-message--error li button { text-decoration: underline; text-align: left; padding: 4px 0; }
+.rx-message--error li a { display: inline-block; color: inherit; text-decoration: underline; padding: 4px 0; }
 .rx-message--warning { color: #674600; background: #fff9e8; border-color: #e7ca78; margin-top: 16px; }
 .rx-undo { display: flex; justify-content: space-between; align-items: center; }
 .rx-undo button { text-decoration: underline; padding: 10px; }

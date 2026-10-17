@@ -175,7 +175,7 @@ export default {
                 {name: 'Seguimiento', permission: 'px.tab.monitoring', component: 'da-medical-monitoring', icon: 'mdi-calendar-clock-outline'},
                 {name: 'Recetas', permission: 'px.tab.prescriptions', component: 'da-patient-prescriptions', icon: 'mdi-file-document-edit-outline'},
                 {name: 'Documentos y firmas', permission: 'documents.view', component: 'da-patient-documents', icon: 'mdi-file-sign'},
-                {name: 'Tratamiento', permission: 'px.tab.treatment', component: 'da-patient-treatment', moduleFlag: 'treatmentPlanEnabled', icon: 'mdi-medical-bag'},
+                {name: 'Tratamiento', permission: 'px.tab.treatment', component: 'da-patient-treatment', moduleFlag: 'treatmentPlanEnabled', icon: 'mdi-clipboard-list-outline'},
             ],
         }
     },

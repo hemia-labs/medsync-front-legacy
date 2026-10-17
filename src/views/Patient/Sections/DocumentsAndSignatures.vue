@@ -1,6 +1,8 @@
 <template>
   <div class="patient-documents px-5 py-5">
     <da-loader v-bind:overlay="isLoading"></da-loader>
+    <div v-if="notification.message && !showCreateDialog && !showDocumentDialog && !showRefusalDialog" class="document-feedback" :class="{ 'document-feedback--error': notification.type !== 'success' }" :role="notification.type === 'success' ? 'status' : 'alert'">{{ notification.message }}</div>
+    <div v-if="loadError" class="document-feedback document-feedback--error" role="alert"><p>{{ loadError }}</p><button class="btn-outline" type="button" :disabled="isLoading" @click="load">Reintentar carga</button></div>
 
     <section class="documents-hero">
       <div>
@@ -8,7 +10,7 @@
         <h3>Histórico del paciente</h3>
         <p>Consulta documentos creados, pendientes, firmados, cancelados o con negativa de firma.</p>
       </div>
-      <button class="btn-primary btn-create tab-create-action" type="button" @click="openCreate">
+      <button class="btn-primary btn-create tab-create-action" type="button" :disabled="isLoading || Boolean(loadError)" @click="openCreate">
         <v-icon size="17">mdi-plus</v-icon>
         Crear documento
       </button>
@@ -90,24 +92,64 @@
       </article>
     </section>
 
-    <v-dialog v-model="showCreateDialog" max-width="860">
-      <v-card>
+    <v-dialog v-model="showCreateDialog" max-width="860" content-class="patient-document-dialog">
+      <v-card v-dialog-name="'Crear documento desde plantilla'" class="document-modal">
         <div class="dialog-header">
+          <span class="dialog-icon" aria-hidden="true"><v-icon>mdi-file-document-plus-outline</v-icon></span>
           <div>
             <p class="eyebrow">Nuevo documento</p>
             <h3>Crear desde plantilla</h3>
           </div>
-          <v-btn icon @click="showCreateDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar creación de documento" @click="showCreateDialog = false"><v-icon>mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
+          <div v-if="createErrors.length || notification.message" ref="createErrorSummary" class="document-feedback document-feedback--error" role="alert" tabindex="-1">
+            <strong>{{ notification.message || 'Revisa estos datos para continuar:' }}</strong>
+            <ul v-if="createErrors.length"><li v-for="(entry, index) in createErrors" :key="`${entry.key}-${index}`"><button type="button" @click="focusCreateField(entry.key)">{{ entry.message }}</button></li></ul>
+          </div>
+          <section v-if="!activeTemplates.length" class="empty-card preparation-empty" role="status">
+            <v-icon size="36" aria-hidden="true">mdi-file-document-alert-outline</v-icon>
+            <h3>Aún no hay formatos activos para este consultorio</h3>
+            <p>Primero prepara y activa una plantilla. Para finalizar la historia clínica necesitas el consentimiento de datos personales sensibles; otros documentos utilizan su propio formato.</p>
+            <p v-if="!canManageTemplates">Solicita a la administración del consultorio que prepare los formatos antes de crear documentos.</p>
+            <div class="inline-actions">
+              <a v-if="canManageTemplates" class="btn-primary" href="/admin?section=documents" target="_blank" rel="noopener">Configurar formatos <span class="sr-only">(abre otra pestaña)</span></a>
+              <button class="btn-outline" type="button" :disabled="isLoading" @click="refreshCreateOptions">Actualizar formatos y doctores</button>
+            </div>
+          </section>
+          <template v-else>
+          <div v-if="!hasReadyDoctor || (selectedDoctor && !isDoctorProfileReady(selectedDoctor))" class="soft-warning" role="status">
+            <strong>{{ !hasReadyDoctor ? 'Primero prepara el perfil profesional del doctor' : 'Faltan datos del perfil profesional del doctor responsable' }}</strong>
+            <p>El documento necesita un doctor activo con nombre profesional y cédula. Para firmar también requiere firma profesional y autorización del consultorio.</p>
+            <p v-if="selectedDoctor && selectedDoctor.id_login !== currentUser.id_login">Pide al doctor que complete Mi perfil profesional con su propia cuenta.</p>
+            <p v-else-if="!canOpenOwnProfile">Solicita a la administración que prepare el doctor responsable.</p>
+            <div class="inline-actions">
+              <a v-if="canOpenOwnProfile && (!selectedDoctor || selectedDoctor.id_login === currentUser.id_login)" class="btn-outline" href="/admin?section=doctor-identity" target="_blank" rel="noopener">Completar mi perfil <span class="sr-only">(abre otra pestaña)</span></a>
+              <a v-if="canManageUsers" class="btn-outline" href="/admin?section=users" target="_blank" rel="noopener">Revisar doctores y autorizaciones <span class="sr-only">(abre otra pestaña)</span></a>
+              <button class="btn-outline" type="button" :disabled="isLoading" @click="refreshCreateOptions">Actualizar formatos y doctores</button>
+            </div>
+          </div>
+          <div v-if="selectedDoctor && isDoctorProfileReady(selectedDoctor) && !canDoctorSignDocuments(selectedDoctor)" class="soft-warning" role="status">
+            <strong>Falta preparar la firma del doctor responsable</strong>
+            <p>El doctor debe agregar su firma en Mi perfil profesional y la administración debe autorizarlo como firmante en Personal y usuarios. Puedes guardar el documento como borrador.</p>
+            <div class="inline-actions">
+              <a v-if="canOpenOwnProfile && selectedDoctor.id_login === currentUser.id_login" class="btn-outline" href="/admin?section=doctor-identity" target="_blank" rel="noopener">Revisar mi firma <span class="sr-only">(abre otra pestaña)</span></a>
+              <a v-if="canManageUsers" class="btn-outline" href="/admin?section=users" target="_blank" rel="noopener">Revisar autorización de firma <span class="sr-only">(abre otra pestaña)</span></a>
+              <button class="btn-outline" type="button" :disabled="isLoading" @click="refreshCreateOptions">Actualizar formatos y doctores</button>
+            </div>
+          </div>
           <section class="step-card">
             <p class="step-title">1. Tipo de documento</p>
             <v-select
               v-model="createForm.id_document_template"
+              :id="createFieldId('template')"
+              v-field-error="{ id: createFieldId('template'), invalid: Boolean(createFieldErrors('template').length) }"
               :items="activeTemplates"
               item-text="name"
               item-value="id_document_template"
-              label="Plantilla"
+              label="Plantilla *"
+              no-data-text="No hay formatos activos"
+              :error-messages="createFieldErrors('template')"
               dense
               outlined
               :color="themePrimaryColor"
@@ -133,10 +175,14 @@
             <p class="step-title">2. Doctor responsable</p>
             <v-select
               v-model="createForm.responsible_doctor_user_id"
+              :id="createFieldId('doctor')"
+              v-field-error="{ id: createFieldId('doctor'), invalid: Boolean(createFieldErrors('doctor').length) }"
               :items="doctors"
               :item-text="doctorLabel"
               item-value="id_login"
-              label="Doctor responsable"
+              label="Doctor responsable *"
+              no-data-text="No hay doctores disponibles; revisa la preparación del consultorio"
+              :error-messages="createFieldErrors('doctor')"
               dense
               outlined
               clearable
@@ -166,8 +212,8 @@
             </div>
             <p v-if="isMinor" class="minor-warning">El paciente es menor de edad. La firma debe realizarla el tutor o representante legal.</p>
             <div v-if="showGuardianSection" class="form-grid">
-              <v-text-field v-model="createForm.guardian_name" label="Nombre completo del tutor o representante legal" dense outlined :disabled="Boolean(openDocumentWarning)" :color="themePrimaryColor"></v-text-field>
-              <v-text-field v-model="createForm.guardian_relationship" label="Parentesco o relacion" dense outlined :disabled="Boolean(openDocumentWarning)" :color="themePrimaryColor"></v-text-field>
+              <v-text-field :id="createFieldId('guardian_name')" v-model="createForm.guardian_name" label="Nombre completo del tutor o representante legal *" :error-messages="createFieldErrors('guardian_name')" dense outlined :disabled="Boolean(openDocumentWarning)" :color="themePrimaryColor"></v-text-field>
+              <v-text-field :id="createFieldId('guardian_relationship')" v-model="createForm.guardian_relationship" label="Parentesco o relación *" :error-messages="createFieldErrors('guardian_relationship')" dense outlined :disabled="Boolean(openDocumentWarning)" :color="themePrimaryColor"></v-text-field>
               <v-textarea v-model="createForm.guardian_reason" label="Motivo de representacion, opcional" rows="2" outlined :disabled="Boolean(openDocumentWarning)" :color="themePrimaryColor"></v-textarea>
             </div>
           </section>
@@ -177,26 +223,30 @@
             <v-textarea v-model="createForm.diagnosis" :label="contextLabel" rows="2" outlined :disabled="Boolean(openDocumentWarning)" :color="themePrimaryColor"></v-textarea>
             <p class="help-text">{{ contextHelpText }}</p>
           </section>
+          <p class="help-text">* Campo obligatorio. Los cambios de configuración se abren en otra pestaña; vuelve aquí y actualiza las opciones para conservar tu captura.</p>
+          </template>
         </v-card-text>
         <v-card-actions class="dialog-actions">
           <button class="btn-outline" type="button" @click="showCreateDialog = false">Cancelar</button>
-          <button v-if="!openDocumentWarning" class="btn-outline" type="button" @click="createDocument('draft')">Guardar borrador</button>
-          <button v-if="!openDocumentWarning" class="btn-primary" type="button" @click="createDocument('sign')">Vista previa y firmar</button>
+          <button v-if="activeTemplates.length && !openDocumentWarning" class="btn-outline" type="button" :disabled="isLoading" @click="createDocument('draft')">Guardar borrador</button>
+          <button v-if="activeTemplates.length && !openDocumentWarning" class="btn-primary" type="button" :disabled="isLoading" @click="createDocument('sign')">Vista previa y firmar</button>
           <button v-if="openDocumentWarning" class="btn-primary" type="button" @click="openSignatureOptions(existingOpenDocument)">Continuar con el existente</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showDocumentDialog" max-width="980">
-      <v-card>
+    <v-dialog v-model="showDocumentDialog" max-width="980" content-class="patient-document-dialog">
+      <v-card v-dialog-name="documentMode === 'sign' ? 'Firmar documento' : 'Vista previa de documento'" class="document-modal">
         <div class="dialog-header no-print">
+          <span class="dialog-icon" aria-hidden="true"><v-icon>{{ documentMode === 'sign' ? 'mdi-draw-pen' : 'mdi-file-document-outline' }}</v-icon></span>
           <div>
             <p class="eyebrow">{{ documentMode === 'sign' ? 'Firma digital' : 'Vista previa' }}</p>
             <h3>{{ selectedDocument ? displayTitle(selectedDocument) : '' }}</h3>
           </div>
-          <v-btn icon @click="showDocumentDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon :aria-label="documentMode === 'sign' ? 'Cerrar firma de documento' : 'Cerrar vista previa'" @click="showDocumentDialog = false"><v-icon>mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body document-dialog-body">
+          <div v-if="notification.message" class="document-feedback" :class="{ 'document-feedback--error': notification.type !== 'success' }" :role="notification.type === 'success' ? 'status' : 'alert'">{{ notification.message }}</div>
           <section v-if="selectedDocument" class="print-sheet" ref="printSheet">
             <header class="sheet-header">
               <div>
@@ -290,16 +340,17 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showRefusalDialog" max-width="620">
-      <v-card>
+    <v-dialog v-model="showRefusalDialog" max-width="620" content-class="patient-document-dialog">
+      <v-card v-dialog-name="'Registrar negativa de firma'" class="document-modal">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Negativa</p>
             <h3>Registrar negativa de firma</h3>
           </div>
-          <v-btn icon @click="showRefusalDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar registro de negativa de firma" @click="showRefusalDialog = false"><v-icon>mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
+          <div v-if="notification.message" class="document-feedback" :class="{ 'document-feedback--error': notification.type !== 'success' }" :role="notification.type === 'success' ? 'status' : 'alert'">{{ notification.message }}</div>
           <p class="help-text">
             Usa esta opcion cuando el paciente, tutor o representante legal no acepta firmar el documento. El documento quedara registrado como no firmado por negativa y se conservara en el historial.
           </p>
@@ -320,13 +371,13 @@
     </v-dialog>
 
     <v-dialog v-model="cancelConfirmDialog.show" max-width="540" persistent>
-      <v-card>
+      <v-card v-dialog-name="'Cancelar documento'" class="document-modal">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Confirmar cancelacion</p>
             <h3>Cancelar documento</h3>
           </div>
-          <v-btn icon :disabled="isLoading" @click="closeCancelConfirmDialog"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon :disabled="isLoading" aria-label="Cerrar confirmación de cancelación" @click="closeCancelConfirmDialog"><v-icon>mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
           <p class="help-text">
@@ -365,8 +416,12 @@ import { DADocumentService, DAPrescriptionService } from '../../../services/cont
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
 import { sanitizeHtmlForDocumentSnapshot, safeDocumentImageSource } from '../../../utils/sanitizeHtml';
+import dialogName from '../../../core/directives/dialog-name';
+import fieldError from '../../../core/directives/field-error';
+import { getSettingsSections } from '../../../security/settingsAccess';
 
 export default {
+  directives: { dialogName, fieldError },
   mixins: [VuexMixin],
   components: {
     DocumentSignatureOptionsDialog
@@ -391,6 +446,9 @@ export default {
       documentHighlightTimer: null,
       templates: [],
       doctors: [],
+      loadError: '',
+      createErrors: [],
+      notification: { type: '', message: '' },
       showCreateDialog: false,
       showDocumentDialog: false,
       showRefusalDialog: false,
@@ -434,6 +492,14 @@ export default {
     patientId: function() {
       return this.px && this.px.person ? this.px.person.id_person : '';
     },
+    settingsSections: function() {
+      const role = typeof this.authRole === 'object' ? this.authRole && this.authRole.code : this.authRole;
+      return getSettingsSections(role || this.currentUser.rol, this.hasPermission);
+    },
+    canManageTemplates: function() { return this.settingsSections.some(item => item.key === 'documents'); },
+    canOpenOwnProfile: function() { return this.settingsSections.some(item => item.key === 'doctor-identity'); },
+    canManageUsers: function() { return this.settingsSections.some(item => item.key === 'users'); },
+    hasReadyDoctor: function() { return this.doctors.some(doctor => this.isDoctorProfileReady(doctor)); },
     patientName: function() {
       const person = this.px && this.px.person ? this.px.person : {};
       return person.fullname || `${person.name || ''} ${person.surname || ''}`.trim() || '--';
@@ -530,7 +596,7 @@ export default {
       return 'Captura y aplica la firma del paciente. El boton Aplicar solo coloca la firma visualmente; despues guarda para finalizar.';
     },
     activeTemplates: function() {
-      return this.asArray(this.templates).filter((item) => item.is_active !== 0);
+      return this.asArray(this.templates).filter((item) => Number(item.is_active) === 1);
     },
     sortedDocuments: function() {
       const priority = {
@@ -658,11 +724,15 @@ export default {
     },
     load: async function() {
       this.isLoading = true;
+      this.loadError = '';
       this.documentsLoaded = false;
       try {
         const docs = await DADocumentService.getPatientDocuments(this.patientId);
         const templates = await DADocumentService.getTemplates();
         const doctors = await DAPrescriptionService.doctors();
+        if(!docs || !docs.success || !templates || !templates.success || !doctors || !doctors.success) {
+          throw new Error('No se pudieron cargar los documentos, formatos o doctores. Reintenta antes de crear un documento.');
+        }
         this.documents = docs && docs.success ? this.asArray(docs.data) : [];
         this.documentsLoaded = Boolean(docs && docs.success);
         this.templates = templates && templates.success ? this.asArray(templates.data) : [];
@@ -672,61 +742,72 @@ export default {
         this.documents = [];
         this.templates = [];
         this.doctors = [];
-        this.notify('error', 'No se pudo cargar Documentos y firmas.');
+        this.loadError = error.message || 'No se pudo cargar Documentos y firmas. Reintenta cuando tengas conexión.';
       } finally {
         this.isLoading = false;
       }
     },
     openCreate: function() {
+      this.createErrors = [];
+      this.notification = { type: '', message: '' };
       this.createForm = this.emptyCreateForm();
       this.createForm.id_document_template = this.activeTemplates[0] ? this.activeTemplates[0].id_document_template : '';
       this.createForm.use_guardian = this.isMinor;
       this.createForm.responsible_doctor_user_id = this.currentDoctor ? this.currentDoctor.id_login : '';
       this.showCreateDialog = true;
     },
+    refreshCreateOptions: async function() {
+      if(this.isLoading) return;
+      this.isLoading = true;
+      this.notification = { type: '', message: '' };
+      try {
+        const [templates, doctors] = await Promise.all([DADocumentService.getTemplates(), DAPrescriptionService.doctors()]);
+        if(!templates || !templates.success || !doctors || !doctors.success) throw new Error('No se pudieron actualizar formatos y doctores. Tu captura sigue aquí; reintenta.');
+        this.templates = this.asArray(templates.data);
+        this.doctors = this.asArray(doctors.data);
+        this.createErrors = [];
+      } catch(error) { this.notify('error', error.message || 'No se pudieron actualizar las opciones. Tu captura sigue aquí; reintenta.'); }
+      finally { this.isLoading = false; }
+    },
+    createFieldId: function(key) { return `document-create-${this._uid}-${key}`; },
+    createFieldErrors: function(key) { return this.createErrors.filter(entry => entry.key === key).map(entry => entry.message); },
+    focusCreateField: function(key) {
+      this.$nextTick(() => { const field = document.getElementById(this.createFieldId(key)); if(field) { field.focus(); field.scrollIntoView({ block: 'center' }); } });
+    },
+    focusCreateErrors: function() {
+      this.$nextTick(() => { const summary = this.$refs.createErrorSummary; if(summary) { summary.focus(); summary.scrollIntoView({ block: 'center' }); } });
+    },
     validateCreateForm: function(mode) {
-      if(!this.createForm.id_document_template) {
-        this.notify('warning', 'Selecciona una plantilla.');
-        return false;
+      this.createErrors = [];
+      this.notification = { type: '', message: '' };
+      const add = (key, message) => this.createErrors.push({ key, message });
+      if(!this.selectedTemplate || !this.activeTemplates.some(item => item.id_document_template === this.createForm.id_document_template)) add('template', this.activeTemplates.length ? 'Selecciona una plantilla activa.' : 'Primero configura y activa un formato para este consultorio.');
+      if(this.sensitiveConsentWarning) add('template', 'Este paciente ya tiene un consentimiento de datos personales sensibles firmado. Revisa el existente o elige generar una nueva versión.');
+      if(this.openDocumentWarning) add('template', 'Ya existe un documento en proceso de este formato. Continúa con el existente.');
+      if(!this.createForm.responsible_doctor_user_id) add('doctor', this.doctors.length ? 'Selecciona el doctor responsable.' : 'Primero prepara el perfil profesional de un doctor del consultorio.');
+      else if(!this.selectedDoctor || !this.isDoctorProfileReady(this.selectedDoctor)) add('doctor', 'El doctor responsable necesita un perfil activo con nombre profesional y cédula. Completa su perfil y actualiza las opciones.');
+      else if(mode === 'sign' && !this.canDoctorSignDocuments(this.selectedDoctor)) add('doctor', 'Para firmar, el doctor debe completar su firma profesional y la administración debe autorizarlo como firmante en Personal y usuarios. Puedes guardar el borrador.');
+      if(this.showGuardianSection) {
+        if(!String(this.createForm.guardian_name || '').trim()) add('guardian_name', 'Captura el nombre completo del tutor o representante legal.');
+        if(!String(this.createForm.guardian_relationship || '').trim()) add('guardian_relationship', 'Captura el parentesco o relación del tutor o representante legal.');
       }
-      if(this.sensitiveConsentWarning) {
-        this.notify('warning', 'Este paciente ya tiene un consentimiento de datos personales sensibles firmado.');
-        return false;
-      }
-      if(this.openDocumentWarning) {
-        this.notify('warning', 'Ya existe un borrador o documento pendiente de firma de este formato.');
-        return false;
-      }
-      if(!this.createForm.responsible_doctor_user_id) {
-        this.notify('warning', 'Selecciona el doctor responsable.');
-        return false;
-      }
-      if(!this.selectedDoctor || !this.isDoctorProfileReady(this.selectedDoctor)) {
-        this.notify('warning', 'El doctor responsable necesita perfil profesional completo.');
-        return false;
-      }
-      if(mode === 'sign' && !this.canDoctorSignDocuments(this.selectedDoctor)) {
-        this.notify('warning', 'Para continuar a firma, el doctor debe tener firma profesional y permiso para firmar documentos.');
-        return false;
-      }
-      if(this.showGuardianSection && (!this.createForm.guardian_name || !this.createForm.guardian_relationship)) {
-        this.notify('warning', 'Captura nombre y parentesco del tutor o representante legal.');
-        return false;
-      }
-      return true;
+      if(this.createErrors.length) this.focusCreateErrors();
+      return this.createErrors.length === 0;
     },
     createDocument: async function(mode = 'draft') {
+      if(this.isLoading) return;
       if(!this.validateCreateForm(mode)) {
         return;
       }
       const previousIds = this.documents.map((item) => item.id_patient_document);
       this.isLoading = true;
-      const response = await DADocumentService.createDocument({
-        id_person: this.patientId,
-        origin: 'DOCUMENT_CENTER',
-        ...this.createForm
-      });
-      this.isLoading = false;
+      let response;
+      try {
+        response = await DADocumentService.createDocument({ id_person: this.patientId, origin: 'DOCUMENT_CENTER', ...this.createForm });
+      } catch(error) {
+        this.notify('error', 'No se pudo crear el documento. Tu captura sigue aquí; revisa la conexión y reintenta.');
+        return;
+      } finally { this.isLoading = false; }
       if(response && response.success) {
         this.documents = response.data || [];
         this.showCreateDialog = false;
@@ -967,6 +1048,8 @@ export default {
       }
     },
     notify: function(type, message) {
+      this.notification = { type, message };
+      if(this.showCreateDialog && type !== 'success') this.focusCreateErrors();
       if(typeof this.toastFunction === 'function') {
         this.toastFunction(type, message);
         return;
@@ -1134,7 +1217,7 @@ export default {
       return Boolean(
         doctor &&
         doctor.id_doctor_professional_profile &&
-        doctor.professional_profile_active !== 0 &&
+        Number(doctor.professional_profile_active) === 1 &&
         doctor.professional_name &&
         doctor.professional_license
       );
@@ -1142,7 +1225,7 @@ export default {
     canDoctorSignDocuments: function(doctor) {
       return Boolean(
         this.isDoctorProfileReady(doctor) &&
-        doctor.can_sign_documents === 1 &&
+        Number(doctor.can_sign_documents) === 1 &&
         doctor.signature_image
       );
     },
@@ -1509,24 +1592,47 @@ export default {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 1.2rem 1.4rem;
+  gap: 1rem;
+  padding: 1.5rem;
   border-bottom: 1px solid var(--color-border, #d8e9ef);
-  background: var(--color-primary-50, #effbfe);
+  background: linear-gradient(180deg, var(--color-primary-100, #e6f7fb), #fff);
 }
+.document-modal { border-radius: 16px; overflow: hidden; color: var(--color-text, #25364d); }
+.dialog-header > div { flex: 1; min-width: 0; }
+.dialog-header h3 { margin: .25rem 0 0; font-size: 1.25rem; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.dialog-header > .v-btn { flex-shrink: 0; margin: -4px -8px 0 0; color: var(--color-text-muted, #64748b); }
+.dialog-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 12px; background: var(--color-primary-100, #e6f7fb); }
+.dialog-icon .v-icon { color: var(--color-primary-900, #086783); }
+.document-feedback { margin: 0 0 1rem; padding: 1rem; border: 1px solid var(--color-primary-200, #cdeef7); border-radius: 10px; background: var(--color-primary-100, #e6f7fb); color: var(--color-primary-900, #086783); }
+.document-feedback--error { color: #991b1b; background: #fff1f2; border-color: #fecdd3; }
+.document-feedback ul { margin: .5rem 0 0; padding-left: 1.2rem; }
+.document-feedback li button { padding: .25rem 0; text-decoration: underline; text-align: left; }
+.document-feedback:focus { outline: 3px solid var(--color-primary-900, #086783); outline-offset: 3px; }
+.document-modal button:focus-visible, .document-modal a:focus-visible { outline: 3px solid var(--color-primary-900, #086783); outline-offset: 3px; }
+.preparation-empty { border-radius: 12px; padding: 1.5rem; text-align: left; }
+.preparation-empty h3 { margin-top: .75rem; }
+.preparation-empty .inline-actions { justify-content: flex-start; }
 
 .dialog-body {
   padding: 1.2rem 1.4rem !important;
+  max-height: 65vh;
+  overflow-y: auto;
+  background: var(--color-bg, #f8fbfd);
 }
 
 .dialog-actions {
   justify-content: flex-end;
   gap: .75rem;
-  padding: 0 1.4rem 1.2rem !important;
+  flex-wrap: wrap;
+  padding: 1rem 1.4rem !important;
+  border-top: 1px solid var(--color-border, #d8e9ef);
+  background: var(--color-surface, #fff);
 }
 
 .step-card {
   padding: 1rem;
   margin-bottom: .85rem;
+  border-radius: 12px;
 }
 
 .step-title {
@@ -1765,6 +1871,12 @@ export default {
 }
 
 @media (max-width: 768px) {
+  .document-modal .dialog-header { padding: 20px 16px; gap: 10px; }
+  .document-modal .dialog-header h3 { font-size: 1.1rem; }
+  .dialog-icon { flex-basis: 36px; width: 36px; height: 36px; border-radius: 10px; }
+  .document-modal .dialog-body { padding: 20px 16px !important; }
+  .document-modal .dialog-actions { padding: 16px !important; }
+  .document-modal .dialog-actions > button { flex: 1 1 auto; min-height: 44px; }
   .documents-hero,
   .document-card,
   .form-grid,
