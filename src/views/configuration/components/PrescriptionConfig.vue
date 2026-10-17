@@ -4,12 +4,18 @@
             <div>
                 <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Recetas medicas</p>
                 <h2 class="m-0 text-gray-600 text-2xl font-normal">Datos para receta medica</h2>
-                <p class="m-0 mt-2 text-gray-500 text-sm">Configura plantilla visual y datos del consultorio. Los datos profesionales vienen del perfil del doctor.</p>
+                <p class="m-0 mt-2 text-gray-500 text-sm">Cada doctor tiene su propio formato de receta. Su identidad, cedula y firma vienen de su perfil profesional.</p>
             </div>
-            <da-button-primary @click.native="save()" :label="'Guardar recetas'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+            <da-button-primary :disabled="!selectedDoctorId || loading || saving || !!loadError" @click.native="save()" :label="saving ? 'Guardando…' : 'Guardar recetas'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-7">
+        <div class="px-7 pt-5">
+            <v-select :key="selectedDoctorId + '-' + selectorRevision" :value="selectedDoctorId" :items="doctorOptions" item-text="label" item-value="id" label="Configuracion de recetas del doctor" :readonly="doctorOptions.length === 1" :disabled="loading || saving" outlined dense :color="themeColor" @change="chooseDoctor"></v-select>
+            <p v-if="!selectedDoctorId">Selecciona el doctor cuyo formato quieres configurar.</p>
+            <p v-if="loading" role="status">Cargando formato del doctor…</p>
+            <p v-if="loadError" role="alert" class="text-red-700">{{ loadError }} <button type="button" @click="selectedDoctorId ? load() : init()">Reintentar</button></p>
+        </div>
+        <div v-if="selectedDoctorId && !loading && !loadError" class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-7">
             <article class="lg:col-span-3 border border-gray-200 bg-white shadow-md p-5">
                 <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Consultorio</p>
                 <h3 class="m-0 text-gray-700 text-lg font-semibold">Datos del consultorio</h3>
@@ -150,11 +156,16 @@
                 </div>
             </article>
         </div>
+        <v-dialog v-model="leaveOpen" persistent max-width="520"><v-card class="p-5"><h3 class="text-xl font-semibold text-gray-700">Cambios sin guardar</h3><p>Guarda este formato antes de cambiar de doctor o descarta los cambios.</p><div class="flex flex-wrap gap-2"><v-btn :color="themeColor" dark :loading="saving" @click="saveAndSwitch">Guardar y cambiar</v-btn><v-btn outlined :disabled="saving" @click="switchDoctor(pendingDoctor)">Descartar cambios</v-btn><v-btn text :disabled="saving" @click="leaveOpen = false">Seguir editando</v-btn></div></v-card></v-dialog>
     </section>
 </template>
 
 <script>
-import { DAPrescriptionService, DAUserService } from '../../../services/context/core-proccess-context';
+import { DAPrescriptionService } from '../../../services/context/core-proccess-context';
+import { mapGetters } from 'vuex';
+import { isTenantAdministrator } from '../../../security/settingsAccess';
+import moduleTypes from '../../../store/modules/common/module-types';
+import fnTypes from '../../../store/modules/common/fn-types';
 
 const emptyForm = () => ({
     doctor_name: '',
@@ -185,6 +196,8 @@ export default {
     data() {
         return {
             form: emptyForm(),
+            doctors: [], selectedDoctorId: '', loading: false, saving: false, loadError: '', request: 0,
+            baseline: '', leaveOpen: false, pendingDoctor: '', selectorRevision: 0,
             doctorProfile: {},
             signaturePadVisible: false,
             templateModes: [
@@ -194,22 +207,55 @@ export default {
         };
     },
     mounted() {
-        this.load();
+        this.init();
+        this.removeNavigationGuard = this.$router.beforeEach(async (to, from, next) => {
+            if(this.saving) return next(false);
+            if(!this.dirty) return next();
+            const result = await this.$swal.fire({title:'Cambios sin guardar',text:'Los cambios del formato de receta aun no se han guardado.',showCancelButton:true,confirmButtonText:'Descartar y salir',cancelButtonText:'Seguir editando',confirmButtonColor:this.themeColor,cancelButtonColor:'#526575'});
+            next(result.isConfirmed ? undefined : false);
+        });
     },
+    beforeDestroy() { this.request++; if(this.removeNavigationGuard)this.removeNavigationGuard(); },
     computed: {
+        ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, hasPermission: fnTypes.hasPermission, role:fnTypes.getRole }),
+        canManageAllDoctors() { return isTenantAdministrator(this.role) && this.hasPermission('admin.config'); },
+        doctorOptions() { return this.doctors.filter(d => this.canManageAllDoctors || d.id_login === (this.authUser || {}).id_login).map(d => ({id:d.id_doctor_professional_profile,label:d.professional_name || d.name})); },
+        dirty() { return !!this.baseline && JSON.stringify(this.form) !== this.baseline; },
         doctorProfileWarning() {
             if(!this.doctorProfile || !this.doctorProfile.id_doctor_professional_profile) {
-                return 'Para emitir recetas, completa el perfil profesional del doctor en Configuracion > Personal y usuarios > Perfil profesional.';
+                return 'Para emitir recetas, completa el perfil profesional en Configuracion > Mi perfil profesional.';
             }
             if(!this.doctorProfile.professional_name || !this.doctorProfile.professional_license || !this.doctorProfile.signature_image) {
-                return 'Para emitir recetas, completa el perfil profesional del doctor en Configuracion > Personal y usuarios > Perfil profesional.';
+                return 'Para emitir recetas, completa el perfil profesional en Configuracion > Mi perfil profesional.';
             }
             return '';
         }
     },
     methods: {
+        async init() {
+            this.loading = true; this.loadError = '';
+            try {
+            const response = await DAPrescriptionService.doctors();
+            if(!response.success) { this.loadError = response.message || 'No se pudieron cargar los doctores.'; return; }
+            this.doctors = (response.data || []).filter(d => d.id_doctor_professional_profile && Number(d.professional_profile_active) === 1);
+            const own = this.doctors.find(d => d.id_login === (this.authUser || {}).id_login);
+            this.selectedDoctorId = own ? own.id_doctor_professional_profile : this.doctorOptions.length === 1 ? this.doctorOptions[0].id : '';
+            if(this.selectedDoctorId) await this.load();
+            } catch(error) { this.loadError = 'No se pudieron cargar los doctores. Reintenta.'; }
+            finally { this.loading = false; }
+        },
+        chooseDoctor(id) { if(this.dirty) {this.selectorRevision++;this.pendingDoctor=id;this.leaveOpen=true;} else this.switchDoctor(id); },
+        switchDoctor(id) {this.leaveOpen=false;this.selectedDoctorId=id;this.load();},
+        async saveAndSwitch() {if(await this.save())this.switchDoctor(this.pendingDoctor);},
         async load() {
-            const response = await DAPrescriptionService.getConfig();
+            if(!this.selectedDoctorId) return;
+            const request = ++this.request; this.loading = true; this.loadError = '';
+            try {
+            const response = await DAPrescriptionService.getConfig(this.selectedDoctorId);
+            if(request !== this.request) return;
+            if(!response.success) throw new Error(response.message || 'No se pudo cargar el formato.');
+            if(response.data.doctor_profile_id !== this.selectedDoctorId) throw new Error('El formato recibido no corresponde al doctor seleccionado. Reintenta la carga.');
+            this.form = emptyForm();
             if(response.success && response.data) {
                 this.form = {
                     ...emptyForm(),
@@ -219,15 +265,18 @@ export default {
                     show_footer_note: response.data.show_footer_note !== 0,
                 };
             }
-            await this.loadDoctorProfile();
+            this.doctorProfile = response.data && response.data.doctor_profile || {};
+            this.baseline = JSON.stringify(this.form);
             this.signaturePadVisible = false;
-        },
-        async loadDoctorProfile() {
-            const response = await DAUserService.getMyProfessionalProfile();
-            this.doctorProfile = response.success && response.data ? response.data : {};
+            } catch(error) { if(request === this.request)this.loadError = error.message; }
+            finally { if(request === this.request)this.loading = false; }
         },
         async save() {
+            if(this.loading || this.saving || this.loadError || !this.selectedDoctorId) return false;
+            this.saving = true;
+            try {
             const payload = {
+                doctor_profile_id: this.selectedDoctorId,
                 clinic_name: this.form.clinic_name,
                 clinic_address: this.form.clinic_address,
                 clinic_phone: this.form.clinic_phone,
@@ -250,10 +299,14 @@ export default {
                     show_footer_note: response.data.show_footer_note !== 0,
                 };
                 this.$emit('saved');
-                return;
+                this.baseline = JSON.stringify(this.form);
+                return true;
             }
 
             this.$emit('error', response.message || 'No fue posible guardar los datos de recetas.');
+            return false;
+            } catch(error) { this.$emit('error', 'No se pudo guardar. Tus cambios se conservaron.'); return false; }
+            finally { this.saving = false; }
         },
         readImage(event, field) {
             const file = event.target.files && event.target.files[0];
@@ -272,8 +325,9 @@ export default {
             }
 
             const reader = new FileReader();
+            const doctorId = this.selectedDoctorId;
             reader.onload = () => {
-                this.form[field] = reader.result;
+                if(doctorId === this.selectedDoctorId) this.form[field] = reader.result;
             };
             reader.readAsDataURL(file);
         },

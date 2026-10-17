@@ -1,4 +1,5 @@
 import axios from 'axios';
+import Vue from 'vue';
 import context from '../../config/axios.url';
 import { DAC_AUTH_SESSION } from '../../common/apiurl';
 import { isD2AuthMode } from '../../config/authTransport.config';
@@ -13,10 +14,9 @@ const normalizeSessionPayload = (payload) => (
     payload && payload.data ? payload.data : payload
 );
 
-const buildDisabledResponse = () => ({
-    success: false,
+const buildAnonymousResponse = () => ({
+    success: true,
     authenticated: false,
-    d2Disabled: true,
     data: {
         authenticated: false
     }
@@ -56,13 +56,13 @@ const buildErrorResponse = (error) => {
 
 export default {
     async getSession() {
-        if(!isD2AuthMode()) {
-            return buildDisabledResponse();
-        }
+        const cookieMode = isD2AuthMode();
+        const token = !cookieMode && Vue.prototype.$session ? Vue.prototype.$session.get('token') : null;
+        if(!cookieMode && !token) return buildAnonymousResponse();
 
         try {
             const response = await sessionClient.get(normalizeUrl(DAC_AUTH_SESSION), {
-                withCredentials: true
+                ...(cookieMode ? { withCredentials: true } : { headers: { Authorization: token } })
             });
 
             return buildSessionResponse(response);

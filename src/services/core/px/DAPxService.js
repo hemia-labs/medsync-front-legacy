@@ -2,6 +2,9 @@ import { DAC_PX_CREATE_MINIMAL, DAC_PX_SAVE, DAC_PX_BY_ID, DAC_PX_UPDATE, DAC_PX
 import { DACore } from '../../config/axios.context';
 
 export default {
+    updateAllergies(data) { return DACore.put('api/px/allergies', data); },
+    updateAdministrative(data) { return DACore.put('api/px/administrative', data); },
+    restore(data) { return DACore.put('api/px/restore', data); },
 
     /**
      * Función que permite dar de alta un paciente

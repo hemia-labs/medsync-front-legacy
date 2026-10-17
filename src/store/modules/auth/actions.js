@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import decode from 'jwt-decode';
 import { DAAuthService } from '../../../services/context/core-proccess-context';
 import { toSHA256 } from '../../../libs/crypto';
 import { getTimestamp } from '../../../libs/time';
@@ -8,8 +9,10 @@ import DAHasErrorModel from '../../../models/error/DAHasErrorModel';
 import modules from '../common/module-types';
 import DARefreshTokenModel from '../../../models/auth/DARefreshTokenModel';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
-import { clearLegacyAuthStorageForD2 } from '../../../utils/authStorageCleanup';
-import { clearD2ClientAuthArtifacts } from '../../../utils/d2AuthCleanup';
+import { clearLegacyAuthStorageForD2, clearClinicalContinuityCache } from '../../../utils/authStorageCleanup';
+import { clearD2ClientAuthArtifacts, redirectToAuthIfNeeded } from '../../../utils/d2AuthCleanup';
+
+let accessRefresh = null;
 
 const getD2SessionPayload = (response) => {
     if(response && response.d2Session && response.d2Session.data) {
@@ -31,6 +34,20 @@ const commitD2Session = (commit, response) => {
     clearLegacyAuthStorageForD2(Vue.prototype.$session);
     commit(types.SET_D2_AUTH_SESSION, getD2SessionPayload(response));
 }
+
+const getSessionCode = response => response && response.data ? response.data.code : null;
+
+const sessionFromLegacyRenewal = response => {
+    if(!response || !response.success || !response.data || !response.data.token) return response;
+    const data = response.data;
+    const user = decode(data.token);
+    return { success: true, data: {
+        authenticated: true, user, role: user.rol || null, permissions: data.permisos || [],
+        business: data.business || { id_business: user.id_business || null },
+        tenantOperational: data.tenantOperational || null, sessionState: 'active',
+        accessToken: data.token, refreshToken: data.refresh_token || null
+    } };
+};
 
 const actions = {
 
@@ -124,11 +141,9 @@ const actions = {
      * Función que permite recuperar el token de la sesión
      * @param {*} param0 
      */
-    async getToken({commit}) {
+    async getToken({commit, dispatch}) {
         if(isD2AuthMode()) {
-            const response = await DAAuthService.session();
-            commitD2Session(commit, response && response.success ? response : null)
-            return response
+            return dispatch('refreshAccess', { hydrate: true });
         }
 
         const token =  Vue.prototype.$session? Vue.prototype.$session.get('token') : null;
@@ -138,12 +153,51 @@ const actions = {
             commit(types.SET_REFRESH_TOKEN, refreshtoken)
             commit(types.SET_AUTH_PERMISSIONS, Vue.prototype.$session ? Vue.prototype.$session.get('permissions') : [])
             commit(types.SET_AUTH_TENANT_OPERATIONAL, Vue.prototype.$session ? Vue.prototype.$session.get('tenantOperational') : null)
+            await dispatch('refreshAccess')
         }else {
             commit(types.SET_TOKEN, null)
             commit(types.SET_REFRESH_TOKEN, null)
             commit(types.SET_AUTH_PERMISSIONS, [])
             commit(types.SET_AUTH_TENANT_OPERATIONAL, null)
         }
+    },
+    async refreshAccess({state, commit}, options = {}) {
+        if(!state.authenticated && !options.hydrate) return null;
+        const revision = state.accessRevision;
+        if(accessRefresh && accessRefresh.revision === revision) {
+            accessRefresh.clearOnFailure = accessRefresh.clearOnFailure || options.clearOnFailure;
+            return accessRefresh.promise;
+        }
+        const refresh = { revision, clearOnFailure: options.clearOnFailure, promise: null };
+        refresh.promise = (async () => {
+            try {
+                let response = await DAAuthService.session();
+                if(revision !== state.accessRevision) return response;
+                // An expired access token is renewable; an invalid/revoked
+                // session is terminal. This path never replays the denied action.
+                if(getSessionCode(response) === 'AUTH_ACCESS_EXPIRED' && (isD2AuthMode() || state.refreshtoken)) {
+                    const renewed = await DAAuthService.refreshToken(isD2AuthMode() ? undefined : new DARefreshTokenModel(state.refreshtoken));
+                    if(revision !== state.accessRevision) return renewed;
+                    response = isD2AuthMode()
+                        ? (renewed && renewed.d2Session ? renewed.d2Session : renewed)
+                        : sessionFromLegacyRenewal(renewed);
+                }
+                if(response && response.success && response.data && response.data.authenticated) {
+                    if(isD2AuthMode()) commitD2Session(commit, response);
+                    else commit(types.SET_AUTH_ACCESS_SESSION, response.data);
+                } else if(response && (response.unauthorized || response.status === 401 || response.success)) {
+                    commit(types.SET_AUTH_ACCESS_SESSION, null);
+                    clearLegacyAuthStorageForD2(Vue.prototype.$session);
+                    clearD2ClientAuthArtifacts(Vue.prototype.$session);
+                    redirectToAuthIfNeeded();
+                } else if(refresh.clearOnFailure) {
+                    commit(types.SET_AUTH_PERMISSIONS, []);
+                }
+                return response;
+            } finally { if(accessRefresh === refresh) accessRefresh = null; }
+        })();
+        accessRefresh = refresh;
+        return refresh.promise;
     },
     /**
      * Función que permite actualizar el token de sesión
@@ -154,8 +208,10 @@ const actions = {
             return;
         }
         commit(types.SET_AUTH_REFRESING_TOKEN, true)
+        const revision = state.accessRevision;
         if(isD2AuthMode()) {
             const response = await DAAuthService.refreshToken();
+            if(revision !== state.accessRevision) { commit(types.SET_AUTH_REFRESING_TOKEN, false); return response; }
             if(response && response.success) {
                 commit(types.SET_AUTH_UNAUTHORIZED, false)
                 commitD2Session(commit, response)
@@ -173,6 +229,7 @@ const actions = {
             return;
          }
         let response = await DAAuthService.refreshToken(new DARefreshTokenModel(state.refreshtoken));
+        if(revision !== state.accessRevision) { commit(types.SET_AUTH_REFRESING_TOKEN, false); return response; }
         if(response.success) {
             commit(types.SET_AUTH_UNAUTHORIZED, false)
             commit(types.SET_TOKEN, response.data.token)
@@ -196,28 +253,36 @@ const actions = {
      * @param {*} param0 
      */
     async logout({commit, state}) {
-        if(isD2AuthMode()) {
-            try {
-                await DAAuthService.close();
-            } finally {
-                commit(types.SET_D2_AUTH_SESSION, null)
-                commit(types.SET_AUTH_UNAUTHORIZED, false)
-                clearD2ClientAuthArtifacts(Vue.prototype.$session)
-                window.location.href = '/auth/login'
+        clearClinicalContinuityCache();
+        const hadSession = state.authenticated || state.token;
+        const cookieMode = isD2AuthMode();
+        const refreshToken = state.refreshtoken;
+        // Clear views and in-flight results immediately, even if the network fails.
+        // Storage/cookies are retained only until the close request is prepared.
+        commit(types.SET_AUTH_ACCESS_SESSION, null);
+        const closingRevision = state.accessRevision;
+        try {
+            if(hadSession) {
+                const closed = await DAAuthService.close();
+                if(getSessionCode(closed) === 'AUTH_ACCESS_EXPIRED'
+                    && (cookieMode || refreshToken) && state.accessRevision === closingRevision) {
+                    // Renew only to revoke the server session; never rehydrate
+                    // protected views while the user is signing out.
+                    const renewed = await DAAuthService.refreshToken(cookieMode ? undefined : new DARefreshTokenModel(refreshToken));
+                    if(renewed && renewed.success && state.accessRevision === closingRevision) {
+                        if(!cookieMode && renewed.data && renewed.data.token) {
+                            Vue.prototype.$session.set('token', renewed.data.token);
+                        }
+                        await DAAuthService.close();
+                    }
+                }
             }
-            return;
+        } finally {
+            commit(types.SET_AUTH_UNAUTHORIZED, false);
+            clearLegacyAuthStorageForD2(Vue.prototype.$session);
+            clearD2ClientAuthArtifacts(Vue.prototype.$session);
+            window.location.href = '/auth/login';
         }
-
-        if(state.token) {
-            await DAAuthService.close();
-        }
-        Vue.prototype.$session.destroy();
-        commit(types.SET_TOKEN, null)
-        commit(types.SET_REFRESH_TOKEN, null)
-        commit(types.SET_AUTH_PERMISSIONS, [])
-        commit(types.SET_AUTH_BUSINESS, null)
-        commit(types.SET_AUTH_TENANT_OPERATIONAL, null)
-        window.location.href = '/'
     }
 }
 

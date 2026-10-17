@@ -91,7 +91,7 @@ export function isDateBlocked(config, date) {
   const isoDate = toIsoDate(date);
   const dayOfWeek = getDayOfWeek(date);
 
-  return (config.blockedDates || []).some((block) => {
+  return [...(config.blockedDates || []), ...(config.businessBlockedDates || [])].some((block) => {
     if (block.repeats && block.repeatType === 'weekly') {
       return Number(block.dayOfWeek) === Number(dayOfWeek);
     }
@@ -104,7 +104,7 @@ export function getHourBlocksForDate(config, date) {
   const isoDate = toIsoDate(date);
   const dayOfWeek = getDayOfWeek(date);
 
-  return (config.blockedHours || []).filter((block) => {
+  return [...(config.blockedHours || []), ...(config.businessBlockedHours || [])].filter((block) => {
     if (block.repeats && block.repeatType === 'weekly') {
       return Number(block.dayOfWeek) === Number(dayOfWeek);
     }
@@ -118,7 +118,7 @@ export function generateDaySlots(date, config, appointments) {
   const duration = Number(config.defaultAppointmentDuration || 30);
   const dayConfig = getDayWorkingConfig(config, isoDate);
 
-  if (!config.enabled || !dayConfig || !dayConfig.enabled || isDateBlocked(config, isoDate)) {
+  if (!config.enabled || config.businessEnabled === false || !dayConfig || !dayConfig.enabled || isDateBlocked(config, isoDate)) {
     return [];
   }
 

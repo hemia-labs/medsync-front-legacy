@@ -22,22 +22,22 @@ function buildQuery(endpoint, params = {}, allowedParams = []) {
 
 export default {
     getSummary(params = {}) {
-        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_SUMMARY, params, ['from', 'to']));
+        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_SUMMARY, params, ['from', 'to', 'scope']));
     },
 
     getTrends(params = {}) {
-        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_TRENDS, params, ['from', 'to', 'granularity']));
+        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_TRENDS, params, ['from', 'to', 'granularity', 'scope']));
     },
 
     getOperationalSummary(params = {}) {
-        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_OPERATIONAL_SUMMARY, params, ['from', 'to']));
+        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_OPERATIONAL_SUMMARY, params, ['from', 'to', 'scope']));
     },
 
     getProfessionalBreakdown(params = {}) {
-        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_PROFESSIONAL_BREAKDOWN, params, ['from', 'to']));
+        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_PROFESSIONAL_BREAKDOWN, params, ['from', 'to', 'scope']));
     },
 
     getTeamBreakdown(params = {}) {
-        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_TEAM_BREAKDOWN, params, ['from', 'to']));
+        return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_TEAM_BREAKDOWN, params, ['from', 'to', 'scope']));
     }
 }

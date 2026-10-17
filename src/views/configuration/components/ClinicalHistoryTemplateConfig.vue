@@ -415,23 +415,25 @@
         </div>
         <v-card-text class="dialog-body">
           <p v-if="fieldForm.system" class="help-note">
-            Este campo pertenece a la plantilla base. Puedes ajustar su nombre, ayuda y si será obligatorio.
+            Este campo pertenece a la plantilla base. Puedes ajustar su nombre y ayuda. El estado de alergias siempre es obligatorio y activo; los demás campos conservan su configuración.
           </p>
           <v-text-field v-model="fieldForm.label" label="Nombre del campo" outlined dense :color="themeColor"></v-text-field>
           <v-textarea v-model="fieldForm.help_text" label="Ayuda para quien captura" outlined rows="2" :color="themeColor"></v-textarea>
           <v-text-field v-model="fieldForm.placeholder" label="Texto sugerido, opcional" outlined dense :color="themeColor"></v-text-field>
           <div class="switch-grid">
-            <v-checkbox v-model="fieldForm.required" label="Obligatorio" :color="themeColor"></v-checkbox>
-            <v-checkbox v-model="fieldForm.enabled" label="Activo" :color="themeColor"></v-checkbox>
+            <v-checkbox v-model="fieldForm.required" label="Obligatorio" :disabled="fieldForm.system_core" :color="themeColor"></v-checkbox>
+            <v-checkbox v-model="fieldForm.enabled" label="Activo" :disabled="fieldForm.system_core" :color="themeColor"></v-checkbox>
           </div>
           <v-textarea
-            v-if="usesOptions(fieldForm.type)"
+            v-if="usesOptions(fieldForm.type) && !fieldForm.system_core"
             v-model="fieldForm.optionsText"
+            :disabled="fieldForm.system_core"
             label="Escribe una opción por línea"
             outlined
             rows="4"
             :color="themeColor"
           ></v-textarea>
+          <p v-if="fieldForm.system_core" class="help-note">El estado y su detalle se capturan con el editor compartido de alergias del paciente.</p>
         </v-card-text>
         <v-card-actions class="dialog-actions">
           <button class="btn-outline" type="button" @click="fieldDialog = false">Cancelar</button>
@@ -805,6 +807,7 @@ export default {
         required: Boolean(field.required),
         enabled: field.enabled !== false,
         system: Boolean(field.system),
+        system_core: Boolean(field.system_core),
         optionsText: this.optionsToText(field.options)
       };
       this.fieldDialog = true;
@@ -829,9 +832,11 @@ export default {
       field.label = this.fieldForm.label.trim();
       field.help_text = this.fieldForm.help_text || '';
       field.placeholder = this.fieldForm.placeholder || '';
-      field.required = Boolean(this.fieldForm.required);
-      field.enabled = Boolean(this.fieldForm.enabled);
-      if(this.usesOptions(field.type)) {
+      if(!field.system_core) {
+        field.required = Boolean(this.fieldForm.required);
+        field.enabled = Boolean(this.fieldForm.enabled);
+      }
+      if(this.usesOptions(field.type) && !field.system_core) {
         field.options = this.parseOptions(this.fieldForm.optionsText);
       }
 

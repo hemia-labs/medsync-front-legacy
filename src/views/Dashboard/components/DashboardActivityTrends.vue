@@ -12,6 +12,7 @@
           :key="option.value"
           type="button"
           :class="['granularity-button', { 'is-active': granularity === option.value }]"
+          :aria-pressed="granularity === option.value"
           :disabled="loading"
           @click="$emit('granularity-change', option.value)"
         >
@@ -51,7 +52,7 @@
         <article v-for="item in limitedSeries" :key="item.period" class="trend-row">
           <div class="period-label">
             <strong>{{ item.period }}</strong>
-            <span>{{ formatNumber(periodTotal(item)) }} eventos</span>
+            <span>Suma de indicadores: {{ formatNumber(periodTotal(item)) }}</span>
           </div>
 
           <div class="period-bars">
@@ -71,11 +72,14 @@
           </div>
         </article>
       </div>
+      <p>Un mismo registro puede aparecer en mas de un indicador; la suma no representa consultas distintas.</p>
     </div>
   </section>
 </template>
 
 <script>
+import { formatMetric, hasMetric, metricNumber, sumMetric } from '../../../domain/dashboard/metrics';
+
 function normalizeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -108,7 +112,7 @@ export default {
         { value: 'week', label: 'Semana' },
         { value: 'month', label: 'Mes' }
       ],
-      metricDefinitions: [
+      allMetricDefinitions: [
         { key: 'patientsCreated', label: 'Pacientes creados', short: 'Pac.', color: '#0f766e' },
         { key: 'appointmentsCreated', label: 'Citas registradas', short: 'Citas', color: '#4f9d99' },
         { key: 'appointmentsScheduled', label: 'Citas programadas', short: 'Prog.', color: '#7fa7a3' },
@@ -118,6 +122,9 @@ export default {
     };
   },
   computed: {
+    metricDefinitions: function() {
+      return this.allMetricDefinitions.filter(metric => this.series.some(item => hasMetric(item, metric.key)));
+    },
     series: function() {
       return this.data && Array.isArray(this.data.series) ? this.data.series : [];
     },
@@ -130,7 +137,7 @@ export default {
     metricTotals: function() {
       return this.metricDefinitions.map((metric) => ({
         ...metric,
-        value: this.series.reduce((acc, item) => acc + normalizeNumber(item[metric.key]), 0)
+        value: sumMetric(this.series, metric.key)
       }));
     },
     isEmpty: function() {
@@ -143,6 +150,7 @@ export default {
   },
   methods: {
     periodTotal: function(item) {
+      if(!this.metricDefinitions.some(metric => metricNumber(item[metric.key]) !== null)) return null;
       return this.metricDefinitions.reduce((acc, metric) => acc + normalizeNumber(item[metric.key]), 0);
     },
     metricWidth: function(item, key) {
@@ -154,7 +162,7 @@ export default {
       return Math.max(6, Math.round((value / this.maxPeriodTotal) * 100));
     },
     formatNumber: function(value) {
-      return normalizeNumber(value).toLocaleString('es-MX');
+      return formatMetric(value);
     }
   }
 };

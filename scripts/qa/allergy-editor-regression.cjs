@@ -1,0 +1,45 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const root = require('node:path').resolve(__dirname, '../..');
+const read = file => fs.readFileSync(require('node:path').join(root, file), 'utf8');
+const context = {};
+vm.runInNewContext(read('src/domain/patient/allergy.js').replace(/export const /g, 'var '), context);
+assert.equal(context.allergyStatus({ has_allergy: null }), 'UNREVIEWED');
+assert.equal(context.allergyStatus({ review_status: 'UNKNOWN', has_allergy: null }), 'UNKNOWN');
+const existing = { current_medications: 'Texto pendiente', known_adverse_reactions: 'Conservar', legacy_allergies: 'Texto previo' };
+const updated = context.allergySnapshot(existing, { review_status: 'NONE_KNOWN', revision: 2 });
+const historyContext = { component: null, mapGetters: () => ({}), moduleTypes: {}, fnTypes: {}, dialogName: {}, fieldError: {} };
+vm.runInNewContext(read('src/views/Patient/Sections/MedicalHistory.vue').split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component ='), historyContext);
+const detailSection = { key: 'allergies_medications', fields: [{ key: 'allergies', required: false }] };
+for (const state of ['HAS_ALLERGIES', 'UNKNOWN', 'NONE_KNOWN', '']) {
+    const fields = historyContext.component.methods.activeDynamicFields.call({ form: { allergies_medications: { allergy_status: state } } }, detailSection);
+    assert.equal(fields[0].required, ['HAS_ALLERGIES', 'UNKNOWN'].includes(state));
+}
+assert.equal(detailSection.fields[0].required, false, 'Conditional requirements do not mutate the template');
+assert.equal(updated.current_medications, 'Texto pendiente');
+assert.equal(updated.known_adverse_reactions, 'Conservar');
+assert.equal(updated.legacy_allergies, 'Texto previo');
+assert.equal(updated.allergy_status, 'NONE_KNOWN');
+const editorContext = { component: null, AllergyFields: {}, dialogName: {}, allergyStatus: context.allergyStatus, allergyLabels: context.allergyLabels, DAPxService: {} };
+vm.runInNewContext(read('src/views/Patient/components/AllergyEditor.vue').split('<script>')[1].split('</script>')[0].replace(/^import.*;\r?\n/gm, '').replace('export default', 'component ='), editorContext);
+const methods = editorContext.component.methods;
+const notices = [];
+const view = { ...editorContext.component.data(), patientId: 'qa', draft: { review_status: 'UNREVIEWED', description: '', expected_revision: 0 }, $emit: (...args) => notices.push(args), $nextTick: cb => cb() };
+Object.entries(methods).forEach(([key, value]) => { view[key] = value.bind(view); });
+(async () => {
+    await view.save(); assert.match(view.error, /Selecciona/); assert.equal(view.busy, false);
+    view.draft.review_status = 'UNKNOWN'; await view.save(); assert.match(view.error, /detalle/);
+    view.draft.description = 'Conservar captura';
+    editorContext.DAPxService.updateAllergies = async () => ({ success: false, status: 409, message: 'Cambio concurrente' });
+    await view.save(); assert.equal(view.conflict, true); assert.equal(view.draft.description, 'Conservar captura'); assert.equal(notices.length, 0);
+    editorContext.DAPxService.getById = async () => ({ success: true, data: { allergy: { review_status: 'HAS_ALLERGIES', description: 'Dato de otra sesion', revision: 3 } } });
+    await view.reload(); assert.equal(view.draft.description, 'Conservar captura'); assert.equal(view.conflictRecord.revision, 3);
+    view.keepCapture(); assert.equal(view.draft.expected_revision, 3); assert.equal(view.draft.description, 'Conservar captura'); assert.equal(view.conflict, false);
+    view.conflict = false;
+    editorContext.DAPxService.updateAllergies = async () => { throw new Error('network'); };
+    await view.save(); assert.equal(view.draft.description, 'Conservar captura'); assert.equal(view.busy, false);
+    editorContext.DAPxService.updateAllergies = async () => ({ success: true, data: { revision: 1 } });
+    await view.save(); assert.equal(notices[0][0], 'saved'); assert.equal(notices[1][0], 'input'); assert.equal(notices[1][1], false);
+    console.log('PASS CD13 frontend: no preselected negative, snapshot preservation, detail validation, conflict/network recovery and successful close.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

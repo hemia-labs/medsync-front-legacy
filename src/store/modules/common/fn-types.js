@@ -27,6 +27,7 @@ export default {
 
     //USER
     getUser:            'getUser',
+    getRole:            'getRole',
     getUsers:           'getUsers',
     save:               'save',
     isSave:             'isSave',
@@ -117,6 +118,7 @@ export default {
     treatmentPlan: 'treatmentPlan',
     getTreatmentPlan: 'getTreatmentPlan',
     createTreatmentPlan: 'createTreatmentPlan',
+    updateTreatmentPlan: 'updateTreatmentPlan',
     closeTreatmentPlan: 'closeTreatmentPlan',
     savePlanTreatment: 'savePlanTreatment',
     changePlanTreatmentStatus: 'changePlanTreatmentStatus',

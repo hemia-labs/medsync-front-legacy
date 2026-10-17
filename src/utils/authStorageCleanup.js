@@ -1,6 +1,19 @@
 import Vue from 'vue';
 import { REMEMBERED_IDENTIFIER_KEY } from './authRememberedIdentifier';
 
+export const LEGACY_CONTINUITY_CACHE_KEY = 'medsync.home.continuitySummary.v1';
+
+export const clearClinicalContinuityCache = () => {
+  if (typeof window === 'undefined') return;
+  ['localStorage', 'sessionStorage'].forEach((name) => {
+    try {
+      window[name].removeItem(LEGACY_CONTINUITY_CACHE_KEY);
+    } catch (error) {
+      // Storage may be unavailable. Clinical payloads are no longer read or written here.
+    }
+  });
+};
+
 export const LEGACY_AUTH_STORAGE_KEYS = Object.freeze([
   'token',
   'refreshtoken',
@@ -15,7 +28,8 @@ export const LEGACY_AUTH_STORAGE_KEYS = Object.freeze([
   'accessExpiresAt',
   'sessionState',
   'security',
-  'unauthorized'
+  'unauthorized',
+  LEGACY_CONTINUITY_CACHE_KEY
 ]);
 
 const removeSessionKey = (session, key) => {

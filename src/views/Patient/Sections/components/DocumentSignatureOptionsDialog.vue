@@ -1,13 +1,13 @@
 <template>
-  <v-dialog :value="value" max-width="1040" scrollable @input="handleDialogInput">
-    <v-card>
+  <v-dialog :value="value" max-width="1040" scrollable :persistent="isRemoteActionBusy" @input="handleDialogInput">
+    <v-card v-dialog-name="'Opciones de firma del documento'">
       <div class="signature-dialog-header">
         <div>
           <p class="eyebrow">Firmar documento</p>
           <h3>{{ documentTitle }}</h3>
           <span>{{ patientName }}</span>
         </div>
-        <v-btn icon @click="closeDialog">
+        <v-btn icon aria-label="Cerrar opciones de firma" :disabled="isRemoteActionBusy" @click="closeDialog">
           <v-icon color="#8A9AA0">mdi-close</v-icon>
         </v-btn>
       </div>
@@ -21,10 +21,11 @@
         </v-alert>
 
         <section class="signature-options-grid">
-          <button class="option-card" type="button" @click="signLocal">
+          <button class="option-card" type="button" :disabled="Boolean(localDisabledReason)" @click="signLocal">
             <span class="option-icon"><v-icon size="22">mdi-draw-pen</v-icon></span>
-            <strong>Firmar aqui</strong>
+            <strong>Firmar aquí</strong>
             <small>El paciente firma en este dispositivo.</small>
+            <small v-if="localDisabledReason" class="permission-note">{{ localDisabledReason }}</small>
           </button>
 
           <section class="option-card option-card-panel" :class="{ disabled: Boolean(whatsappDisabledReason) }">
@@ -61,7 +62,7 @@
             </div>
             <div class="option-actions">
               <button
-                class="dialog-btn primary"
+                class="dialog-btn signature-primary"
                 type="button"
                 :disabled="!canCreateWhatsappRequest"
                 @click="createWhatsAppRequest"
@@ -100,7 +101,7 @@
             <p v-if="qrDisabledReason" class="permission-note">{{ qrDisabledReason }}</p>
             <div class="option-actions">
               <button
-                class="dialog-btn primary"
+                class="dialog-btn signature-primary"
                 type="button"
                 :disabled="!canCreateQrRequest"
                 @click="createQrRequest"
@@ -146,7 +147,7 @@
             </div>
             <div class="option-actions">
               <button
-                class="dialog-btn primary"
+                class="dialog-btn signature-primary"
                 type="button"
                 :disabled="!canSendEmailRequest"
                 @click="sendEmailRequest"
@@ -181,7 +182,7 @@
       </v-card-text>
 
       <v-card-actions class="signature-dialog-actions">
-        <button class="dialog-btn" type="button" @click="closeDialog">Cerrar</button>
+        <button class="dialog-btn" type="button" :disabled="isRemoteActionBusy" @click="closeDialog">Cerrar</button>
       </v-card-actions>
 
       <v-dialog v-model="revokeConfirmDialog.show" max-width="460" persistent>
@@ -229,9 +230,11 @@ import {
 } from '../../../../utils/whatsapp';
 import DocumentSignatureQrPanel from './DocumentSignatureQrPanel.vue';
 import DocumentSignatureRequestsList from './DocumentSignatureRequestsList.vue';
+import dialogName from '../../../../core/directives/dialog-name';
 
 export default {
   name: 'DocumentSignatureOptionsDialog',
+  directives: { dialogName },
   components: {
     DocumentSignatureQrPanel,
     DocumentSignatureRequestsList
@@ -256,7 +259,8 @@ export default {
     canRequestRemoteSignature: {
       type: Boolean,
       default: false
-    }
+    },
+    canSignLocal: { type: Boolean, default: true }
   },
   data: function() {
     return {
@@ -282,6 +286,12 @@ export default {
     };
   },
   computed: {
+    localDisabledReason() {
+      if(!this.canSignLocal) return 'No tienes permiso para capturar esta firma presencial.';
+      if(!this.isDocumentFirmable) return 'Este documento ya no tiene firmas disponibles.';
+      if(this.isRemoteActionBusy) return 'Espera a que termine la acción en curso.';
+      return '';
+    },
     documentTitle: function() {
       return this.document.title || this.typeLabel(this.document.document_type);
     },
@@ -381,6 +391,7 @@ export default {
     }
   },
   watch: {
+    isRemoteActionBusy(busy) { this.$emit('busy', busy); },
     value: function(open) {
       if(open) {
         this.initializeDialog();
@@ -396,6 +407,7 @@ export default {
     }
   },
   beforeDestroy: function() {
+    this.$emit('busy', false);
     this.stopPolling();
     this.clearSensitiveState();
   },
@@ -422,12 +434,14 @@ export default {
       }
     },
     closeDialog: function() {
+      if(this.isRemoteActionBusy) return;
       this.stopPolling();
       this.clearSensitiveState();
       this.$emit('input', false);
       this.$emit('close');
     },
     signLocal: function() {
+      if(this.localDisabledReason) return;
       this.closeDialog();
       this.$emit('sign-local', this.document);
     },
@@ -494,6 +508,7 @@ export default {
         ? 'WhatsApp abierto con mensaje prellenado.'
         : 'Link creado. Captura un telefono para abrir WhatsApp o copia el mensaje.';
       await this.loadRequests(true);
+      this.startPolling();
       this.$emit('created', this.whatsappRequest);
     },
     createQrRequest: async function() {
@@ -555,6 +570,7 @@ export default {
       this.emailRequest = this.sanitizeRequest(response.data);
       this.successMessage = 'Correo enviado correctamente.';
       await this.loadRequests(true);
+      this.startPolling();
       this.$emit('created', this.emailRequest);
     },
     createRequestPayload: function(channel) {
@@ -1010,7 +1026,7 @@ button.option-card:hover {
   font-weight: 800;
 }
 
-.dialog-btn.primary {
+.dialog-btn.signature-primary {
   border-color: #1b6b6f;
   background: #1b6b6f;
   color: #ffffff;

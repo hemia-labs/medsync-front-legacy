@@ -1,4 +1,4 @@
-import { DAC_ADD_MONITORING, DAC_GET_MONITORING, DAC_DELETE_MONITORING, DAC_GET_ALL_MONITORING,DAC_GET_PX_TREATMENT,DAC_UPD_MONITORING} from '../../common/apiurl';
+import { DAC_ADD_MONITORING, DAC_GET_MONITORING, DAC_GET_ALL_MONITORING,DAC_GET_PX_TREATMENT,DAC_UPD_MONITORING} from '../../common/apiurl';
 import { DACore } from '../../config/axios.context'
 
 export default {
@@ -49,10 +49,14 @@ export default {
      */
     async deleteTracing(data) {
         try {
-            return DACore.delete(DAC_DELETE_MONITORING,data);
+            return DACore.post('api/tracing/cancel',data);
         } catch (error) {
             return error.response.data;
         }
+    },
+
+    async revisions(patientId, tracingId) {
+        return DACore.get(`api/tracing/patient/${encodeURIComponent(patientId)}/${encodeURIComponent(tracingId)}/revisions`);
     },
 
     /**

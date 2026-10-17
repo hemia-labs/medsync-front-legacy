@@ -351,11 +351,7 @@ export default {
         },
 
         themePrimaryColor: function() {
-            if(typeof window === 'undefined') {
-                return '#1497BD'
-            }
-
-            return getComputedStyle(document.documentElement).getPropertyValue('--color-primary-700').trim() || '#1497BD'
+            return 'var(--color-primary-700)'
         }
     },
     methods: {

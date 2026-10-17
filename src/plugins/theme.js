@@ -1,3 +1,5 @@
+import Vue from 'vue';
+
 const DEFAULT_THEME = {
   code: 'medical-blue',
   primary_100: '#E6F7FB',
@@ -48,8 +50,29 @@ const toShadow = (hex, alpha) => {
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
 };
 
-const applyTheme = (theme = DEFAULT_THEME) => {
+const themeState = Vue.observable({
+  context: null,
+  currentTheme: { ...DEFAULT_THEME },
+  loaded: false,
+  loading: false,
+  hasPreview: false,
+  loadError: false
+});
+let themeVersion = 0;
+let pendingLoad = null;
+
+const getThemeContext = auth => {
+  if(!auth || !auth.authenticated) return 'public';
+  return `tenant:${(auth.business || {}).id_business || (auth.user || {}).id_business || 'global'}`;
+};
+
+const validTheme = theme => Boolean(theme && typeof theme.code === 'string'
+  && typeof theme.primary_700 === 'string' && /^#[0-9a-f]{6}$/i.test(theme.primary_700));
+
+const renderTheme = theme => {
   const resolvedTheme = { ...DEFAULT_THEME, ...theme };
+  themeState.currentTheme = resolvedTheme;
+  if(typeof document === 'undefined') return;
   const root = document.documentElement;
 
   Object.keys(cssVariableMap).forEach((key) => {
@@ -61,7 +84,91 @@ const applyTheme = (theme = DEFAULT_THEME) => {
   root.setAttribute('data-theme', resolvedTheme.code || DEFAULT_THEME.code);
 };
 
+const syncThemeContext = context => {
+  if(themeState.context === context) return;
+  themeVersion += 1;
+  pendingLoad = null;
+  themeState.context = context;
+  themeState.loaded = false;
+  themeState.loading = false;
+  themeState.hasPreview = false;
+  themeState.loadError = false;
+  renderTheme(DEFAULT_THEME);
+};
+
+// User selection takes precedence over all reads already in flight and over
+// background refreshes until it is saved or the tenant/session context changes.
+const applyTheme = theme => {
+  if(!validTheme(theme)) return false;
+  themeVersion += 1;
+  themeState.hasPreview = true;
+  themeState.loading = false;
+  renderTheme(theme);
+  return true;
+};
+
+const themeFromResponse = response => response && response.success && Array.isArray(response.data) ? response.data[0] : null;
+const currentRequest = (context, version, isCurrent) => themeState.context === context && themeVersion === version && isCurrent();
+
+const loadTheme = (context, read, isCurrent, { force = false } = {}) => {
+  syncThemeContext(context);
+  if(themeState.hasPreview || (themeState.loaded && !force)) {
+    return Promise.resolve({ success: true, data: [themeState.currentTheme], themeAccepted: true });
+  }
+  if(pendingLoad && pendingLoad.context === context && pendingLoad.version === themeVersion) return pendingLoad.promise;
+  const request = { context, version: themeVersion, promise: null };
+  themeState.loading = true;
+  request.promise = (async () => {
+    try {
+      let response = await read();
+      // Auth may renew access or discard a read from an earlier permission
+      // revision. Retry once only while this tenant/selection remains current.
+      if(response && response.data && ['AUTH_ACCESS_EXPIRED', 'AUTH_CONTEXT_CHANGED'].includes(response.data.code)
+        && currentRequest(context, request.version, isCurrent)) response = await read();
+      if(!currentRequest(context, request.version, isCurrent)) return { ...response, themeAccepted: false };
+      const theme = themeFromResponse(response);
+      if(validTheme(theme)) {
+        renderTheme(theme);
+        themeState.loaded = true;
+        themeState.loadError = false;
+        return { ...response, themeAccepted: true };
+      }
+      themeState.loadError = true;
+      return { ...response, themeAccepted: false };
+    } catch(error) {
+      if(currentRequest(context, request.version, isCurrent)) themeState.loadError = true;
+      return { success: false, themeAccepted: false, message: 'No fue posible cargar el tema.' };
+    } finally {
+      if(currentRequest(context, request.version, isCurrent)) themeState.loading = false;
+      if(pendingLoad === request) pendingLoad = null;
+    }
+  })();
+  pendingLoad = request;
+  return request.promise;
+};
+const saveTheme = async (context, write, isCurrent) => {
+  syncThemeContext(context);
+  const version = ++themeVersion;
+  themeState.hasPreview = true;
+  themeState.loading = false;
+  const response = await write();
+  const theme = themeFromResponse(response);
+  const accepted = currentRequest(context, version, isCurrent) && validTheme(theme);
+  if(accepted) {
+    renderTheme(theme);
+    themeState.loaded = true;
+    themeState.hasPreview = false;
+    themeState.loadError = false;
+  }
+  return { ...response, themeAccepted: accepted };
+};
+
 export {
   DEFAULT_THEME,
-  applyTheme
+  applyTheme,
+  themeState,
+  getThemeContext,
+  syncThemeContext,
+  loadTheme,
+  saveTheme
 };

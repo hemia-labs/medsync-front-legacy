@@ -17,6 +17,7 @@
             <div class="text-sm text-gray-500">
                 <span for="">{{ message ? message : '' }}</span>
             </div>
+            <slot name="content"></slot>
             <div class="py-2 grid grid-flow-row gap-y-2 sm:px-0 md:px-5 lg:px-5">
                 <da-button-gray  :label="calcelbtntext" rsm swmd class="py-1 px-5 font-light min-1/2 max-w-full"  @click.native="$emit('close', $attrs.value)" v-if="!hiddecancelbtn"  ></da-button-gray>
                 <da-button-primary  :label="confirmbtntext" rsm swmd class="py-1 px-5 font-light min-1/2 max-w-full" @click.native="$emit('confirm', $attrs.value)" v-if="!hiddeconfirmbtn"  ></da-button-primary>

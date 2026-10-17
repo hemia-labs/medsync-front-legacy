@@ -1,6 +1,12 @@
 <template>
-  <div class="clinical-history-page">
-    <section v-if="!clinicalHistory" class="clinical-panel initial-history-panel">
+  <div class="clinical-history-page" :aria-busy="String(isLoading)">
+    <section v-if="isLoading" class="clinical-panel" role="status">Cargando historia clínica, formato y responsables…</section>
+    <section v-else-if="loadError && !clinicalHistory" class="clinical-panel warning-panel" role="alert">
+      <strong>No se pudo cargar la historia clínica.</strong>
+      <span>Reintenta antes de crear un borrador para este paciente.</span>
+      <button class="clinical-button secondary" type="button" @click="loadInitialData">Reintentar</button>
+    </section>
+    <section v-else-if="!clinicalHistory" class="clinical-panel initial-history-panel">
       <div class="initial-history-content">
         <div class="initial-eyebrow-row">
           <span v-if="showCreatePatientNotice" class="positive-note">Nuevo expediente</span>
@@ -22,12 +28,12 @@
           </div>
           <div>
             <span>Formato</span>
-            <strong>Al crear el borrador se usará el formato actual del consultorio.</strong>
+            <strong>{{ activeTemplateLabel }} v{{ activeTemplateVersion }}</strong>
           </div>
         </div>
       </div>
       <div class="initial-actions">
-        <button v-if="canCreateDraft" class="primary-cta tab-create-action" type="button" :disabled="isBusy" @click="openStartHistoryDialog">
+        <button v-if="canCreateDraft" class="primary-cta tab-create-action" type="button" :disabled="isBusy || !contextReady" @click="openStartHistoryDialog">
           Crear historia clínica
         </button>
         <p v-else class="permission-note">No tienes permiso para crear borradores de historia clínica.</p>
@@ -42,7 +48,7 @@
       </div>
     </section>
 
-    <section v-else :class="['clinical-panel', 'status-panel', { 'draft-status-panel': isDraft }]">
+    <section v-if="clinicalHistory" :class="['clinical-panel', 'status-panel', { 'draft-status-panel': isDraft }]">
       <div class="status-main">
         <p class="section-kicker">Historia clínica</p>
         <div class="status-title-row">
@@ -75,9 +81,17 @@
           <span>Doctor responsable</span>
           <strong>{{ selectedDoctorLabel }}</strong>
         </div>
+        <div v-if="!isDraft && clinicalHistory.finalizer_snapshot_json" class="status-item wide">
+          <span>Profesional que cerró esta versión</span>
+          <strong>{{ doctorLabel(clinicalHistory.finalizer_snapshot_json) }}</strong>
+        </div>
         <div class="status-item wide">
           <span>Capturado por</span>
           <strong>{{ metadata.createdBy }}</strong>
+        </div>
+        <div class="status-item wide">
+          <span>Última edición por</span>
+          <strong>{{ metadata.updatedBy }}</strong>
         </div>
       </div>
     </section>
@@ -136,7 +150,7 @@
       </div>
     </section>
 
-    <section class="clinical-panel consent-panel" :class="{ compact: !clinicalHistory }">
+    <section v-if="!isLoading" class="clinical-panel consent-panel" :class="{ compact: !clinicalHistory }">
       <div class="consent-copy">
         <div class="consent-title-row">
           <div>
@@ -165,10 +179,10 @@
       </div>
     </section>
 
-    <section v-if="loadError" class="clinical-panel warning-panel">
-      <strong>Mostrando datos clínicos anteriores.</strong>
-      <span>Aún no fue posible cargar la historia clínica formal. Puedes consultar los datos anteriores y volver a intentar.</span>
-      <button class="clinical-button secondary" type="button" @click="loadClinicalHistory">Reintentar</button>
+    <section v-if="contextError || (templateLoadError && !historyTemplateSchema) || (loadError && clinicalHistory)" class="clinical-panel warning-panel" role="alert">
+      <strong>{{ contextError || (templateLoadError ? 'No se pudo verificar el formato configurado.' : 'No se pudo actualizar la historia clínica.') }}</strong>
+      <span>Los datos capturados se conservan. Reintenta para verificar el contexto antes de continuar.</span>
+      <button class="clinical-button secondary" type="button" :disabled="isLoading || isBusy" @click="loadInitialData">Reintentar</button>
     </section>
 
     <section v-if="!clinicalHistory && showRegisteredData" class="clinical-panel legacy-panel">
@@ -192,6 +206,7 @@
         <p class="section-kicker">Captura clínica</p>
         <h3>{{ formModeTitle }}</h3>
         <p>{{ formModeHelp }}</p>
+        <p v-if="isDraft" class="save-state" role="status">{{ isBusy ? 'Procesando…' : (dirty ? 'Cambios sin guardar' : 'Todos los cambios guardados') }}</p>
         <p v-if="isDraft && !canCurrentUserFinalize" class="permission-note">
           Solo un doctor o administrador con perfil profesional activo puede finalizar esta historia.
         </p>
@@ -202,14 +217,14 @@
         </div>
         <div v-if="isDraft" class="capture-progress-inline">
           <div class="capture-progress-topline">
-            <strong>{{ completedSectionsCount }} / {{ totalCaptureSections }} secciones completas</strong>
-            <span>{{ requiredPendingCount ? `${requiredPendingCount} pendientes` : 'Sin pendientes' }}</span>
+            <strong>{{ requiredFieldsTotal ? `${requiredFieldsCompleted} / ${requiredFieldsTotal} datos obligatorios completados` : 'Sin campos obligatorios en este formato' }}</strong>
+            <span>{{ requiredPendingCount ? `${requiredPendingCount} pendientes` : 'Sin obligatorios pendientes' }}</span>
           </div>
           <div class="capture-progress-track">
             <span :style="{ width: `${captureProgressPercent}%` }"></span>
           </div>
           <div class="capture-progress-footer">
-            <small>{{ requiredPendingCount ? 'Revisa los campos obligatorios antes de finalizar.' : 'Los datos obligatorios están completos.' }}</small>
+            <small>Los campos opcionales no cuentan en este indicador. Completarlo no sustituye la revisión clínica.</small>
             <button class="clinical-link-button" type="button" @click="openPendingSummary">
               {{ requiredPendingCount ? 'Ver pendientes' : 'Revisar secciones' }}
             </button>
@@ -217,20 +232,20 @@
         </div>
       </div>
       <div class="button-row capture-action-row">
-        <button v-if="isDraft && canEditDraftPermission" class="clinical-button primary" type="button" :disabled="isBusy" @click="saveDraft">
+        <button v-if="isDraft && canEditDraftPermission" class="clinical-button primary" type="button" :disabled="isBusy || !contextReady" @click="saveDraft()">
           Guardar borrador
         </button>
         <button
           v-if="isDraft"
           class="clinical-button success"
           type="button"
-          :disabled="isBusy || !canCurrentUserFinalize"
+          :disabled="isBusy || !contextReady || !canCurrentUserFinalize"
           title="Solo un doctor o administrador con perfil profesional activo puede finalizar esta historia."
           @click="openFinalizeDialog"
         >
           Finalizar historia clínica
         </button>
-        <button v-if="isDraft" class="clinical-button danger-soft" type="button" :disabled="isBusy" @click="cancelDraft">
+        <button v-if="isDraft && canCancelDraft" class="clinical-button danger-soft" type="button" :disabled="isBusy || !contextReady" @click="cancelDraft">
           Cancelar borrador
         </button>
         <button v-if="clinicalHistory && canPrintClinicalHistory" class="clinical-button secondary" type="button" :disabled="isBusy" @click="printCurrentClinicalHistory">
@@ -242,10 +257,22 @@
       </div>
     </section>
 
+    <section v-if="saveError || validationErrors.length" class="clinical-panel warning-panel" role="alert">
+      <strong>{{ saveError || 'Corrige estos campos antes de guardar. Tu texto se conserva.' }}</strong>
+      <div v-if="revisionConflict" class="clinical-actions">
+        <p>Tu captura sigue en el formulario. Puedes guardar una copia antes de cargar los cambios de la otra sesión.</p>
+        <button class="clinical-button secondary" type="button" :disabled="isBusy" @click="downloadLocalCapture">Descargar mi captura</button>
+        <button class="clinical-button secondary" type="button" :disabled="isBusy" @click="reloadConflictingHistory">Cargar versión actual</button>
+      </div>
+      <button v-for="error in validationErrors" :key="error.key" class="clinical-link-button" type="button" @click="focusHistoryField(error)">
+        {{ error.sectionLabel }}: {{ error.fieldLabel }}. {{ error.message }}
+      </button>
+    </section>
+
     <section v-if="false && clinicalHistory && isDraft" class="clinical-panel capture-guide-panel">
       <div class="capture-guide-main">
         <p class="section-kicker">Progreso de captura</p>
-        <h3>{{ completedSectionsCount }} / {{ totalCaptureSections }} secciones completas</h3>
+        <h3>{{ requiredFieldsCompleted }} / {{ requiredFieldsTotal }} datos obligatorios completados</h3>
         <p>
           {{ requiredPendingCount ? `Faltan ${requiredPendingCount} datos obligatorios para poder finalizar.` : 'Los datos obligatorios están completos. Puedes revisar y finalizar cuando el consentimiento esté listo.' }}
         </p>
@@ -342,6 +369,13 @@
             </div>
           </header>
           <div v-show="!isDraft || isSectionOpen(section)" class="section-body">
+          <div v-if="section.key === 'allergies_medications'" class="clinical-panel">
+            <strong>{{ allergyStateLabel }}</strong>
+            <p>{{ form.allergies_medications.allergies || 'Consulta al paciente para registrar el estado.' }}</p>
+            <p v-if="isDraft && form.allergies_medications.legacy_allergies && !form.allergies_medications.allergy_reviewed_at" class="form-warning">Dato previo de esta historia: {{ form.allergies_medications.legacy_allergies }}. Revisa su vigencia al actualizar.</p>
+            <p v-if="!isDraft">Información conservada para esta versión histórica.</p>
+            <button v-if="isDraft && canReviewAllergies" id="history-allergies_medications-allergy_status" type="button" class="clinical-button secondary" @click="$emit('edit-allergies', form.allergies_medications.legacy_allergies || '')">Revisar alergias</button>
+          </div>
           <div v-if="dynamicSectionHasMissing(section)" class="section-inline-warning">
             {{ dynamicSectionMissingCount(section) }} {{ dynamicSectionMissingCount(section) === 1 ? 'campo obligatorio pendiente' : 'campos obligatorios pendientes' }}
           </div>
@@ -351,11 +385,16 @@
               :key="action.label"
               class="quick-fill-button"
               type="button"
+              :disabled="isBusy"
               @click="applyQuickAction(section, action)"
             >
               {{ action.label }}
             </button>
           </div>
+          <p v-if="lastQuickAction && lastQuickAction.sectionKey === section.key" class="quick-action-feedback" role="status">
+            Atajo aplicado a {{ lastQuickAction.field.label }}.
+            <button class="clinical-link-button" type="button" :disabled="isBusy" @click="undoQuickAction">Deshacer</button>
+          </p>
           <p v-if="dynamicSectionHasMissing(section)" class="form-warning section-warning-legacy">
             Completa los datos obligatorios de esta sección antes de finalizar.
           </p>
@@ -364,6 +403,8 @@
             <div
               v-for="field in activeDynamicFields(section)"
               :key="field.key"
+              :id="`history-field-${section.key}-${field.key}`"
+              tabindex="-1"
               :class="{ 'field-missing': dynamicFieldHasMissing(section, field) }"
             >
               <span>{{ field.label }}</span>
@@ -375,8 +416,10 @@
 
           <div v-else class="form-grid" :class="{ two: activeDynamicFields(section).length > 1 }">
             <div
-              v-for="field in activeDynamicFields(section)"
+              v-for="field in activeDynamicFields(section).filter(item => section.key !== 'allergies_medications' || !['allergy_status', 'allergies'].includes(item.key))"
               :key="field.key"
+              :id="`history-field-${section.key}-${field.key}`"
+              tabindex="-1"
               :class="['dynamic-field', { 'field-missing': dynamicFieldHasMissing(section, field) }]"
             >
               <div v-if="isReadonlyDynamicField(field)" class="readonly-field">
@@ -386,6 +429,9 @@
               </div>
 
               <v-textarea
+                :id="fieldId(section, field)"
+                v-field-error="fieldErrorBinding(section, field)"
+                :error-messages="dynamicFieldError(section, field)"
                 v-else-if="field.type === 'textarea'"
                 :value="getDynamicFieldValue(section, field)"
                 :label="fieldLabel(field)"
@@ -401,6 +447,9 @@
               />
 
               <v-select
+                :id="fieldId(section, field)"
+                v-field-error="fieldErrorBinding(section, field)"
+                :error-messages="dynamicFieldError(section, field)"
                 v-else-if="field.type === 'select'"
                 :value="getDynamicFieldValue(section, field)"
                 :items="fieldOptions(field)"
@@ -417,6 +466,9 @@
               />
 
               <v-select
+                :id="fieldId(section, field)"
+                v-field-error="fieldErrorBinding(section, field)"
+                :error-messages="dynamicFieldError(section, field)"
                 v-else-if="field.type === 'multiselect'"
                 :value="getDynamicFieldValue(section, field)"
                 :items="fieldOptions(field)"
@@ -436,6 +488,9 @@
               />
 
               <v-checkbox
+                :id="fieldId(section, field)"
+                v-field-error="fieldErrorBinding(section, field)"
+                :error-messages="dynamicFieldError(section, field)"
                 v-else-if="field.type === 'checkbox'"
                 :input-value="Boolean(getDynamicFieldValue(section, field))"
                 :label="fieldLabel(field)"
@@ -447,6 +502,9 @@
               />
 
               <v-switch
+                :id="fieldId(section, field)"
+                v-field-error="fieldErrorBinding(section, field)"
+                :error-messages="dynamicFieldError(section, field)"
                 v-else-if="field.type === 'boolean'"
                 :input-value="Boolean(getDynamicFieldValue(section, field))"
                 :label="fieldLabel(field)"
@@ -459,6 +517,9 @@
               />
 
               <v-text-field
+                :id="fieldId(section, field)"
+                v-field-error="fieldErrorBinding(section, field)"
+                :error-messages="dynamicFieldError(section, field)"
                 v-else
                 :value="getDynamicFieldValue(section, field)"
                 :type="field.type === 'number' ? 'number' : (field.type === 'date' ? 'date' : 'text')"
@@ -480,7 +541,7 @@
             <button class="clinical-button secondary" type="button" :disabled="!previousDynamicSection" @click="goToPreviousSection">
               Anterior
             </button>
-            <button class="clinical-button primary" type="button" :disabled="isBusy" @click="saveDraft">
+            <button class="clinical-button primary" type="button" :disabled="isBusy || !contextReady || !canEditDraftPermission" @click="saveDraft()">
               Guardar borrador
             </button>
             <button class="clinical-button secondary" type="button" :disabled="!nextDynamicSection" @click="goToNextSection">
@@ -598,7 +659,7 @@
           <span>Datos clave para reducir riesgos durante la atención.</span>
         </header>
         <div class="form-grid">
-          <v-textarea v-model="form.allergies_medications.allergies" label="Alergias" outlined rows="3" :readonly="!canEditForm" />
+          <div><strong>{{ allergyStateLabel }}</strong><p>{{ form.allergies_medications.allergies || 'Consulta al paciente para registrar el estado.' }}</p><button v-if="isDraft && canReviewAllergies" type="button" class="clinical-button secondary" @click="$emit('edit-allergies', form.allergies_medications.legacy_allergies || '')">Revisar alergias</button></div>
           <v-textarea v-model="form.allergies_medications.current_medications" label="Medicamentos actuales" outlined rows="3" :readonly="!canEditForm" />
           <v-textarea v-model="form.allergies_medications.known_adverse_reactions" label="Reacciones adversas conocidas" outlined rows="3" :readonly="!canEditForm" />
         </div>
@@ -702,33 +763,36 @@
       </template>
     </section>
 
-    <v-dialog v-model="showStartHistoryDialog" max-width="680">
-      <div class="dialog-card start-history-dialog">
+    <v-dialog content-class="clinical-history-dialog" :persistent="isBusy" v-model="showStartHistoryDialog" max-width="680">
+      <div @keydown="trapDialogFocus" v-dialog-name="'Iniciar historia clínica'" class="dialog-card start-history-dialog">
         <header>
           <p class="section-kicker">Iniciar historia clínica</p>
           <h3>Iniciar historia clínica</h3>
-          <p>Elige cómo quieres empezar.</p>
+          <p>Al continuar se guardará un borrador con {{ activeTemplateLabel }} v{{ activeTemplateVersion }}. Podrás completarlo después.</p>
         </header>
         <div class="start-options">
           <button
             type="button"
             :class="['start-option-card', { selected: startHistoryMode === 'blank' }]"
+            :aria-pressed="String(startHistoryMode === 'blank')"
             @click="startHistoryMode = 'blank'"
           >
             <strong>Crear en blanco</strong>
-            <span>Empieza sin llenar datos de forma automática.</span>
+            <span>Incluye la identificación del paciente y deja la captura clínica vacía.</span>
           </button>
           <button
             type="button"
             :class="['start-option-card', { selected: startHistoryMode === 'legacy' }]"
+            :aria-pressed="String(startHistoryMode === 'legacy')"
             @click="startHistoryMode = 'legacy'"
           >
             <strong>Usar datos del expediente</strong>
             <span>Usa los datos básicos del paciente como punto de partida.</span>
           </button>
         </div>
+        <p v-if="saveError" class="form-warning" role="alert">{{ saveError }}</p>
         <div class="button-row dialog-actions">
-          <button class="clinical-button secondary" type="button" @click="showStartHistoryDialog = false">Cancelar</button>
+          <button class="clinical-button secondary" type="button" :disabled="isBusy" @click="showStartHistoryDialog = false">Cancelar</button>
           <button class="clinical-button primary" type="button" :disabled="isBusy" @click="confirmStartHistory">
             Continuar
           </button>
@@ -736,8 +800,8 @@
       </div>
     </v-dialog>
 
-    <v-dialog v-model="showFinalizeDialog" max-width="620">
-      <div class="dialog-card">
+    <v-dialog content-class="clinical-history-dialog" v-model="showFinalizeDialog" max-width="620">
+      <div @keydown="trapDialogFocus" v-dialog-name="'Finalizar historia clínica'" class="dialog-card">
         <header>
           <p class="section-kicker">Confirmación</p>
           <h3>Finalizar historia clínica</h3>
@@ -751,6 +815,11 @@
           </div>
         </div>
         <p v-if="finalizeBlockReason" class="block-reason">{{ finalizeBlockReason }}</p>
+        <p v-if="saveError" class="form-warning" role="alert">{{ saveError }}</p>
+        <div class="button-row">
+          <button v-if="requiredPendingCount" class="clinical-link-button" type="button" @click="showFinalizeDialog = false; openPendingSummary()">Ir a datos pendientes</button>
+          <button v-if="!hasSignedConsent && !hasConsentRefusal" class="clinical-link-button" type="button" @click="reviewConsent">Revisar consentimiento</button>
+        </div>
         <div class="button-row dialog-actions">
           <button class="clinical-button secondary" type="button" @click="showFinalizeDialog = false">Cancelar</button>
           <button class="clinical-button success" type="button" :disabled="isBusy || Boolean(finalizeBlockReason)" @click="finalizeHistory">
@@ -760,12 +829,12 @@
       </div>
     </v-dialog>
 
-    <v-dialog v-model="showPendingDialog" max-width="560">
-      <div class="dialog-card pending-dialog">
+    <v-dialog content-class="clinical-history-dialog" v-model="showPendingDialog" max-width="560">
+      <div @keydown="trapDialogFocus" v-dialog-name="'Datos obligatorios pendientes'" class="dialog-card pending-dialog">
         <header>
           <p class="section-kicker">Campos pendientes</p>
           <h3>{{ requiredPendingCount ? 'Completa estos datos para finalizar' : 'Sin campos pendientes' }}</h3>
-          <p>{{ requiredPendingCount ? 'Selecciona un pendiente para abrir su sección.' : 'Los datos obligatorios están completos.' }}</p>
+          <p>{{ requiredPendingCount ? 'Selecciona un pendiente para ir al campo.' : 'Los datos obligatorios están completos.' }}</p>
         </header>
         <div v-if="requiredPendingCount" class="pending-dialog-list">
           <button
@@ -783,11 +852,35 @@
         </div>
       </div>
     </v-dialog>
+    <v-dialog content-class="clinical-history-dialog" v-model="showLeaveDialog" persistent max-width="680">
+      <div @keydown="trapDialogFocus" @keydown.esc.stop="resolveLeave('stay')" v-dialog-name="'Tienes cambios sin guardar'" class="dialog-card">
+        <header><p class="section-kicker">Guardar avances</p><h3>Tienes cambios sin guardar</h3><p>Puedes guardar el borrador antes de salir.</p></header>
+        <p v-if="saveError || validationErrors.length" class="form-warning" role="alert">{{ saveError || 'Hay campos que exceden 5000 caracteres. Sigue editando para corregirlos.' }}</p>
+        <div class="button-row dialog-actions">
+          <button class="clinical-button primary" type="button" :disabled="isBusy" @click="resolveLeave('save')">Guardar y salir</button>
+          <button class="clinical-button danger-soft" type="button" :disabled="isBusy" @click="resolveLeave('discard')">Descartar cambios</button>
+          <button class="clinical-button secondary" type="button" :disabled="isBusy" @click="resolveLeave('stay')">Seguir editando</button>
+        </div>
+      </div>
+    </v-dialog>
+    <v-dialog content-class="clinical-history-dialog" v-model="showQuickActionDialog" max-width="560" @input="closeQuickActionDialog">
+      <div @keydown="trapDialogFocus" v-dialog-name="'Reemplazar texto capturado'" class="dialog-card">
+        <header><p class="section-kicker">Confirmar atajo</p><h3>Reemplazar texto capturado</h3><p>El campo {{ pendingQuickAction ? pendingQuickAction.field.label : '' }} ya tiene contenido. El atajo lo reemplazará; podrás deshacerlo antes de seguir capturando.</p></header>
+        <div class="button-row dialog-actions">
+          <button class="clinical-button secondary" type="button" @click="closeQuickActionDialog(false)">Conservar texto</button>
+          <button class="clinical-button danger-soft" type="button" @click="confirmQuickAction">Reemplazar texto</button>
+        </div>
+      </div>
+    </v-dialog>
   </div>
 </template>
 
 <script>
 import { mapGetters } from 'vuex';
+import dialogName from '../../../core/directives/dialog-name';
+import fieldError from '../../../core/directives/field-error';
+import { editorSnapshot, textLengthErrors, canRefreshAllergyRevision } from '../../../domain/clinical-history/history.editor';
+import { allergySnapshot, allergyLabels } from '../../../domain/patient/allergy';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
@@ -894,6 +987,7 @@ const mergeSnapshot = (base, incoming) => {
 };
 
 export default {
+  directives: { dialogName, fieldError },
   props: {
     px: {
       type: Object,
@@ -914,7 +1008,18 @@ export default {
       currentTemplateSchema: null,
       templateLoadError: false,
       isBusy: false,
-      isLoading: false,
+      isLoading: true,
+      historyLoaded: false,
+      contextError: '',
+      savedSnapshot: '',
+      saveError: '',
+      revisionConflict: false,
+      showValidation: false,
+      showLeaveDialog: false,
+      showQuickActionDialog: false,
+      pendingQuickAction: null,
+      lastQuickAction: null,
+      loadRequest: 0,
       versionsLoading: false,
       loadError: false,
       versionsLoadError: false,
@@ -929,6 +1034,8 @@ export default {
     };
   },
   computed: {
+    canReviewAllergies() { return this.hasPermission('clinical_history.edit_draft'); },
+    allergyStateLabel() { return allergyLabels[this.form.allergies_medications.allergy_status] || (this.isDraft ? 'Alergias sin revisar' : 'Registro de alergias de esta versión'); },
     ...mapGetters(moduleTypes.AUTH, {
       hasPermission: fnTypes.hasPermission,
       authUser: fnTypes.getUser,
@@ -947,8 +1054,12 @@ export default {
       return this.clinicalHistory && this.clinicalHistory.status === 'INCOMPLETE';
     },
     canEditForm() {
-      return Boolean(this.clinicalHistory && this.isDraft && this.canEditDraftPermission);
+      return Boolean(this.clinicalHistory && this.isDraft && this.canEditDraftPermission && !this.isBusy && !this.isLoading);
     },
+    contextReady() { return this.historyLoaded && !this.isLoading && !this.loadError && !this.contextError && (!this.templateLoadError || Boolean(this.historyTemplateSchema)); },
+    dirty() { return Boolean(this.isDraft && this.savedSnapshot && this.savedSnapshot !== editorSnapshot(this.form, this.doctorResponsibleUserId)); },
+    validationErrors() { return this.showValidation ? textLengthErrors(this.form, this.dynamicSections) : []; },
+    canCancelDraft() { return this.hasPermission('clinical_history.cancel'); },
     canCreateNewVersion() {
       return Boolean(
         this.clinicalHistory &&
@@ -1155,17 +1266,19 @@ export default {
         ...this.sectionProgress(section)
       }));
     },
-    completedSectionsCount() {
+    requiredFieldsTotal() {
       if(!this.useDynamicSchema) {
-        return Math.max(0, this.totalCaptureSections - this.criticalFieldsStatus.length);
+        return 7;
       }
-      return this.sectionProgressItems.filter((item) => item.tone === 'complete' || item.tone === 'optional').length;
+      return this.sectionProgressItems.reduce((sum, item) => sum + item.required, 0);
     },
+    requiredFieldsCompleted() { return Math.max(0, this.requiredFieldsTotal - this.requiredPendingCount); },
+    completedSectionsCount() { return this.sectionProgressItems.filter(item => item.tone === 'complete').length; },
     captureProgressPercent() {
-      if(!this.totalCaptureSections) {
+      if(!this.requiredFieldsTotal) {
         return 0;
       }
-      return Math.min(100, Math.round((this.completedSectionsCount / this.totalCaptureSections) * 100));
+      return Math.min(100, Math.round((this.requiredFieldsCompleted / this.requiredFieldsTotal) * 100));
     },
     metadata() {
       return {
@@ -1173,7 +1286,8 @@ export default {
         createdAt: this.formatDateTime(this.clinicalHistory && this.clinicalHistory.created_at),
         updatedAt: this.formatDateTime(this.clinicalHistory && this.clinicalHistory.updated_at),
         finalizedAt: this.formatDateTime(this.clinicalHistory && this.clinicalHistory.finalized_at),
-        createdBy: this.clinicalHistory && this.clinicalHistory.created_by_user_id ? 'Usuario registrado' : 'No registrado'
+        createdBy: this.clinicalHistory && this.clinicalHistory.created_by_name || 'No registrado',
+        updatedBy: this.clinicalHistory && (this.clinicalHistory.updated_by_name || this.clinicalHistory.created_by_name) || 'No registrado'
       };
     },
     sensitiveConsent() {
@@ -1235,6 +1349,10 @@ export default {
       return option ? option.doctor : null;
     },
     selectedDoctorLabel() {
+      if(this.clinicalHistory && !this.isDraft) {
+        const identity = this.clinicalHistory.responsible_snapshot_json;
+        return identity && identity.professional_name ? this.doctorLabel(identity) : 'Identidad histórica no disponible';
+      }
       return this.selectedDoctor ? this.doctorLabel(this.selectedDoctor) : 'No registrado';
     },
     selectedDoctorProfileReady() {
@@ -1267,7 +1385,7 @@ export default {
     },
     canCurrentUserFinalize() {
       const allowedRoles = ['ADMIN', 'BUSINESS_ADMIN', 'DOCTOR'];
-      return allowedRoles.includes(this.currentUserRole) && Boolean(this.currentDoctorProfile);
+      return this.hasPermission('clinical_history.finalize') && allowedRoles.includes(this.currentUserRole) && Boolean(this.currentDoctorProfile);
     },
     legacyIdentification() {
       return this.buildIdentificationSnapshot();
@@ -1323,7 +1441,7 @@ export default {
       if(!this.hasText(this.form.consultation.reason)) missing.push('Motivo de consulta');
       if(!this.hasText(this.form.consultation.current_condition)) missing.push('Padecimiento actual');
       if(!this.hasText(this.form.family_history.relevant) && !this.hasText(this.form.pathological_history.current_or_previous_diseases)) missing.push('Antecedentes relevantes');
-      if(!this.hasText(this.form.allergies_medications.allergies)) missing.push('Alergias');
+      if(!['HAS_ALLERGIES', 'NONE_KNOWN', 'UNKNOWN'].includes(this.form.allergies_medications.allergy_status)) missing.push('Estado de alergias');
       if(!this.hasText(this.form.physical_exam.general)) missing.push('Exploración física');
       if(!this.hasText(this.form.diagnosis.initial_diagnosis)) missing.push('Diagnóstico inicial');
       if(!this.hasText(this.form.therapeutic_plan.initial_plan) && !this.hasText(this.form.therapeutic_plan.initial_indications)) missing.push('Plan inicial');
@@ -1348,16 +1466,17 @@ export default {
         {
           label: 'Doctor responsable',
           ok: doctorOk,
-          status: doctorOk ? 'Listo' : 'Falta seleccionar doctor responsable'
+          status: doctorOk ? this.selectedDoctorLabel : 'Falta seleccionar doctor responsable'
         },
         {
-          label: 'Datos clínicos mínimos',
+          label: 'Datos obligatorios del formato',
           ok: fieldsOk,
           status: fieldsOk ? 'Listos' : `Falta completar: ${this.criticalFieldsStatus.join(', ')}`
         }
       ];
     },
     finalizeBlockReason() {
+      if(!this.contextReady) return 'Espera a que cargue el contexto o reintenta la carga antes de finalizar.';
       if(!this.isDraft) {
         return 'Solo se puede finalizar una historia en borrador.';
       }
@@ -1380,9 +1499,19 @@ export default {
     }
   },
   watch: {
+    'px.allergy': function(record) {
+      if(!this.isDraft || !record) return;
+      this.$set(this.form, 'allergies_medications', allergySnapshot(this.form.allergies_medications, record));
+      if(this.savedSnapshot) {
+        const saved = JSON.parse(this.savedSnapshot);
+        saved.form.allergies_medications = allergySnapshot(saved.form.allergies_medications, record);
+        this.savedSnapshot = editorSnapshot(saved.form, saved.doctorId);
+      }
+      this.refreshAllergyRevision(record);
+    },
     px: {
-      handler() {
-        if(this.patientId) {
+      handler(value, previous) {
+        if(this.patientId && (!previous || !previous.person || previous.person.id_person !== this.patientId)) {
           this.loadInitialData();
         }
       },
@@ -1390,30 +1519,50 @@ export default {
     }
   },
   mounted() {
+    this.$emit('register-navigation-guard', this.confirmLeave);
     this.loadInitialData();
+    window.addEventListener('beforeunload', this.beforeUnload);
+    this.removeNavigationGuard = this.$router.beforeEach((to, from, next) => {
+      this.confirmLeave().then(allowed => next(allowed)).catch(() => next(false));
+    });
+  },
+  beforeDestroy() {
+    this.$emit('register-navigation-guard', null);
+    this.loadRequest++;
+    window.removeEventListener('beforeunload', this.beforeUnload);
+    if(this.removeNavigationGuard) this.removeNavigationGuard();
+    clearTimeout(this.fieldFocusTimer);
+    if(this.leaveResolver) this.leaveResolver(false);
   },
   methods: {
     async loadInitialData() {
-      if(!this.patientId || this.isLoading) {
-        return;
-      }
+      if(!this.patientId || this.isBusy) return;
+      const request = ++this.loadRequest;
+      const patientId = this.patientId;
+      const preserveDraft = this.dirty;
       this.isLoading = true;
-      await Promise.all([
-        this.loadConsentStatus(),
-        this.loadClinicalHistory(),
-        this.loadCurrentTemplate(),
-        this.loadClinicalHistoryVersions()
-      ]);
-      if(this.clinicalHistory && this.activeSchema) {
-        this.ensureDynamicSnapshotDefaults(this.activeSchema);
-        this.initializeOpenClinicalSections();
+      try {
+        await Promise.all([
+          this.loadConsentStatus(request, patientId),
+          this.loadClinicalHistory(request, patientId, preserveDraft),
+          this.loadCurrentTemplate(request),
+          this.loadClinicalHistoryVersions(request, patientId)
+        ]);
+        if(request !== this.loadRequest) return;
+        if(this.clinicalHistory && this.activeSchema) {
+          this.ensureDynamicSnapshotDefaults(this.activeSchema);
+          this.initializeOpenClinicalSections();
+        }
+        if(!preserveDraft && this.clinicalHistory) this.markSaved();
+      } finally {
+        if(request === this.loadRequest) this.isLoading = false;
       }
-      this.isLoading = false;
     },
-    async loadCurrentTemplate() {
+    async loadCurrentTemplate(request = this.loadRequest) {
       this.templateLoadError = false;
       try {
         const response = await DAClinicalHistoryTemplateService.getCurrent();
+        if(request !== this.loadRequest) return;
         if(response && response.success && response.data && response.data.template) {
           const template = response.data.template;
           const schema = this.normalizeTemplateSchema(template.schema_json || {});
@@ -1432,54 +1581,71 @@ export default {
         this.currentTemplateSchema = null;
         this.templateLoadError = true;
       } catch (error) {
+        if(request !== this.loadRequest) return;
         this.currentTemplate = null;
         this.currentTemplateSource = '';
         this.currentTemplateSchema = null;
         this.templateLoadError = true;
       }
     },
-    async loadConsentStatus() {
-      const documents = await DADocumentService.getPatientDocuments(this.patientId);
-      const templates = await DADocumentService.getTemplates();
-      const doctors = await DAPrescriptionService.doctors();
-      this.documents = documents && documents.success ? documents.data || [] : [];
-      this.templates = templates && templates.success ? templates.data || [] : [];
-      this.doctors = doctors && doctors.success ? doctors.data || [] : [];
-      this.applyDefaultResponsibleDoctor();
-    },
-    async loadClinicalHistory() {
-      this.loadError = false;
-      const response = await DAClinicalHistoryService.getByPatient(this.patientId);
-      if(response && response.success && response.data) {
-        this.clinicalHistory = response.data.history || null;
-        if(this.clinicalHistory) {
-          this.applyHistoryToForm(this.clinicalHistory);
-        } else {
-          this.form = this.buildLegacySnapshot();
-        }
-        return;
+    async loadConsentStatus(request = this.loadRequest, patientId = this.patientId) {
+      try {
+        const documents = await DADocumentService.getPatientDocuments(patientId);
+        const templates = await DADocumentService.getTemplates();
+        const doctors = await DAPrescriptionService.doctors();
+        if(request !== this.loadRequest) return;
+        if(!documents || !documents.success || !templates || !templates.success || !doctors || !doctors.success) throw new Error('Context load failed');
+        this.documents = documents.data || [];
+        this.templates = templates.data || [];
+        this.doctors = doctors.data || [];
+        this.contextError = '';
+        this.applyDefaultResponsibleDoctor();
+      } catch (error) {
+        if(request === this.loadRequest) this.contextError = 'No se pudieron verificar el consentimiento y los responsables.';
       }
-      this.loadError = true;
-      this.form = this.buildLegacySnapshot();
     },
-    async loadClinicalHistoryVersions() {
+    async loadClinicalHistory(request = this.loadRequest, patientId = this.patientId, preserveDraft = this.dirty) {
+      this.loadError = false;
+      try {
+        const response = await DAClinicalHistoryService.getByPatient(patientId);
+        if(request !== this.loadRequest) return;
+        if(!response || !response.success || !response.data) throw new Error('History load failed');
+        this.historyLoaded = true;
+        if(!preserveDraft) {
+          this.clinicalHistory = response.data.history || null;
+          if(this.clinicalHistory) this.applyHistoryToForm(this.clinicalHistory);
+          else this.form = this.buildLegacySnapshot();
+        }
+      } catch (error) {
+        if(request === this.loadRequest) this.loadError = true;
+      }
+    },
+    async loadClinicalHistoryVersions(request = this.loadRequest, patientId = this.patientId) {
       if(!this.patientId || !this.canViewVersions) {
         this.clinicalHistoryVersions = [];
         return;
       }
       this.versionsLoading = true;
       this.versionsLoadError = false;
-      const response = await DAClinicalHistoryService.getVersionsByPatient(this.patientId);
-      this.versionsLoading = false;
-      if(response && response.success && response.data) {
-        this.clinicalHistoryVersions = response.data.versions || [];
-        return;
+      try {
+        const response = await DAClinicalHistoryService.getVersionsByPatient(patientId);
+        if(request !== this.loadRequest) return;
+        if(response && response.success && response.data) {
+          this.clinicalHistoryVersions = response.data.versions || [];
+          return;
+        }
+        this.versionsLoadError = true;
+      } catch (error) {
+        if(request === this.loadRequest) this.versionsLoadError = true;
+      } finally {
+        if(request === this.loadRequest) this.versionsLoading = false;
       }
-      this.versionsLoadError = true;
-      this.clinicalHistoryVersions = [];
     },
     applyHistoryToForm(history) {
       this.form = mergeSnapshot(emptySnapshot(), history.clinical_snapshot_json || {});
+      if(history.status === 'DRAFT' && this.px.allergy && Number(this.px.allergy.revision || 0) >= Number(this.form.allergies_medications.allergy_revision || 0)) {
+        this.form.allergies_medications = allergySnapshot(this.form.allergies_medications, this.px.allergy);
+      }
       this.doctorResponsibleUserId = history.doctor_responsible_user_id || this.doctorResponsibleUserId;
       this.applyDefaultResponsibleDoctor();
       if(this.activeSchema) {
@@ -1487,6 +1653,51 @@ export default {
         this.initializeOpenClinicalSections();
       }
       this.updateBmi();
+      this.markSaved();
+    },
+    markSaved() {
+      this.savedSnapshot = editorSnapshot(this.form, this.doctorResponsibleUserId);
+      this.lastQuickAction = null;
+      this.saveError = '';
+      this.revisionConflict = false;
+      this.showValidation = false;
+    },
+    confirmLeave() {
+      if(this.isBusy) return Promise.resolve(false);
+      if(!this.dirty) return Promise.resolve(true);
+      if(this.leavePromise) return this.leavePromise;
+      this.showLeaveDialog = true;
+      this.leavePromise = new Promise(resolve => { this.leaveResolver = resolve; });
+      return this.leavePromise;
+    },
+    async resolveLeave(action) {
+      if(this.isBusy) return;
+      if(action === 'save' && !await this.saveDraft(false)) return;
+      if(action === 'discard') {
+        const saved = JSON.parse(this.savedSnapshot);
+        this.form = saved.form;
+        this.doctorResponsibleUserId = saved.doctorId;
+        this.lastQuickAction = null;
+        this.saveError = '';
+        this.showValidation = false;
+      }
+      this.showLeaveDialog = false;
+      const resolve = this.leaveResolver;
+      this.leaveResolver = null;
+      this.leavePromise = null;
+      if(resolve) resolve(action !== 'stay');
+    },
+    beforeUnload(event) {
+      if(this.dirty || this.isBusy) { event.preventDefault(); event.returnValue = ''; }
+    },
+    trapDialogFocus(event) {
+      if(event.key !== 'Tab') return;
+      const controls = [...event.currentTarget.querySelectorAll('button, a[href], input, textarea, select, [tabindex]')]
+        .filter(element => !element.disabled && element.tabIndex >= 0 && element.getClientRects().length);
+      if(!controls.length) return;
+      const first = controls[0], last = controls[controls.length - 1];
+      if(event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if(!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     },
     applyDefaultResponsibleDoctor() {
       if(this.doctorResponsibleUserId || !this.doctors.length) {
@@ -1522,9 +1733,7 @@ export default {
       snapshot.identification = this.buildIdentificationSnapshot();
       snapshot.consultation.reason = query.reason_consultation || '';
       snapshot.consultation.current_condition = query.current_condition || '';
-      snapshot.allergies_medications.allergies = allergy.has_allergy
-        ? (allergy.description || 'Alergias registradas sin detalle.')
-        : (allergy.has_allergy === false || allergy.has_allergy === 0 ? 'Niega alergias.' : '');
+      snapshot.allergies_medications = allergySnapshot(snapshot.allergies_medications, allergy);
       snapshot.pathological_history.current_or_previous_diseases = this.pathologicalSummary();
       return snapshot;
     },
@@ -1538,11 +1747,12 @@ export default {
       await this.createDraft('MANUAL');
     },
     openStartHistoryDialog() {
+      if(!this.contextReady || this.isBusy || !this.canCreateDraft) return;
       this.startHistoryMode = 'blank';
       this.showStartHistoryDialog = true;
     },
     async confirmStartHistory() {
-      this.showStartHistoryDialog = false;
+      if(!this.contextReady || this.isBusy) return;
       if(this.startHistoryMode === 'legacy') {
         await this.createDraftFromLegacy();
         return;
@@ -1559,16 +1769,20 @@ export default {
       if(!version || !version.id_clinical_history) {
         return;
       }
+      if(!await this.confirmLeave()) return;
       this.isBusy = true;
-      const response = await DAClinicalHistoryService.getById(version.id_clinical_history);
-      this.isBusy = false;
-      if(response && response.success && response.data && response.data.history) {
-        this.clinicalHistory = response.data.history;
-        this.applyHistoryToForm(this.clinicalHistory);
-        this.notify('success', version.status === 'DRAFT' ? 'Borrador cargado.' : 'Versión cargada para consulta.');
-        return;
-      }
-      this.notify('error', response && response.message ? response.message : 'No se pudo cargar esta versión.');
+      try {
+        const response = await DAClinicalHistoryService.getById(version.id_clinical_history);
+        if(response && response.success && response.data && response.data.history) {
+          this.clinicalHistory = response.data.history;
+          this.applyHistoryToForm(this.clinicalHistory);
+          this.notify('success', version.status === 'DRAFT' ? 'Borrador cargado.' : 'Versión cargada para consulta.');
+          return;
+        }
+        this.notify('error', response && response.message ? response.message : 'No se pudo cargar esta versión.');
+      } catch (error) {
+        this.saveError = 'No se pudo cargar esta versión. La captura actual se conserva.';
+      } finally { this.isBusy = false; }
     },
     async printCurrentClinicalHistory() {
       if(!this.clinicalHistory || !this.clinicalHistory.id_clinical_history) {
@@ -1583,6 +1797,7 @@ export default {
       await this.printClinicalHistoryById(version.id_clinical_history);
     },
     async printClinicalHistoryById(historyId) {
+      if(this.isBusy) return;
       if(!this.canPrintClinicalHistory) {
         this.notify('warning', 'No tienes permiso para imprimir historias clínicas.');
         return;
@@ -1595,78 +1810,101 @@ export default {
       }
 
       this.isBusy = true;
-      const response = await DAClinicalHistoryService.getById(historyId);
-      this.isBusy = false;
-      if(!response || !response.success || !response.data || !response.data.history) {
-        printWindow.close();
-        this.notify('error', response && response.message ? response.message : 'No se pudo cargar la historia clínica para imprimir.');
-        return;
-      }
+      try {
+        const response = await DAClinicalHistoryService.getById(historyId);
+        if(!response || !response.success || !response.data || !response.data.history) {
+          printWindow.close();
+          this.notify('error', response && response.message ? response.message : 'No se pudo cargar la historia clínica para imprimir.');
+          return;
+        }
 
-      const html = this.printableClinicalHistoryHtml(response.data);
-      DAClinicalHistoryService.markPrinted(historyId).catch(() => {});
-      printWindow.document.open();
-      printWindow.document.write(html);
-      printWindow.document.close();
-      setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-      }, 250);
+        const html = this.printableClinicalHistoryHtml(response.data);
+        DAClinicalHistoryService.markPrinted(historyId).catch(() => {});
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+        }, 250);
+      } catch (error) {
+        printWindow.close();
+        this.saveError = 'No se pudo cargar la historia para imprimir. Los datos se conservan; puedes reintentar.';
+      } finally { this.isBusy = false; }
     },
     async createDraft(source) {
+      if(this.isBusy || !this.contextReady || !this.canCreateDraft) return false;
       this.isBusy = true;
-      const response = await DAClinicalHistoryService.createDraft({
-        patient_id: this.patientId,
-        doctor_responsible_user_id: this.doctorResponsibleUserId || null,
-        source,
-        clinical_snapshot_json: this.buildPayloadSnapshot()
-      });
-      this.isBusy = false;
-      if(response && response.success && response.data && response.data.history) {
-        this.clinicalHistory = response.data.history;
-        this.applyHistoryToForm(this.clinicalHistory);
-        await this.loadClinicalHistoryVersions();
-        this.notify('success', 'Borrador guardado correctamente.');
-        return;
-      }
-      this.notify('error', response && response.message ? response.message : 'No se pudo crear el borrador.');
+      this.saveError = '';
+      try {
+        const response = await DAClinicalHistoryService.createDraft({
+          patient_id: this.patientId,
+          doctor_responsible_user_id: this.doctorResponsibleUserId || null,
+          source,
+          clinical_snapshot_json: this.buildPayloadSnapshot()
+        });
+        if(response && response.success && response.data && response.data.history) {
+          this.clinicalHistory = response.data.history;
+          this.applyHistoryToForm(this.clinicalHistory);
+          this.showStartHistoryDialog = false;
+          await this.loadClinicalHistoryVersions();
+          this.notify('success', 'Borrador guardado correctamente.');
+          return true;
+        }
+        this.saveError = response && response.message ? response.message : 'No se pudo crear el borrador. Reintenta; los datos se conservan.';
+      } catch (error) { this.saveError = 'No se pudo crear el borrador. Reintenta; los datos se conservan.'; }
+      finally { this.isBusy = false; }
+      return false;
     },
     async saveDraft(showMessage = true) {
-      if(!this.isDraft || !this.clinicalHistory) {
+      if(this.isBusy || !this.contextReady || !this.canEditDraftPermission || !this.isDraft || !this.clinicalHistory) {
+        if(!this.contextReady) this.saveError = 'Reintenta la carga del contexto antes de guardar. Los cambios se conservan.';
         return false;
       }
       const validation = this.validateTextLengths();
       if(!validation.ok) {
-        this.notify('warning', validation.message);
+        this.showValidation = true;
+        if(!this.showLeaveDialog) this.focusHistoryField(validation.errors[0]);
         return false;
       }
+      this.showValidation = false;
+      this.saveError = '';
       this.isBusy = true;
-      const response = await DAClinicalHistoryService.updateDraft(this.clinicalHistory.id_clinical_history, {
-        doctor_responsible_user_id: this.doctorResponsibleUserId || null,
-        clinical_snapshot_json: this.buildPayloadSnapshot()
-      });
-      this.isBusy = false;
-      if(response && response.success && response.data && response.data.history) {
-        this.clinicalHistory = response.data.history;
-        this.applyHistoryToForm(this.clinicalHistory);
-        await this.loadClinicalHistoryVersions();
-        if(showMessage) {
-          this.notify('success', 'Borrador guardado correctamente.');
+      try {
+        const response = await DAClinicalHistoryService.updateDraft(this.clinicalHistory.id_clinical_history, {
+          expected_revision: this.clinicalHistory.revision,
+          doctor_responsible_user_id: this.doctorResponsibleUserId || null,
+          clinical_snapshot_json: this.buildPayloadSnapshot()
+        });
+        if(response && response.success && response.data && response.data.history) {
+          this.clinicalHistory = response.data.history;
+          this.applyHistoryToForm(this.clinicalHistory);
+          await this.loadClinicalHistoryVersions();
+          if(showMessage) {
+            this.notify('success', 'Borrador guardado correctamente.');
+          }
+          return true;
         }
-        return true;
-      }
-      this.notify('error', response && response.message ? response.message : 'No se pudo guardar el borrador.');
+        this.handleRevisionConflict(response);
+        this.saveError = response && response.message ? response.message : 'No se pudo guardar el borrador. Reintenta; los cambios se conservan.';
+      } catch (error) { this.saveError = 'No se pudo guardar el borrador. Reintenta; los cambios se conservan.'; }
+      finally { this.isBusy = false; }
       return false;
     },
     openFinalizeDialog() {
-      if(this.criticalFieldsStatus.length) {
-        this.scrollToFirstMissingRequired();
-      }
-      if(this.finalizeBlockReason) {
-        this.notify('warning', this.finalizeBlockReason);
-        return;
-      }
+      if(this.isBusy || !this.contextReady) return;
+      this.saveError = '';
       this.showFinalizeDialog = true;
+    },
+    reviewConsent() {
+      this.showFinalizeDialog = false;
+      this.$nextTick(() => {
+        clearTimeout(this.fieldFocusTimer);
+        this.fieldFocusTimer = setTimeout(() => {
+          const action = this.$el.querySelector('.consent-action-row button');
+          if(action) { action.scrollIntoView({ block: 'center' }); action.focus(); }
+        }, 300);
+      });
     },
     async finalizeHistory() {
       if(this.criticalFieldsStatus.length) {
@@ -1681,37 +1919,100 @@ export default {
         return;
       }
       this.isBusy = true;
-      const response = await DAClinicalHistoryService.finalize(this.clinicalHistory.id_clinical_history);
-      this.isBusy = false;
-      this.showFinalizeDialog = false;
-      if(response && response.success && response.data && response.data.history) {
-        this.clinicalHistory = response.data.history;
-        this.applyHistoryToForm(this.clinicalHistory);
-        await this.loadClinicalHistoryVersions();
-      this.notify('success', this.clinicalHistory.status === 'INCOMPLETE' ? 'Historia guardada como incompleta.' : 'Historia clínica finalizada correctamente.');
-        return;
-      }
-      this.notify('error', response && response.message ? response.message : 'No se pudo finalizar la historia clínica.');
+      try {
+        const response = await DAClinicalHistoryService.finalize(this.clinicalHistory.id_clinical_history, this.clinicalHistory.revision);
+        if(response && response.success && response.data && response.data.history) {
+          this.showFinalizeDialog = false;
+          this.clinicalHistory = response.data.history;
+          this.applyHistoryToForm(this.clinicalHistory);
+          await this.loadClinicalHistoryVersions();
+            this.notify('success', this.clinicalHistory.status === 'INCOMPLETE' ? 'Historia guardada como incompleta.' : 'Historia clínica finalizada correctamente.');
+          return;
+        }
+        this.handleRevisionConflict(response);
+        this.saveError = response && response.message ? response.message : 'No se pudo finalizar. El borrador guardado se conserva; puedes reintentar.';
+      } catch (error) { this.saveError = 'No se pudo finalizar. El borrador guardado se conserva; puedes reintentar.'; }
+      finally { this.isBusy = false; }
     },
     async cancelDraft() {
+      if(!this.canCancelDraft || !this.isDraft || this.isBusy || !this.contextReady) return;
       const result = await this.confirmDialog('Cancelar borrador', 'El borrador dejará de estar disponible para editarse. Esta acción no cambia historias finalizadas ni documentos firmados.');
       if(!result) {
         return;
       }
       this.isBusy = true;
-      const response = await DAClinicalHistoryService.cancel(this.clinicalHistory.id_clinical_history, {
-        reason: 'Cancelado desde Historia clínica'
-      });
-      this.isBusy = false;
-      if(response && response.success) {
-        this.notify('success', 'Borrador cancelado.');
-        await Promise.all([
-          this.loadClinicalHistory(),
-          this.loadClinicalHistoryVersions()
-        ]);
-        return;
+      try {
+        const response = await DAClinicalHistoryService.cancel(this.clinicalHistory.id_clinical_history, {
+          expected_revision: this.clinicalHistory.revision,
+          reason: 'Cancelado desde Historia clínica'
+        });
+        if(response && response.success) {
+          this.notify('success', 'Borrador cancelado.');
+          await Promise.all([
+            this.loadClinicalHistory(this.loadRequest, this.patientId, false),
+            this.loadClinicalHistoryVersions()
+          ]);
+          return;
+        }
+        this.handleRevisionConflict(response);
+        this.saveError = response && response.message ? response.message : 'No se pudo cancelar el borrador.';
+      } catch (error) { this.saveError = 'No se pudo cancelar el borrador. Puedes reintentar.'; }
+      finally { this.isBusy = false; }
+    },
+    handleRevisionConflict(response) {
+      if(response && response.data && response.data.code === 'HISTORY_REVISION_CONFLICT') {
+        this.revisionConflict = true;
+        this.showFinalizeDialog = false;
+        this.showLeaveDialog = false;
+        const resolve = this.leaveResolver;
+        this.leaveResolver = null;
+        this.leavePromise = null;
+        if(resolve) resolve(false);
       }
-      this.notify('error', response && response.message ? response.message : 'No se pudo cancelar el borrador.');
+    },
+    async refreshAllergyRevision(record) {
+      if(this.isBusy || !this.isDraft) return;
+      const before = this.clinicalHistory;
+      const request = this.loadRequest;
+      try {
+        const response = await DAClinicalHistoryService.getById(before.id_clinical_history);
+        if(request !== this.loadRequest || this.clinicalHistory !== before || this.isBusy) return;
+        const after = response && response.success && response.data && response.data.history;
+        if(canRefreshAllergyRevision(before, after, record.revision)) this.clinicalHistory = after;
+      } catch(error) { /* A later save still checks the server revision and preserves local text. */ }
+    },
+    downloadLocalCapture() {
+      const sections = this.dynamicSections || [];
+      const lines = ['Copia de captura local sin guardar', `Doctor responsable: ${this.selectedDoctorLabel}`, ''];
+      Object.entries(this.form).forEach(([key, values]) => {
+        const section = sections.find(item => item.key === key);
+        lines.push(section ? section.label : key.replace(/_/g, ' '));
+        Object.entries(values || {}).forEach(([fieldKey, value]) => {
+          const field = section && (section.fields || []).find(item => item.key === fieldKey);
+          lines.push(`${field ? field.label : fieldKey.replace(/_/g, ' ')}: ${Array.isArray(value) ? value.join(', ') : (value === null || value === undefined ? '' : value)}`);
+        });
+        lines.push('');
+      });
+      const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'historia-captura-sin-guardar.txt';
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    async reloadConflictingHistory() {
+      if(this.isBusy || !this.clinicalHistory) return;
+      if(!await this.confirmDialog('Cargar versión actual', 'Se reemplazará la captura de este formulario por la versión guardada. Descarga primero tu captura si necesitas conservar o comparar tus cambios.')) return;
+      this.isBusy = true;
+      try {
+        const response = await DAClinicalHistoryService.getById(this.clinicalHistory.id_clinical_history);
+        if(response && response.success && response.data && response.data.history) {
+          this.clinicalHistory = response.data.history;
+          this.applyHistoryToForm(this.clinicalHistory);
+          await this.loadClinicalHistoryVersions();
+        } else this.saveError = 'No se pudo cargar la versión actual. Tu captura se conserva.';
+      } catch(error) { this.saveError = 'No se pudo cargar la versión actual. Tu captura se conserva.'; }
+      finally { this.isBusy = false; }
     },
     async createNewVersion() {
       if(this.activeDraftVersion) {
@@ -1728,6 +2029,10 @@ export default {
       }
       const latestSnapshot = this.buildPayloadSnapshot();
       this.form = mergeSnapshot(emptySnapshot(), latestSnapshot);
+      if(!this.selectedDoctor) {
+        this.doctorResponsibleUserId = null;
+        this.applyDefaultResponsibleDoctor();
+      }
       await this.createDraft('MANUAL');
     },
     buildPayloadSnapshot() {
@@ -1808,6 +2113,8 @@ export default {
     activeDynamicFields(section) {
       return (section.fields || [])
         .filter((field) => field && field.enabled !== false)
+        .map(field => section.key === 'allergies_medications' && field.key === 'allergies'
+          ? { ...field, required: ['HAS_ALLERGIES', 'UNKNOWN'].includes(this.form.allergies_medications.allergy_status) } : field)
         .slice()
         .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
     },
@@ -1841,7 +2148,7 @@ export default {
         return { tone: 'optional', status: 'Opcional', missing: 0, required: 0 };
       }
       if(missingRequired.length === 0) {
-        return { tone: 'complete', status: 'Completa', missing: 0, required: requiredFields.length };
+        return { tone: 'complete', status: 'Obligatorios listos', missing: 0, required: requiredFields.length };
       }
       return {
         tone: 'missing',
@@ -1912,8 +2219,28 @@ export default {
     },
     goToPendingField(item) {
       this.showPendingDialog = false;
+      this.focusHistoryField(item);
+    },
+    fieldId(section, field) { return `history-${section.key}-${field.key}`; },
+    fieldErrorBinding(section, field) {
+      return { id: this.fieldId(section, field), required: Boolean(field.required), invalid: Boolean(this.dynamicFieldError(section, field)) };
+    },
+    dynamicFieldError(section, field) {
+      const error = this.validationErrors.find(item => item.sectionKey === section.key && item.fieldKey === field.key);
+      return error ? error.message : '';
+    },
+    focusHistoryField(item) {
       if(item && item.sectionKey) {
         this.scrollToDynamicSection(item.sectionKey);
+        this.$nextTick(() => {
+          clearTimeout(this.fieldFocusTimer);
+          this.fieldFocusTimer = setTimeout(() => {
+            const container = item.sectionKey === 'allergies_medications' && ['allergy_status', 'allergies'].includes(item.fieldKey)
+              ? document.getElementById('history-allergies_medications-allergy_status') : document.getElementById(`history-field-${item.sectionKey}-${item.fieldKey}`);
+            const input = container && (container.querySelector('textarea, input:not([type="hidden"]), select, [tabindex="0"]') || container);
+            if(input) { input.scrollIntoView({ block: 'center' }); input.focus({ preventScroll: true }); }
+          }, 300);
+        });
       }
     },
     quickActionsForSection(section) {
@@ -1921,7 +2248,6 @@ export default {
       const fieldKeys = this.activeDynamicFields(section).map((field) => field.key);
       const actions = [];
       if(section.key === 'allergies_medications') {
-        if(fieldKeys.includes('allergies')) actions.push({ label: 'Niega alergias', fieldKey: 'allergies', value: 'Niega alergias.' });
         if(fieldKeys.includes('current_medications')) actions.push({ label: 'No toma medicamentos', fieldKey: 'current_medications', value: 'No toma medicamentos actualmente.' });
       }
       if(['family_history', 'pathological_history'].includes(section.key)) {
@@ -1931,8 +2257,34 @@ export default {
       return actions;
     },
     applyQuickAction(section, action) {
+      if(!this.canEditForm) return;
       const field = this.activeDynamicFields(section).find((item) => item.key === action.fieldKey);
-      if(field) this.setDynamicFieldValue(section, field, action.value);
+      if(!field) return;
+      const previous = this.getDynamicFieldValue(section, field);
+      const replacement = { sectionKey: section.key, field, previous, value: action.value };
+      if(this.hasText(previous) && previous !== action.value) {
+        this.pendingQuickAction = replacement;
+        this.showQuickActionDialog = true;
+      } else this.commitQuickAction(replacement);
+    },
+    closeQuickActionDialog(open) {
+      if(!open) { this.showQuickActionDialog = false; this.pendingQuickAction = null; }
+    },
+    confirmQuickAction() {
+      if(this.pendingQuickAction) this.commitQuickAction(this.pendingQuickAction);
+      this.closeQuickActionDialog(false);
+    },
+    commitQuickAction(replacement) {
+      const section = this.dynamicSections.find(item => item.key === replacement.sectionKey);
+      this.setDynamicFieldValue(section, replacement.field, replacement.value);
+      this.lastQuickAction = replacement;
+    },
+    undoQuickAction() {
+      const previous = this.lastQuickAction;
+      if(!previous) return;
+      this.lastQuickAction = null;
+      const section = this.dynamicSections.find(item => item.key === previous.sectionKey);
+      this.setDynamicFieldValue(section, previous.field, previous.previous);
     },
     dynamicFieldPlaceholder(section, field) {
       if(field.placeholder) return field.placeholder;
@@ -1965,6 +2317,7 @@ export default {
     },
     displayDynamicFieldValue(section, field) {
       const value = this.getDynamicFieldValue(section, field);
+      if(section.key === 'allergies_medications' && field.key === 'allergy_status') return allergyLabels[value] || 'Sin revisar';
       if(Array.isArray(value)) {
         return value.length ? value.join(', ') : 'No registrado';
       }
@@ -1981,6 +2334,8 @@ export default {
         this.$set(this.form, section.key, {});
       }
       this.$set(this.form[section.key], field.key, value);
+      this.saveError = '';
+      if(this.lastQuickAction && this.lastQuickAction.sectionKey === section.key && this.lastQuickAction.field.key === field.key) this.lastQuickAction = null;
       if(section.key === 'vital_signs' && ['weight', 'height'].includes(field.key)) {
         this.updateBmi();
       }
@@ -2089,21 +2444,11 @@ export default {
       if(field.type === 'checkbox') {
         return value !== true;
       }
-      return !this.hasText(value);
+      return !this.hasText(value) || (typeof value === 'string' && value.length > 5000);
     },
     validateTextLengths() {
-      const maxLong = 5000;
-      const values = [];
-      Object.keys(this.form).forEach((section) => {
-        Object.keys(this.form[section] || {}).forEach((field) => {
-          values.push({ section, field, value: this.form[section][field] });
-        });
-      });
-      const tooLong = values.find((item) => typeof item.value === 'string' && item.value.length > maxLong);
-      if(tooLong) {
-        return { ok: false, message: 'Hay un campo con texto demasiado largo. Reduce el contenido antes de guardar.' };
-      }
-      return { ok: true };
+      const errors = textLengthErrors(this.form, this.dynamicSections);
+      return { ok: errors.length === 0, errors };
     },
     updateBmi() {
       const weight = Number(String(this.form.vital_signs.weight || '').replace(',', '.'));
@@ -2242,6 +2587,7 @@ export default {
       const patient = this.printablePatient(payload.patient || {}, snapshot.identification || {});
       const business = payload.business || (this.$session ? this.$session.get('business') : null) || {};
       const doctor = payload.doctor || {};
+      const finalizer = payload.finalizer || null;
       const consent = payload.consent_document || null;
       const sections = this.printableSections(schema, snapshot, patient);
       const printedBy = this.currentUserPayload.name || this.currentUserPayload.email || this.currentUserPayload.id_login || 'No registrado';
@@ -2317,7 +2663,10 @@ export default {
               <section class="section">
                 <h2>Doctor responsable</h2>
                 <div class="fields">${this.printableFieldsHtml(this.printableDoctorFields(doctor, history))}</div>
+                ${doctor.identity_source === 'LEGACY_UNVERIFIED' ? '<p class="notice">Esta versión anterior no conserva una copia histórica del perfil profesional. No se han sustituido esos datos por los del perfil actual.</p>' : ''}
               </section>
+
+              ${finalizer ? `<section class="section"><h2>Profesional que cerró esta versión</h2><div class="fields">${this.printableFieldsHtml(this.printableDoctorFields(finalizer, history))}</div></section>` : ''}
 
               <section class="section">
                 <h2>Consentimiento</h2>
@@ -2350,7 +2699,7 @@ export default {
       ];
     },
     printableDoctorFields(doctor, history) {
-      const historicalLicenseText = history && history.status !== 'DRAFT' ? 'No registrada al momento de la finalización.' : 'No registrada';
+      const historicalLicenseText = history && history.status !== 'DRAFT' ? 'Sin copia histórica disponible.' : 'No registrada';
       return [
         { label: 'Nombre', value: doctor.professional_name || doctor.user_name || 'No registrado' },
         { label: 'Cédula profesional', value: doctor.professional_license || historicalLicenseText },
@@ -2415,6 +2764,7 @@ export default {
       let value = field.type === 'readonly'
         ? this.printableReadonlyValue(field, patientFields, sectionValues)
         : sectionValues[field.key];
+      if(section.key === 'allergies_medications' && field.key === 'allergy_status') value = allergyLabels[value] || 'Sin revisar';
       return {
         label: `${field.label || field.key}${field.required ? ' *' : ''}`,
         value: this.printableFieldValue(value, field.type),
@@ -2426,7 +2776,8 @@ export default {
         .filter((key) => key !== 'identification' && snapshot[key] && typeof snapshot[key] === 'object')
         .map((key) => {
           const fields = Object.keys(snapshot[key])
-            .map((fieldKey) => ({ label: fieldKey, value: this.printableFieldValue(snapshot[key][fieldKey]), wide: true }))
+            .filter(fieldKey => key !== 'allergies_medications' || !['legacy_allergies', 'allergy_revision', 'allergy_reviewed_at', 'allergy_reviewed_by'].includes(fieldKey))
+            .map((fieldKey) => ({ label: fieldKey === 'allergy_status' ? 'Estado de alergias' : fieldKey, value: this.printableFieldValue(fieldKey === 'allergy_status' ? allergyLabels[snapshot[key][fieldKey]] || 'Sin revisar' : snapshot[key][fieldKey]), wide: true }))
             .filter((field) => this.hasPrintableValue(field.value));
           if(!fields.length) {
             return '';
@@ -2590,7 +2941,7 @@ export default {
       return value === undefined || value === null || value === '' ? 'No registrado' : value;
     },
     hasText(value) {
-      return Boolean(value && String(value).trim());
+      return value !== null && value !== undefined && Boolean(String(value).trim());
     },
     notify(icon, text) {
       if(this.$swal) {
@@ -2729,6 +3080,9 @@ export default {
 }
 
 .primary-cta {
+  background: var(--color-primary-900);
+  color: #fff;
+  border-radius: 999px;
   justify-content: center;
   min-height: 2.85rem;
   font-size: .98rem;
@@ -3246,8 +3600,8 @@ h3 {
 
 .clinical-button.primary {
   color: #fff !important;
-  background: var(--color-primary-500) !important;
-  border-color: var(--color-primary-500) !important;
+  background: var(--color-primary-900) !important;
+  border-color: var(--color-primary-900) !important;
   box-shadow: 0 12px 24px rgba(23, 167, 201, .24);
 }
 
@@ -3836,6 +4190,20 @@ h3 {
 .dialog-card {
   background: #fff;
   padding: 1.25rem;
+  border: 1px solid var(--color-primary-200);
+  border-radius: 16px;
+  color: #334155;
+}
+
+.dialog-card header h3 {
+  margin: .3rem 0 .6rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.dialog-card header p:not(.section-kicker) {
+  line-height: 1.6;
+  color: #475569;
 }
 
 .finalize-checklist {
@@ -4007,4 +4375,15 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+.save-state { font-weight: 700; color: var(--color-primary-900); }
+.quick-action-feedback { padding: .6rem; background: #f0f9ff; color: #334155; }
+.dynamic-field { scroll-margin-top: 10rem; }
+.clinical-history-page button:focus-visible, .dialog-card button:focus-visible { outline: 3px solid var(--color-primary-900); outline-offset: 3px; }
+.dialog-actions { flex-wrap: wrap; }
+@media (max-width: 620px) { .dialog-actions { display: grid; grid-template-columns: 1fr; } }
+</style>
+
+<style>
+.v-dialog.clinical-history-dialog { border-radius: 16px; }
 </style>

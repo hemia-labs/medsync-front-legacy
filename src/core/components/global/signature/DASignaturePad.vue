@@ -22,6 +22,7 @@
 export default {
     props: {
         required: Boolean,
+        trackChanges: { type: Boolean, default: false },
         showActions: {
             type: Boolean,
             default: true
@@ -40,12 +41,22 @@ export default {
             isSignatureEmpty: false
         }
     },
+    created() {
+        if (this.trackChanges) this.signaturepadOptions.onEnd = this.notifyChange;
+    },
     methods: {
+        notifyChange() {
+            if (!this.trackChanges || !this.$refs.signaturePad) return;
+            const { isEmpty } = this.$refs.signaturePad.saveSignature();
+            this.$emit('changed', { isEmpty });
+        },
         undo() {
             this.$refs.signaturePad.undoSignature();
+            this.notifyChange();
         },
         clear() {
             this.$refs.signaturePad.clearSignature();
+            this.notifyChange();
         },
         save() {
             this.isSignatureEmpty = false;

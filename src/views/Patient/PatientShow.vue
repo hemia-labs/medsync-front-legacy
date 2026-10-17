@@ -9,17 +9,41 @@
         <span>Expediente clínico</span>
     </div>
 
-    <div class="mb-4">
-        <da-history-header :px="px" v-model="isEditProfile" v-on:edit="isEditProfile = true"></da-history-header>
+    <div v-if="loadingPatient" class="patient-load-message" role="status">Cargando expediente…</div>
+    <div v-else-if="patientError" class="patient-load-message" role="alert">
+        <p>{{ patientError }}</p>
+        <button type="button" class="patient-record-back" @click="init">Reintentar</button>
     </div>
+
+    <template v-if="patientReady">
     <div class="mb-4">
-        <da-alergy-alert :px="px" v-on:edit="isEdit = true"></da-alergy-alert>
+        <da-history-header :px="px" :can-edit="canManagePatient" :show-clinical="canViewClinical" v-model="isEditProfile" v-on:edit="requestProfileEdit"></da-history-header>
+    </div>
+    <div v-if="canViewClinical" class="mb-4">
+        <da-alergy-alert :px="px" :can-edit="canEditAllergies" v-on:edit="openAllergyEditor"></da-alergy-alert>
+        <p v-if="allergyFeedback" role="status" class="text-sm mt-2">{{ allergyFeedback }}</p>
+    </div>
+
+    <div v-if="isArchived || !canViewClinical" class="patient-record-shell pa-5 mb-4">
+        <p v-if="isArchived" role="status">Paciente archivado. Su expediente y sus citas se conservan. Restaura al paciente para acceder a las secciones que no estén disponibles.</p>
+        <template v-if="!canViewClinical">
+            <h2 class="text-lg font-semibold">Ficha administrativa</h2>
+            <p>Teléfono: {{ px.person.telephone || 'Sin registrar' }}</p>
+            <p>Domicilio: {{ px.address && px.address.direction || 'Sin registrar' }}</p>
+        </template>
+        <div v-if="canManagePatient" class="flex flex-wrap gap-3 mt-3">
+            <v-btn v-if="!isEdit" outlined @click="requestPatientEdit">Editar datos administrativos</v-btn>
+            <v-btn v-if="isArchived" outlined :disabled="archivePending" @click="restorePatient">Restaurar paciente</v-btn>
+            <v-btn v-else outlined @click="isDelete = true">Archivar paciente</v-btn>
+        </div>
     </div>
     
     <div v-if="!isEdit" :class="{'animate-fade-in-left ease-in-out': !isEdit}">
         <div class="patient-record-shell">
             <v-tabs 
-            v-model="tab" 
+            :value="tab"
+            :key="tabNavigationRevision"
+            @change="requestTabChange"
             color="var(--color-primary-700)" 
             background-color="transparent" 
             next-icon="mdi-chevron-right"
@@ -36,17 +60,21 @@
                     <span>{{item.name ? item.name : ''}}</span>
                 </v-tab>
             </v-tabs>
-            <v-tabs-items v-model="tab" v-if="allowedTabs && allowedTabs.length > 0" class="patient-record-content">
+            <v-tabs-items :value="tab" v-if="allowedTabs && allowedTabs.length > 0" class="patient-record-content">
                 <v-tab-item v-for="item in allowedTabs" :key="item.permission" :value="item.component">
                     <component
-                      :is="item.component"
+                      :is="item.component === 'da-medical-history' && !canViewClinical ? 'da-clinical-intake' : item.component"
+                      ref="patientSection"
                       v-if="tab === item.component"
                       :key="item.component + '-' + activePatientId"
                       :px="px"
                       :document-focus-request="documentFocusRequest"
-                      v-on:edit="isEdit = true"
+                      v-on:edit="requestPatientEdit"
                       v-on:delete="isDelete = true"
-                      v-on:open-documents="openTabByComponent('da-patient-documents', $event)">
+                      v-on:open-documents="openTabByComponent('da-patient-documents', $event)"
+                      v-on:document-focus-consumed="consumeDocumentFocusRequest"
+                      v-on:edit-allergies="openAllergyEditor"
+                      v-on:register-navigation-guard="registerSectionGuard">
                     </component>
                 </v-tab-item>
             </v-tabs-items>
@@ -56,16 +84,19 @@
         </div>
         
     </div>
+
+    <AllergyEditor v-if="canEditAllergies" v-model="showAllergyEditor" :patient-id="activePatientId" :patient-name="px.person.fullname" :record="px.allergy || {}" :legacy-text="allergyLegacyText" @saved="onAllergySaved" />
     
     <div v-if="isEdit" class="py-5" :class="{'animate-fade-in-left ease-in-out': isEdit}">
-        <da-patient-form :id="id" v-on:cancel="onCancelEdit"></da-patient-form>
+        <da-patient-form v-if="canEditClinical" :id="id" v-on:cancel="onCancelEdit"></da-patient-form>
+        <PatientAdministrativeForm v-else-if="canManagePatient" :patient="px" @cancel="onCancelEdit" @saved="onAdministrativeSaved" />
     </div>
 
     <da-dialog v-model="isDelete" :persist="true" :maxWidth="'500px'">
         <template #body>
             <da-sweet-confirm 
-            :title="'Eliminar Paciente'" 
-            :message="'¿Esta seguro de eliminar los datos del paciente seleccionado?'"
+            :title="'Archivar paciente'"
+            :message="'El paciente dejará de aparecer en la búsqueda habitual. Su expediente y sus citas se conservarán. Puedes restaurarlo desde Pacientes activando Incluir archivados.'"
             :lottiepath="DELETE"
             :iconwidth="150"
             :iconheight="150"
@@ -87,6 +118,7 @@
   </da-dialog>
 
   <da-upload-file :show="isUploadFile" v-on:close="isUploadFile = false" v-on:save="onSavePicture"></da-upload-file>
+    </template>
 
   </div>
 </template>
@@ -98,6 +130,9 @@ import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import DAHistoryHeader from './components/DAHistoryHeader.vue';
 import DAAlergyAlert from './components/DAAlergyAlert.vue';
+import AllergyEditor from './components/AllergyEditor.vue';
+import PatientAdministrativeForm from './components/PatientAdministrativeForm.vue';
+import DAPxService from '../../services/core/px/DAPxService';
 import DASweetConfirm from '../../core/components/form/dialog/components/DASweetConfirm.vue';
 import DocumentsAndSignatures from './Sections/DocumentsAndSignatures.vue';
 import { DELETE } from '../../utils/lottieicon';
@@ -116,11 +151,22 @@ export default {
         return {
             isEdit: false,
             isDelete: false,
+            archivePending: false,
+            showAllergyEditor: false,
+            allergyLegacyText: '',
+            allergyFeedback: '',
             isEditProfile: false,
             isUploadFile: false,
             DELETE,
             tab: 'da-medical-history',
+            tabNavigationRevision: 0,
+            tabNavigationPending: false,
+            sectionLeaveGuard: null,
             documentFocusRequest: null,
+            documentFocusSequence: 0,
+            loadingPatient: true,
+            patientError: '',
+            patientRequest: 0,
             configuration: [
                 {name: 'Historia clínica', permission: 'px.tab.history', component: 'da-medical-history', icon: 'mdi-clipboard-text-outline'},
                 {name: 'Odontograma', permission: 'px.tab.odontogram', component: 'da-odontogram', moduleFlag: 'odontogramEnabled', icon: 'mdi-tooth-outline'},
@@ -134,7 +180,10 @@ export default {
         }
     },
     components: {
+        PatientAdministrativeForm,
+        AllergyEditor,
         'da-medical-history': () => import('./Sections/MedicalHistory.vue'),
+        'da-clinical-intake': () => import('./Sections/ClinicalIntake.vue'),
         'da-history-header': DAHistoryHeader,
         'da-patient-form': () => import('./PatientForm.vue'),
         'da-patient-treatment': () => import('./Sections/TreatmentPlan.vue'),
@@ -151,6 +200,26 @@ export default {
       this.init()
   },
   methods: {
+    requestProfileEdit() { if(this.canManagePatient) this.isEditProfile = true },
+    async onAdministrativeSaved() { this.isEdit = false; await this.init() },
+    async restorePatient() {
+        if(!this.canManagePatient || this.archivePending) return
+        this.archivePending = true
+        try {
+            const response = await DAPxService.restore({ id_person: this.id })
+            if(response.success) await this.init()
+            else this.$swal.fire({ icon: 'error', title: 'No se pudo restaurar', text: response.message })
+        } finally { this.archivePending = false }
+    },
+    openAllergyEditor(legacyText = '') {
+        if(!this.canEditAllergies) return
+        this.allergyLegacyText = typeof legacyText === 'string' ? legacyText : ''
+        this.showAllergyEditor = true
+    },
+    onAllergySaved(record) {
+        this.$store.commit(`${moduleTypes.PX}/SET_ALLERGY`, record)
+        this.allergyFeedback = 'Alergias guardadas. El expediente y los borradores usan el mismo estado.'
+    },
     ...mapActions(moduleTypes.PX, [
             fnTypes.getById
     ]),
@@ -158,17 +227,38 @@ export default {
             fnTypes.getClinicalModules
     ]),
     init: async function() {
-        await this.ActionWrapp(moduleTypes.CONFIGURATION, fnTypes.getClinicalModules)
-        await this.ActionWrapp(moduleTypes.PX, fnTypes.getById, this.id)
-        this.applyRequestedTab()
+        const request = ++this.patientRequest
+        const patientId = this.id
+        this.loadingPatient = true
+        this.patientError = ''
+        try {
+            await this.ActionWrapp(moduleTypes.CONFIGURATION, fnTypes.getClinicalModules)
+            const response = await this.ActionWrapp(moduleTypes.PX, fnTypes.getById, patientId)
+            if(request !== this.patientRequest) return
+            const person = response && response.data && response.data.person
+            if(!response.success || !person || person.id_person !== patientId) {
+                this.patientError = response.message || 'No se pudo cargar el paciente. Reintenta para abrir su expediente.'
+                return
+            }
+            this.applyRequestedTab()
+        } catch (error) {
+            if(request === this.patientRequest) this.patientError = 'No se pudo cargar el expediente. Reintenta.'
+        } finally {
+            if(request === this.patientRequest) this.loadingPatient = false
+        }
     },
     onCancelEdit: function() {
         this.isEdit = false;
         //this.init();
     },
     onFinish: async function(value) {
-        if(value) {
-            await this.ActionWrapp(moduleTypes.PX, fnTypes.remove, this.id)
+        if(value && this.canManagePatient && !this.archivePending) {
+            this.archivePending = true
+            try {
+                const response = await DAPxService.remove({ id_person: this.id })
+                if(response.success) { this.isDelete = false; await this.init() }
+                else this.$swal.fire({ icon: 'error', title: 'No se pudo archivar', text: response.message })
+            } finally { this.archivePending = false }
         }
     },
     onSavePicture: async function(event) {
@@ -179,15 +269,40 @@ export default {
           this.isUploadFile = false
       }
     },
-    openTabByComponent: function(component, payload = null) {
-        if(component === 'da-patient-documents') {
-            this.documentFocusRequest = payload
-                ? { ...payload, requestId: payload.requestId || Date.now() }
-                : { requestId: Date.now() }
-        }
-        const exists = this.allowedTabs.some((item) => item.component === component)
-        if(exists) {
+    async confirmSectionLeave() {
+        return this.sectionLeaveGuard ? this.sectionLeaveGuard() : true
+    },
+    registerSectionGuard(guard) { this.sectionLeaveGuard = guard },
+    async requestPatientEdit() {
+        if(!this.canManagePatient) return
+        if(await this.confirmSectionLeave()) this.isEdit = true
+    },
+    async requestTabChange(component) {
+        if(component === this.tab || this.tabNavigationPending) return false
+        if(!this.allowedTabs.some(item => item.component === component)) return false
+        this.tabNavigationPending = true
+        try {
+            if(!await this.confirmSectionLeave()) {
+                this.tabNavigationRevision++
+                return false
+            }
+            if(this.tab === 'da-patient-documents') this.documentFocusRequest = null
             this.tab = component
+            return true
+        } finally { this.tabNavigationPending = false }
+    },
+    openTabByComponent: async function(component, payload = null) {
+        if(component !== this.tab && !await this.requestTabChange(component)) return
+        if(component === 'da-patient-documents') {
+            this.documentFocusRequest = payload && (payload.id_patient_document || payload.document_type)
+                ? { ...payload, requestId: ++this.documentFocusSequence, id_person: this.activePatientId }
+                : null
+        }
+    },
+    consumeDocumentFocusRequest(request) {
+        const current = this.documentFocusRequest
+        if(current && request && current.requestId === request.requestId && current.id_person === request.id_person) {
+            this.documentFocusRequest = null
         }
     },
     componentFromTabQuery: function(tab) {
@@ -206,7 +321,7 @@ export default {
     applyRequestedTab: function() {
         const requestedTab = this.$route && this.$route.query ? this.$route.query.tab : null
         const component = this.componentFromTabQuery(requestedTab)
-        if(component) {
+        if(component && this.allowedTabs.some(item => item.component === component)) {
             this.openTabByComponent(component)
             return
         }
@@ -223,6 +338,12 @@ export default {
     },
   },
   computed: {
+        canManagePatient() { return this.hasPermission('px.new') },
+        canViewClinical() { return this.hasPermission('clinical_history.view') && Boolean(this.px && this.px.access && this.px.access.clinical) },
+        canCaptureIntake() { return !this.isArchived && this.hasPermission('clinical_history.intake') },
+        canEditClinical() { return !this.isArchived && this.canViewClinical && this.hasPermission('clinical_history.edit_draft') },
+        canEditAllergies() { return !this.isArchived && this.canViewClinical && this.hasPermission('clinical_history.edit_draft') },
+        isArchived() { return this.px && this.px.person && Number(this.px.person.active) === 0 },
         ...mapGetters(moduleTypes.PX, {
             px: fnTypes.getPx,
             
@@ -234,17 +355,29 @@ export default {
             clinicalModules: fnTypes.clinicalModules,
         } ),
         activePatientId: function() {
-            return this.px && this.px.person ? this.px.person.id_person : this.id
+            return this.px && this.px.person && this.px.person.id_person ? this.px.person.id_person : this.id
+        },
+        patientReady: function() {
+            return !this.loadingPatient && !this.patientError && this.px && this.px.person && this.px.person.id_person === this.id
         },
         allowedTabs: function() {
             return this.configuration.filter((item) => {
                 const hasModuleEnabled = !item.moduleFlag || Boolean(this.clinicalModules && this.clinicalModules[item.moduleFlag])
-                return hasModuleEnabled && this.hasPermission(item.permission)
+                const historySection = item.component === 'da-medical-history'
+                const canReadSection = !historySection || this.canViewClinical || this.canCaptureIntake
+                return hasModuleEnabled && canReadSection && (this.hasPermission(item.permission) || (historySection && this.canCaptureIntake))
             })
         },
 
     },
     watch:  {
+        id: function() {
+            this.showAllergyEditor = false
+            this.allergyFeedback = ''
+            this.documentFocusRequest = null
+            this.isEdit = false
+            this.init()
+        },
         isUploadFile: function() {
             if(this.isUploadFile) {
                 this.isEditProfile = false
@@ -266,6 +399,14 @@ export default {
     max-width: 82rem;
     margin-left: auto;
     margin-right: auto;
+}
+
+.patient-load-message {
+    padding: 1.5rem;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    color: #334155;
 }
 
 .patient-record-breadcrumb {

@@ -94,6 +94,7 @@
 </template>
 
 <script>
+import { canAccessSettings } from '../../security/settingsAccess';
 import { mapActions, mapGetters } from 'vuex';
 import fnTypes from '../../store/modules/common/fn-types';
 import moduleTypes from '../../store/modules/common/module-types';
@@ -313,6 +314,7 @@ export default {
           if(!item) {
             return false
           }
+          if(item.settingsAccess) return canAccessSettings(this.role, this.hasPermission)
 
           if(Array.isArray(item.permissionsAny) && item.permissionsAny.length) {
             return item.permissionsAny.some((permission) => this.hasPermission(permission))

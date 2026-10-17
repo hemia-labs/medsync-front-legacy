@@ -2,7 +2,7 @@
   <section class="dashboard-widget professional-widget" aria-labelledby="professional-breakdown-title">
     <div class="widget-heading">
       <div>
-        <p class="eyebrow">Rendimiento clinico</p>
+        <p class="eyebrow">Actividad clinica documentada</p>
         <h2 id="professional-breakdown-title">Actividad por profesional</h2>
         <span class="widget-description">Actividad general por profesional, sin datos de pacientes.</span>
       </div>
@@ -24,7 +24,7 @@
       <v-icon size="30">mdi-account-tie-outline</v-icon>
       <div>
         <strong>No hay actividad profesional registrada en este periodo.</strong>
-        <p>Cambia el rango o espera a que se registren recetas, historias o documentos.</p>
+        <p>Cambia el rango o espera a que se emitan recetas o se finalicen historias.</p>
       </div>
     </div>
 
@@ -45,7 +45,7 @@
             <div class="professional-copy">
               <strong>{{ item.label || 'Profesional sin alias' }}</strong>
               <span class="professional-role">{{ item.roleLabel || 'Rol sin etiqueta' }}</span>
-              <span>{{ formatNumber(totalActivity(item)) }} movimientos registrados</span>
+              <span>{{ formatNumber(totalActivity(item)) }} recetas emitidas e historias finalizadas</span>
             </div>
           </div>
 
@@ -54,34 +54,37 @@
           </div>
 
           <div class="metric-chips">
-            <span>
+            <span v-if="hasMetric(item, 'prescriptionsIssued')">
               <v-icon size="16">mdi-file-document-edit-outline</v-icon>
               {{ formatNumber(item.prescriptionsIssued) }} recetas
             </span>
-            <span>
+            <span v-if="hasMetric(item, 'clinicalHistoriesCreated')">
               <v-icon size="16">mdi-clipboard-plus-outline</v-icon>
               {{ formatNumber(item.clinicalHistoriesCreated) }} creadas
             </span>
-            <span>
+            <span v-if="hasMetric(item, 'clinicalHistoriesUpdated')">
               <v-icon size="16">mdi-clipboard-edit-outline</v-icon>
               {{ formatNumber(item.clinicalHistoriesUpdated) }} editadas
             </span>
-            <span>
+            <span v-if="hasMetric(item, 'clinicalHistoriesFinalized')">
               <v-icon size="16">mdi-clipboard-check-outline</v-icon>
               {{ formatNumber(item.clinicalHistoriesFinalized) }} finalizadas
             </span>
-            <span>
+            <span v-if="hasMetric(item, 'documentsSigned')">
               <v-icon size="16">mdi-file-sign-outline</v-icon>
               {{ formatNumber(item.documentsSigned) }} documentos
             </span>
           </div>
         </article>
       </div>
+      <p>Las cifras se atribuyen al doctor responsable cuando esta registrado; los registros sin atribucion se muestran por separado. La captura o edicion de un asistente no se considera un acto medico propio. Los indicadores no medidos aparecen como No disponible.</p>
     </div>
   </section>
 </template>
 
 <script>
+import { formatMetric, hasMetric, sumMetric } from '../../../domain/dashboard/metrics';
+
 function normalizeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -114,45 +117,31 @@ export default {
       return Math.max.apply(null, this.items.map((item) => this.totalActivity(item)).concat([1]));
     },
     totals: function() {
-      return this.items.reduce((acc, item) => ({
-        prescriptionsIssued: acc.prescriptionsIssued + normalizeNumber(item.prescriptionsIssued),
-        clinicalHistoriesCreated: acc.clinicalHistoriesCreated + normalizeNumber(item.clinicalHistoriesCreated),
-        clinicalHistoriesUpdated: acc.clinicalHistoriesUpdated + normalizeNumber(item.clinicalHistoriesUpdated),
-        clinicalHistoriesFinalized: acc.clinicalHistoriesFinalized + normalizeNumber(item.clinicalHistoriesFinalized),
-        documentsSigned: acc.documentsSigned + normalizeNumber(item.documentsSigned)
-      }), {
-        prescriptionsIssued: 0,
-        clinicalHistoriesCreated: 0,
-        clinicalHistoriesUpdated: 0,
-        clinicalHistoriesFinalized: 0,
-        documentsSigned: 0
-      });
+      return ['prescriptionsIssued', 'clinicalHistoriesCreated', 'clinicalHistoriesUpdated',
+        'clinicalHistoriesFinalized', 'documentsSigned'].reduce((totals, key) => {
+        totals[key] = sumMetric(this.items, key);
+        return totals;
+      }, {});
     },
     totalMetrics: function() {
       return [
-        { key: 'professionals', label: 'Profesionales', value: this.items.length },
+        { key: 'professionals', label: 'Profesionales identificados', value: this.items.filter(item => item.professionalKey !== 'unassigned').length },
         { key: 'clinicalHistoriesCreated', label: 'Historias creadas', value: this.totals.clinicalHistoriesCreated },
         { key: 'clinicalHistoriesUpdated', label: 'Historias editadas', value: this.totals.clinicalHistoriesUpdated },
         { key: 'clinicalHistoriesFinalized', label: 'Historias finalizadas', value: this.totals.clinicalHistoriesFinalized },
         { key: 'prescriptionsIssued', label: 'Recetas', value: this.totals.prescriptionsIssued },
         { key: 'documentsSigned', label: 'Documentos', value: this.totals.documentsSigned }
-      ];
+      ].filter(metric => metric.key === 'professionals' || this.items.some(item => hasMetric(item, metric.key)));
     },
     isEmpty: function() {
-      if(!this.items.length) {
-        return true;
-      }
-
-      return this.items.every((item) => this.totalActivity(item) === 0);
+      return !this.items.length;
     }
   },
   methods: {
+    hasMetric,
     totalActivity: function(item) {
       return normalizeNumber(item.prescriptionsIssued)
-        + normalizeNumber(item.clinicalHistoriesCreated)
-        + normalizeNumber(item.clinicalHistoriesUpdated)
-        + normalizeNumber(item.clinicalHistoriesFinalized)
-        + normalizeNumber(item.documentsSigned);
+        + normalizeNumber(item.clinicalHistoriesFinalized);
     },
     widthFor: function(item) {
       const total = this.totalActivity(item);
@@ -172,7 +161,7 @@ export default {
       return parts.map((part) => part.charAt(0)).join('').toUpperCase() || 'P';
     },
     formatNumber: function(value) {
-      return normalizeNumber(value).toLocaleString('es-MX');
+      return formatMetric(value);
     }
   }
 };

@@ -9,7 +9,8 @@ import {
     DAC_PRESCRIPTION_ISSUE,
     DAC_PRESCRIPTION_CANCEL,
     DAC_PRESCRIPTION_DELETE_DRAFT,
-    DAC_PRESCRIPTION_AUDIT_ACTION
+    DAC_PRESCRIPTION_AUDIT_ACTION,
+    DAC_PRESCRIPTION_OUTPUT
 } from '../../common/apiurl';
 import { DACore } from '../../config/axios.context';
 
@@ -19,8 +20,8 @@ const buildQuery = (params) => {
 };
 
 export default {
-    getConfig() {
-        return DACore.get(DAC_PRESCRIPTION_CONFIG_GET);
+    getConfig(doctorProfileId) {
+        return DACore.get(`${DAC_PRESCRIPTION_CONFIG_GET}${buildQuery(doctorProfileId ? {doctor_profile_id: doctorProfileId} : {})}`);
     },
 
     saveConfig(config) {
@@ -64,6 +65,10 @@ export default {
             action,
             metadata
         });
+    },
+
+    prepareOutput(idPrescription, action, metadata = null) {
+        return DACore.post(DAC_PRESCRIPTION_OUTPUT, { id_prescription: idPrescription, action, metadata });
     },
 
     deleteDraft(idPrescription) {

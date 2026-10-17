@@ -21,7 +21,7 @@ function withOpenSslLegacy(value) {
 const baseEnv = Object.assign({}, process.env, {
   NODE_ENV: 'development',
   NODE_OPTIONS: withOpenSslLegacy(process.env.NODE_OPTIONS),
-  VUE_APP_CORE_URL_API: process.env.VUE_APP_CORE_URL_API || 'http://127.0.0.1:3009/'
+  VUE_APP_CORE_URL_API: process.env.VUE_APP_CORE_URL_API || 'http://localhost:3009/'
 });
 
 const d2Env = Object.assign({}, baseEnv, {

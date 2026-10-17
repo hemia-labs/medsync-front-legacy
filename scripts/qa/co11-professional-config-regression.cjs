@@ -1,0 +1,37 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+(async () => {
+  const source=fs.readFileSync(path.join(__dirname,'../../src/domain/appointments/appointment.storage.js'),'utf8');
+  const storage=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+  let requests=[], saved=[], service={getConfig:id=>new Promise(resolve=>requests.push({id,resolve})),saveConfig:async body=>{saved.push(body);return {success:false,message:'QA failure'};}};
+  function component(file, helpers={}) {
+    const sfc=fs.readFileSync(path.join(__dirname,'../../src/views/configuration/components',file),'utf8');
+    const script=sfc.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default','component =');
+    const context={component:null,mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},DAPrescriptionService:service,DAAppointmentService:service,...helpers};
+    vm.runInNewContext(script,context);
+    const options=context.component, state=options.data();
+    Object.assign(state,{authUser:{id_login:'qa-actor'},hasPermission:()=>true,themeColor:'#087F8C',initialDoctorId:'',$emit:()=>{}});
+    Object.entries(options.methods).forEach(([key,value])=>state[key]=value.bind(state));
+    Object.entries(options.computed).forEach(([key,value])=>Object.defineProperty(state,key,{get:value.bind(state),configurable:true}));
+    return state;
+  }
+  const rx=component('PrescriptionConfig.vue');
+  rx.selectedDoctorId='a';rx.baseline=JSON.stringify(rx.form);rx.form.footer_note='Preserve unsaved note';
+  rx.chooseDoctor('b');assert.equal(rx.selectedDoctorId,'a');assert.equal(rx.pendingDoctor,'b');assert.equal(rx.leaveOpen,true);assert.equal(rx.form.footer_note,'Preserve unsaved note');
+  rx.selectedDoctorId='a';const first=rx.load();rx.selectedDoctorId='b';const second=rx.load();
+  requests[1].resolve({success:true,data:{doctor_profile_id:'b',footer_note:'Doctor B',doctor_profile:{professional_name:'B'}}});await second;
+  requests[0].resolve({success:true,data:{doctor_profile_id:'a',footer_note:'Doctor A'}});await first;
+  assert.equal(rx.form.footer_note,'Doctor B','Stale response cannot replace a different doctor');
+  rx.form.footer_note='Unsaved B';await rx.save();assert.equal(rx.form.footer_note,'Unsaved B');assert.equal(rx.saving,false);assert.equal(saved[0].doctor_profile_id,'b');
+  rx.loadError='Wrong doctor response';const calls=saved.length;assert.equal(await rx.save(),false);assert.equal(saved.length,calls,'Failed load must never save an old hidden form');
+  requests=[];saved=[];
+  const agenda=component('ProfessionalAgendaConfig.vue',storage);
+  agenda.selected='a';const load=agenda.load();requests[0].resolve({success:true,data:{enabled:true,doctorProfileId:'a',workingDays:[{dayOfWeek:1,enabled:true,timeRanges:[{startTime:'09:00',endTime:'12:00'}]}]}});await load;
+  assert.equal(agenda.form.workingDays.length,7);assert.equal(agenda.form.workingDays.find(d=>d.dayOfWeek===0).enabled,false,'Missing historical days remain closed');
+  agenda.form.enabled=false;agenda.choose('b');assert.equal(agenda.selected,'a');assert.equal(agenda.pending,'b');assert.equal(agenda.leaveOpen,true);
+  assert.equal(await agenda.save(),false);assert.equal(agenda.form.enabled,false);assert.equal(agenda.loaded,true);assert.equal(saved[0].doctorProfileId,'a');
+  assert.equal(storage.getAppointmentConfig().enabled,false);assert.equal(storage.getAppointments().length,0,'Old browser cache must never supply another doctor or tenant appointments');
+  console.log('PASS CO11 frontend: guarded doctor switch, stale response isolation, scoped save, failed-load save prevention, failure capture retention, missing days closed and no cross-doctor browser fallback.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

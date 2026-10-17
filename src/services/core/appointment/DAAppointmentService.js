@@ -9,9 +9,14 @@ import {
 import { DACore } from '../../config/axios.context';
 
 export default {
-    async getConfig() {
+    async doctors() {
+        return DACore.get(DAC_APPOINTMENT_CONFIG_GET.replace(/\/config$/, '/doctors'));
+    },
+
+    async getConfig(doctorProfileId) {
         try {
-            return DACore.get(DAC_APPOINTMENT_CONFIG_GET);
+            const query = doctorProfileId ? `?doctor_profile_id=${encodeURIComponent(doctorProfileId)}` : '';
+            return await DACore.get(`${DAC_APPOINTMENT_CONFIG_GET}${query}`);
         } catch (error) {
             return error.response.data;
         }
@@ -44,9 +49,13 @@ export default {
         }
     },
 
-    async save(appointment) {
+    async save(appointment, options = {}) {
         try {
-            return DACore.post(DAC_APPOINTMENT_SAVE, { appointment });
+            return DACore.post(DAC_APPOINTMENT_SAVE, {
+                appointment,
+                ...(options.syncFollowUp ? { sync_follow_up: true } : {}),
+                ...(options.explicitNewFollowUp ? { explicit_new_follow_up: true } : {})
+            });
         } catch (error) {
             return error.response.data;
         }

@@ -184,11 +184,8 @@ const d2RouterSources = {
 };
 
 const logoutAction = getActionBlock(sources.authActions, 'logout');
-const d2LogoutBranchStart = logoutAction.indexOf('if(isD2AuthMode())');
-const legacyLogoutBranchStart = logoutAction.indexOf('if(state.token)');
-const d2LogoutBranch = d2LogoutBranchStart >= 0 && legacyLogoutBranchStart > d2LogoutBranchStart
-    ? logoutAction.slice(d2LogoutBranchStart, legacyLogoutBranchStart)
-    : '';
+// S18 shares logout cleanup between transports and clears runtime before HTTP.
+const d2LogoutBranch = logoutAction;
 
 const adminSessionUserD2 = getD2GuardBlock(sources.adminLayout, 'sessionUser: function()');
 const adminBusinessD2 = getD2GuardBlock(sources.adminLayout, 'businessName: function()');
@@ -375,7 +372,7 @@ assertIncludesAll(
     'logout D2 cleans runtime storage and CSRF',
     `${d2LogoutBranch}\n${sources.d2AuthCleanup}\n${sources.authStorageCleanup}`,
     [
-        'commit(types.SET_D2_AUTH_SESSION, null)',
+        'commit(types.SET_AUTH_ACCESS_SESSION, null)',
         'commit(types.SET_AUTH_UNAUTHORIZED, false)',
         'clearD2ClientAuthArtifacts(Vue.prototype.$session)',
         'DACsrfService.clearCsrfToken()',

@@ -1,8 +1,15 @@
 <template>
   <div class="patient-treatment px-5 py-5">
     <da-loader v-bind:overlay="isLoading"></da-loader>
+    <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
 
-    <section v-if="!moduleEnabled" class="treatment-empty">
+    <section v-if="loadError" class="treatment-empty" role="alert">
+      <h3>No se pudo actualizar el plan</h3>
+      <p>{{ loadError }}</p>
+      <button class="btn-outline" type="button" :disabled="isLoading || isBusy" @click="loadPlan">Reintentar consulta</button>
+    </section>
+    <section v-else-if="!planLoaded" class="treatment-empty" role="status">Cargando plan de tratamiento…</section>
+    <section v-else-if="!moduleEnabled" class="treatment-empty">
       <v-icon color="var(--color-primary-500)" size="34">mdi-medical-bag-off-outline</v-icon>
       <h3>Plan de tratamiento deshabilitado</h3>
       <p>Actívalo desde Configuración > Módulos clínicos para usarlo en el expediente.</p>
@@ -15,25 +22,32 @@
             <p class="eyebrow">Plan de tratamiento</p>
             <span v-if="activePlan" class="plan-badge">Plan activo</span>
           </div>
-          <h3>{{ activePlan ? activePlan.title : 'Sin plan activo' }}</h3>
+          <h3 ref="sectionTitle" tabindex="-1">{{ activePlan ? activePlan.title : 'Sin plan activo' }}</h3>
           <p>
             {{ activePlan ? 'Este es el plan activo del paciente. Puedes agregar tratamientos, actualizar su seguimiento y cerrarlo cuando finalice.' : 'Crea un plan para registrar tratamientos y dar seguimiento clínico.' }}
           </p>
         </div>
         <div class="treatment-actions">
-          <button v-if="!activePlan" class="btn-primary tab-create-action" type="button" @click="openCreatePlan">
+          <button :disabled="isBusy" v-if="!activePlan && canCreate" class="btn-primary tab-create-action" type="button" @click="openCreatePlan()">
             <v-icon size="18">mdi-plus</v-icon>
             Nuevo plan
           </button>
-          <button v-if="activePlan" class="btn-primary" type="button" @click="openTreatmentDialog()">
+          <button :disabled="isBusy" v-if="activePlan && canCreate" class="btn-primary" type="button" @click="openTreatmentDialog()">
             <v-icon size="18">mdi-plus</v-icon>
             Agregar tratamiento
           </button>
-          <button v-if="activePlan" class="btn-danger-secondary" type="button" @click="openClosePlanDialog">
+          <button :disabled="isBusy" v-if="activePlan && canEdit" class="btn-outline" type="button" @click="openCreatePlan(true)">Editar datos del plan</button>
+          <button :disabled="isBusy" v-if="activePlan && canClose" class="btn-danger-secondary" type="button" @click="openClosePlanDialog">
             <v-icon size="18">mdi-archive-check-outline</v-icon>
             Cerrar plan
           </button>
         </div>
+      </section>
+      <section v-if="activePlan" class="plan-details">
+        <p v-if="activePlan.diagnosis"><strong>Diagnóstico general:</strong> {{ activePlan.diagnosis }}</p>
+        <p v-if="activePlan.notes" class="preserve-lines"><strong>Notas del plan:</strong> {{ activePlan.notes }}</p>
+        <p class="field-help">Creado por {{ activePlan.created_by_name || 'Usuario no disponible' }} · {{ formatDisplayDate(activePlan.started_at) }}<span v-if="activePlan.updated_by_name"> · Actualizado por {{ activePlan.updated_by_name }}</span></p>
+        <p v-if="!canCreate && !canEdit && !canComplete && !canCancel && !canClose" class="field-help">Tu acceso permite consultar este plan. Las acciones dependen de tus permisos.</p>
       </section>
 
       <section class="summary-grid">
@@ -50,40 +64,53 @@
           <strong>{{ countByStatus('in_progress') }}</strong>
         </article>
         <article>
+          <span>Pausados</span>
+          <strong>{{ countByStatus('paused') }}</strong>
+        </article>
+        <article>
           <span>Completados</span>
           <strong>{{ countByStatus('completed') }}</strong>
         </article>
+        <article>
+          <span>Cancelados</span>
+          <strong>{{ countByStatus('cancelled') }}</strong>
+        </article>
         <article v-if="showCosts" class="summary-total-cost">
-          <span>Total estimado</span>
-          <strong>{{ totalCost | currency }}</strong>
+          <span>Presupuesto del plan</span>
+          <strong>{{ formatCurrencyValue(totalCost) }}</strong>
+          <small>Incluye tratamientos cancelados. No representa saldo por cobrar.</small>
         </article>
       </section>
 
-      <section v-if="activePlan" class="consent-panel" :class="{ signed: hasActiveConsent }">
+      <section v-if="activePlan && (canViewConsent || canManageSignature)" class="consent-panel" :class="{ signed: hasActiveConsent }">
         <div class="consent-icon">
           <v-icon size="24">{{ hasActiveConsent ? 'mdi-file-check-outline' : 'mdi-file-sign' }}</v-icon>
         </div>
         <div class="consent-copy">
           <div class="consent-status-row">
             <p class="eyebrow">Consentimiento del plan</p>
-            <span class="consent-status" :class="{ signed: hasActiveConsent }">{{ hasActiveConsent ? 'Firmado' : 'Pendiente de firma' }}</span>
+            <span class="consent-status" :class="{ signed: hasActiveConsent }">{{ !canViewConsent ? 'Sin acceso de consulta' : hasActiveConsent ? 'Firmado' : 'Pendiente de firma' }}</span>
           </div>
-          <h3>{{ hasActiveConsent ? 'Consentimiento del plan firmado' : 'Firma pendiente del paciente' }}</h3>
+          <h3>{{ !canViewConsent ? 'Capturar consentimiento del plan' : hasActiveConsent ? 'Consentimiento del plan firmado' : 'Firma pendiente del paciente' }}</h3>
           <span v-if="hasActiveConsent">Firmado: {{ formatDateTime(activeConsent.signed_at) }}</span>
           <p>
-            {{ hasActiveConsent
-              ? 'Se guardaron como histórico el texto del consentimiento y las firmas del doctor y del paciente.'
-              : 'Captura la firma del paciente cuando se le explique el tratamiento. Se guardara junto con el texto del consentimiento y la firma actual del doctor.' }}
+            {{ !canViewConsent ? 'Puedes capturar una nueva versión según tus permisos. El contenido de versiones anteriores no está disponible para consulta con tu acceso.' : hasActiveConsent
+              ? 'Se conservaron el texto del consentimiento, la firma del paciente y los datos del doctor, junto con su firma si estaba registrada.'
+              : 'El paciente puede revisar el consentimiento y firmar aquí o desde un enlace por QR, correo o WhatsApp.' }}
           </p>
+          <p v-if="hasPendingConsentDocument" class="field-help">Hay un documento preparado pendiente de firma. Si actualizas el plan, deberás preparar una nueva versión y sus enlaces.</p>
         </div>
         <div class="consent-actions">
-          <button v-if="hasActiveConsent" class="btn-outline" type="button" @click="openConsentDialog('view')">
+          <v-select v-if="canManageSignature" v-model="doctorUserId" :items="eligibleDoctors" item-text="professional_name" item-value="id_login" label="Doctor que firma el consentimiento" outlined dense :disabled="contextLoading || isBusy" hide-details></v-select>
+          <p v-if="canManageSignature && consentPrerequisite" class="field-help" role="status">{{ consentPrerequisite }}</p>
+          <button :disabled="isBusy" v-if="canManageSignature && contextError" class="btn-outline" type="button" @click="loadConsentContext()">Reintentar doctores y texto</button>
+          <button :disabled="isBusy" v-if="hasActiveConsent && canViewConsent" class="btn-outline" type="button" @click="openConsentDialog('view')">
             <v-icon size="17">mdi-eye-outline</v-icon>
             Ver consentimiento
           </button>
-          <button class="btn-soft" type="button" @click="requestConsentSignature">
+          <button v-if="canManageSignature" class="btn-soft" type="button" :disabled="Boolean(consentPrerequisite) || isBusy" @click="requestConsentSignature">
             <v-icon size="17">mdi-draw-pen</v-icon>
-            {{ hasActiveConsent ? 'Recapturar firma' : 'Capturar firma' }}
+            {{ hasPendingConsentDocument ? 'Continuar firma' : !canViewConsent ? 'Preparar firma' : hasActiveConsent ? 'Nueva versión de firma' : 'Solicitar firma' }}
           </button>
         </div>
       </section>
@@ -93,12 +120,13 @@
           <p class="m-0 font-semibold text-gray-700">Tratamientos del plan activo</p>
           <span>Los cambios solo aplican al plan actual. Los planes cerrados se consultan como histórico.</span>
         </div>
-        <div class="filter-group">
-          <button
+        <div class="filter-group" role="group" aria-label="Filtrar tratamientos por estado">
+          <button :disabled="isBusy"
             v-for="item in filters"
             :key="item.value"
             type="button"
             :class="{ active: filter === item.value }"
+            :aria-pressed="String(filter === item.value)"
             @click="filter = item.value"
           >
             {{ item.label }}
@@ -118,7 +146,7 @@
               <span v-if="item.category"><v-icon size="15">mdi-tag-outline</v-icon>{{ item.category }}</span>
               <span v-if="item.estimated_start_date"><v-icon size="15">mdi-calendar-start</v-icon>{{ formatDate(item.estimated_start_date) }}</span>
               <span v-if="item.estimated_end_date"><v-icon size="15">mdi-calendar-check</v-icon>{{ formatDate(item.estimated_end_date) }}</span>
-              <span v-if="showCosts && item.cost"><v-icon size="15">mdi-cash</v-icon>{{ Number(item.cost) | currency }}</span>
+              <span v-if="showCosts && item.cost !== null && item.cost !== undefined && item.cost !== ''"><v-icon size="15">mdi-cash</v-icon>{{ formatCurrencyValue(item.cost) }}</span>
             </div>
             <div v-if="item.teeth && item.teeth.length" class="tooth-row">
               <span v-for="tooth in item.teeth" :key="tooth">Diente {{ tooth }}</span>
@@ -126,19 +154,24 @@
             <p v-if="item.notes" class="notes">{{ item.notes }}</p>
           </div>
           <div class="card-actions">
-            <button class="icon-action" type="button" title="Editar" @click="openTreatmentDialog(item)">
+            <button :disabled="isBusy" v-if="canEdit && ['pending', 'paused'].includes(item.status)" class="icon-action complete-action" type="button" @click="changeStatus(item, 'in_progress')">{{ item.status === 'paused' ? 'Reanudar' : 'Iniciar' }}</button>
+            <v-menu v-if="statusActions(item).length" offset-y>
+              <template v-slot:activator="{ on, attrs }"><button :disabled="isBusy" class="icon-action" type="button" v-bind="attrs" v-on="on">Cambiar estado</button></template>
+              <v-list><v-list-item v-for="option in statusActions(item)" :key="option.value" @click="option.value === 'cancelled' ? requestCancelTreatment(item) : changeStatus(item, option.value)"><v-list-item-title>{{ option.label }}</v-list-item-title></v-list-item></v-list>
+            </v-menu>
+            <button :disabled="isBusy" v-if="canEdit" class="icon-action" type="button" title="Editar" @click="openTreatmentDialog(item)">
               <v-icon size="17">mdi-pencil-outline</v-icon>
               Editar
             </button>
-            <button v-if="item.status !== 'completed'" class="icon-action complete-action" type="button" title="Completar" @click="changeStatus(item, 'completed')">
+            <button :disabled="isBusy" v-if="canComplete && item.status !== 'completed'" class="icon-action complete-action" type="button" title="Completar" @click="changeStatus(item, 'completed')">
               <v-icon size="17">mdi-check-circle-outline</v-icon>
               Completar
             </button>
-            <button v-if="item.status !== 'cancelled'" class="icon-action danger subtle" type="button" title="Cancelar tratamiento" @click="requestCancelTreatment(item)">
+            <button :disabled="isBusy" v-if="canCancel && item.status !== 'cancelled'" class="icon-action danger subtle" type="button" title="Cancelar tratamiento" @click="requestCancelTreatment(item)">
               <v-icon size="17">mdi-cancel</v-icon>
               Cancelar
             </button>
-            <button class="icon-action danger ghost" type="button" title="Eliminar tratamiento" @click="requestDeleteTreatment(item)">
+            <button :disabled="isBusy" v-if="canEdit" class="icon-action danger ghost" type="button" title="Eliminar tratamiento" :aria-label="`Eliminar tratamiento ${item.name}`" @click="requestDeleteTreatment(item)">
               <v-icon size="17">mdi-trash-can-outline</v-icon>
             </button>
           </div>
@@ -149,18 +182,19 @@
         <v-icon color="var(--color-primary-500)" size="34">mdi-clipboard-plus-outline</v-icon>
         <h3>{{ emptyStateTitle }}</h3>
         <p>{{ emptyStateText }}</p>
-        <button class="btn-primary" type="button" @click="openTreatmentDialog()">Agregar tratamiento</button>
+        <button :disabled="isBusy" v-if="filter !== 'all'" class="btn-outline" type="button" @click="filter = 'all'">Ver todos los tratamientos</button>
+        <button :disabled="isBusy" v-if="canCreate" class="btn-primary" type="button" @click="openTreatmentDialog()">Agregar tratamiento</button>
       </section>
 
       <section v-if="!activePlan" class="treatment-empty">
         <v-icon color="var(--color-primary-500)" size="34">mdi-clipboard-text-clock-outline</v-icon>
         <h3>No hay plan activo</h3>
         <p>Los planes cerrados permanecen como histórico. Crea un nuevo plan cuando el paciente inicie una etapa de tratamiento.</p>
-        <button class="btn-primary" type="button" @click="openCreatePlan">Crear plan activo</button>
+        <button :disabled="isBusy" v-if="canCreate" class="btn-primary" type="button" @click="openCreatePlan()">Crear plan activo</button>
       </section>
 
       <section class="history-section" :class="{ 'history-section--collapsed': !showHistorySection }">
-        <button class="history-toggle" type="button" :aria-expanded="String(showHistorySection)" @click="showHistorySection = !showHistorySection">
+        <button :disabled="isBusy" class="history-toggle" type="button" :aria-expanded="String(showHistorySection)" @click="showHistorySection = !showHistorySection">
           <div>
             <p class="eyebrow">Histórico</p>
             <h3>Planes cerrados</h3>
@@ -188,7 +222,7 @@
                 <strong>{{ planTreatments(plan).length }}</strong>
               </div>
               <div v-if="showCosts">
-                <small>Total estimado</small>
+                <small>Presupuesto del plan</small>
                 <strong>{{ formatCurrencyValue(planTotalCost(plan)) }}</strong>
               </div>
               <div>
@@ -199,6 +233,7 @@
             <div class="history-status-summary">
               <span>Pendientes: {{ planStatusCount(plan, 'pending') }}</span>
               <span>En progreso: {{ planStatusCount(plan, 'in_progress') }}</span>
+              <span>Pausados: {{ planStatusCount(plan, 'paused') }}</span>
               <span>Completados: {{ planStatusCount(plan, 'completed') }}</span>
               <span>Cancelados: {{ planStatusCount(plan, 'cancelled') }}</span>
             </div>
@@ -208,15 +243,15 @@
             </p>
           </div>
           <div class="history-card-actions">
-            <button class="history-action history-action--view" type="button" @click="openHistory(plan)">
+            <button :disabled="isBusy" class="history-action history-action--view" type="button" @click="openHistory(plan)">
               <v-icon size="17">mdi-clipboard-text-clock-outline</v-icon>
               Ver histórico
             </button>
-            <button v-if="hasPlanConsent(plan)" class="history-action history-action--consent" type="button" @click="openHistoryConsent(plan)">
+            <button :disabled="isBusy" v-if="hasPlanConsent(plan)" class="history-action history-action--consent" type="button" @click="openHistoryConsent(plan)">
               <v-icon size="17">mdi-file-sign</v-icon>
               Ver consentimiento
             </button>
-            <button class="history-action history-action--print" type="button" @click="printHistory(plan)">
+            <button :disabled="isBusy" class="history-action history-action--print" type="button" @click="printHistory(plan)">
               <v-icon size="17">mdi-printer-outline</v-icon>
               Imprimir plan
             </button>
@@ -227,47 +262,52 @@
       </section>
     </template>
 
-    <v-dialog v-model="showPlanDialog" max-width="560">
-      <v-card>
+    <v-dialog v-model="showPlanDialog" persistent max-width="560">
+      <v-card v-dialog-name="planEditing ? 'Editar datos del plan activo' : 'Crear plan activo'" @keydown="trapDialogFocus" ref="planEditor">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow">Nuevo plan</p>
-            <h3>Crear plan activo</h3>
+            <p class="eyebrow">{{ planEditing ? 'Datos del plan' : 'Nuevo plan' }}</p>
+            <h3>{{ planEditing ? 'Editar datos del plan activo' : 'Crear plan activo' }}</h3>
+            <span v-if="dirty" class="unsaved-state">Sin guardar</span>
           </div>
-          <v-btn icon @click="showPlanDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar ventana" :disabled="isBusy" @click="closeEditor"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
-          <v-text-field v-model="planForm.title" label="Nombre del plan" dense outlined :color="themePrimaryColor"></v-text-field>
-          <v-text-field v-model="planForm.started_at" type="date" label="Fecha de inicio" dense outlined :color="themePrimaryColor"></v-text-field>
-          <v-textarea v-model="planForm.diagnosis" label="Diagnostico general" rows="2" outlined :color="themePrimaryColor"></v-textarea>
-          <v-textarea v-model="planForm.notes" label="Notas del plan" rows="2" outlined :color="themePrimaryColor"></v-textarea>
+          <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
+          <p class="field-help">{{ planEditing ? 'Puedes corregir estos datos mientras el plan está activo. Se conserva un registro del cambio.' : 'Crear guarda un plan activo de inmediato. La captura sin guardar no es un borrador persistido. Cada tratamiento nuevo comenzará Pendiente.' }}</p>
+          <v-text-field :disabled="isBusy" v-model="planForm.title" v-field-error="{ id: 'plan-title', invalid: Boolean(fieldErrors('title').length) }" :error-messages="fieldErrors('title')" label="Nombre del plan (obligatorio)" dense outlined :color="themePrimaryColor"></v-text-field>
+          <v-text-field v-field-error="{ id: 'plan-field-started_at', required: false, invalid: Boolean(fieldErrors('started_at').length) }" :disabled="isBusy" v-model="planForm.started_at" :error-messages="fieldErrors('started_at')" type="date" label="Fecha de inicio" dense outlined :color="themePrimaryColor"></v-text-field>
+          <v-textarea v-field-error="{ id: 'plan-field-diagnosis', required: false, invalid: Boolean(fieldErrors('diagnosis').length) }" :disabled="isBusy" v-model="planForm.diagnosis" :error-messages="fieldErrors('diagnosis')" label="Diagnóstico general (opcional)" rows="2" outlined :color="themePrimaryColor"></v-textarea>
+          <v-textarea v-field-error="{ id: 'plan-field-notes', required: false, invalid: Boolean(fieldErrors('notes').length) }" :disabled="isBusy" v-model="planForm.notes" :error-messages="fieldErrors('notes')" label="Notas del plan (opcional)" rows="2" outlined :color="themePrimaryColor"></v-textarea>
         </v-card-text>
         <v-card-actions class="dialog-actions">
-          <button class="btn-outline" type="button" @click="showPlanDialog = false">Cancelar</button>
-          <button class="btn-primary" type="button" @click="createPlan">Crear plan</button>
+          <button :disabled="isBusy" class="btn-outline" type="button" @click="closeEditor">Cancelar</button>
+          <button :disabled="isBusy" class="btn-primary" type="button" @click="createPlan">{{ isBusy ? 'Guardando…' : planEditing ? 'Guardar datos del plan' : 'Crear plan activo' }}</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="showTreatmentDialog" persistent max-width="900">
-      <v-card>
+      <v-card v-dialog-name="treatmentForm.id_patient_treatment ? 'Editar tratamiento' : 'Agregar tratamiento'" @keydown="trapDialogFocus" ref="treatmentEditor">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Tratamiento</p>
             <h3>{{ treatmentForm.id_patient_treatment ? 'Editar tratamiento' : 'Agregar tratamiento' }}</h3>
+            <span v-if="dirty" class="unsaved-state">Sin guardar</span>
           </div>
-          <v-btn icon @click="showTreatmentDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar ventana" :disabled="isBusy" @click="closeEditor"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
+          <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
           <section class="form-section">
             <div class="form-section-header">
               <h4>Información básica</h4>
             </div>
             <div class="form-grid">
-              <v-text-field v-model="treatmentForm.name" label="Nombre del tratamiento" dense outlined :color="themePrimaryColor"></v-text-field>
-              <v-text-field v-if="showCosts" v-model="treatmentForm.cost" type="number" min="0" label="Costo estimado" dense outlined :color="themePrimaryColor"></v-text-field>
-              <v-text-field v-model="treatmentForm.category" label="Categoria opcional" dense outlined :color="themePrimaryColor"></v-text-field>
-              <v-select v-if="showStatus && treatmentForm.id_patient_treatment" v-model="treatmentForm.status" :items="statusOptions" item-text="label" item-value="value" label="Estado" dense outlined :color="themePrimaryColor"></v-select>
+              <v-text-field :disabled="isBusy" v-model="treatmentForm.name" v-field-error="{ id: 'treatment-name', invalid: Boolean(fieldErrors('name').length) }" :error-messages="fieldErrors('name')" label="Nombre del tratamiento (obligatorio)" dense outlined :color="themePrimaryColor"></v-text-field>
+              <v-text-field v-field-error="{ id: 'plan-field-cost', required: false, invalid: Boolean(fieldErrors('cost').length) }" v-if="showCosts" v-model="treatmentForm.cost" :disabled="!canEditCosts || isBusy" :error-messages="fieldErrors('cost')" type="number" min="0" step="0.01" label="Costo estimado (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
+              <v-text-field v-field-error="{ id: 'plan-field-category', required: false, invalid: Boolean(fieldErrors('category').length) }" :disabled="isBusy" v-model="treatmentForm.category" :error-messages="fieldErrors('category')" label="Categoría (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
+              <v-select :disabled="isBusy" v-if="showStatus && treatmentForm.id_patient_treatment" v-model="treatmentForm.status" :items="statusOptions" item-text="label" item-value="value" label="Estado" dense outlined :color="themePrimaryColor"></v-select>
             </div>
             <p v-if="!treatmentForm.id_patient_treatment" class="field-help">Los tratamientos nuevos se crean automáticamente como Pendiente.</p>
           </section>
@@ -277,8 +317,8 @@
               <h4>Fechas estimadas</h4>
             </div>
             <div class="form-grid">
-              <v-text-field v-model="treatmentForm.estimated_start_date" type="date" label="Inicio estimado" dense outlined :color="themePrimaryColor"></v-text-field>
-              <v-text-field v-model="treatmentForm.estimated_end_date" type="date" label="Fin estimado" dense outlined :color="themePrimaryColor"></v-text-field>
+              <v-text-field v-field-error="{ id: 'plan-field-estimated_start_date', required: false, invalid: Boolean(fieldErrors('estimated_start_date').length) }" :disabled="isBusy" v-model="treatmentForm.estimated_start_date" :error-messages="fieldErrors('estimated_start_date')" type="date" label="Inicio estimado (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
+              <v-text-field v-field-error="{ id: 'plan-field-estimated_end_date', required: false, invalid: Boolean(fieldErrors('estimated_end_date').length) }" :disabled="isBusy" v-model="treatmentForm.estimated_end_date" :error-messages="fieldErrors('estimated_end_date')" type="date" :min="treatmentForm.estimated_start_date || undefined" label="Fin estimado (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
             </div>
           </section>
 
@@ -286,8 +326,9 @@
             <div class="form-section-header">
               <h4>Detalle clínico</h4>
             </div>
-            <v-textarea
+            <v-textarea v-field-error="{ id: 'plan-field-description', required: false, invalid: Boolean(fieldErrors('description').length) }" :disabled="isBusy"
               v-model="treatmentForm.description"
+              :error-messages="fieldErrors('description')"
               label="Descripción del tratamiento"
               hint="Texto visible dentro del plan para identificar que se realizara."
               persistent-hint
@@ -295,8 +336,9 @@
               outlined
               :color="themePrimaryColor"
             ></v-textarea>
-            <v-textarea
+            <v-textarea v-field-error="{ id: 'plan-field-notes', required: false, invalid: Boolean(fieldErrors('notes').length) }" :disabled="isBusy"
               v-model="treatmentForm.notes"
+              :error-messages="fieldErrors('notes')"
               label="Notas clínicas internas"
               hint="Observaciones del profesional. Úsalas para detalles internos del seguimiento clínico."
               persistent-hint
@@ -312,11 +354,13 @@
               <span>Selecciona uno o varios dientes si este tratamiento está relacionado con piezas dentales específicas.</span>
             </div>
             <div class="tooth-grid">
-              <button
+              <button :disabled="isBusy"
                 v-for="tooth in toothOptions"
                 :key="tooth"
                 type="button"
                 :class="{ selected: treatmentForm.teeth.includes(tooth) }"
+                :aria-pressed="String(treatmentForm.teeth.includes(tooth))"
+                :aria-label="`Diente ${tooth}`"
                 @click="toggleTooth(tooth)"
               >
                 {{ tooth }}
@@ -325,22 +369,23 @@
           </section>
         </v-card-text>
         <v-card-actions class="dialog-actions">
-          <button class="btn-outline" type="button" @click="showTreatmentDialog = false">Cancelar</button>
-          <button class="btn-primary" type="button" @click="saveTreatment">Guardar tratamiento</button>
+          <button :disabled="isBusy" class="btn-outline" type="button" @click="closeEditor">Cancelar</button>
+          <button :disabled="isBusy" class="btn-primary" type="button" @click="saveTreatment">{{ isBusy ? 'Guardando…' : 'Guardar tratamiento' }}</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showCloseDialog" max-width="540">
-      <v-card>
+    <v-dialog v-model="showCloseDialog" persistent max-width="540">
+      <v-card v-dialog-name="'Cerrar plan activo'" @keydown="trapDialogFocus">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Cerrar plan</p>
             <h3>Cerrar plan activo</h3>
           </div>
-          <v-btn icon @click="showCloseDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar ventana" :disabled="isBusy" @click="closeEditor"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
+          <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
           <div class="info-box">
             <strong>Al cerrar este plan:</strong>
             <ul>
@@ -348,39 +393,46 @@
               <li>Quedará disponible solo para consulta.</li>
               <li>Se guardará en el histórico del paciente.</li>
               <li>Podrás crear un nuevo plan activo después.</li>
+              <li v-if="hasPendingConsentDocument">Se invalidará el consentimiento pendiente y sus enlaces de firma. Los consentimientos ya firmados se conservan.</li>
             </ul>
           </div>
           <div v-if="activeTreatments.length === 0" class="warning-box">
             <v-icon size="20">mdi-alert-circle-outline</v-icon>
             <span>Este plan no tiene tratamientos registrados. Puedes cerrarlo, pero quedará en histórico sin procedimientos.</span>
           </div>
-          <div v-if="!hasActiveConsent" class="warning-box">
+          <div v-if="unfinishedCount" class="warning-box" role="status">
+            <div><strong>{{ unfinishedCount }} tratamiento(s) sin terminar</strong><p>Pendientes: {{ countByStatus('pending') }} · En progreso: {{ countByStatus('in_progress') }} · Pausados: {{ countByStatus('paused') }}.</p><p>Conservarán estos estados en el histórico. Cerrar no los completa ni cancela.</p></div>
+          </div>
+          <p class="field-help">Completados: {{ countByStatus('completed') }} · Cancelados: {{ countByStatus('cancelled') }}.</p>
+          <div v-if="canViewConsent && !hasActiveConsent" class="warning-box">
             <v-icon size="20">mdi-alert-circle-outline</v-icon>
             <span>Este plan aún no tiene consentimiento firmado. Puedes cerrarlo, pero quedará registrado sin consentimiento firmado.</span>
           </div>
-          <div v-else class="success-box">
+          <div v-else-if="canViewConsent && hasActiveConsent" class="success-box">
             <v-icon size="20">mdi-file-check-outline</v-icon>
             <span>Consentimiento del plan: Firmado</span>
           </div>
-          <v-textarea v-model="closeReason" label="Motivo o resumen de cierre" rows="3" outlined :color="themePrimaryColor"></v-textarea>
+          <p v-else class="field-help">Tu acceso no permite consultar el consentimiento de este plan.</p>
+          <v-textarea :disabled="isBusy" v-model="closeReason" label="Motivo o resumen de cierre" rows="3" outlined :color="themePrimaryColor"></v-textarea>
         </v-card-text>
         <v-card-actions class="dialog-actions">
-          <button class="btn-outline" type="button" @click="showCloseDialog = false">Cancelar</button>
-          <button class="btn-danger" type="button" @click="closePlan">Cerrar plan</button>
+          <button :disabled="isBusy" class="btn-outline" type="button" @click="closeEditor">Cancelar</button>
+          <button :disabled="isBusy" class="btn-danger" type="button" @click="closePlan">Cerrar plan</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="showConsentDialog" persistent max-width="920">
-      <v-card>
+      <v-card v-dialog-name="consentMode === 'view' ? 'Consultar consentimiento firmado' : 'Capturar firma del paciente'" @keydown="trapDialogFocus">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Consentimiento de tratamiento</p>
             <h3>{{ consentMode === 'view' ? 'Consentimiento firmado' : 'Capturar firma del paciente' }}</h3>
           </div>
-          <v-btn icon @click="showConsentDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar ventana" :disabled="isBusy" @click="closeEditor"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body consent-dialog-body">
+          <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
           <section v-if="consentMode === 'view'" class="clinical-document">
             <header class="document-header">
               <div>
@@ -396,13 +448,14 @@
             </header>
 
             <section class="document-data-grid">
-              <div><strong>Paciente</strong><span>{{ patientName || 'No especificado' }}</span></div>
-              <div><strong>Edad</strong><span>{{ patientAge || 'No especificado' }}</span></div>
-              <div><strong>Doctor responsable</strong><span>{{ currentDoctorName || 'No especificado' }}</span></div>
+              <div><strong>Paciente</strong><span>{{ consentPatientName || 'No especificado' }}</span></div>
+              <div><strong>Edad</strong><span>{{ consentPatientAge === '' ? 'No especificado' : consentPatientAge }}</span></div>
+              <div><strong>Doctor firmante</strong><span>{{ currentDoctorName || 'No especificado' }}</span></div>
               <div><strong>Cédula profesional</strong><span>{{ professionalLicenseDisplay }}</span></div>
               <div><strong>Fecha de creación</strong><span>{{ selectedConsent ? formatDisplayDateTime(selectedConsent.created_at) : 'No especificado' }}</span></div>
               <div><strong>Fecha de firma</strong><span>{{ selectedConsent ? formatDisplayDateTime(selectedConsent.signed_at) : 'No especificado' }}</span></div>
             </section>
+            <v-select :disabled="isBusy" v-if="consentVersions.length > 1" v-model="selectedConsentVersion" :items="consentVersions" :item-text="version => `Versión ${version.revision} · ${formatDisplayDateTime(version.signed_at)}`" item-value="id_consent_version" return-object label="Consultar versión firmada" outlined dense></v-select>
 
             <section class="document-section">
               <p class="eyebrow">Declaro</p>
@@ -414,16 +467,16 @@
             </section>
             <section class="document-section">
               <p class="eyebrow">Plan relacionado</p>
-              <div class="document-related">
+              <div v-if="selectedConsent && selectedConsent.plan_snapshot" class="document-related">
                 <span>Tratamientos: {{ consentPlanTreatments.length }}</span>
-                <span v-if="showCosts">Total estimado: {{ formatCurrencyValue(planTotalCost(consentPlan)) }}</span>
+                <span v-if="showCosts">Presupuesto al firmar: {{ formatCurrencyValue(planTotalCost(selectedConsent.plan_snapshot)) }}</span>
               </div>
               <ul v-if="consentPlanTreatments.length" class="document-treatment-list">
                 <li v-for="item in consentPlanTreatments" :key="item.id_patient_treatment">
                   {{ item.name }} <span>{{ statusLabel(item.status) }}</span>
                 </li>
               </ul>
-              <p v-else class="muted-copy">No hay tratamientos relacionados registrados.</p>
+              <p v-else class="muted-copy">{{ selectedConsent && selectedConsent.plan_snapshot ? 'No había tratamientos registrados al firmar.' : 'Consentimiento anterior: no se guardó una copia de los tratamientos al firmar. Se conservan el texto y las firmas originales.' }}</p>
             </section>
             <section class="document-signatures">
               <article>
@@ -433,20 +486,28 @@
                 <strong>{{ currentDoctorName || 'Doctor no especificado' }}</strong>
               </article>
               <article>
-                <span>Firma del paciente</span>
-                <img v-if="selectedConsent && selectedConsent.patient_signature" :src="selectedConsent.patient_signature" alt="Firma del paciente">
+                <span>{{ selectedConsent && selectedConsent.patient_signature_role === 'TUTOR' ? 'Firma del tutor o representante' : 'Firma del paciente' }}</span>
+                <img v-if="selectedConsent && selectedConsent.patient_signature" :src="selectedConsent.patient_signature" :alt="selectedConsent.patient_signature_role === 'TUTOR' ? 'Firma del tutor o representante' : 'Firma del paciente'">
                 <p v-else>Sin firma del paciente registrada.</p>
-                <strong>{{ patientName || 'Paciente no especificado' }}</strong>
+                <strong>{{ selectedConsent && selectedConsent.patient_signer_name_snapshot || consentPatientName || 'Paciente no especificado' }}</strong>
               </article>
+              <article v-for="signature in additionalConsentSignatures" :key="signature.signature_role"><span>{{ signature.signature_role === 'WITNESS1' ? 'Testigo 1' : 'Testigo 2' }}</span><img :src="signature.signature_image" alt="Firma de testigo"><strong>{{ signature.signer_name_snapshot }}</strong></article>
             </section>
           </section>
-          <section v-else class="consent-preview">
-            <div class="consent-text-card" :class="{ 'full-width': planConsentTemplate && consentMode !== 'view' }">
+          <section v-else class="consent-preview" @pointerdown="onSignatureStroke">
+            <p class="field-help">Doctor: {{ currentDoctorName }} · Cédula: {{ currentDoctorProfessionalLicense }}. Revisa el texto y los tratamientos. Aplicar captura el trazo; Guardar consentimiento lo registra.</p>
+            <p v-if="!currentDoctorSignature" class="warning-box">El doctor no tiene una imagen de firma profesional registrada. Se guardarán sus datos y la firma del paciente, sin imagen de firma del doctor.</p>
+            <p v-if="dirty" class="unsaved-state" role="status">Firma sin guardar</p>
+            <div v-if="preparedConsentDocument" class="consent-text-card" v-html="textToHtml(preparedConsentDocument.content_html_snapshot)"></div>
+            <v-select v-if="preparedConsentDocument" v-model="localSignatureRole" :items="localSignatureRoles" item-text="label" item-value="value" label="Persona que firma" dense outlined :disabled="isBusy" @change="onLocalSignatureRoleChanged"></v-select>
+            <v-text-field v-if="preparedConsentDocument && localSignatureRole !== 'PATIENT'" v-model="localSignerName" label="Nombre de quien firma (obligatorio)" dense outlined :disabled="isBusy"></v-text-field>
+            <div v-if="!preparedConsentDocument" class="consent-text-card"><strong>{{ activePlan ? activePlan.title : '' }}</strong><ul><li v-for="item in consentPlanTreatments" :key="item.id_patient_treatment">{{ item.name }} · {{ statusLabel(item.status) }}</li></ul></div>
+            <div v-if="!preparedConsentDocument" class="consent-text-card" :class="{ 'full-width': planConsentTemplate && consentMode !== 'view' }">
               <p class="eyebrow">Declaro</p>
-              <div v-if="planConsentTemplate && consentMode !== 'view'" v-html="currentDeclareText || 'No hay plantilla configurada.'"></div>
+              <div v-if="planConsentTemplate && consentMode !== 'view'" v-html="textToHtml(currentDeclareText || 'No hay plantilla configurada.')"></div>
               <p v-else>{{ currentDeclareText || 'No hay texto DECLARO configurado.' }}</p>
             </div>
-            <div v-if="!(planConsentTemplate && consentMode !== 'view')" class="consent-text-card">
+            <div v-if="!preparedConsentDocument && !(planConsentTemplate && consentMode !== 'view')" class="consent-text-card">
               <p class="eyebrow">Consiento</p>
               <p>{{ currentConsentText || 'No hay texto CONSIENTO configurado.' }}</p>
             </div>
@@ -458,11 +519,14 @@
                 <strong>{{ currentDoctorName || 'Doctor no configurado' }}</strong>
               </article>
               <article>
-                <span>Firma del paciente</span>
+                <span>{{ localSignatureRoles.find(role => role.value === localSignatureRole) ? `Firma: ${localSignatureRoles.find(role => role.value === localSignatureRole).label}` : 'Firma del paciente' }}</span>
                 <img v-if="consentMode === 'view' && selectedConsent && selectedConsent.patient_signature" :src="selectedConsent.patient_signature" alt="Firma del paciente">
                 <da-signature-pad
                   v-else
+                  :key="consentRequestId"
                   required
+                  track-changes
+                  v-on:changed="onConsentChanged"
                   v-on:signed="onConsentSigned"
                 ></da-signature-pad>
               </article>
@@ -470,21 +534,21 @@
           </section>
         </v-card-text>
         <v-card-actions class="dialog-actions">
-          <button class="btn-outline" type="button" @click="showConsentDialog = false">Cerrar</button>
-          <button v-if="consentMode === 'view' && consentPlan" class="btn-outline" type="button" @click="printConsent(consentPlan)">
+          <button :disabled="isBusy" class="btn-outline" type="button" @click="closeEditor">Cerrar</button>
+          <button :disabled="isBusy" v-if="consentMode === 'view' && consentPlan" class="btn-outline" type="button" @click="printConsent(consentPlan)">
             <v-icon size="17">mdi-printer-outline</v-icon>
             Imprimir consentimiento
           </button>
-          <button v-if="consentMode !== 'view'" class="btn-primary" type="button" @click="saveConsent">
+          <button :disabled="isBusy" v-if="consentMode !== 'view' && canSign" class="btn-primary" type="button" @click="saveConsent">
             <v-icon size="17">mdi-content-save-check-outline</v-icon>
-            Guardar firma
+            {{ isBusy ? 'Guardando…' : 'Guardar consentimiento' }}
           </button>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="showHistoryDialog" max-width="980">
-      <v-card>
+      <v-card v-dialog-name="'Consultar plan cerrado'" @keydown="trapDialogFocus">
         <div class="dialog-header history-dialog-header">
           <div>
             <p class="eyebrow">Histórico de tratamiento</p>
@@ -492,9 +556,10 @@
             <span>Este plan está cerrado y se muestra solo para consulta.</span>
           </div>
           <span class="history-state-chip">Cerrado</span>
-          <v-btn icon @click="showHistoryDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar ventana" :disabled="isBusy" @click="showHistoryDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text v-if="selectedHistory" class="dialog-body history-dialog-body">
+          <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
           <section class="history-overview">
             <div class="history-overview-main">
               <div>
@@ -506,8 +571,8 @@
                 <strong>{{ formatDisplayDateTime(selectedHistory.closed_at) }}</strong>
               </div>
               <div>
-                <small>Doctor responsable</small>
-                <strong>{{ historyDoctorName(selectedHistory) }}</strong>
+                <small>Creado por</small>
+                <strong>{{ selectedHistory.created_by_name || 'Usuario no disponible' }}</strong>
               </div>
               <div v-if="selectedHistory.close_reason" class="history-overview-reason">
                 <small>Resumen de cierre:</small>
@@ -515,24 +580,30 @@
               </div>
             </div>
           </section>
+          <section class="plan-details">
+            <p v-if="selectedHistory.diagnosis"><strong>Diagnóstico general:</strong> {{ selectedHistory.diagnosis }}</p>
+            <p v-if="selectedHistory.notes" class="preserve-lines"><strong>Notas del plan:</strong> {{ selectedHistory.notes }}</p>
+            <p v-if="selectedHistory.closed_by_name" class="field-help">Cerrado por {{ selectedHistory.closed_by_name }}</p>
+          </section>
 
           <section class="history-summary-grid">
             <article><span>Total</span><strong>{{ selectedHistoryTreatments.length }}</strong></article>
             <article><span>Pendientes</span><strong>{{ planStatusCount(selectedHistory, 'pending') }}</strong></article>
             <article><span>En progreso</span><strong>{{ planStatusCount(selectedHistory, 'in_progress') }}</strong></article>
+            <article><span>Pausados</span><strong>{{ planStatusCount(selectedHistory, 'paused') }}</strong></article>
             <article><span>Completados</span><strong>{{ planStatusCount(selectedHistory, 'completed') }}</strong></article>
             <article><span>Cancelados</span><strong>{{ planStatusCount(selectedHistory, 'cancelled') }}</strong></article>
-            <article v-if="showCosts" class="summary-total-cost"><span>Total estimado</span><strong>{{ formatCurrencyValue(planTotalCost(selectedHistory)) }}</strong></article>
+            <article v-if="showCosts" class="summary-total-cost"><span>Presupuesto del plan</span><strong>{{ formatCurrencyValue(planTotalCost(selectedHistory)) }}</strong></article>
           </section>
 
-          <section class="history-consent-block" :class="{ signed: hasPlanConsent(selectedHistory) }">
+          <section v-if="canViewConsent" class="history-consent-block" :class="{ signed: hasPlanConsent(selectedHistory) }">
             <div>
               <p class="eyebrow">Consentimiento</p>
               <strong>{{ consentStatusLabel(selectedHistory) }}</strong>
               <span v-if="hasPlanConsent(selectedHistory)">Firmado: {{ formatDisplayDateTime(selectedHistory.consent.signed_at) }}</span>
               <span v-else>Sin consentimiento firmado para este plan.</span>
             </div>
-            <button v-if="hasPlanConsent(selectedHistory)" class="btn-outline" type="button" @click="openHistoryConsent(selectedHistory)">
+            <button :disabled="isBusy" v-if="hasPlanConsent(selectedHistory)" class="btn-outline" type="button" @click="openHistoryConsent(selectedHistory)">
               <v-icon size="17">mdi-eye-outline</v-icon>
               Ver consentimiento
             </button>
@@ -553,14 +624,14 @@
               <div class="meta-row">
                 <span v-if="item.estimated_start_date"><v-icon size="15">mdi-calendar-start</v-icon>{{ formatDisplayDate(item.estimated_start_date) }}</span>
                 <span v-if="item.estimated_end_date"><v-icon size="15">mdi-calendar-check</v-icon>{{ formatDisplayDate(item.estimated_end_date) }}</span>
-                <span v-if="showCosts && item.cost"><v-icon size="15">mdi-cash</v-icon>{{ formatCurrencyValue(item.cost) }}</span>
+                <span v-if="showCosts && item.cost !== null && item.cost !== undefined && item.cost !== ''"><v-icon size="15">mdi-cash</v-icon>{{ formatCurrencyValue(item.cost) }}</span>
               </div>
               <p v-if="item.description">{{ item.description }}</p>
               <div v-if="item.teeth && item.teeth.length" class="tooth-row">
                 <span v-for="tooth in item.teeth" :key="tooth">Diente {{ tooth }}</span>
               </div>
               <div v-if="item.notes" class="notes-toggle">
-                <button class="btn-text" type="button" @click="toggleHistoryNotes(item.id_patient_treatment)">
+                <button :disabled="isBusy" class="btn-text" type="button" @click="toggleHistoryNotes(item.id_patient_treatment)">
                   {{ isHistoryNotesOpen(item.id_patient_treatment) ? 'Ocultar notas clínicas' : 'Ver notas clínicas' }}
                 </button>
                 <p v-if="isHistoryNotesOpen(item.id_patient_treatment)" class="notes history-note">{{ item.notes }}</p>
@@ -570,9 +641,9 @@
           </section>
         </v-card-text>
         <v-card-actions class="dialog-actions">
-          <button class="btn-outline" type="button" @click="showHistoryDialog = false">Cerrar</button>
-          <button v-if="selectedHistory && hasPlanConsent(selectedHistory)" class="btn-outline" type="button" @click="openHistoryConsent(selectedHistory)">Ver consentimiento</button>
-          <button v-if="selectedHistory" class="btn-outline" type="button" @click="printHistory(selectedHistory)">
+          <button :disabled="isBusy" class="btn-outline" type="button" @click="showHistoryDialog = false">Cerrar</button>
+          <button :disabled="isBusy" v-if="selectedHistory && hasPlanConsent(selectedHistory)" class="btn-outline" type="button" @click="openHistoryConsent(selectedHistory)">Ver consentimiento</button>
+          <button :disabled="isBusy" v-if="selectedHistory" class="btn-outline" type="button" @click="printHistory(selectedHistory)">
             <v-icon size="17">mdi-printer-outline</v-icon>
             Imprimir plan
           </button>
@@ -580,24 +651,50 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="confirmDialog.show" max-width="460">
-      <v-card>
+    <v-dialog v-model="confirmDialog.show" persistent max-width="460">
+      <v-card v-dialog-name="confirmDialog.title" @keydown="trapDialogFocus">
         <div class="dialog-header compact">
           <div>
             <p class="eyebrow">{{ confirmDialog.eyebrow }}</p>
             <h3>{{ confirmDialog.title }}</h3>
           </div>
-          <v-btn icon @click="closeConfirmDialog"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar ventana" :disabled="isBusy" @click="closeConfirmDialog"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
+          <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
           <p class="confirm-message">{{ confirmDialog.message }}</p>
         </v-card-text>
         <v-card-actions class="dialog-actions">
-          <button class="btn-outline" type="button" @click="closeConfirmDialog">Cancelar</button>
-          <button :class="confirmDialog.type === 'recaptureConsent' ? 'btn-primary' : 'btn-danger'" type="button" @click="confirmPendingAction">{{ confirmDialog.confirmText }}</button>
+          <button :disabled="isBusy" class="btn-outline" type="button" @click="closeConfirmDialog">Cancelar</button>
+          <button :disabled="isBusy" :class="confirmDialog.type === 'recaptureConsent' ? 'btn-primary' : 'btn-danger'" type="button" @click="confirmPendingAction">{{ confirmDialog.confirmText }}</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-dialog v-model="showLeaveDialog" persistent max-width="580">
+      <v-card v-dialog-name="'Tienes cambios sin guardar'" class="leave-card" @keydown="trapDialogFocus" @keydown.esc.stop="resolveLeave('stay')">
+        <div class="dialog-header"><div><p class="eyebrow">Continuidad de captura</p><h3>Tienes cambios sin guardar</h3></div></div>
+        <v-card-text class="dialog-body">
+          <p>{{ editorKind === 'close' ? 'Guardar confirmará el cierre y dejará el plan como histórico de solo lectura.' : editorKind === 'plan' && !planEditing ? 'Guardar creará el plan activo antes de salir.' : 'Puedes guardar antes de salir o continuar con tu captura.' }}</p>
+          <div v-if="notice.message" role="status" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
+        </v-card-text>
+        <v-card-actions class="dialog-actions">
+          <button class="btn-primary" type="button" :disabled="isBusy" @click="resolveLeave('save')">{{ editorKind === 'close' ? 'Cerrar plan y salir' : 'Guardar y salir' }}</button>
+          <button class="btn-danger-secondary" type="button" :disabled="isBusy" @click="resolveLeave('discard')">Descartar cambios</button>
+          <button class="btn-outline" type="button" :disabled="isBusy" @click="resolveLeave('stay')">Seguir editando</button>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <document-signature-options-dialog
+      v-model="showSignatureOptionsDialog"
+      :document="signatureOptionsDocument || {}"
+      :patient="px && px.person ? px.person : {}"
+      :business-name="businessName"
+      :can-sign-local="canSign"
+      :can-request-remote-signature="canRequestRemoteSignature"
+      @sign-local="openPreparedConsentSignature"
+      @refresh="refreshConsentSignatureOptions"
+      @busy="signatureDeliveryBusy = $event"
+    ></document-signature-options-dialog>
   </div>
 </template>
 
@@ -606,14 +703,20 @@ import { mapActions, mapGetters } from 'vuex';
 import VuexMixin from '../../../mixins/VuexMixin';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
-import { DADocumentService } from '../../../services/context/core-proccess-context';
-import DAPrescriptionService from '../../../services/core/prescription/DAPrescriptionService';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
+import { DATreatmentService } from '../../../services/context/core-proccess-context';
+import dialogName from '../../../core/directives/dialog-name';
+import fieldError from '../../../core/directives/field-error';
+import { sanitizeHtmlForDocumentSnapshot } from '../../../utils/sanitizeHtml';
+import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
+import { localToday, requestId, snapshot, treatmentErrors, planErrors } from '../../../domain/treatment-plan/plan.editor';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = localToday;
 
 export default {
   mixins: [VuexMixin],
+  directives: { dialogName, fieldError },
+  components: { DocumentSignatureOptionsDialog },
   props: {
     px: {
       type: Object,
@@ -623,6 +726,31 @@ export default {
   data: function() {
     return {
       isLoading: false,
+      isBusy: false,
+      localPlanData: null,
+      planLoaded: false,
+      loadError: '',
+      loadRequest: 0,
+      notice: { type: 'info', message: '' },
+      validationErrors: {},
+      showValidation: false,
+      savedEditor: '',
+      editorKind: '',
+      editorRequestId: '',
+      doctorUserId: '',
+      contextLoading: false,
+      contextError: '',
+      consentDirty: false,
+      consentReviewToken: '',
+      consentRequestId: '',
+      selectedConsentVersion: null,
+      showLeaveDialog: false,
+      leavePromise: null,
+      leaveResolver: null,
+      removeNavigationGuard: null,
+      opener: null,
+      leaveOpener: null,
+      planEditing: false,
       filter: 'all',
       showPlanDialog: false,
       showTreatmentDialog: false,
@@ -630,10 +758,18 @@ export default {
       showHistoryDialog: false,
       showHistorySection: false,
       showConsentDialog: false,
+      showSignatureOptionsDialog: false,
+      signatureOptionsDocument: null,
+      preparedConsentDocument: null,
+      localSignatureRole: 'PATIENT',
+      localSignerName: '',
+      localSignatureBaseline: '',
+      signatureDeliveryBusy: false,
       consentMode: 'view',
       consentSignature: '',
       selectedConsentPlan: null,
       documentTemplates: [],
+      consentConfig: {},
       doctors: [],
       closeReason: '',
       selectedHistory: null,
@@ -658,6 +794,7 @@ export default {
         { label: 'Todos', value: 'all' },
         { label: 'Pendientes', value: 'pending' },
         { label: 'En progreso', value: 'in_progress' },
+        { label: 'Pausados', value: 'paused' },
         { label: 'Completados', value: 'completed' },
         { label: 'Cancelados', value: 'cancelled' }
       ],
@@ -672,21 +809,73 @@ export default {
     }
   },
   created() {
-    this.loadPlan();
-    this.loadConfiguration();
-    this.loadDocumentTemplates();
-    this.loadDoctorsForConsent();
+    this.$emit('register-navigation-guard', this.confirmLeave);
+    window.addEventListener('beforeunload', this.beforeUnload);
+    this.removeNavigationGuard = this.$router.beforeEach((to, from, next) => {
+      this.confirmLeave().then(allowed => next(allowed)).catch(() => next(false));
+    });
+  },
+  beforeDestroy() {
+    this.loadRequest++;
+    this.$emit('register-navigation-guard', null);
+    window.removeEventListener('beforeunload', this.beforeUnload);
+    if(this.removeNavigationGuard) this.removeNavigationGuard();
+    if(this.leaveResolver) this.leaveResolver(false);
   },
   computed: {
     patientId: function() {
       return this.px && this.px.person ? this.px.person.id_person : '';
     },
     planData: function() {
-      return this.treatmentPlanData || {};
+      return this.localPlanData || {};
+    },
+    canCreate() { return this.allowed('create', 'treatments.create'); },
+    canEdit() { return this.allowed('edit', 'treatments.edit'); },
+    canComplete() { return this.canEdit || this.allowed('complete', 'treatments.complete'); },
+    canCancel() { return this.canEdit || this.allowed('cancel', 'treatments.cancel'); },
+    canClose() { return this.allowed('closePlan', 'treatments.close_plan'); },
+    canSign() { return this.allowed('consentSign', 'treatments.consent.sign'); },
+    canRequestRemoteSignature() { return this.allowed('remoteRequest', 'documents.signature.request'); },
+    canManageSignature() { return this.canSign || this.canRequestRemoteSignature; },
+    canViewConsent() { return this.allowed('consentView', 'treatments.consent.view'); },
+    canEditCosts() { return this.allowed('costEdit', 'treatments.cost_edit'); },
+    ready() { return this.planLoaded && !this.loadError && !this.isLoading; },
+    dirty() {
+      if(this.editorKind === 'consent') return this.consentDirty || Boolean(this.consentSignature) || Boolean(this.preparedConsentDocument && this.localSignatureBaseline && snapshot({ role: this.localSignatureRole, name: this.localSignerName }) !== this.localSignatureBaseline);
+      return Boolean(this.editorKind && this.savedEditor && snapshot(this.currentEditorForm()) !== this.savedEditor);
+    },
+    unfinishedCount() { return this.activeTreatments.filter(item => ['pending', 'in_progress', 'paused'].includes(item.status)).length; },
+    eligibleDoctors() { return this.doctors.filter(doctor => this.isDoctorProfileReady(doctor)); },
+    consentPrerequisite() {
+      if(this.contextLoading) return 'Cargando doctores y texto del consentimiento…';
+      if(this.contextError) return this.contextError;
+      if(!this.config.consentVersioningAvailable) return 'Falta habilitar el historial de versiones antes de guardar una firma.';
+      if(this.config.consentDocumentAvailable === false) return 'Falta habilitar la integración de documentos del plan antes de solicitar una firma.';
+      if(!this.currentDoctorForConsent) return 'Selecciona un doctor con perfil activo, cédula y autorización de firma. Si no aparece, revisa su perfil en Configuración.';
+      if(!this.planConsentTemplate && !(this.signatureConfig && (this.signatureConfig.state || this.signatureConfig.consent))) return 'Configura el texto del consentimiento antes de solicitar la firma.';
+      return '';
+    },
+    consentVersions() { return this.consentPlan && this.consentPlan.consent_versions || []; },
+    additionalConsentSignatures() { return (this.selectedConsent && this.selectedConsent.signatures_snapshot || []).filter(signature => ['WITNESS1', 'WITNESS2'].includes(signature.signature_role)); },
+    activeConsentDocument() { return this.activePlan && this.activePlan.consent_document || null; },
+    hasPendingConsentDocument() { return this.activeConsentDocument && ['BORRADOR', 'PENDIENTE_FIRMA'].includes(this.activeConsentDocument.status); },
+    localSignatureRoles() {
+      const doc = this.preparedConsentDocument;
+      if(!doc) return [{ value: 'PATIENT', label: 'Paciente' }];
+      const required = [];
+      if(doc.guardian_name_snapshot || doc.requires_tutor_signature === 1) required.push('TUTOR'); else if(doc.requires_patient_signature !== 0) required.push('PATIENT');
+      if(doc.requires_doctor_signature !== 0) required.push('DOCTOR');
+      if(doc.requires_witness1_signature === 1) required.push('WITNESS1');
+      if(doc.requires_witness2_signature === 1) required.push('WITNESS2');
+      const completed = new Set((doc.signatures || []).map(signature => signature.signature_role));
+      if(doc.doctor_signature_snapshot) completed.add('DOCTOR');
+      const labels = { PATIENT: 'Paciente', TUTOR: 'Tutor o representante', DOCTOR: 'Doctor', WITNESS1: 'Testigo 1', WITNESS2: 'Testigo 2' };
+      return required.filter(role => !completed.has(role)).map(role => ({ value: role, label: labels[role] }));
     },
     config: function() {
       return this.planData.config || {};
     },
+    signatureConfig() { return this.consentConfig; },
     moduleEnabled: function() {
       return this.config.treatmentPlanEnabled === undefined ? true : Boolean(this.config.treatmentPlanEnabled);
     },
@@ -715,6 +904,14 @@ export default {
     patientAge: function() {
       return this.patientData && this.patientData.age ? this.patientData.age : '';
     },
+    consentPatientName() {
+      const person = this.selectedConsent && this.selectedConsent.plan_snapshot && this.selectedConsent.plan_snapshot.patient;
+      return person ? person.fullname || `${person.name || ''} ${person.surname || ''}`.trim() : this.patientName;
+    },
+    consentPatientAge() {
+      const person = this.selectedConsent && this.selectedConsent.plan_snapshot && this.selectedConsent.plan_snapshot.patient;
+      return person && person.age !== null && person.age !== undefined ? person.age : this.patientAge;
+    },
     businessName: function() {
       if(isD2AuthMode()) {
         const business = this.authBusiness || {};
@@ -734,7 +931,7 @@ export default {
       return this.activeTreatments.filter((item) => item.status === this.filter);
     },
     showCosts: function() {
-      return this.config.showTreatmentCosts === undefined ? true : Boolean(this.config.showTreatmentCosts);
+      return this.allowed('costView', 'treatments.cost_view') && (this.config.showTreatmentCosts === undefined || Boolean(this.config.showTreatmentCosts));
     },
     showStatus: function() {
       return this.config.showTreatmentStatus === undefined ? true : Boolean(this.config.showTreatmentStatus);
@@ -753,6 +950,7 @@ export default {
         all: 'No hay tratamientos en este plan.',
         pending: 'No hay tratamientos pendientes.',
         in_progress: 'No hay tratamientos en progreso.',
+        paused: 'No hay tratamientos pausados.',
         completed: 'No hay tratamientos completados.',
         cancelled: 'No hay tratamientos cancelados.'
       };
@@ -762,12 +960,13 @@ export default {
       if(this.filter === 'all') {
         return 'Agrega procedimientos, planes o indicaciones para dar seguimiento al paciente.';
       }
-      return 'Cuando agregues tratamientos o cambies su estado, apareceran aqui.';
+      return 'Este filtro no muestra tratamientos en otros estados. Puedes ver todos sin agregar uno nuevo.';
     },
     selectedHistoryTreatments: function() {
       return this.selectedHistory && this.selectedHistory.treatments ? this.selectedHistory.treatments : [];
     },
     selectedConsent: function() {
+      if(this.selectedConsentVersion) return this.selectedConsentVersion;
       if(this.selectedConsentPlan && this.selectedConsentPlan.consent) {
         return this.selectedConsentPlan.consent;
       }
@@ -780,6 +979,7 @@ export default {
       return this.activePlan;
     },
     consentPlanTreatments: function() {
+      if(this.consentMode === 'view') return this.selectedConsent && this.selectedConsent.plan_snapshot ? this.selectedConsent.plan_snapshot.treatments || [] : [];
       return this.consentPlan && this.consentPlan.treatments ? this.consentPlan.treatments : [];
     },
     consentFolio: function() {
@@ -820,29 +1020,31 @@ export default {
       if(this.consentMode === 'view' && this.selectedConsent) {
         return this.selectedConsent.doctor_signature_snapshot;
       }
+      if(this.preparedConsentDocument) return this.preparedConsentDocument.doctor_signature_snapshot || '';
       if(this.currentDoctorForConsent && this.currentDoctorForConsent.signature_image) {
         return this.currentDoctorForConsent.signature_image;
       }
-      return this.signatureConfig && this.signatureConfig.url_signature ? this.signatureConfig.url_signature : '';
+      return '';
     },
     currentDoctorName: function() {
       if(this.consentMode === 'view' && this.selectedConsent) {
         return this.selectedConsent.doctor_name_snapshot;
       }
+      if(this.preparedConsentDocument) return this.preparedConsentDocument.doctor_name_snapshot || '';
       if(this.currentDoctorForConsent && this.currentDoctorForConsent.professional_name) {
         return this.currentDoctorForConsent.professional_name;
       }
-      return this.signatureConfig && this.signatureConfig.name ? this.signatureConfig.name : '';
+      return '';
     },
     currentDoctorProfessionalLicense: function() {
       if(this.consentMode === 'view' && this.selectedConsent) {
         return this.selectedConsent.professional_license_snapshot || '';
       }
+      if(this.preparedConsentDocument) return this.preparedConsentDocument.professional_license_snapshot || '';
       if(this.currentDoctorForConsent && this.currentDoctorForConsent.professional_license) {
         return this.currentDoctorForConsent.professional_license;
       }
-      const config = this.signatureConfig || {};
-      return config.professional_license || config.professionalLicense || config.professional_license_snapshot || '';
+      return '';
     },
     professionalLicenseDisplay: function() {
       return this.currentDoctorProfessionalLicense || 'No registrada al momento de la firma';
@@ -867,32 +1069,34 @@ export default {
       }
     },
     currentDoctorForConsent: function() {
-      const current = this.doctors.find((doctor) => doctor.id_login === this.currentUser.id_login);
-      if(this.isDoctorProfileReady(current)) {
-        return current;
-      }
-      if(this.doctors.length === 1 && this.isDoctorProfileReady(this.doctors[0])) {
-        return this.doctors[0];
-      }
-      return null;
+      return this.eligibleDoctors.find(doctor => doctor.id_login === this.doctorUserId) || null;
     },
     themePrimaryColor: function() {
-      return getComputedStyle(document.documentElement).getPropertyValue('--color-primary-500').trim() || '#1BA6C9';
+      return 'var(--color-primary-500)';
     },
     ...mapGetters(moduleTypes.TREATMENT, {
       treatmentPlanData: fnTypes.treatmentPlan,
       hasErrorTreatment: fnTypes.hasErrorTreatment
     }),
-    ...mapGetters(moduleTypes.CONFIGURATION, {
-      signatureConfig: fnTypes.getConfiguration
-    }),
     ...mapGetters(moduleTypes.AUTH, {
       authUser: fnTypes.getUser,
       authRole: fnTypes.getRole,
-      authBusiness: fnTypes.getBusiness
+      authBusiness: fnTypes.getBusiness,
+      hasPermission: fnTypes.hasPermission
     })
   },
   watch: {
+    patientId: { immediate: true, handler() {
+      this.localPlanData = null;
+      this.planLoaded = false;
+      this.closeEditors();
+      this.loadPlan();
+    } },
+    showPlanDialog(value) { if(!value) this.restoreFocus(); },
+    showTreatmentDialog(value) { if(!value) this.restoreFocus(); },
+    showConsentDialog(value) { if(!value) this.restoreFocus(); },
+    showCloseDialog(value) { if(!value) this.restoreFocus(); },
+    showHistoryDialog(value) { if(!value) this.restoreFocus(); },
     activePlan: {
       immediate: true,
       handler: function(plan) {
@@ -901,18 +1105,122 @@ export default {
     }
   },
   methods: {
+    allowed(flag, permission) {
+      return this.planLoaded && this.hasPermission(permission) && Boolean(this.planData.permissions && this.planData.permissions[flag]);
+    },
+    toastFunction(type, message) {
+      this.notice = { type, message };
+      if(this.$toast && typeof this.$toast[type] === 'function') this.$toast[type](message);
+    },
+    rememberFocus() { this.opener = document.activeElement; this.notice = { type: 'info', message: '' }; },
+    restoreFocus() {
+      this.$nextTick(() => {
+        if(this.showLeaveDialog || this.showHistoryDialog || this.showConsentDialog || this.showPlanDialog || this.showTreatmentDialog || this.showCloseDialog) return;
+        if(this.opener && document.contains(this.opener) && this.opener.getClientRects().length) this.opener.focus();
+        else if(this.$refs.sectionTitle) this.$refs.sectionTitle.focus();
+      });
+    },
+    trapDialogFocus(event) {
+      if(event.key !== 'Tab') return;
+      const controls = [...event.currentTarget.querySelectorAll('button, a[href], input, textarea, select, [tabindex]')]
+        .filter(element => !element.disabled && element.tabIndex >= 0 && element.getClientRects().length);
+      const first = controls[0], last = controls[controls.length - 1];
+      if(!first) return;
+      if(event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if(!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    },
+    currentEditorForm() {
+      return this.editorKind === 'plan' ? this.planForm : this.editorKind === 'treatment' ? this.treatmentForm : { closeReason: this.closeReason };
+    },
+    beginEditor(kind) {
+      this.editorKind = kind;
+      this.editorRequestId = requestId();
+      this.savedEditor = snapshot(this.currentEditorForm());
+      this.validationErrors = {};
+      this.showValidation = false;
+      this.rememberFocus();
+    },
+    closeEditors() {
+      this.showPlanDialog = false; this.showTreatmentDialog = false; this.showCloseDialog = false; this.showConsentDialog = false;
+      this.showSignatureOptionsDialog = false; this.signatureOptionsDocument = null; this.preparedConsentDocument = null;
+      this.editorKind = ''; this.savedEditor = ''; this.consentDirty = false; this.consentSignature = '';
+    },
+    confirmLeave() {
+      if(this.isBusy || this.signatureDeliveryBusy) return Promise.resolve(false);
+      if(!this.dirty) return Promise.resolve(true);
+      if(this.leavePromise) return this.leavePromise;
+      this.showLeaveDialog = true;
+      this.leaveOpener = document.activeElement;
+      this.leavePromise = new Promise(resolve => { this.leaveResolver = resolve; });
+      return this.leavePromise;
+    },
+    async resolveLeave(action) {
+      if(this.isBusy) return;
+      if(action === 'save') {
+        const save = { plan: this.createPlan, treatment: this.saveTreatment, consent: this.saveConsent, close: this.closePlan }[this.editorKind];
+        if(!save || !await save()) return;
+      }
+      if(action === 'discard') this.closeEditors();
+      this.showLeaveDialog = false;
+      const resolve = this.leaveResolver;
+      this.leaveResolver = null; this.leavePromise = null;
+      if(resolve) resolve(action !== 'stay');
+      if(action === 'stay') this.$nextTick(() => {
+        if(this.leaveOpener && document.contains(this.leaveOpener)) this.leaveOpener.focus();
+      });
+    },
+    async closeEditor() { if(await this.confirmLeave()) this.closeEditors(); },
+    beforeUnload(event) { if(this.dirty || this.isBusy || this.signatureDeliveryBusy) { event.preventDefault(); event.returnValue = ''; } },
+    async performAction(action, payload, message) {
+      if(this.isBusy) return false;
+      this.isBusy = true;
+      this.notice = { type: 'info', message: 'Guardando…' };
+      try {
+        const result = await action(payload);
+        if(!result || !result.success) {
+          this.toastFunction('error', result && result.message || 'No se guardaron los cambios. Reintenta conservando la captura.');
+          if(result && result.data && result.data.errors) this.validationErrors = result.data.errors;
+          return false;
+        }
+        if(payload.id_person !== this.patientId) return true;
+        if(result.data && result.data.patient && result.data.patient.id_person === this.patientId) this.localPlanData = result.data;
+        if(result.data && result.data.refreshRequired) {
+          this.loadError = 'Los cambios se guardaron, pero no se pudo actualizar la consulta. Reintenta para verlos.';
+          this.toastFunction('warning', this.loadError);
+        } else this.toastFunction('success', message);
+        return true;
+      } catch(error) {
+        this.toastFunction('error', 'No se pudo confirmar el guardado. Conservamos tu captura; reintenta cuando haya conexión.');
+        return false;
+      } finally { this.isBusy = false; }
+    },
+    fieldErrors(key) { return this.showValidation && this.validationErrors[key] ? [this.validationErrors[key]] : []; },
+    async showFieldErrors() {
+      this.toastFunction('warning', 'Revisa los campos indicados. Conservamos el resto de tu captura.');
+      await this.$nextTick();
+      const root = this.editorKind === 'plan' ? this.$refs.planEditor : this.$refs.treatmentEditor;
+      const node = root && (root.$el || root);
+      const field = node && node.querySelector('.error--text input, .error--text textarea');
+      if(field) field.focus();
+    },
+    statusActions(item) {
+      return this.statusOptions.filter(option => option.value !== item.status && (this.canEdit || option.value === 'completed' && this.canComplete || option.value === 'cancelled' && this.canCancel));
+    },
+    statusSaved(item, status) {
+      if(this.filter !== 'all' && this.filter !== status) this.filter = status;
+      this.toastFunction('success', `${item.name}: ${this.statusLabel(status)}. Mostrando su estado actualizado.`);
+    },
+    onSignatureStroke(event) { if(event.target && event.target.tagName === 'CANVAS') this.consentDirty = true; },
     ...mapActions(moduleTypes.TREATMENT, [
       fnTypes.getTreatmentPlan,
       fnTypes.createTreatmentPlan,
+      fnTypes.updateTreatmentPlan,
       fnTypes.closeTreatmentPlan,
       fnTypes.savePlanTreatment,
       fnTypes.changePlanTreatmentStatus,
       fnTypes.deletePlanTreatment,
       fnTypes.saveTreatmentPlanConsent
     ]),
-    ...mapActions(moduleTypes.CONFIGURATION, {
-      loadConfiguration: fnTypes.getConfiguration
-    }),
     emptyTreatmentForm: function() {
       return {
         id_patient_treatment: '',
@@ -927,23 +1235,33 @@ export default {
         teeth: []
       };
     },
-    loadDocumentTemplates: async function() {
-      const response = await DADocumentService.getTemplates();
-      this.documentTemplates = response && response.success ? response.data || [] : [];
-    },
-    loadDoctorsForConsent: async function() {
+    loadConsentContext: async function(request = this.loadRequest, patientId = this.patientId) {
+      if(!this.canManageSignature) return;
+      this.contextLoading = true;
+      this.contextError = '';
       try {
-        const response = await DAPrescriptionService.doctors();
-        this.doctors = response && response.success ? response.data || [] : [];
+        const response = await DATreatmentService.getSigningDoctors(patientId);
+        if(request !== this.loadRequest) return;
+        if(!response || !response.success || !response.data) throw new Error('Consent context unavailable');
+        this.doctors = response.data.doctors || [];
+        this.documentTemplates = response.data.template ? [response.data.template] : [];
+        this.consentConfig = response.data.legacyText || {};
+        if(!this.eligibleDoctors.some(doctor => doctor.id_login === this.doctorUserId)) {
+          const pendingDoctor = this.hasPendingConsentDocument && this.activeConsentDocument.responsible_doctor_user_id;
+          this.doctorUserId = this.eligibleDoctors.some(doctor => doctor.id_login === pendingDoctor) ? pendingDoctor : this.eligibleDoctors.some(doctor => doctor.id_login === this.currentUser.id_login) ? this.currentUser.id_login : '';
+        }
       } catch (error) {
+        if(request !== this.loadRequest) return;
         this.doctors = [];
-      }
+        this.contextError = 'No se pudieron cargar los doctores o el texto del consentimiento. Reintenta.';
+      } finally { if(request === this.loadRequest) this.contextLoading = false; }
     },
     isDoctorProfileReady: function(doctor) {
       return Boolean(
         doctor &&
         doctor.id_doctor_professional_profile &&
         doctor.professional_profile_active !== 0 &&
+        doctor.can_sign_documents &&
         doctor.professional_name &&
         doctor.professional_license
       );
@@ -951,7 +1269,7 @@ export default {
     textToHtml: function(value) {
       const text = String(value || '');
       if(/<[^>]+>/.test(text)) {
-        return text;
+        return sanitizeHtmlForDocumentSnapshot(text);
       }
       return this.escapeHtml(text).replace(/\n/g, '<br>');
     },
@@ -977,8 +1295,10 @@ export default {
         diagnostico: this.activePlan ? this.activePlan.diagnosis || '' : '',
         planTratamiento: this.activeTreatments.map((item) => item.name).join(', ')
       };
-      return String(template || '').replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) => (
-        replacements[key] === undefined || replacements[key] === null ? '' : String(replacements[key])
+      const source = String(template || '');
+      const html = /<[^>]+>/.test(source) ? source : `<span>${this.escapeHtml(source).replace(/\n/g, '<br>')}</span>`;
+      return html.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) => (
+        replacements[key] === undefined || replacements[key] === null ? '' : this.escapeHtml(replacements[key])
       ));
     },
     planTreatments: function(plan) {
@@ -994,6 +1314,7 @@ export default {
       return Boolean(plan && plan.consent && plan.consent.patient_signature);
     },
     consentStatusLabel: function(plan) {
+      if(!this.canViewConsent) return 'Sin acceso de consulta';
       if(plan && plan.consent && plan.consent.refusal_reason) {
         return 'No firmado por negativa';
       }
@@ -1019,48 +1340,59 @@ export default {
       if(this.currentDoctorForConsent && this.currentDoctorForConsent.professional_license) {
         return this.currentDoctorForConsent.professional_license;
       }
-      const config = this.signatureConfig || {};
-      return config.professional_license || config.professionalLicense || config.professional_license_snapshot || '';
+      return '';
     },
     validateDoctorLicenseForConsent: function() {
-      if(this.signingProfessionalLicense()) {
-        return true;
-      }
-      this.toastFunction('warning', 'Configura la cédula profesional del doctor antes de firmar el consentimiento.');
+      if(this.canManageSignature && !this.consentPrerequisite) return true;
+      this.toastFunction('warning', this.consentPrerequisite || 'No tienes permiso para guardar una firma.');
       return false;
     },
     loadPlan: async function() {
-      if(!this.patientId) {
-        return;
-      }
+      const request = ++this.loadRequest, patientId = this.patientId;
+      if(!patientId) return;
       this.isLoading = true;
-      await this.getTreatmentPlan(this.patientId);
-      this.isLoading = false;
+      this.loadError = '';
+      try {
+        const result = await this.getTreatmentPlan(patientId);
+        if(request !== this.loadRequest) return;
+        if(!result || !result.success || !result.data || !result.data.patient || result.data.patient.id_person !== patientId) throw new Error(result && result.message || 'No se pudo consultar el plan.');
+        this.localPlanData = result.data;
+        this.planLoaded = true;
+        this.loadConsentContext(request, patientId);
+      } catch(error) {
+        if(request === this.loadRequest) this.loadError = error.message || 'No se pudo consultar el plan. Reintenta.';
+      } finally { if(request === this.loadRequest) this.isLoading = false; }
     },
-    openCreatePlan: function() {
-      this.planForm = {
+    openCreatePlan: function(edit = false) {
+      if(!this.ready || this.isBusy || (edit ? !this.canEdit : !this.canCreate)) return;
+      this.planEditing = edit === true;
+      this.planForm = this.planEditing ? {
+        title: this.activePlan.title || '', started_at: this.formatDate(this.activePlan.started_at) === '--' ? '' : this.formatDate(this.activePlan.started_at),
+        diagnosis: this.activePlan.diagnosis || '', notes: this.activePlan.notes || ''
+      } : {
         title: 'Plan de tratamiento',
         started_at: today(),
         diagnosis: '',
         notes: ''
       };
+      this.beginEditor('plan');
       this.showPlanDialog = true;
     },
     createPlan: async function() {
-      this.isLoading = true;
-      const response = await this.createTreatmentPlan({
+      if(this.planEditing ? !this.canEdit : !this.canCreate) return false;
+      this.validationErrors = planErrors(this.planForm); this.showValidation = true;
+      if(Object.keys(this.validationErrors).length) { await this.showFieldErrors(); return false; }
+      const saved = await this.performAction(this.planEditing ? this.updateTreatmentPlan : this.createTreatmentPlan, {
         id_person: this.patientId,
+        id_treatment_plan: this.planEditing ? this.activePlan.id_treatment_plan : undefined,
+        request_id: this.editorRequestId,
         ...this.planForm
-      });
-      this.isLoading = false;
-      if(response && response.success) {
-        this.showPlanDialog = false;
-        this.toastFunction('success', 'Plan activo creado.');
-      } else {
-        this.toastFunction('error', response && response.message ? response.message : 'No se pudo crear el plan.');
-      }
+      }, this.planEditing ? 'Datos del plan actualizados.' : 'Plan activo creado.');
+      if(saved) this.closeEditors();
+      return saved;
     },
     openTreatmentDialog: function(item) {
+      if(!this.ready || this.isBusy || (item ? !this.canEdit : !this.canCreate)) return;
       this.treatmentForm = item ? {
         id_patient_treatment: item.id_patient_treatment,
         name: item.name || '',
@@ -1069,39 +1401,39 @@ export default {
         status: item.status || 'pending',
         estimated_start_date: item.estimated_start_date ? String(item.estimated_start_date).slice(0, 10) : '',
         estimated_end_date: item.estimated_end_date ? String(item.estimated_end_date).slice(0, 10) : '',
-        cost: item.cost || '',
+        cost: item.cost === null || item.cost === undefined ? '' : item.cost,
         notes: item.notes || '',
         teeth: item.teeth ? [...item.teeth] : []
       } : this.emptyTreatmentForm();
+      this.beginEditor('treatment');
       this.showTreatmentDialog = true;
     },
     openClosePlanDialog: function() {
+      if(!this.ready || !this.canClose || this.isBusy) return;
+      this.closeReason = '';
+      this.beginEditor('close');
       this.showCloseDialog = true;
     },
     saveTreatment: async function() {
-      if(!this.treatmentForm.name) {
-        this.toastFunction('warning', 'Captura el nombre del tratamiento.');
-        return;
-      }
-      this.isLoading = true;
+      if(this.treatmentForm.id_patient_treatment ? !this.canEdit : !this.canCreate) return false;
+      this.validationErrors = treatmentErrors(this.treatmentForm); this.showValidation = true;
+      if(Object.keys(this.validationErrors).length) { await this.showFieldErrors(); return false; }
       const payload = {
         id_person: this.patientId,
         id_treatment_plan: this.activePlan ? this.activePlan.id_treatment_plan : null,
-        ...this.treatmentForm
+        ...this.treatmentForm,
+        request_id: this.editorRequestId
       };
+      if(!this.canEditCosts) delete payload.cost;
       if(!payload.id_patient_treatment) {
         payload.status = 'pending';
       }
-      const response = await this.savePlanTreatment(payload);
-      this.isLoading = false;
-      if(response && response.success) {
-        this.showTreatmentDialog = false;
-        this.toastFunction('success', 'Tratamiento guardado.');
-      } else {
-        this.toastFunction('error', response && response.message ? response.message : 'No se pudo guardar el tratamiento.');
-      }
+      const saved = await this.performAction(this.savePlanTreatment, payload, 'Tratamiento guardado.');
+      if(saved) { this.statusSaved(payload, payload.status); this.closeEditors(); }
+      return saved;
     },
     requestCancelTreatment: function(item) {
+      if(!this.canCancel || this.isBusy) return;
       this.confirmDialog = {
         show: true,
         type: 'cancel',
@@ -1113,6 +1445,7 @@ export default {
       };
     },
     requestDeleteTreatment: function(item) {
+      if(!this.canEdit || this.isBusy) return;
       this.confirmDialog = {
         show: true,
         type: 'delete',
@@ -1139,7 +1472,7 @@ export default {
       const type = this.confirmDialog.type;
       this.closeConfirmDialog();
       if(type === 'recaptureConsent') {
-        this.openConsentDialog('sign');
+        await this.openSignatureOptions();
         return;
       }
       if(!item) {
@@ -1154,50 +1487,35 @@ export default {
       }
     },
     closePlan: async function() {
-      if(!this.activePlan) {
-        return;
-      }
-      this.isLoading = true;
-      const response = await this.closeTreatmentPlan({
+      if(!this.activePlan || !this.canClose) return false;
+      if([...this.closeReason].length > 1000) { this.toastFunction('warning', 'El motivo de cierre admite hasta 1000 caracteres.'); return false; }
+      const saved = await this.performAction(this.closeTreatmentPlan, {
         id_person: this.patientId,
         id_treatment_plan: this.activePlan.id_treatment_plan,
         close_reason: this.closeReason
-      });
-      this.isLoading = false;
-      if(response && response.success) {
-        this.showCloseDialog = false;
+      }, 'Plan cerrado y disponible como histórico de solo lectura.');
+      if(saved) {
+        this.closeEditors();
         this.closeReason = '';
-        this.toastFunction('success', 'Plan cerrado y enviado a histórico.');
-      } else {
-        this.toastFunction('error', response && response.message ? response.message : 'No se pudo cerrar el plan.');
       }
+      return saved;
     },
     changeStatus: async function(item, status) {
-      this.isLoading = true;
-      const response = await this.changePlanTreatmentStatus({
+      if(!this.statusActions(item).some(option => option.value === status) || this.isBusy) return false;
+      const saved = await this.performAction(this.changePlanTreatmentStatus, {
         id_person: this.patientId,
         id_patient_treatment: item.id_patient_treatment,
         status
-      });
-      this.isLoading = false;
-      if(response && response.success) {
-        this.toastFunction('success', 'Estado actualizado.');
-      } else {
-        this.toastFunction('error', response && response.message ? response.message : 'No se pudo actualizar el estado.');
-      }
+      }, 'Estado actualizado.');
+      if(saved) this.statusSaved(item, status);
+      return saved;
     },
     deleteTreatment: async function(item) {
-      this.isLoading = true;
-      const response = await this.deletePlanTreatment({
+      if(!this.canEdit || this.isBusy) return false;
+      return this.performAction(this.deletePlanTreatment, {
         id_person: this.patientId,
         id_patient_treatment: item.id_patient_treatment
-      });
-      this.isLoading = false;
-      if(response && response.success) {
-        this.toastFunction('success', 'Tratamiento eliminado del plan activo.');
-      } else {
-        this.toastFunction('error', response && response.message ? response.message : 'No se pudo eliminar el tratamiento.');
-      }
+      }, 'Tratamiento eliminado del plan activo.');
     },
     toggleTooth: function(tooth) {
       const current = this.treatmentForm.teeth || [];
@@ -1206,36 +1524,88 @@ export default {
         : [...current, tooth];
     },
     openHistory: function(plan) {
+      this.rememberFocus();
       this.selectedHistory = plan;
       this.showHistoryDialog = true;
     },
     openConsentDialog: function(mode) {
+      if(mode === 'view' && !this.canViewConsent) return;
+      if(mode !== 'view' && !this.canSign) return;
+      this.rememberFocus();
       this.selectedConsentPlan = null;
+      this.selectedConsentVersion = null;
       this.consentMode = mode;
+      if(mode === 'view' && this.activePlan && this.activePlan.consent_versions && this.activePlan.consent_versions.length) this.selectedConsentVersion = this.activePlan.consent_versions[0];
       this.consentSignature = '';
+      this.consentDirty = false;
+      this.editorKind = mode === 'view' ? '' : 'consent';
+      this.consentReviewToken = this.activePlan && this.activePlan.review_token || '';
+      this.consentRequestId = requestId();
       this.showConsentDialog = true;
     },
     requestConsentSignature: function() {
+      if(this.isBusy || !this.ready) return;
+      this.consentMode = 'sign';
       if(!this.validateDoctorLicenseForConsent()) {
         return;
       }
-      if(this.hasActiveConsent) {
+      if(this.hasActiveConsent && !this.hasPendingConsentDocument) {
         this.confirmDialog = {
           show: true,
           type: 'recaptureConsent',
           item: null,
           eyebrow: 'Consentimiento del plan',
           title: 'Recapturar firma del consentimiento',
-          message: 'Se registrará una nueva firma para el plan activo. La firma anterior debe conservarse en el historial o auditoría del documento.',
+          message: 'Se guardará una nueva versión con el texto y los tratamientos revisados. La versión firmada anterior seguirá disponible para consulta.',
           confirmText: 'Continuar'
         };
         return;
       }
+      this.openSignatureOptions();
+    },
+    async openSignatureOptions() {
+      if(!this.activePlan || !this.canManageSignature || this.isBusy) return false;
+      this.preparedConsentDocument = null;
+      const saved = await this.performAction(DATreatmentService.prepareConsentDocument, {
+        id_person: this.patientId, id_treatment_plan: this.activePlan.id_treatment_plan,
+        doctor_user_id: this.doctorUserId, review_token: this.activePlan.review_token
+      }, 'Consentimiento preparado. Elige cómo quiere firmar el paciente.');
+      if(!saved) return false;
+      const document = this.activeConsentDocument;
+      if(!document || !['BORRADOR', 'PENDIENTE_FIRMA'].includes(document.status)) { this.toastFunction('warning', 'El documento se preparó. Reintenta la consulta para continuar.'); return false; }
+      this.signatureOptionsDocument = document;
+      this.showSignatureOptionsDialog = true;
+      return true;
+    },
+    openPreparedConsentSignature(document) {
+      if(!this.canSign || !document || !['BORRADOR', 'PENDIENTE_FIRMA'].includes(document.status)) return;
+      this.preparedConsentDocument = document;
+      this.localSignatureRole = this.localSignatureRoles[0] ? this.localSignatureRoles[0].value : '';
+      this.localSignerName = this.localSignatureRole === 'PATIENT' ? this.patientName : '';
+      this.localSignatureBaseline = snapshot({ role: this.localSignatureRole, name: this.localSignerName });
       this.openConsentDialog('sign');
     },
+    onLocalSignatureRoleChanged() {
+      this.localSignerName = this.localSignatureRole === 'PATIENT' ? this.patientName : '';
+      this.consentSignature = ''; this.consentDirty = false; this.consentRequestId = requestId();
+    },
+    async refreshConsentSignatureOptions() {
+      await this.loadPlan();
+      const document = this.activeConsentDocument;
+      if(!document) return;
+      if(document.status === 'FIRMADO') {
+        this.showSignatureOptionsDialog = false;
+        this.signatureOptionsDocument = null;
+        this.toastFunction('success', 'Consentimiento firmado. Su versión ya está disponible en el plan.');
+      } else this.signatureOptionsDocument = document;
+    },
     openHistoryConsent: function(plan) {
+      if(!this.canViewConsent) return;
+      this.rememberFocus();
       this.selectedConsentPlan = plan;
+      this.selectedConsentVersion = null;
       this.consentMode = 'view';
+      if(plan.consent_versions && plan.consent_versions.length) this.selectedConsentVersion = plan.consent_versions[0];
       this.consentSignature = '';
       this.showHistoryDialog = false;
       this.showConsentDialog = true;
@@ -1248,37 +1618,57 @@ export default {
     },
     onConsentSigned: function(signature) {
       this.consentSignature = signature;
+      this.consentDirty = Boolean(signature);
       this.toastFunction('success', 'Firma capturada. Ahora guarda el consentimiento.');
     },
+    onConsentChanged(event) {
+      this.consentSignature = '';
+      this.consentDirty = !event.isEmpty;
+      if(!event.isEmpty) this.toastFunction('info', 'Trazo cambiado. Aplica la firma y después guarda el consentimiento.');
+    },
     saveConsent: async function() {
+      if(!this.canSign) { this.toastFunction('warning', 'No tienes permiso para capturar una firma presencial.'); return false; }
       if(!this.activePlan) {
-        return;
+        return false;
       }
       if(!this.validateDoctorLicenseForConsent()) {
-        return;
+        return false;
       }
       if(!this.consentSignature) {
         this.toastFunction('warning', 'Primero aplica la firma del paciente.');
-        return;
+        return false;
       }
-      this.isLoading = true;
-      const response = await this.saveTreatmentPlanConsent({
+      if(this.preparedConsentDocument) {
+        if(!this.localSignatureRoles.some(role => role.value === this.localSignatureRole)) { this.toastFunction('warning', 'Selecciona una firma pendiente.'); return false; }
+        if(this.localSignatureRole !== 'PATIENT' && !this.localSignerName.trim()) { this.toastFunction('warning', 'Escribe el nombre de quien firma.'); return false; }
+        const saved = await this.performAction(DATreatmentService.signPreparedConsent, {
+          id_person: this.patientId, id_patient_document: this.preparedConsentDocument.id_patient_document,
+          patient_signature: this.consentSignature, signature_role: this.localSignatureRole,
+          signer_name: this.localSignerName || this.patientName
+        }, 'Firma registrada en el documento del plan.');
+        if(saved) {
+          const completed = this.activeConsentDocument && this.activeConsentDocument.status === 'FIRMADO';
+          this.closeEditors();
+          this.preparedConsentDocument = null;
+          this.toastFunction('success', completed ? 'Consentimiento firmado y versión guardada.' : 'Firma registrada. Quedan otras firmas pendientes; puedes continuar desde el plan.');
+        }
+        return saved;
+      }
+      const saved = await this.performAction(this.saveTreatmentPlanConsent, {
         id_person: this.patientId,
         id_treatment_plan: this.activePlan.id_treatment_plan,
         patient_signature: this.consentSignature,
+        doctor_user_id: this.doctorUserId,
+        request_id: this.consentRequestId,
+        review_token: this.consentReviewToken,
         declare_text_snapshot: this.currentDeclareText,
         consent_text_snapshot: this.currentConsentText,
         doctor_signature_snapshot: this.currentDoctorSignature,
         doctor_name_snapshot: this.currentDoctorName,
         professional_license_snapshot: this.signingProfessionalLicense()
-      });
-      this.isLoading = false;
-      if(response && response.success) {
-        this.showConsentDialog = false;
-        this.toastFunction('success', 'Consentimiento del plan guardado.');
-      } else {
-        this.toastFunction('error', response && response.message ? response.message : 'No se pudo guardar el consentimiento.');
-      }
+      }, 'Versión del consentimiento guardada.');
+      if(saved) this.closeEditors();
+      return saved;
     },
     countByStatus: function(status) {
       return this.activeTreatments.filter((item) => item.status === status).length;
@@ -1317,10 +1707,10 @@ export default {
       return timePart ? `${datePart} ${timePart}` : datePart;
     },
     formatCurrencyValue: function(value) {
-      const amount = Number(value || 0);
-      if(!amount) {
+      if(value === null || value === undefined || value === '') {
         return 'No especificado';
       }
+      const amount = Number(value);
       return amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
     },
     printableHistoryHtml: function(plan) {
@@ -1332,7 +1722,7 @@ export default {
           <td>${this.escapeHtml(this.statusLabel(item.status))}</td>
           <td>${this.escapeHtml(this.formatDisplayDate(item.estimated_start_date))}</td>
           <td>${this.escapeHtml(this.formatDisplayDate(item.estimated_end_date))}</td>
-          <td>${this.escapeHtml(this.formatCurrencyValue(item.cost))}</td>
+          ${this.showCosts ? `<td>${this.escapeHtml(this.formatCurrencyValue(item.cost))}</td>` : ''}
           <td>${this.escapeHtml((item.teeth || []).join(', ') || 'No especificado')}</td>
         </tr>
       `).join('');
@@ -1349,10 +1739,11 @@ export default {
               <small>${this.escapeHtml(consent.doctor_name_snapshot || 'Doctor no especificado')}</small>
             </div>
             <div>
-              <strong>Firma del paciente</strong>
-              ${consent.patient_signature ? `<img src="${this.escapeHtml(consent.patient_signature)}" alt="Firma del paciente">` : '<span>Sin firma registrada.</span>'}
-              <small>${this.escapeHtml(this.patientName || 'Paciente no especificado')}</small>
+              <strong>${this.consentPatientSignatureLabel(consent)}</strong>
+              ${consent.patient_signature ? `<img src="${this.escapeHtml(consent.patient_signature)}" alt="${this.consentPatientSignatureLabel(consent)}">` : '<span>Sin firma registrada.</span>'}
+              <small>${this.escapeHtml(consent.patient_signer_name_snapshot || this.patientName || 'Paciente no especificado')}</small>
             </div>
+            ${this.printableAdditionalConsentSignatures(consent)}
           </div>
         </section>
       ` : '<section><h2>Consentimiento</h2><p>Sin consentimiento firmado.</p></section>';
@@ -1390,20 +1781,22 @@ export default {
               <div><strong>Inicio</strong><br>${this.escapeHtml(this.formatDisplayDate(plan.started_at))}</div>
               <div><strong>Cierre</strong><br>${this.escapeHtml(this.formatDisplayDateTime(plan.closed_at))}</div>
               <div><strong>Tratamientos</strong><br>${treatments.length}</div>
-              <div><strong>Total estimado</strong><br>${this.escapeHtml(this.formatCurrencyValue(this.planTotalCost(plan)))}</div>
+              ${this.showCosts ? `<div><strong>Presupuesto del plan (incluye cancelados)</strong><br>${this.escapeHtml(this.formatCurrencyValue(this.planTotalCost(plan)))}</div>` : ''}
               <div><strong>Consentimiento</strong><br>${this.escapeHtml(this.consentStatusLabel(plan))}</div>
-              <div><strong>Doctor responsable</strong><br>${this.escapeHtml(this.historyDoctorName(plan))}</div>
+              <div><strong>Creado por</strong><br>${this.escapeHtml(plan.created_by_name || 'Usuario no disponible')}</div>
             </section>
+            ${plan.diagnosis ? `<p><strong>Diagnóstico general:</strong> ${this.escapeHtml(plan.diagnosis)}</p>` : ''}
+            ${plan.notes ? `<p style="white-space:pre-wrap"><strong>Notas del plan:</strong> ${this.escapeHtml(plan.notes)}</p>` : ''}
             ${plan.close_reason ? `<p class="reason"><strong>Resumen de cierre:</strong> ${this.escapeHtml(this.formatCloseReason(plan.close_reason))}</p>` : ''}
             <section>
               <h2>Resumen por estado</h2>
-              <p>Pendientes: ${this.planStatusCount(plan, 'pending')} | En progreso: ${this.planStatusCount(plan, 'in_progress')} | Completados: ${this.planStatusCount(plan, 'completed')} | Cancelados: ${this.planStatusCount(plan, 'cancelled')}</p>
+              <p>Pendientes: ${this.planStatusCount(plan, 'pending')} | En progreso: ${this.planStatusCount(plan, 'in_progress')} | Pausados: ${this.planStatusCount(plan, 'paused')} | Completados: ${this.planStatusCount(plan, 'completed')} | Cancelados: ${this.planStatusCount(plan, 'cancelled')}</p>
             </section>
             <section>
               <h2>Tratamientos</h2>
               <table>
                 <thead>
-                  <tr><th>Tratamiento</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Costo</th><th>Dientes</th></tr>
+                  <tr><th>Tratamiento</th><th>Estado</th><th>Inicio</th><th>Fin</th>${this.showCosts ? '<th>Costo</th>' : ''}<th>Dientes</th></tr>
                 </thead>
                 <tbody>${rows || '<tr><td colspan="6">Sin tratamientos registrados.</td></tr>'}</tbody>
               </table>
@@ -1413,9 +1806,19 @@ export default {
         </html>
       `;
     },
+    consentPatientSignatureLabel(consent) { return consent && consent.patient_signature_role === 'TUTOR' ? 'Firma del tutor o representante' : 'Firma del paciente'; },
+    printableAdditionalConsentSignatures(consent) {
+      return (consent && consent.signatures_snapshot || []).filter(signature => ['WITNESS1', 'WITNESS2'].includes(signature.signature_role)).map(signature => {
+        const label = signature.signature_role === 'WITNESS1' ? 'Firma del testigo 1' : 'Firma del testigo 2';
+        return `<div><strong>${label}</strong><img src="${this.escapeHtml(signature.signature_image)}" alt="${label}"><small>${this.escapeHtml(signature.signer_name_snapshot || '')}</small></div>`;
+      }).join('');
+    },
     printableConsentHtml: function(plan) {
       const consent = plan && plan.consent ? plan.consent : null;
-      const treatments = this.planTreatments(plan);
+      const signedPlan = consent && consent.plan_snapshot;
+      const signedPatient = signedPlan && signedPlan.patient;
+      const signedPatientName = signedPatient ? signedPatient.fullname || `${signedPatient.name || ''} ${signedPatient.surname || ''}`.trim() : this.patientName;
+      const treatments = this.planTreatments(signedPlan);
       const treatmentItems = treatments.map((item) => `<li>${this.escapeHtml(item.name || 'Sin nombre')} <span>${this.escapeHtml(this.statusLabel(item.status))}</span></li>`).join('');
       return `
         <!doctype html>
@@ -1448,12 +1851,12 @@ export default {
             <h1>Consentimiento del plan de tratamiento</h1>
             <span class="status">Firmado</span>
             <section class="meta">
-              <div><strong>Paciente</strong><br>${this.escapeHtml(this.patientName || 'No especificado')}</div>
-              <div><strong>Doctor responsable</strong><br>${this.escapeHtml(consent && consent.doctor_name_snapshot ? consent.doctor_name_snapshot : 'No especificado')}</div>
+              <div><strong>Paciente</strong><br>${this.escapeHtml(signedPatientName || 'No especificado')}</div>
+              <div><strong>Doctor firmante</strong><br>${this.escapeHtml(consent && consent.doctor_name_snapshot ? consent.doctor_name_snapshot : 'No especificado')}</div>
               <div><strong>Cédula profesional</strong><br>${this.escapeHtml(consent && consent.professional_license_snapshot ? consent.professional_license_snapshot : 'No registrada al momento de la firma')}</div>
               <div><strong>Fecha de firma</strong><br>${this.escapeHtml(consent ? this.formatDisplayDateTime(consent.signed_at) : 'No especificado')}</div>
-              <div><strong>Plan</strong><br>${this.escapeHtml(plan && plan.title ? plan.title : 'Plan de tratamiento')}</div>
-              <div><strong>Total estimado</strong><br>${this.escapeHtml(this.formatCurrencyValue(this.planTotalCost(plan)))}</div>
+              <div><strong>Plan</strong><br>${this.escapeHtml(signedPlan && signedPlan.title || plan.title || 'Plan de tratamiento')}</div>
+              ${this.showCosts && signedPlan ? `<div><strong>Presupuesto al firmar</strong><br>${this.escapeHtml(this.formatCurrencyValue(this.planTotalCost(signedPlan)))}</div>` : ''}
             </section>
             <section>
               <h2>Declaro</h2>
@@ -1467,7 +1870,7 @@ export default {
             ` : ''}
             <section>
               <h2>Tratamientos relacionados</h2>
-              <ul>${treatmentItems || '<li>No hay tratamientos relacionados registrados.</li>'}</ul>
+              <ul>${treatmentItems || `<li>${signedPlan ? 'No había tratamientos registrados al firmar.' : 'Consentimiento anterior: no se guardó una copia del plan al firmar. Se conservan el texto y las firmas originales.'}</li>`}</ul>
             </section>
             <section class="signatures">
               <div>
@@ -1476,10 +1879,11 @@ export default {
                 <small>${this.escapeHtml(consent && consent.doctor_name_snapshot ? consent.doctor_name_snapshot : 'Doctor no especificado')}</small>
               </div>
               <div>
-                <strong>Firma del paciente</strong>
-                ${consent && consent.patient_signature ? `<img src="${this.escapeHtml(consent.patient_signature)}" alt="Firma del paciente">` : '<span>Sin firma registrada.</span>'}
-                <small>${this.escapeHtml(this.patientName || 'Paciente no especificado')}</small>
+                <strong>${this.consentPatientSignatureLabel(consent)}</strong>
+                ${consent && consent.patient_signature ? `<img src="${this.escapeHtml(consent.patient_signature)}" alt="${this.consentPatientSignatureLabel(consent)}">` : '<span>Sin firma registrada.</span>'}
+                <small>${this.escapeHtml(consent && consent.patient_signer_name_snapshot || signedPatientName || 'Paciente no especificado')}</small>
               </div>
+              ${this.printableAdditionalConsentSignatures(consent)}
             </section>
           </body>
         </html>
@@ -1512,7 +1916,8 @@ export default {
         return;
       }
       printWindow.document.open();
-      printWindow.document.write(this.printableConsentHtml(plan));
+      const selected = this.showConsentDialog ? this.selectedConsent : plan.consent;
+      printWindow.document.write(this.printableConsentHtml({ ...plan, consent: selected }));
       printWindow.document.close();
       setTimeout(() => {
         printWindow.focus();
@@ -1527,6 +1932,20 @@ export default {
 .patient-treatment {
   color: var(--color-text, #25364d);
 }
+
+.plan-feedback { margin-bottom: .8rem; padding: .75rem 1rem; border-radius: .75rem; border: 1px solid #bae6fd; background: #effaff; color: #075985; line-height: 1.5; }
+.plan-feedback.feedback-error { background: #fff1f2; border-color: #fecdd3; color: #9f1239; }
+.plan-feedback.feedback-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.plan-feedback.feedback-success { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.plan-details { padding: .85rem 1.2rem; border: 1px solid var(--color-border, #d8e9ef); background: var(--color-surface, #fff); }
+.preserve-lines { white-space: pre-wrap; overflow-wrap: anywhere; }
+.unsaved-state { display: inline-block; color: #92400e; background: #fffbeb; border-radius: 1rem; padding: .2rem .65rem; font-size: .85rem; }
+button:focus-visible { outline: 3px solid #0e7490; outline-offset: 3px; }
+button:disabled { opacity: .55; cursor: default; }
+.consent-actions { max-width: 360px; width: 100%; }
+.summary-grid small { display: block; color: #475569; font-size: .75rem; margin-top: .3rem; }
+.summary-grid article.summary-total-cost { grid-column: 1 / -1; }
+.treatment-card h4, .treatment-hero h3, .history-card strong { overflow-wrap: anywhere; }
 
 .treatment-hero,
 .treatment-toolbar,
@@ -1633,7 +2052,7 @@ button {
 }
 
 .btn-primary {
-  background: var(--color-primary-500, #19a6c9);
+  background: #0e7490;
   color: #fff;
   box-shadow: 0 8px 18px var(--shadow-primary, rgba(27, 166, 201, .25));
 }

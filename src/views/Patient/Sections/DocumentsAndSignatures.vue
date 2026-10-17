@@ -216,7 +216,7 @@
               <div><strong>Firmado</strong><span>{{ selectedDocument.signed_at ? formatDateTime(selectedDocument.signed_at) : '--' }}</span></div>
             </section>
 
-            <section class="sheet-content" v-html="selectedDocument.signed_content_html_snapshot || selectedDocument.content_html_snapshot"></section>
+            <section class="sheet-content" v-html="documentContentHtml(selectedDocument)"></section>
 
             <section v-if="selectedDocument.status === 'NO_FIRMADO_POR_NEGATIVA'" class="sheet-warning">
               <strong>Negativa de firma registrada</strong>
@@ -364,6 +364,7 @@ import fnTypes from '../../../store/modules/common/fn-types';
 import { DADocumentService, DAPrescriptionService } from '../../../services/context/core-proccess-context';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
+import { sanitizeHtmlForDocumentSnapshot, safeDocumentImageSource } from '../../../utils/sanitizeHtml';
 
 export default {
   mixins: [VuexMixin],
@@ -384,6 +385,10 @@ export default {
     return {
       isLoading: false,
       documents: [],
+      documentsLoaded: false,
+      handledDocumentFocusRequest: null,
+      documentFocusAlive: true,
+      documentHighlightTimer: null,
       templates: [],
       doctors: [],
       showCreateDialog: false,
@@ -608,7 +613,7 @@ export default {
       return 'El documento se generara con los datos profesionales de este doctor.';
     },
     themePrimaryColor: function() {
-      return getComputedStyle(document.documentElement).getPropertyValue('--color-primary-500').trim() || '#1BA6C9';
+      return 'var(--color-primary-500)';
     }
   },
   watch: {
@@ -634,6 +639,10 @@ export default {
       }
     }
   },
+  beforeDestroy() {
+    this.documentFocusAlive = false;
+    if(this.documentHighlightTimer) window.clearTimeout(this.documentHighlightTimer);
+  },
   methods: {
     emptyCreateForm: function() {
       return {
@@ -649,14 +658,17 @@ export default {
     },
     load: async function() {
       this.isLoading = true;
+      this.documentsLoaded = false;
       try {
         const docs = await DADocumentService.getPatientDocuments(this.patientId);
         const templates = await DADocumentService.getTemplates();
         const doctors = await DAPrescriptionService.doctors();
         this.documents = docs && docs.success ? this.asArray(docs.data) : [];
+        this.documentsLoaded = Boolean(docs && docs.success);
         this.templates = templates && templates.success ? this.asArray(templates.data) : [];
         this.doctors = doctors && doctors.success ? this.asArray(doctors.data) : [];
       } catch (error) {
+        this.documentsLoaded = false;
         this.documents = [];
         this.templates = [];
         this.doctors = [];
@@ -736,10 +748,14 @@ export default {
       DADocumentService.auditAction({ id_patient_document: item.id_patient_document, event_type: 'VIEWED' });
     },
     focusRequestedDocument: function(request) {
-      if(!request || this.documents.length === 0) {
+      if(!request || !this.documentFocusAlive || !this.documentsLoaded || request === this.handledDocumentFocusRequest
+          || request.id_person && request.id_person !== this.patientId) {
         return;
       }
       const requestedDocument = this.findRequestedDocument(request);
+      // Consume before queued DOM work so reloads/remounts cannot replay a completed request.
+      this.handledDocumentFocusRequest = request;
+      this.$emit('document-focus-consumed', request);
       if(!requestedDocument) {
         this.documentFilter = 'ALL';
         this.notify('warning', 'No se encontró el consentimiento solicitado en Documentos y firmas.');
@@ -748,6 +764,7 @@ export default {
       this.documentFilter = this.filterForDocument(requestedDocument);
       this.highlightedDocumentId = requestedDocument.id_patient_document;
       this.$nextTick(() => {
+        if(!this.documentFocusAlive || this.handledDocumentFocusRequest !== request || request.id_person && request.id_person !== this.patientId) return;
         const ref = this.$refs[`document-${requestedDocument.id_patient_document}`];
         const element = Array.isArray(ref) ? ref[0] : ref;
         if(element && typeof element.scrollIntoView === 'function') {
@@ -756,7 +773,8 @@ export default {
         if(request.open !== false) {
           this.openView(requestedDocument);
         }
-        window.setTimeout(() => {
+        if(this.documentHighlightTimer) window.clearTimeout(this.documentHighlightTimer);
+        this.documentHighlightTimer = window.setTimeout(() => {
           if(this.highlightedDocumentId === requestedDocument.id_patient_document) {
             this.highlightedDocumentId = null;
           }
@@ -966,6 +984,7 @@ export default {
       }
       const html = this.printableHtml(item);
       const frame = document.createElement('iframe');
+      frame.setAttribute('sandbox', 'allow-same-origin allow-modals');
       frame.style.position = 'fixed';
       frame.style.right = '0';
       frame.style.bottom = '0';
@@ -989,7 +1008,7 @@ export default {
       const signatures = this.visibleSignatures(item).map((signature) => `
         <article class="signature-card">
           <span>${this.escapeHtml(this.signatureRoleLabel(signature.signature_role))}</span>
-          ${signature.signature_image ? `<img src="${signature.signature_image}" alt="Firma">` : '<p>Sin imagen de firma.</p>'}
+          ${signature.signature_image ? `<img src="${this.escapeHtml(safeDocumentImageSource(signature.signature_image))}" alt="Firma">` : '<p>Sin imagen de firma.</p>'}
           <strong>${this.escapeHtml(signature.signer_name_snapshot || '--')}</strong>
           <small>${signature.signed_at ? this.escapeHtml(this.formatDateTime(signature.signed_at)) : ''}</small>
         </article>
@@ -997,7 +1016,7 @@ export default {
       const doctorSignature = item.doctor_signature_snapshot ? `
         <article class="signature-card">
           <span>Doctor responsable</span>
-          <img src="${item.doctor_signature_snapshot}" alt="Firma del doctor">
+          <img src="${this.escapeHtml(safeDocumentImageSource(item.doctor_signature_snapshot))}" alt="Firma del doctor">
           <strong>${this.escapeHtml(item.doctor_name_snapshot || '--')}</strong>
           <small>${item.signed_at ? this.escapeHtml(this.formatDateTime(item.signed_at)) : ''}</small>
         </article>
@@ -1053,13 +1072,16 @@ export default {
                 <div><strong>Creado</strong><span>${this.escapeHtml(this.formatDateTime(item.created_at))}</span></div>
                 <div><strong>Firmado</strong><span>${item.signed_at ? this.escapeHtml(this.formatDateTime(item.signed_at)) : '--'}</span></div>
               </section>
-              <section class="content">${item.signed_content_html_snapshot || item.content_html_snapshot || ''}</section>
+              <section class="content">${this.documentContentHtml(item)}</section>
               ${warning}
               <section class="signatures">${signatures}${doctorSignature}</section>
             </main>
           </body>
         </html>
       `;
+    },
+    documentContentHtml: function(item) {
+      return sanitizeHtmlForDocumentSnapshot(item && (item.signed_content_html_snapshot || item.content_html_snapshot) || '');
     },
     canSign: function(item) {
       if(!item) {

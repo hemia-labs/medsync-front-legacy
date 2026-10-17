@@ -3,6 +3,9 @@ import DAHasErrorModel from '../../../models/error/DAHasErrorModel';
 import types from '../common/mutation-types';
 import fnTypes from '../common/fn-types';
 
+let planRequest = 0;
+let currentPatient = '';
+
 const actions = {
 
     /**
@@ -94,101 +97,30 @@ const actions = {
     },
 
     async getTreatmentPlan({commit}, idPerson) {
-        let response = await DATreatmentService.getTreatmentPlan(idPerson);
-        if(response.success) {
-            commit(types.SET_TREATMENT_PLAN, response.data)
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel())
-        } else {
-            commit(types.SET_TREATMENT_PLAN, null)
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(true, response.message))
+        const revision = ++planRequest;
+        currentPatient = idPerson;
+        commit(types.SET_TREATMENT_PLAN, null);
+        try {
+            const response = await DATreatmentService.getTreatmentPlan(idPerson);
+            if(revision === planRequest) {
+                if(response.success) commit(types.SET_TREATMENT_PLAN, response.data);
+                commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(!response.success, response.message));
+            }
+            return response;
+        } catch(error) {
+            if(revision === planRequest) commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(true, 'No se pudo consultar el plan.'));
+            throw error;
         }
-        return response;
     },
-
-    async createTreatmentPlan({dispatch, commit}, data) {
-        let response = await DATreatmentService.createTreatmentPlan(data);
-        if(response.success) {
-            commit(types.SET_TREATMENT_PLAN, response.data)
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel())
-        } else {
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(true, response.message))
+    ...Object.fromEntries(['createTreatmentPlan', 'updateTreatmentPlan', 'closeTreatmentPlan', 'savePlanTreatment', 'changePlanTreatmentStatus', 'deletePlanTreatment', 'saveTreatmentPlanConsent'].map(name => [name, async function({commit}, data) {
+        const response = await DATreatmentService[name](data);
+        if(data.id_person === currentPatient) {
+            if(response.success && response.data && response.data.patient) commit(types.SET_TREATMENT_PLAN, response.data);
+            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(!response.success, response.message));
         }
-        if(data && data.id_person) {
-            await dispatch(fnTypes.getTreatmentPlan, data.id_person)
-        }
+        // Mutation endpoints return the updated DTO; avoid an extra read after every save.
         return response;
-    },
-
-    async closeTreatmentPlan({dispatch, commit}, data) {
-        let response = await DATreatmentService.closeTreatmentPlan(data);
-        if(response.success) {
-            commit(types.SET_TREATMENT_PLAN, response.data)
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel())
-        } else {
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(true, response.message))
-        }
-        if(data && data.id_person) {
-            await dispatch(fnTypes.getTreatmentPlan, data.id_person)
-        }
-        return response;
-    },
-
-    async savePlanTreatment({dispatch, commit}, data) {
-        let response = await DATreatmentService.savePlanTreatment(data);
-        if(response.success) {
-            commit(types.SET_TREATMENT_PLAN, response.data)
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel())
-        } else {
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(true, response.message))
-        }
-        if(data && data.id_person) {
-            await dispatch(fnTypes.getTreatmentPlan, data.id_person)
-        }
-        return response;
-    },
-
-    async changePlanTreatmentStatus({dispatch, commit}, data) {
-        let response = await DATreatmentService.changePlanTreatmentStatus(data);
-        if(response.success) {
-            commit(types.SET_TREATMENT_PLAN, response.data)
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel())
-        } else {
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(true, response.message))
-        }
-        if(data && data.id_person) {
-            await dispatch(fnTypes.getTreatmentPlan, data.id_person)
-        }
-        return response;
-    },
-
-    async deletePlanTreatment({dispatch, commit}, data) {
-        let response = await DATreatmentService.deletePlanTreatment(data);
-        if(response.success) {
-            commit(types.SET_TREATMENT_PLAN, response.data)
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel())
-        } else {
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(true, response.message))
-        }
-        if(data && data.id_person) {
-            await dispatch(fnTypes.getTreatmentPlan, data.id_person)
-        }
-        return response;
-    },
-
-    async saveTreatmentPlanConsent({dispatch, commit}, data) {
-        let response = await DATreatmentService.saveTreatmentPlanConsent(data);
-        if(response.success) {
-            commit(types.SET_TREATMENT_PLAN, response.data)
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel())
-        } else {
-            commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(true, response.message))
-        }
-        if(data && data.id_person) {
-            await dispatch(fnTypes.getTreatmentPlan, data.id_person)
-        }
-        return response;
-    },
-
+    }]))
 }
 
 export default actions

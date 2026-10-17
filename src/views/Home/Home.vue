@@ -8,6 +8,14 @@
           <p class="hero-description">
             Busca un paciente, revisa tus citas del dia o continua con la operacion diaria.
           </p>
+          <p v-if="scopeContext" class="hero-description">
+            Agenda e indicadores: <strong>{{ homeScopeLabel }}</strong>
+            <span v-if="homeScopeDoctorName"> · {{ homeScopeDoctorName }}</span>
+          </p>
+          <select v-if="scopeContext && scopeContext.canSelectOwn && scopeContext.canSelectTenant"
+            v-model="selectedScope" class="continuity-select" aria-label="Alcance de agenda e indicadores de Inicio" @change="changeHomeScope">
+            <option value="">Mi actividad</option><option value="tenant">Todo el consultorio</option>
+          </select>
         </div>
 
         <div class="hero-visual" aria-hidden="true">
@@ -21,7 +29,7 @@
         </div>
       </header>
 
-      <section class="search-command" aria-labelledby="patient-search-title">
+      <section v-if="hasPermission('px.all')" class="search-command" aria-labelledby="patient-search-title">
         <div class="section-heading">
           <div>
             <p class="eyebrow">Busqueda principal</p>
@@ -74,7 +82,7 @@
 
       <div class="home-grid">
         <main class="home-main-column">
-          <section class="content-card search-results-card" aria-labelledby="search-results-title">
+          <section v-if="hasPermission('px.all')" class="content-card search-results-card" aria-labelledby="search-results-title">
             <div class="section-heading">
               <div>
                 <p class="eyebrow">Resultados</p>
@@ -145,7 +153,7 @@
             <div class="section-heading">
               <div>
                 <p class="eyebrow">Hoy</p>
-                <h2 id="appointments-title">Proximas citas</h2>
+                <h2 id="appointments-title">Citas del dia</h2>
               </div>
               <router-link
                 v-if="canViewAppointments"
@@ -183,6 +191,7 @@
                 <span class="appointment-time">{{ appointmentTime(appointment) }}</span>
                 <span class="appointment-copy">
                   <strong>{{ appointmentPatient(appointment) }}</strong>
+                  <small>{{ appointmentDoctor(appointment) }}</small>
                   <small>{{ appointmentStatus(appointment) }}</small>
                 </span>
               </article>
@@ -289,7 +298,7 @@
                   :key="card.key"
                   :class="['continuity-stat', `tone-${card.tone || 'neutral'}`]"
                 >
-                  <strong>{{ card.value }}</strong>
+                  <strong>{{ card.value === null || card.value === undefined ? 'No disponible' : card.value }}</strong>
                   <span>{{ card.label }}</span>
                 </article>
               </div>
@@ -324,7 +333,7 @@
 
             <div v-else-if="!isContinuityLoading" class="inline-state">
               <v-icon size="24">mdi-shield-check-outline</v-icon>
-              <p>Este perfil no tiene pendientes de continuidad visibles.</p>
+              <p>No tienes indicadores habilitados para este alcance.</p>
             </div>
 
           </section>
@@ -335,17 +344,16 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
+import { mapGetters } from 'vuex';
 import decode from 'jwt-decode';
 import VuexMixin from '../../mixins/VuexMixin';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
-import { DAAppointmentService, DAHomeService } from '../../services/context/core-proccess-context';
+import { DAHomeService } from '../../services/context/core-proccess-context';
 import { APPOINTMENT_STATUS_LABELS } from '../../domain/appointments/appointment.storage';
 import { isD2AuthMode } from '../../services/config/authTransport.config';
+import { clearClinicalContinuityCache } from '../../utils/authStorageCleanup';
 
-const CONTINUITY_CACHE_KEY = 'medsync.home.continuitySummary.v1';
-const CONTINUITY_CACHE_TTL_MS = 60 * 60 * 1000;
 const CONTINUITY_ROTATION_MS = 15000;
 const CONTINUITY_MANUAL_PAUSE_MS = 60000;
 const EMPTY_CONTINUITY_SECTION = {
@@ -355,7 +363,7 @@ const EMPTY_CONTINUITY_SECTION = {
   title: 'Todo al dia por ahora',
   description: 'Aqui apareceran borradores, firmas, pacientes recientes y actividad semanal.',
   icon: 'mdi-shield-check-outline',
-  available: true,
+  available: false,
   total: 0,
   cards: [],
   items: [],
@@ -368,6 +376,13 @@ export default {
     data: function() {
         return {
             Param: '',
+            selectedScope: '',
+            scopeContext: null,
+            patients: [],
+            homeDisposed: false,
+            continuityRequestVersion: 0,
+            appointmentsRequestVersion: 0,
+            searchRequestVersion: 0,
             showResult: false,
             searchError: false,
             searchServiceError: false,
@@ -388,9 +403,12 @@ export default {
         }
     },
     created() {
+      clearClinicalContinuityCache()
       this.init()
     },
     beforeDestroy() {
+      this.homeDisposed = true
+      this.resetClinicalHome()
       if(this.homeClockTimer) {
         clearInterval(this.homeClockTimer)
       }
@@ -401,15 +419,40 @@ export default {
         clearTimeout(this.continuityResumeTimer)
       }
     },
+    watch: {
+      homeSessionKey: function() {
+        this.selectedScope = ''
+        this.resetClinicalHome()
+        if(this.homeSessionKey && !this.homeDisposed) {
+          this.loadContinuitySummary()
+          this.loadTodayAppointments()
+        }
+      }
+    },
     computed: {
-      ...mapGetters(moduleTypes.HOME, {
-        patients: fnTypes.getPatients
-      }),
       ...mapGetters(moduleTypes.AUTH, {
         hasPermission: fnTypes.hasPermission,
         authUser: fnTypes.getUser,
-        business: fnTypes.getBusiness
+        business: fnTypes.getBusiness,
+        authPermissions: 'getPermissions'
       }),
+      homeScopeLabel: function() {
+        if(!this.scopeContext) return ''
+        if(this.selectedScope === 'tenant' || !this.scopeContext.canSelectOwn) return 'Todo el consultorio'
+        return 'Mi actividad'
+      },
+      homeScopeDoctorName: function() {
+        return this.scopeContext && this.homeScopeLabel === 'Mi actividad'
+          ? this.scopeContext.doctorName || '' : ''
+      },
+      homeSessionKey: function() {
+        const user = this.sessionUser || {}
+        const actor = user.id_login || user.id
+        const business = (this.business && this.business.id_business) || user.id_business
+        return actor && business
+          ? JSON.stringify([actor, business, [...(this.authPermissions || [])].sort()])
+          : ''
+      },
       sessionUser: function() {
         if(isD2AuthMode()) {
           return this.authUser || null
@@ -502,7 +545,7 @@ export default {
       appointmentsEmptyMessage: function() {
         return this.appointmentsUnavailable
           ? 'No hay citas para mostrar por ahora.'
-          : 'No tienes citas proximas hoy.'
+          : 'No hay citas registradas hoy en este alcance.'
       },
       continuitySections: function() {
         const sections = this.continuitySummary && this.continuitySummary.sections
@@ -529,17 +572,42 @@ export default {
       }
     },
     methods: {
-      ...mapActions(moduleTypes.HOME, [
-        fnTypes.getPatients
-      ]),
-
+      changeHomeScope: async function() {
+        this.resetHomeIndicators()
+        await Promise.all([this.loadContinuitySummary(), this.loadTodayAppointments()])
+      },
+      resetHomeIndicators: function() {
+        this.continuityRequestVersion += 1
+        this.appointmentsRequestVersion += 1
+        this.continuitySummary = null
+        this.todayAppointments = []
+        this.continuityError = false
+        this.appointmentsError = false
+        this.appointmentsUnavailable = false
+        this.isContinuityLoading = false
+        this.isAppointmentsLoading = false
+      },
+      resetClinicalHome: function() {
+        this.resetHomeIndicators()
+        this.scopeContext = null
+        this.searchRequestVersion += 1
+        this.patients = []
+        this.Param = ''
+        this.showResult = false
+        this.searchError = false
+        this.searchServiceError = false
+        this.isSearching = false
+      },
+      isCurrentHomeRequest: function(scope, version, key) {
+        return !this.homeDisposed && Boolean(scope) && scope === this.homeSessionKey && this[key] === version
+      },
       init: async function() {
         this.startHomeClock()
         await Promise.all([
           this.loadContinuitySummary(),
           this.loadTodayAppointments()
         ])
-        this.startContinuityRotation()
+        if(!this.homeDisposed) this.startContinuityRotation()
       },
       startHomeClock: function() {
         this.currentDateTime = new Date()
@@ -557,8 +625,13 @@ export default {
         this.searchServiceError = false
       },
       onSearch: async function() {
+        if(!this.homeSessionKey || !this.hasPermission('px.all')) return
+        const scope = this.homeSessionKey
+        const version = ++this.searchRequestVersion
+        const current = () => this.isCurrentHomeRequest(scope, version, 'searchRequestVersion')
         const param = this.Param ? this.Param.trim() : ''
         if(!param) {
+          this.isSearching = false
           this.searchError = true
           this.searchServiceError = false
           return
@@ -573,20 +646,27 @@ export default {
         }
 
         try {
-          const response = await this.ActionWrapp(moduleTypes.HOME, fnTypes.getPatients, data)
+          const response = await DAHomeService.getPatients(data)
+          if(!current()) return
+          this.patients = response && response.success ? response.data || [] : []
           this.searchServiceError = !(response && response.success)
           this.showResult = true
           this.Param = ''
         }
         catch(error) {
+          if(!current()) return
+          this.patients = []
           this.searchServiceError = true
           this.showResult = true
         }
         finally {
-          this.isSearching = false
+          if(current()) this.isSearching = false
         }
       },
       onClearSearcher: function() {
+        this.searchRequestVersion += 1
+        this.patients = []
+        this.isSearching = false
         this.showResult = false
         this.searchError = false
         this.searchServiceError = false
@@ -605,80 +685,46 @@ export default {
 
         this.$router.push(path).catch(() => {})
       },
-      loadContinuitySummary: async function(forceRefresh) {
+      loadContinuitySummary: async function() {
+        if(!this.homeSessionKey) return
+        const scope = this.homeSessionKey
+        const version = ++this.continuityRequestVersion
+        const requestedScope = this.selectedScope
+        const current = () => this.selectedScope === requestedScope && this.isCurrentHomeRequest(scope, version, 'continuityRequestVersion')
         this.isContinuityLoading = true
         this.continuityError = false
 
         try {
-          const cached = forceRefresh ? null : this.readContinuityCache()
-          if(cached) {
-            this.applyContinuitySummary(cached)
-            this.isContinuityLoading = false
-            return
-          }
-
-          const response = await DAHomeService.getContinuitySummary()
+          const response = await DAHomeService.getContinuitySummary(this.selectedScope ? { scope: this.selectedScope } : {})
+          if(!current()) return
           if(response && response.success) {
-            this.writeContinuityCache(response.data)
             this.applyContinuitySummary(response.data)
           }
           else {
+            this.continuitySummary = null
             this.continuityError = true
           }
         }
         catch(error) {
+          if(!current()) return
+          this.continuitySummary = null
           this.continuityError = true
         }
         finally {
-          this.isContinuityLoading = false
+          if(current()) this.isContinuityLoading = false
         }
       },
       applyContinuitySummary: function(summary) {
         this.continuitySummary = summary || null
+        if(summary && summary.scope) {
+          this.scopeContext = {
+            canSelectOwn: Boolean(summary.canSelectOwn),
+            canSelectTenant: Boolean(summary.canSelectTenant),
+            doctorName: summary.scope.doctorName || (this.scopeContext && this.scopeContext.doctorName) || ''
+          }
+        }
         if(!this.continuityOptions.some((option) => option.key === this.activeContinuityKey) && this.continuityOptions.length) {
           this.activeContinuityKey = this.continuityOptions[0].key
-        }
-      },
-      readContinuityCache: function() {
-        if(typeof window === 'undefined' || !window.localStorage) {
-          return null
-        }
-
-        try {
-          const raw = window.localStorage.getItem(CONTINUITY_CACHE_KEY)
-          if(!raw) {
-            return null
-          }
-
-          const cached = JSON.parse(raw)
-          if(!cached || !cached.savedAt || !cached.data) {
-            return null
-          }
-
-          if(Date.now() - Number(cached.savedAt) > CONTINUITY_CACHE_TTL_MS) {
-            window.localStorage.removeItem(CONTINUITY_CACHE_KEY)
-            return null
-          }
-
-          return cached.data
-        }
-        catch(error) {
-          return null
-        }
-      },
-      writeContinuityCache: function(data) {
-        if(typeof window === 'undefined' || !window.localStorage) {
-          return
-        }
-
-        try {
-          window.localStorage.setItem(CONTINUITY_CACHE_KEY, JSON.stringify({
-            savedAt: Date.now(),
-            data: data
-          }))
-        }
-        catch(error) {
-          return false
         }
       },
       startContinuityRotation: function() {
@@ -739,11 +785,16 @@ export default {
         }
       },
       loadTodayAppointments: async function() {
-        if(!this.canViewAppointments) {
+        if(!this.canViewAppointments || !this.homeSessionKey) {
           this.todayAppointments = []
           this.appointmentsError = false
           return
         }
+
+        const scope = this.homeSessionKey
+        const version = ++this.appointmentsRequestVersion
+        const requestedScope = this.selectedScope
+        const current = () => this.selectedScope === requestedScope && this.isCurrentHomeRequest(scope, version, 'appointmentsRequestVersion')
 
         this.isAppointmentsLoading = true
         this.appointmentsError = false
@@ -751,25 +802,24 @@ export default {
 
         try {
           const today = this.todayIsoDate()
-          const response = await DAAppointmentService.list({
-            date_from: today,
-            date_to: today
-          })
+          const response = await DAHomeService.getAppointments({ date: today, ...(this.selectedScope ? { scope: this.selectedScope } : {}) })
+          if(!current()) return
 
           if(response && response.success) {
             this.todayAppointments = this.sortAppointments(response.data || [])
           }
           else {
             this.todayAppointments = []
-            this.appointmentsUnavailable = true
+            this.appointmentsError = true
           }
         }
         catch(error) {
+          if(!current()) return
           this.todayAppointments = []
           this.appointmentsError = true
         }
         finally {
-          this.isAppointmentsLoading = false
+          if(current()) this.isAppointmentsLoading = false
         }
       },
       todayIsoDate: function() {
@@ -787,6 +837,9 @@ export default {
       },
       appointmentStartTime: function(appointment) {
         return appointment.startTime || appointment.start_time || appointment.hour || appointment.time || ''
+      },
+      appointmentDoctor: function(appointment) {
+        return appointment.doctorName || appointment.doctor_name || appointment.doctor_name_snapshot || 'Doctor sin nombre registrado'
       },
       appointmentEndTime: function(appointment) {
         return appointment.endTime || appointment.end_time || ''

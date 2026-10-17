@@ -16,6 +16,7 @@ const imageTag = (src, className, alt) => {
 };
 
 export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
+    if (!prescription || prescription.status !== 'issued') return '';
     const doctorName = pick(prescription.doctor_name_snapshot, prescription.doctor_name, config.doctor_name, 'Doctor emisor');
     const professionalLicense = pick(prescription.professional_license_snapshot, config.professional_license);
     const university = pick(prescription.university_snapshot, config.university);
@@ -75,7 +76,7 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
         .medicine { padding: 12px 0; border-bottom: 1px solid #edf2f5; page-break-inside: avoid; }
         .medicine h3 { margin: 0 0 6px; font-size: 16px; color: #111827; }
         .medicine p { margin: 4px 0; font-size: 12px; line-height: 1.45; }
-        .indications { padding: 8px 10px; background: #f8fafc; border-left: 3px solid #22a6c7; }
+        .indications { padding: 8px 10px; background: #f8fafc; border-left: 3px solid #22a6c7; white-space: pre-wrap; overflow-wrap: anywhere; }
         .notes { margin-top: 18px; padding: 12px; background: #f8fafc; border: 1px solid #e5edf2; font-size: 12px; }
         .signature { margin-top: 42px; text-align: center; width: 260px; margin-left: auto; }
         .signature img { max-height: 80px; max-width: 240px; object-fit: contain; }
@@ -138,6 +139,7 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
 };
 
 export const openPrescriptionPrintWindow = (prescription, config = {}, shouldPrint = true) => {
+    if (!prescription || prescription.status !== 'issued') return false;
     const printWindow = window.open('', '_blank', 'width=900,height=1100');
     if(!printWindow) {
         return false;
