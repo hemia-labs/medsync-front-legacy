@@ -294,6 +294,7 @@ export default {
             this.patientAge(patient),
             this.patientFolio(patient),
             patient.id_person,
+            patient.code,
             patient.folio
           ].join(' ')
 
@@ -399,7 +400,7 @@ export default {
       },
 
       patientFolio: function(patient) {
-        const folio = patient.folio || patient.id_person
+        const folio = patient.code || patient.folio
         return folio ? `Expediente ${folio}` : 'Sin expediente'
       },
 

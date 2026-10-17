@@ -263,14 +263,16 @@
     </template>
 
     <v-dialog v-model="showPlanDialog" persistent max-width="560">
-      <v-card v-dialog-name="planEditing ? 'Editar datos del plan activo' : 'Crear plan activo'" @keydown="trapDialogFocus" ref="planEditor">
-        <div class="dialog-header">
-          <div>
-            <p class="eyebrow">{{ planEditing ? 'Datos del plan' : 'Nuevo plan' }}</p>
+      <v-card v-dialog-name="planEditing ? 'Editar datos del plan activo' : 'Crear plan activo'" class="plan-editor-card" @keydown="trapDialogFocus" ref="planEditor">
+        <div class="dialog-header plan-editor-header">
+          <span class="plan-editor-icon"><v-icon size="26">mdi-medical-bag</v-icon></span>
+          <div class="plan-editor-heading">
+            <p class="eyebrow">Expediente clínico · {{ planEditing ? 'Datos del plan' : 'Nuevo plan' }}</p>
             <h3>{{ planEditing ? 'Editar datos del plan activo' : 'Crear plan activo' }}</h3>
+            <p class="plan-editor-description">Organiza los procedimientos y da seguimiento a la atención del paciente.</p>
             <span v-if="dirty" class="unsaved-state">Sin guardar</span>
           </div>
-          <v-btn icon aria-label="Cerrar ventana" :disabled="isBusy" @click="closeEditor"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar datos del plan" :disabled="isBusy" @click="closeEditor"><v-icon>mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
           <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
@@ -2632,6 +2634,23 @@ button {
   padding: 1.2rem 1.4rem;
   border-bottom: 1px solid var(--color-border, #d8e9ef);
   background: var(--color-primary-50, #effbfe);
+}
+
+.plan-editor-card { overflow: hidden; border-radius: 12px !important; color: var(--color-text, #25364d); background: var(--color-surface, #fff); }
+.plan-editor-header.dialog-header { gap: 14px; padding: 24px; background: var(--color-surface, #fff); }
+.plan-editor-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 12px; color: var(--color-primary-700, #1b6b6f); background: var(--color-primary-100, #e3f2ef); }
+.plan-editor-icon .v-icon { color: inherit; }
+.plan-editor-heading { flex: 1; min-width: 0; }
+.plan-editor-heading h3 { font-size: 1.2rem; font-weight: 700; line-height: 1.4; }
+.plan-editor-description { margin: 7px 0 0; color: var(--color-text-muted, #64748b); font-size: .82rem; line-height: 1.6; }
+.plan-editor-header > .v-btn { flex-shrink: 0; margin: -4px -8px 0 0; color: var(--color-text-muted, #64748b); }
+.plan-editor-card .dialog-body { padding: 24px !important; background: var(--color-bg, #f8fbfd); color: var(--color-text, #25364d); }
+.plan-editor-card .dialog-actions { gap: 8px; flex-wrap: wrap; padding: 16px 24px !important; border-top: 1px solid var(--color-border, #d8e9ef); }
+@media (max-width: 600px) {
+  .plan-editor-header.dialog-header { padding: 20px 16px; gap: 10px; }
+  .plan-editor-card .dialog-body { padding: 20px 16px !important; }
+  .plan-editor-card .dialog-actions { padding: 16px !important; }
+  .plan-editor-card .dialog-actions button { flex: 1 1 auto; }
 }
 
 .dialog-header.compact {

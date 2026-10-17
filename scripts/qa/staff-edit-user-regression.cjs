@@ -1,0 +1,26 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const compiler = require('vue-template-compiler');
+const file = path.resolve(__dirname, '../../src/views/User/DAEditUser.vue');
+const sfc = compiler.parseComponent(fs.readFileSync(file, 'utf8'));
+assert.deepEqual(compiler.compile(sfc.template.content).errors, []);
+const context = { component: null, mapGetters: () => ({}), mapActions: () => ({}), DAUserModel: function() {}, validationMixin: {}, required: () => true, emailPattern: () => true, phonePattern: () => true, moduleTypes: {}, fnTypes: {}, DAProfessionalProfile: {}, buildLicenseLimitMessage: () => '' };
+vm.runInNewContext(sfc.script.content.replace(/^import[\s\S]*?from ['"][^'"]+['"];?\r?\n/gm, '').replace('export default', 'component ='), context);
+const component = context.component;
+let saves = 0, authorizedWrites = 0, focused = false;
+const state = { ...component.data(), user: { phone: '0123456789' }, $nextTick: fn => fn(), $refs: { validationSummary: { scrollIntoView() {}, focus() { focused = true; } } }, update: async () => { saves++; }, saveProfessionalProfileIfNeeded: async () => { authorizedWrites++; } };
+state.$v = { $anyError: true, user: Object.fromEntries(['name', 'phone', 'email', 'id_rol'].map(field => [field, { $dirty: false, $invalid: true }])), $touch() { Object.values(this.user).forEach(field => { field.$dirty = true; }); } };
+for(const [key, method] of Object.entries(component.methods)) state[key] = method.bind(state);
+for(const [key, getter] of Object.entries(component.computed)) Object.defineProperty(state, key, { get: getter.bind(state) });
+(async () => {
+  assert.equal(state.validationErrors.length, 0);
+  await state.onSave();
+  assert.equal(state.validationErrors.length, 4);
+  assert.match(state.fieldErrors('phone')[0], /10 dígitos/);
+  assert.equal(state.user.phone, '0123456789', 'Validation retains leading zeroes in telephone text');
+  assert.equal(focused, true, 'Invalid save focuses its visible explanation');
+  assert.equal(saves, 0); assert.equal(authorizedWrites, 0, 'Contact validation cannot persist authorization changes');
+  console.log('PASS staff edit: template compilation, textual errors, dirty-state behavior, invalid save focus, leading zeroes and no user/authorization writes.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

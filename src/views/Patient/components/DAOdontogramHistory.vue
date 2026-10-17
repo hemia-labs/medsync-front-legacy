@@ -49,7 +49,7 @@
                                 <h3>{{ item.description || 'Dentición no registrada' }}</h3>
                                 <span class="record-status" :class="{ 'is-active': isActive(item.active) }">{{ isActive(item.active) ? 'Activo' : 'Finalizado' }}</span>
                             </div>
-                            <p class="record-date"><v-icon size="16">mdi-calendar-outline</v-icon>Creado el {{ formatCreatedAt(item.created_at) }}</p>
+                            <p class="record-date"><v-icon size="16">mdi-calendar-outline</v-icon>Creado el {{ formatCreatedAt(item) }}</p>
                             <span v-if="item.code" class="record-code">Código {{ item.code }}</span>
                         </div>
                         <div class="record-actions">
@@ -57,7 +57,7 @@
                                 <v-icon left size="17">{{ isActive(item.active) ? 'mdi-check-circle-outline' : 'mdi-restore' }}</v-icon>
                                 {{ isActive(item.active) ? 'Finalizar' : 'Activar' }}
                             </v-btn>
-                            <v-btn text class="history-button record-delete" :disabled="pending || loading || !!loadError" :aria-label="'Eliminar odontograma ' + (item.description || '') + ' del ' + formatCreatedAt(item.created_at)" @click="onEvent(item, actions.DELETE)">
+                            <v-btn text class="history-button record-delete" :disabled="pending || loading || !!loadError" :aria-label="'Eliminar odontograma ' + (item.description || '') + ' del ' + formatCreatedAt(item)" @click="onEvent(item, actions.DELETE)">
                                 <v-icon left size="17">mdi-trash-can-outline</v-icon>Eliminar
                             </v-btn>
                         </div>
@@ -107,6 +107,7 @@ import actions from '../../../utils/common/actions';
 import mutationTypes from '../../../store/modules/common/mutation-types';
 import OdontogramConfirmDialog from '../Sections/components/OdontogramConfirmDialog.vue';
 import dialogName from '../../../core/directives/dialog-name';
+import { formatOdontogramCreatedAt } from '../../../domain/odontogram/odontogram.date';
 import {
     buildOdontogramDeletePayload,
     buildOdontogramStatusPayload
@@ -153,7 +154,7 @@ export default {
             if(!query) return this.historyItems;
             return this.historyItems.filter(item => this.normalizeSearch([
                 item.code, item.description, item.created_at,
-                this.formatCreatedAt(item.created_at), this.isActive(item.active) ? 'Activo' : 'Finalizado'
+                this.formatCreatedAt(item), this.isActive(item.active) ? 'Activo' : 'Finalizado'
             ].join(' ')).includes(query));
         },
     },
@@ -164,18 +165,7 @@ export default {
         normalizeSearch(value) {
             return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
         },
-        formatCreatedAt(value) {
-            if(!value) return 'fecha no registrada';
-            const text = String(value);
-            const localDate = text.match(/^(\d{2})-(\d{2})-(\d{4})/);
-            const isoDate = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-            const date = localDate
-                ? new Date(Number(localDate[3]), Number(localDate[2]) - 1, Number(localDate[1]))
-                : isoDate ? new Date(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3])) : null;
-            return date && !Number.isNaN(date.getTime())
-                ? new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)
-                : text;
-        },
+        formatCreatedAt: formatOdontogramCreatedAt,
         ...mapMutations(moduleTypes.ODONTOGRAM, [
             mutationTypes.SET_ODONTOGRAM_EDIT
         ]),

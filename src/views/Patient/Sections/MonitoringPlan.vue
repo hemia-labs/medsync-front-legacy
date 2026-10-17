@@ -237,13 +237,7 @@
             <h3>Agregar seguimiento</h3>
             <span>Registra el tratamiento realizado y programa la próxima atención del paciente.</span>
           </div>
-            <div class="flex justify-end items-center mr-4 mt-2">
-                <svg xmlns="http://www.w3.org/2000/svg" @click="closeNewMonitoring()" class="icon icon-tabler icon-tabler-square-x text-gray-400 cursor-pointer" width="35" height="35" viewBox="0 0 24 24" stroke-width="1" stroke="#BDBDBD" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <rect x="4" y="4" width="16" height="16" rx="2" />
-                <path d="M10 10l4 4m0 -4l-4 4" />
-                </svg>
-            </div>
+          <v-btn icon :disabled="isSavingMonitoring" aria-label="Cerrar nuevo seguimiento" @click="closeNewMonitoring"><v-icon>mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="monitoring-dialog-body">
           <p v-if="newMonitoringError" role="alert" class="text-red-700">{{ newMonitoringError }}</p>
@@ -260,21 +254,22 @@
           ></v-text-field>
 
           <div v-if="!savedNewMonitoring && !isSavingMonitoring" class="w-ful text-right">
-            <span v-if="showtto2 == true" class="text-primary-700 cursor-pointer" @click="showtto2 = !showtto2">Escribir tratamiento</span>
-            <span v-else class="text-primary-700 cursor-pointer" @click="showtto2 = !showtto2">Seleccionar tratamiento</span>
+            <button type="button" class="monitoring-treatment-toggle" :aria-pressed="String(showtto2)" aria-label="Cambiar captura del tratamiento realizado" @click="showtto2 = !showtto2">{{ showtto2 ? 'Escribir tratamiento' : 'Seleccionar tratamiento' }}</button>
           </div>
 
           <v-text-field
             v-if="showtto2 == false"
             v-model="objCita3.id_cat_treatment_now" :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring"
             class="animate-fade-in-up"
-            label="Tratamiento realizado"
+            label="Tratamiento realizado (obligatorio)"
+            aria-required="true"
+            :error-messages="newMonitoringFieldError('performed')"
             dense
             outlined
             :color="themePrimaryColor"
           ></v-text-field>
 
-          <v-autocomplete :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring" v-if="showtto2 == true" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado1" item-value="id" label="Tratamiento realizado" dense outlined :color="themePrimaryColor"></v-autocomplete>
+          <v-autocomplete :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring" v-if="showtto2 == true" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado1" item-value="id" label="Tratamiento realizado (obligatorio)" aria-required="true" :error-messages="newMonitoringFieldError('performed')" dense outlined :color="themePrimaryColor"></v-autocomplete>
 
           <v-checkbox v-if="canManageAppointments" v-model="scheduleNewAppointment" :disabled="isSavingMonitoring" label="Agendar próxima cita (opcional)" :color="themePrimaryColor" hide-details />
           <v-text-field
@@ -319,26 +314,27 @@
           </div>
 
           <div v-if="!savedNewMonitoring && !isSavingMonitoring" class="w-ful text-right">
-            <span v-if="showtto3 == true" class="text-primary-700 cursor-pointer" @click="showtto3 = !showtto3">Escribir tratamiento</span>
-            <span v-else class="text-primary-700 cursor-pointer" @click="showtto3 = !showtto3">Seleccionar tratamiento</span>
+            <button type="button" class="monitoring-treatment-toggle" :aria-pressed="String(showtto3)" aria-label="Cambiar captura del próximo procedimiento" @click="showtto3 = !showtto3">{{ showtto3 ? 'Escribir tratamiento' : 'Seleccionar tratamiento' }}</button>
           </div>
 
           <v-text-field
             v-if="showtto3 == false"
             v-model ="objCita3.id_cat_treatment_after" :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring"
             class="animate-fade-in-up"
-            label="Próximo procedimiento o indicación"
+            label="Próximo procedimiento o indicación (obligatorio)"
+            aria-required="true"
+            :error-messages="newMonitoringFieldError('next')"
             dense
             outlined
             :color="themePrimaryColor"
           ></v-text-field>
 
-         <v-autocomplete :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring" v-if="showtto3 == true" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado" item-value="id" label="Próximo procedimiento o indicación" dense outlined :color="themePrimaryColor"></v-autocomplete>
+         <v-autocomplete :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring" v-if="showtto3 == true" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado" item-value="id" label="Próximo procedimiento o indicación (obligatorio)" aria-required="true" :error-messages="newMonitoringFieldError('next')" dense outlined :color="themePrimaryColor"></v-autocomplete>
 
           <p class="text-gray-500 text-sm">El próximo procedimiento o indicación puede ser Revisión de rutina o Sin retorno previsto. Este texto no agenda una cita.</p>
           <v-textarea
             v-model="objCita3.note" :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring"
-            label="Notas"
+            label="Notas (opcional)"
             rows="3"
             dense
             outlined
@@ -384,13 +380,7 @@
       <v-card class="monitoring-dialog-card">
         <div class="monitoring-dialog-header monitoring-dialog-header--detail">
           <span class="text-xl ml-5 mt-4">Detalle del seguimiento</span> 
-            <div class="flex justify-end items-center mr-4 mt-2">
-                <svg xmlns="http://www.w3.org/2000/svg" @click="closeModalEdit()" class="icon icon-tabler icon-tabler-square-x text-gray-400 cursor-pointer" width="35" height="35" viewBox="0 0 24 24" stroke-width="1" stroke="#BDBDBD" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <rect x="4" y="4" width="16" height="16" rx="2" />
-                <path d="M10 10l4 4m0 -4l-4 4" />
-                </svg>
-            </div>
+          <v-btn icon :disabled="isSavingMonitoring" aria-label="Cerrar detalle del seguimiento" @click="closeModalEdit"><v-icon>mdi-close</v-icon></v-btn>
         </div>
         <v-card-text v-if="isReadOnly" class="monitoring-dialog-body monitoring-dialog-body--readonly">
 
@@ -491,8 +481,7 @@
           ></v-text-field>
 
           <div v-if="!savedEditMonitoring && !isSavingMonitoring" class="w-ful text-right">
-            <span v-if="showtto1 == true" class="text-primary-700 cursor-pointer" @click="showtto1 = !showtto1">Seleccionar tratamiento</span>
-            <span v-else class="text-primary-700 cursor-pointer" @click="showtto1 = !showtto1">Escribir tratamiento</span>
+            <button type="button" class="monitoring-treatment-toggle" :aria-pressed="String(!showtto1)" aria-label="Cambiar captura del tratamiento realizado" @click="showtto1 = !showtto1">{{ showtto1 ? 'Seleccionar tratamiento' : 'Escribir tratamiento' }}</button>
           </div>
 
           <v-text-field
@@ -554,8 +543,7 @@
           </div>
 
           <div v-if="!savedEditMonitoring && !isSavingMonitoring" class="w-ful text-right">
-            <span v-if="showtto == true" class="text-primary-700 cursor-pointer" @click="showtto = !showtto">Seleccionar tratamiento</span>
-            <span v-else class="text-primary-700 cursor-pointer" @click="showtto = !showtto">Escribir tratamiento</span>
+            <button type="button" class="monitoring-treatment-toggle" :aria-pressed="String(!showtto)" aria-label="Cambiar captura del próximo procedimiento" @click="showtto = !showtto">{{ showtto ? 'Seleccionar tratamiento' : 'Escribir tratamiento' }}</button>
           </div>
 
           <v-text-field
@@ -660,7 +648,7 @@ export default {
             selectedMonitoring: {}, cancelRevision: null, cancellationReason: '', cancellationError: '',
             correctionReason: '', correctionError: '', monitoringRevisions: [], revisionsLoading: false,
             revisionsError: '', revisionsLoaded: false,
-            newTracingId: '', savedNewMonitoring: null, newMonitoringError: '', isSavingMonitoring: false, scheduleNewAppointment: false,
+            newTracingId: '', savedNewMonitoring: null, newMonitoringError: '', newMonitoringSubmitted: false, isSavingMonitoring: false, scheduleNewAppointment: false,
             savedEditMonitoring: null, editAppointmentRequested: false, editAppointmentLookupError: '', editCreatesNewAppointment: false,
             appointmentHistoryRequest: 0, nextPatientAppointment: null,
             appointmentConfig: getAppointmentConfig(),
@@ -1021,8 +1009,19 @@ export default {
         this.isLoading = false
       },
 
+      newMonitoringFieldError(kind) {
+        if(!this.newMonitoringSubmitted || this.savedNewMonitoring) return []
+        const performed = kind === 'performed'
+        const useCatalog = performed ? this.showtto2 : this.showtto3
+        const selected = performed ? this.ttoSelecionado1 : this.ttoSelecionado
+        const text = performed ? this.objCita3.id_cat_treatment_now : this.objCita3.id_cat_treatment_after
+        const value = useCatalog ? (this.getAllTreatments.find(item => String(item.id) === String(selected)) || {}).name : text
+        return String(value || '').trim() ? [] : [performed ? 'Indica el tratamiento realizado.' : 'Indica el próximo procedimiento o escribe Sin retorno previsto.']
+      },
+
       onSaveMonitoring: async function(){
         if (!this.canCreateMonitoring || this.isLoading || this.isSavingMonitoring) return
+        this.newMonitoringSubmitted = true
         this.newMonitoringError = ''
         const performed = this.getAllTreatments.find(item => String(item.id) === String(this.ttoSelecionado1))
         const next = this.getAllTreatments.find(item => String(item.id) === String(this.ttoSelecionado))
@@ -1168,6 +1167,7 @@ export default {
         this.scheduleNewAppointment = false
         this.newMonitoringError = ''
         this.showtto2 = false
+        this.newMonitoringSubmitted = false
         this.showtto3 = false
         if (this.canManageAppointments) await this.reloadAppointmentData()
         this.getCurrentDate()
@@ -1996,6 +1996,10 @@ export default {
 .monitoring-dialog-shell {
   border-radius: 8px;
 }
+
+.monitoring-treatment-toggle { margin-bottom: 8px; padding: 7px 4px; color: var(--color-primary-900, #086783); font-weight: 600; font-size: .82rem; }
+.monitoring-dialog-header > .v-btn { color: var(--color-text-muted, #64748b); flex-shrink: 0; }
+.monitoring-dialog-card button:focus-visible { outline: 3px solid var(--color-primary-500, #0e7490); outline-offset: 3px; }
 
 .monitoring-dialog-card {
   overflow: hidden;

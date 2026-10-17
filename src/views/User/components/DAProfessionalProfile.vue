@@ -6,8 +6,11 @@
                 <h3 class="m-0 mt-1 text-gray-700 text-lg font-semibold">{{ adminControlsOnly ? 'Autorizaciones del doctor' : 'Datos del doctor' }}</h3>
                 <p class="m-0 mt-1 text-gray-500 text-sm">{{ adminControlsOnly ? 'Controla si este doctor puede actuar como emisor o firmante profesional.' : 'Estos datos se usan para emitir recetas y firmar documentos clinicos.' }}</p>
             </div>
-            <da-button-primary v-if="!hideSaveButton" @click.native="save" :label="adminControlsOnly ? 'Guardar autorizaciones' : 'Guardar perfil'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+            <da-button-primary v-if="!hideSaveButton" :disabled="loading || saving || !!loadError" @click.native="save" :label="saving ? 'Guardando…' : adminControlsOnly ? 'Guardar autorizaciones' : 'Guardar perfil'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
         </div>
+        <p v-if="loading" role="status">Consultando perfil profesional…</p>
+        <p v-if="loadError" role="alert" class="text-red-800">{{ loadError }} <button type="button" class="underline" @click="load">Reintentar</button></p>
+        <template v-if="!loading && !loadError">
 
         <div v-if="warning" class="mb-4 px-4 py-3 border border-yellow-200 bg-yellow-50 text-yellow-800 text-sm">
             {{ warning }}
@@ -39,8 +42,12 @@
                 {{ form.can_sign_documents ? 'Autorizado como firmante profesional' : 'Sin autorizacion como firmante profesional' }}
             </div>
             <div class="px-3 py-2 border text-sm" :class="form.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'">
-                {{ form.is_active ? 'Perfil activo' : 'Perfil inactivo' }}
+                {{ !hasProfile ? 'Sin perfil creado' : form.is_active ? 'Perfil activo' : 'Perfil inactivo' }}
             </div>
+        </div>
+        <div v-if="!adminControlsOnly && (!form.can_issue_prescriptions || !form.can_sign_documents || !hasProfile)" class="my-4 p-4 border rounded-lg bg-yellow-50 text-yellow-900">
+            <p>Completar tus datos no concede autorización para emitir o firmar. {{ canManageAuthorizations ? 'Como administrador, revisa por separado las autorizaciones del doctor en Personal y usuarios.' : 'Solicita al administrador del consultorio que revise las autorizaciones del doctor.' }}</p>
+            <router-link v-if="canManageAuthorizations" to="/admin?section=users" target="_blank" rel="noopener" class="underline">Revisar autorizaciones (abre otra pestaña)</router-link>
         </div>
 
         <div v-if="!adminControlsOnly" class="border border-gray-200 bg-gray-50 p-4">
@@ -64,12 +71,17 @@
                 <p v-else class="m-0 text-gray-500">Sin firma profesional.</p>
             </div>
         </div>
+        </template>
     </section>
 </template>
 
 <script>
 import { DAUserService } from '../../../services/context/core-proccess-context';
 import { buildLicenseLimitMessage } from '../../../utils/licenseLimitMessage';
+import { mapGetters } from 'vuex';
+import moduleTypes from '../../../store/modules/common/module-types';
+import fnTypes from '../../../store/modules/common/fn-types';
+import { getSettingsSections } from '../../../security/settingsAccess';
 
 const emptyForm = () => ({
     professional_name: '',
@@ -108,13 +120,19 @@ export default {
             form: emptyForm(),
             warning: '',
             signaturePadVisible: false
+            ,hasProfile:false, loading:false, loadError:'', saving:false, loadRequest:0
         };
     },
     computed: {
+        ...mapGetters(moduleTypes.AUTH,{role:fnTypes.getRole,hasPermission:fnTypes.hasPermission}),
+        canManageAuthorizations() {return getSettingsSections(this.role,this.hasPermission).some(section=>section.key==='users');},
         themePrimary() {
             return 'var(--color-primary-700)';
         },
         professionalProfileLicenseMessage() {
+            if(!this.hasProfile) return this.adminControlsOnly
+                ? 'El doctor aún no ha creado su perfil. Puede completar sus datos en Mi perfil profesional con su cuenta. Aquí administras sus autorizaciones; el cupo se revisa al guardar un perfil activo.'
+                : 'Perfil sin crear. Completa tus datos y guárdalos para registrar tu perfil. El cupo se revisa al guardar un perfil activo.';
             if(this.form.is_active) {
                 return 'Perfil activo: este usuario cuenta como profesional del plan si no tiene ya un rol profesional.';
             }
@@ -133,7 +151,12 @@ export default {
     },
     methods: {
         async load() {
+            const request=++this.loadRequest;this.loading=true;this.loadError='';
+            try {
             const response = await DAUserService.getProfessionalProfile(this.idLogin);
+            if(request!==this.loadRequest)return;
+            if(!response || !response.success)throw new Error();
+            this.hasProfile=Boolean(response.data && response.data.id_doctor_professional_profile);
             if(response.success && response.data) {
                 this.form = {
                     ...emptyForm(),
@@ -148,6 +171,8 @@ export default {
             }
             this.warning = this.validationMessage();
             this.signaturePadVisible = false;
+            } catch(_) {if(request===this.loadRequest){this.loadError='No se pudo cargar el perfil profesional. Reintenta para consultar su estado.';this.hasProfile=false;}}
+            finally {if(request===this.loadRequest)this.loading=false;}
         },
         validationMessage() {
             if(this.adminControlsOnly) {
@@ -159,6 +184,9 @@ export default {
             return '';
         },
         async save() {
+            if(this.loading || this.saving || this.loadError)return;
+            this.saving=true;
+            try {
             this.warning = this.validationMessage();
             const payload = this.showAdminControls
                 ? this.form
@@ -170,6 +198,7 @@ export default {
                 };
             const response = await DAUserService.saveProfessionalProfile(this.idLogin, payload);
             if(response.success) {
+                this.hasProfile=Boolean(response.data && response.data.id_doctor_professional_profile);
                 this.form = {
                     ...this.form,
                     ...response.data,
@@ -183,6 +212,7 @@ export default {
             }
             this.$emit('error', buildLicenseLimitMessage(response, response.message || 'No fue posible guardar el perfil profesional.'));
             return response;
+            } finally {this.saving=false;}
         },
         onSigned(data) {
             this.form.signature_image = data;

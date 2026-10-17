@@ -708,7 +708,7 @@ export default {
         return 'Por seguridad, bloqueamos temporalmente nuevos intentos. Int\u00e9ntalo m\u00e1s tarde.';
       }
 
-      if (normalized.includes('network') || normalized.includes('timeout') || normalized.includes('no fue posible completar')) {
+      if (normalized.includes('network') || normalized.includes('timeout') || normalized.includes('no fue posible completar') || normalized.includes('preparar la solicitud segura')) {
         return 'No pudimos conectar con MedSync. Revisa tu conexi\u00f3n e int\u00e9ntalo nuevamente.';
       }
 

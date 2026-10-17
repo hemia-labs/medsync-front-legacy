@@ -15,10 +15,11 @@
             <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
                 <v-text-field v-model="filters.search" label="Folio o paciente" dense outlined clearable color="var(--color-primary-700)" @keyup.enter="load"></v-text-field>
                 <v-text-field v-model="filters.date_from" type="date" label="Desde" dense outlined color="var(--color-primary-700)"></v-text-field>
-                <v-text-field v-model="filters.date_to" type="date" label="Hasta" dense outlined color="var(--color-primary-700)"></v-text-field>
+                <v-text-field v-model="filters.date_to" type="date" label="Hasta" :error-messages="filterError" dense outlined color="var(--color-primary-700)"></v-text-field>
                 <v-select v-model="filters.status" :items="statusOptions" label="Estado" dense outlined clearable color="var(--color-primary-700)"></v-select>
                 <v-select v-model="filters.issuer_doctor_id" :items="doctors" item-text="name" item-value="id_login" label="Doctor" dense outlined clearable color="var(--color-primary-700)"></v-select>
             </div>
+            <div v-if="filterError" ref="filterErrorSummary" class="mb-4 p-3 border border-red-200 rounded-lg bg-red-50 text-red-800" role="alert" tabindex="-1">{{ filterError }} Los resultados anteriores se conservan hasta que busques con un rango válido.</div>
             <div class="flex justify-end gap-2">
                 <da-button-secondary @click.native="clearFilters" :label="'Limpiar'" rxl swpr class="py-1 px-4 font-light"></da-button-secondary>
                 <button class="rx-page-button" @click="load">Buscar</button>
@@ -208,6 +209,7 @@ import { DAPrescriptionService, DAPxService } from '../../services/context/core-
 import PrescriptionForm from './components/PrescriptionForm.vue';
 import { openPrescriptionPrintWindow } from '../../domain/prescriptions/prescription.print';
 import dialogName from '../../core/directives/dialog-name';
+import { validatePrescriptionDateRange } from '../../domain/prescriptions/prescription.filters';
 
 export default {
     directives: { dialogName },
@@ -220,6 +222,7 @@ export default {
             loading: true,
             outputBusy: false,
             loadError: '',
+            filterError: '',
             loadRequest: 0,
             searchingPatients: false,
             patientSearchError: '',
@@ -274,9 +277,20 @@ export default {
         this.loadDoctors();
         this.load();
     },
+    watch: {
+        'filters.date_from'() { if(this.filterError) this.filterError = validatePrescriptionDateRange(this.filters); },
+        'filters.date_to'() { if(this.filterError) this.filterError = validatePrescriptionDateRange(this.filters); }
+    },
     methods: {
         async load() {
             const request = ++this.loadRequest;
+            this.filterError = validatePrescriptionDateRange(this.filters);
+            if(this.filterError) {
+                this.loading = false;
+                await this.$nextTick();
+                if(this.$refs.filterErrorSummary) this.$refs.filterErrorSummary.focus();
+                return;
+            }
             this.loading = true;
             this.loadError = '';
             try {

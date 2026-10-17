@@ -10,6 +10,10 @@
     </div>
 
     <div class="staff-editor-body">
+      <div v-if="validationErrors.length" ref="validationSummary" tabindex="-1" role="alert" class="mb-5 p-4 rounded-lg border border-red-300 bg-red-50 text-red-800">
+        <strong>Revisa los datos para crear el usuario:</strong>
+        <ul><li v-for="item in validationErrors" :key="item.field"><button type="button" class="underline" @click="focusField(item.field)">{{ item.message }}</button></li></ul>
+      </div>
       <section class="staff-form-section">
         <div class="staff-section-title">
           <p>Datos principales</p>
@@ -17,22 +21,11 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <da-text-field-primary
-            :icon="'mdi-account'"
-            :label="'Nombre:'"
-            :value="$v.user.name"
-            :error="$v.user.name.$invalid && $v.user.name.$anyDirty"
+          <v-text-field ref="name" label="Nombre *" outlined dense :color="themePrimary" :error-messages="fieldErrors('name')"
             v-model="$v.user.name.$model"
-            text
           />
-          <da-text-field-primary
-            :icon="'mdi-phone'"
-            :label="'Teléfono:'"
-            :value="$v.user.phone"
+          <v-text-field ref="phone" label="Teléfono *" type="tel" inputmode="numeric" maxlength="10" outlined dense :color="themePrimary" :error-messages="fieldErrors('phone')" hint="Ingresa un teléfono de 10 dígitos." persistent-hint
             v-model="$v.user.phone.$model"
-            :error="$v.user.phone.$invalid && $v.user.phone.$anyDirty"
-            number
-            :rules="[ ($v.user.phone.$anyDirty ? $v.user.phone.phonePattern : true) || 'Máximo 10 caracteres']"
           />
         </div>
       </section>
@@ -44,42 +37,33 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <da-text-field-primary
-            :icon="'mdi-at'"
-            :label="'Correo:'"
-            :value="$v.user.email"
-            :error="$v.user.email.$invalid && $v.user.email.$anyDirty"
+          <v-text-field ref="email" label="Correo *" type="email" outlined dense :color="themePrimary" :error-messages="fieldErrors('email')"
             v-model="$v.user.email.$model"
-            email
-            :rules="[ ($v.user.email.$anyDirty ? $v.user.email.emailPattern : true) || 'Ingresa un correo valido']"
           />
           <v-select
+            ref="id_rol"
             :color="themePrimary"
             :items="roles"
-            label="Puesto:"
+            label="Puesto *"
             v-model="$v.user.id_rol.$model"
             item-text="desc_rol"
             item-value="id_rol"
             outlined
             dense
-            :error="$v.user.id_rol.$invalid && $v.user.id_rol.$anyDirty"
+            :error-messages="fieldErrors('id_rol')"
           >
             <template slot="item" slot-scope="data">
               <span class="text-primary-900">{{ data.item.desc_rol ? data.item.desc_rol : '' }}</span>
             </template>
           </v-select>
-          <da-text-field-primary
-            :icon="'mdi-key'"
-            :label="'Contraseña:'"
-            :value="$v.user.password"
-            :error="$v.user.password.$invalid && $v.user.password.$anyDirty"
+          <v-text-field ref="password" label="Contraseña inicial *" outlined dense :color="themePrimary" :error-messages="fieldErrors('password')"
             v-model="$v.user.password.$model"
-            :vtype="showPWD ? 'text': 'password'"
+            :type="showPWD ? 'text': 'password'"
           >
-            <template slot="append-icon">
-              <v-icon @click="showPWD = !showPWD">{{!showPWD ? 'mdi-eye' : 'mdi-eye-off'}}</v-icon>
+            <template v-slot:append>
+              <v-btn icon small :aria-label="showPWD ? 'Ocultar contraseña' : 'Mostrar contraseña'" @click="showPWD = !showPWD"><v-icon>{{!showPWD ? 'mdi-eye' : 'mdi-eye-off'}}</v-icon></v-btn>
             </template>
-          </da-text-field-primary>
+          </v-text-field>
         </div>
       </section>
 
@@ -94,6 +78,8 @@
       </section>
 
       <section class="license-context" aria-label="Uso de licencia">
+        <p v-if="licenseLoading" role="status">Consultando cupos del consultorio…</p>
+        <p v-if="licenseError" role="alert">No pudimos consultar los cupos. <button type="button" class="underline" @click="loadLicenseSummary">Reintentar</button></p>
         <div>
           <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Uso de licencia</p>
           <h3 class="m-0 mt-1 text-gray-700 text-base font-semibold">{{ licensePlanLabel }}</h3>
@@ -111,7 +97,7 @@
       </section>
 
       <div class="staff-editor-actions">
-        <button type="button" class="staff-save-button" @click="onSave">
+        <button type="button" class="staff-save-button" :disabled="saving" @click="onSave">
           <v-icon size="18">mdi-content-save-outline</v-icon>
           <span>Guardar usuario</span>
         </button>
@@ -133,7 +119,7 @@ import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import { emailPattern, phonePattern } from '../../utils/common/regex'
 import { buildLicenseLimitMessage } from '../../utils/licenseLimitMessage';
-import { DABusinessDashboardService } from '../../services/context/core-proccess-context';
+import { DABusinessService } from '../../services/context/core-proccess-context';
 
 export default {
     mixins: [validationMixin],
@@ -141,7 +127,10 @@ export default {
         return {
             user: new DAUserModel(),
             showPWD: false,
-            licenseSummary: null
+            licenseSummary: null,
+            licenseLoading: false,
+            licenseError: false,
+            saving: false
         }
     },
     validations: {
@@ -169,6 +158,9 @@ export default {
         this.init()
     },
     computed: {
+        validationErrors() {
+            return ['name','phone','email','id_rol','password'].flatMap(field=>this.fieldErrors(field).map(message=>({field,message})));
+        },
         ...mapGetters(moduleTypes.ROLE, {
             roles: fnTypes.getRoles,
         }),
@@ -198,7 +190,7 @@ export default {
                 return 'professional'
             }
 
-            if(['admin', 'business_admin', 'super_admin'].includes(roleCode)) {
+            if(roleCode === 'super_admin') {
                 return 'ignored'
             }
 
@@ -216,7 +208,7 @@ export default {
                 return 'Este puesto cuenta como usuario interno del plan.'
             }
             if(this.selectedRoleLicenseType === 'ignored') {
-                return 'Este puesto administra la cuenta y no consume cupo operativo del plan.'
+                return 'El superadministrador de plataforma no consume cupo del consultorio.'
             }
             return 'Selecciona un puesto para revisar como se considera dentro del plan.'
         },
@@ -249,6 +241,13 @@ export default {
         }
     },
     methods: {
+        fieldErrors(field) {
+            const value=this.$v.user[field];
+            if(!value || !value.$dirty || !value.$invalid) return [];
+            const labels={name:'El nombre es obligatorio.',phone:'Ingresa un teléfono de 10 dígitos.',email:'Ingresa un correo válido.',id_rol:'Selecciona un puesto.',password:'La contraseña inicial es obligatoria.'};
+            return [labels[field]];
+        },
+        focusField(field) {const input=this.$refs[field];if(input && input.focus)input.focus();},
         ...mapActions(moduleTypes.ROLE, [
             fnTypes.getRoles
         ]),
@@ -262,18 +261,26 @@ export default {
             await this.loadLicenseSummary()
         },
         loadLicenseSummary: async function() {
-            const response = await DABusinessDashboardService.getSummary()
-            this.licenseSummary = response && response.success ? response.data : null
+            this.licenseLoading=true;this.licenseError=false;
+            try {
+                const response = await DABusinessService.getLicenseUsage()
+                this.licenseSummary = response && response.success ? response.data : null
+                this.licenseError=!this.licenseSummary
+            } catch (_) {this.licenseSummary=null;this.licenseError=true}
+            finally {this.licenseLoading=false}
         },
         formatLicenseUsage: function(limit) {
-            if(!limit || limit.limit === null || limit.limit === undefined) {
-                return 'Sin limite configurado'
-            }
+            if(!limit || limit.limit === undefined) return 'No disponible'
+            if(limit.limit === null) return 'Sin límite'
             return `${Number(limit.used || 0)} de ${Number(limit.limit || 0)}`
         },
         onSave: async function() {
+            if(this.saving)return;
             this.$v.$touch();
+            if(this.$v.$anyError) {this.$nextTick(()=>{if(this.$refs.validationSummary)this.$refs.validationSummary.focus()});return;}
             if(!this.$v.$anyError) {
+                this.saving=true;
+                try {
                 await this.save(this.user)
                 if(this.isSave) {
                     this.$emit('success', this.isSave)
@@ -286,6 +293,7 @@ export default {
                         }, this.lastErrorInService || 'No fue posible guardar el usuario.')
                     )
                 }
+                } finally {this.saving=false;}
             }
         },
         toastFunction: function(type,text){

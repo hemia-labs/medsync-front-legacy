@@ -10,29 +10,22 @@
     </div>
 
     <div class="staff-editor-body">
+      <div v-if="validationErrors.length" ref="validationSummary" tabindex="-1" role="alert" class="mb-5 p-4 rounded-lg border border-red-300 bg-red-50 text-red-800">
+        <strong>Revisa los datos para actualizar el usuario:</strong>
+        <ul><li v-for="item in validationErrors" :key="item.field"><button type="button" class="underline" @click="focusField(item.field)">{{ item.message }}</button></li></ul>
+      </div>
       <section class="staff-form-section">
         <div class="staff-section-title">
           <p>Datos principales</p>
           <span>Nombre y contacto del usuario</span>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5" v-if="user && user.name">
-          <da-text-field-primary
-            :icon="'mdi-account'"
-            :label="'Nombre:'"
-            :value="$v.user.name"
-            :error="$v.user.name.$invalid && $v.user.name.$anyDirty"
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5" v-if="user">
+          <v-text-field ref="name" label="Nombre *" outlined dense :color="themePrimary" :error-messages="fieldErrors('name')"
             v-model="$v.user.name.$model"
-            text
           />
-          <da-text-field-primary
-            :icon="'mdi-phone'"
-            :label="'Teléfono:'"
-            :value="$v.user.phone"
+          <v-text-field ref="phone" label="Teléfono *" type="tel" inputmode="numeric" outlined dense :color="themePrimary" :error-messages="fieldErrors('phone')" hint="Ingresa un teléfono de 10 dígitos." persistent-hint
             v-model="$v.user.phone.$model"
-            :error="$v.user.phone.$invalid && $v.user.phone.$anyDirty"
-            number
-            :rules="[ ($v.user.phone.$anyDirty ? $v.user.phone.phonePattern : true) || 'Máximo 10 caracteres']"
           />
         </div>
       </section>
@@ -44,25 +37,20 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <da-text-field-primary
-            :icon="'mdi-at'"
-            :label="'Correo:'"
-            :value="$v.user.email"
-            :error="$v.user.email.$invalid && $v.user.email.$anyDirty"
+          <v-text-field ref="email" label="Correo *" type="email" outlined dense :color="themePrimary" :error-messages="fieldErrors('email')"
             v-model="$v.user.email.$model"
-            email
-            :rules="[ ($v.user.email.$anyDirty ? $v.user.email.emailPattern : true) || 'Ingresa un correo valido']"
           />
           <v-select
+            ref="id_rol"
             :color="themePrimary"
             :items="roles"
-            label="Puesto:"
+            label="Puesto *"
             v-model="$v.user.id_rol.$model"
             item-text="desc_rol"
             item-value="id_rol"
             outlined
             dense
-            :error="$v.user.id_rol.$invalid && $v.user.id_rol.$anyDirty"
+            :error-messages="fieldErrors('id_rol')"
           >
             <template slot="item" slot-scope="data">
               <span class="text-primary-900">{{ data.item.desc_rol ? data.item.desc_rol : '' }}</span>
@@ -158,6 +146,9 @@ export default {
         this.init()
     },
     computed: {
+        validationErrors() {
+            return ['name', 'phone', 'email', 'id_rol'].flatMap(field => this.fieldErrors(field).map(message => ({ field, message })));
+        },
         ...mapGetters(moduleTypes.ROLE, {
             roles: fnTypes.getRoles,
         }),
@@ -180,6 +171,17 @@ export default {
         }
     },
     methods: {
+        fieldErrors(field) {
+            const value = this.$v.user[field];
+            if(!value || !value.$dirty || !value.$invalid) return [];
+            const labels = { name: 'El nombre es obligatorio.', phone: 'Ingresa un teléfono de 10 dígitos.', email: 'Ingresa un correo válido.', id_rol: 'Selecciona un puesto.' };
+            return [labels[field]];
+        },
+        focusField(field) {
+            const input = this.$refs[field];
+            if(input && input.$el) input.$el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            if(input && input.focus) input.focus();
+        },
         ...mapActions(moduleTypes.ROLE, [
             fnTypes.getRoles
         ]),
@@ -198,6 +200,13 @@ export default {
             }
 
             this.$v.$touch();
+            if(this.$v.$anyError) {
+                this.$nextTick(() => {
+                    const summary = this.$refs.validationSummary;
+                    if(summary) { summary.scrollIntoView({ block: 'center' }); summary.focus(); }
+                });
+                return;
+            }
             if(!this.$v.$anyError) {
                 this.isSaving = true
                 try {

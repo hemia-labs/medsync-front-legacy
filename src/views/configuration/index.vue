@@ -1,5 +1,6 @@
 <template>
     <div v-if="sectionAllowed" class="w-full pb-8">
+        <router-link v-if="$route.query.returnTo === '/px/dates'" to="/px/dates" class="inline-block mb-4 px-4 py-2 rounded-lg bg-white border border-primary-200 text-primary-900">Volver a Citas</router-link>
         <admin-summary v-if="activeSection === 'summary'" :items="configurationSummary"></admin-summary>
 
         <roles-permissions-config
@@ -1248,63 +1249,31 @@ export default {
         },
 
         configurationSummary: function() {
-            const hasDocuments = Boolean(this.consentimiento && this.declaracion)
-            const hasBusinessInfo = Boolean(this.businessInfo && this.businessInfo.name && this.businessInfo.phone && this.businessInfo.address)
             const hasLogo = Boolean(this.loginImagePreview)
-            const hasPrescription = Boolean(this.prescriptionConfigStatus && this.prescriptionConfigStatus.clinic_address && this.prescriptionConfigStatus.clinic_phone)
-            const hasProfessionalProfile = Boolean(this.professionalProfileStatus && this.professionalProfileStatus.professional_name && this.professionalProfileStatus.professional_license && this.professionalProfileStatus.signature_image)
-            const agendaActive = Boolean(this.appointmentConfig && this.appointmentConfig.enabled)
             const theme = this.activeTheme && this.activeTheme.name ? this.activeTheme.name : this.selectedThemeCode
             const odontogramActive = Boolean(this.clinicalModulesForm && this.clinicalModulesForm.odontogramEnabled)
 
             return [
                 {
-                    label: 'Identidad consultorio',
-                    value: hasBusinessInfo ? 'Configurada' : 'Pendiente',
-                    detail: hasBusinessInfo ? this.businessInfo.name : 'Falta información del consultorio',
-                    statusClass: hasBusinessInfo ? 'bg-green-500' : 'bg-yellow-400'
-                },
-                {
-                    label: 'Perfil profesional',
-                    value: hasProfessionalProfile ? 'Completo' : 'Pendiente',
-                    detail: hasProfessionalProfile ? this.professionalProfileStatus.professional_name : 'Falta cédula o firma del doctor',
-                    statusClass: hasProfessionalProfile ? 'bg-green-500' : 'bg-yellow-400'
-                },
-                {
-                    label: 'Documentos',
-                    value: hasDocuments ? 'Configurados' : 'Pendientes',
-                    detail: 'Textos DECLARO y CONSIENTO',
-                    statusClass: hasDocuments ? 'bg-green-500' : 'bg-yellow-400'
-                },
-                {
                     label: 'Logo',
+                    path: '/admin?section=appearance',
                     value: hasLogo ? 'Configurado' : 'Predeterminado',
                     detail: this.loginImageFileName || 'Se usa el logo predeterminado',
                     statusClass: hasLogo ? 'bg-green-500' : 'bg-gray-400'
                 },
                 {
                     label: 'Tema',
+                    path: '/admin?section=appearance',
                     value: theme || 'Predeterminado',
                     detail: 'Paleta visual activa',
                     statusClass: 'bg-green-500'
                 },
                 {
-                    label: 'Agenda',
-                    value: agendaActive ? 'Activa' : 'Inactiva',
-                    detail: 'Horarios y duracion configurables por doctor',
-                    statusClass: agendaActive ? 'bg-green-500' : 'bg-gray-400'
-                },
-                {
                     label: 'Odontograma',
+                    path: '/admin?section=clinical-modules',
                     value: odontogramActive ? 'Activo' : 'Oculto',
                     detail: 'Apartado del expediente del paciente',
                     statusClass: odontogramActive ? 'bg-green-500' : 'bg-gray-400'
-                },
-                {
-                    label: 'Recetas',
-                    value: !this.prescriptionConfigStatus ? 'Por doctor' : hasPrescription ? 'Configuradas' : 'Incompletas',
-                    detail: 'Formato independiente en Recetas medicas',
-                    statusClass: hasPrescription ? 'bg-green-500' : 'bg-yellow-400'
                 }
             ]
         },
@@ -1437,20 +1406,15 @@ export default {
         init: async function() {
             if(!this.sectionAllowed) return
             const section=this.activeSection
-            if(['summary','documents'].includes(section)) await this.onGetConfiguration()
-            if(['summary','identity'].includes(section)) await this.onGetBusinessInfo()
+            if(section==='documents') await this.onGetConfiguration()
+            if(section==='identity') await this.onGetBusinessInfo()
             if(['summary','appearance'].includes(section)) {
                 await this.getLoginImage();await this.getThemeList();await this.getTheme({ force: true });this.ensureSelectedTheme()
             }
             if(['summary','clinical-modules'].includes(section)) {
                 await this.getClinicalModules();this.applyClinicalModules()
             }
-            if(section==='summary') {
-                await this.onGetAppointmentConfig()
-                if(this.hasPermission('prescriptions.config')) await this.onGetPrescriptionConfigStatus()
-                await this.onGetProfessionalProfileStatus()
-            }
-            if(['summary','documents'].includes(section) && this.hasPermission('documents.config')) await this.onGetDocumentTemplates()
+            if(section==='documents' && this.hasPermission('documents.config')) await this.onGetDocumentTemplates()
         },
 
         isDocumentTierLocked: function(tier) {

@@ -1,6 +1,7 @@
 <template>
   <section class="home-page">
     <div class="home-container">
+      <preparation-checklist />
       <header class="home-hero">
         <div class="hero-copy">
           <p class="eyebrow">{{ formattedToday }}</p>
@@ -353,6 +354,7 @@ import { DAHomeService } from '../../services/context/core-proccess-context';
 import { APPOINTMENT_STATUS_LABELS } from '../../domain/appointments/appointment.storage';
 import { isD2AuthMode } from '../../services/config/authTransport.config';
 import { clearClinicalContinuityCache } from '../../utils/authStorageCleanup';
+import PreparationChecklist from '../configuration/components/PreparationChecklist.vue';
 
 const CONTINUITY_ROTATION_MS = 15000;
 const CONTINUITY_MANUAL_PAUSE_MS = 60000;
@@ -372,6 +374,7 @@ const EMPTY_CONTINUITY_SECTION = {
 
 export default {
     name: 'Home',
+    components: { PreparationChecklist },
     mixins: [VuexMixin],
     data: function() {
         return {
@@ -651,7 +654,6 @@ export default {
           this.patients = response && response.success ? response.data || [] : []
           this.searchServiceError = !(response && response.success)
           this.showResult = true
-          this.Param = ''
         }
         catch(error) {
           if(!current()) return
@@ -664,6 +666,7 @@ export default {
         }
       },
       onClearSearcher: function() {
+        this.Param = ''
         this.searchRequestVersion += 1
         this.patients = []
         this.isSearching = false
@@ -885,8 +888,8 @@ export default {
         if(patient.age) {
           details.push(`${patient.age} años`)
         }
-        if(patient.folio || patient.id_person) {
-          details.push(`Folio ${patient.folio || patient.id_person}`)
+        if(patient.code || patient.folio) {
+          details.push(`Folio ${patient.code || patient.folio}`)
         }
 
         return details.length ? details.join(' | ') : 'Expediente disponible'

@@ -179,6 +179,14 @@
       </div>
     </section>
 
+    <section v-if="!isLoading && contextReady && (!clinicalHistory || isDraft) && profilePreparationMessage" class="clinical-panel warning-panel" role="status">
+      <strong>Antes de finalizar la historia</strong>
+      <span>{{ profilePreparationMessage }}</span>
+      <a v-if="canPrepareOwnProfile && !currentDoctorProfile" class="clinical-button secondary" href="/admin?section=doctor-identity" target="_blank" rel="noopener">Completar mi perfil profesional</a>
+      <small v-if="canPrepareOwnProfile && !currentDoctorProfile">Se abre en otra pestaña para conservar esta captura. Al volver, actualiza los requisitos.</small>
+      <button class="clinical-link-button" type="button" :disabled="isBusy" @click="refreshPreparation">Actualizar requisitos</button>
+    </section>
+
     <section v-if="contextError || (templateLoadError && !historyTemplateSchema) || (loadError && clinicalHistory)" class="clinical-panel warning-panel" role="alert">
       <strong>{{ contextError || (templateLoadError ? 'No se pudo verificar el formato configurado.' : 'No se pudo actualizar la historia clínica.') }}</strong>
       <span>Los datos capturados se conservan. Reintenta para verificar el contexto antes de continuar.</span>
@@ -208,7 +216,7 @@
         <p>{{ formModeHelp }}</p>
         <p v-if="isDraft" class="save-state" role="status">{{ isBusy ? 'Procesando…' : (dirty ? 'Cambios sin guardar' : 'Todos los cambios guardados') }}</p>
         <p v-if="isDraft && !canCurrentUserFinalize" class="permission-note">
-          Solo un doctor o administrador con perfil profesional activo puede finalizar esta historia.
+          {{ profilePreparationMessage || 'La finalización requiere un doctor o administrador autorizado con perfil profesional activo.' }}
         </p>
         <div v-if="useDynamicSchema" class="capture-template-inline">
           <span>Formato</span>
@@ -331,12 +339,12 @@
           <header>
             <p class="section-kicker">Responsable</p>
             <h3>Doctor responsable</h3>
-            <span>Este doctor revisará y finalizará la historia clínica.</span>
+            <span>{{ responsibleDoctorHelp }}</span>
           </header>
           <div class="doctor-summary">
             <span>Doctor responsable</span>
             <strong>{{ selectedDoctorLabel }}</strong>
-            <small>Este doctor revisará y finalizará la historia clínica.</small>
+            <small>{{ responsibleDoctorHelp }}</small>
           </div>
           <v-select
             v-model="doctorResponsibleUserId"
@@ -525,8 +533,12 @@
                 :type="field.type === 'number' ? 'number' : (field.type === 'date' ? 'date' : 'text')"
                 :label="fieldLabel(field)"
                 :placeholder="dynamicFieldPlaceholder(section, field)"
-                :hint="field.help_text || field.help || ''"
-                :persistent-hint="Boolean(field.help_text || field.help)"
+                :hint="dynamicFieldHint(section, field)"
+                :persistent-hint="Boolean(dynamicFieldHint(section, field))"
+                :suffix="vitalMetadata(section, field).unit || ''"
+                :min="section.key === 'vital_signs' && field.type === 'number' ? 0 : undefined"
+                :max="section.key === 'vital_signs' && field.key === 'oxygen_saturation' ? 100 : undefined"
+                :step="field.type === 'number' ? 'any' : undefined"
                 outlined
                 dense
                 :readonly="!canEditForm"
@@ -558,12 +570,12 @@
         <header>
           <p class="section-kicker">Responsable</p>
           <h3>Doctor responsable</h3>
-          <span>Este doctor revisará y finalizará la historia clínica.</span>
+          <span>{{ responsibleDoctorHelp }}</span>
         </header>
         <div class="doctor-summary">
           <span>Doctor responsable</span>
           <strong>{{ selectedDoctorLabel }}</strong>
-          <small>Este doctor revisará y finalizará la historia clínica.</small>
+          <small>{{ responsibleDoctorHelp }}</small>
         </div>
         <v-select
           v-model="doctorResponsibleUserId"
@@ -693,14 +705,7 @@
           <span>Todos los campos son opcionales. No se precargan valores falsos.</span>
         </header>
         <div class="form-grid vitals">
-          <v-text-field v-model="form.vital_signs.blood_pressure" label="Presión arterial" outlined dense :readonly="!canEditForm" />
-          <v-text-field v-model="form.vital_signs.heart_rate" label="Frecuencia cardiaca" outlined dense :readonly="!canEditForm" />
-          <v-text-field v-model="form.vital_signs.respiratory_rate" label="Frecuencia respiratoria" outlined dense :readonly="!canEditForm" />
-          <v-text-field v-model="form.vital_signs.temperature" label="Temperatura" outlined dense :readonly="!canEditForm" />
-          <v-text-field v-model="form.vital_signs.oxygen_saturation" label="Saturación de oxígeno" outlined dense :readonly="!canEditForm" />
-          <v-text-field v-model="form.vital_signs.weight" label="Peso" outlined dense :readonly="!canEditForm" @input="updateBmi" />
-          <v-text-field v-model="form.vital_signs.height" label="Talla" outlined dense :readonly="!canEditForm" @input="updateBmi" />
-          <v-text-field v-model="form.vital_signs.bmi" label="IMC" outlined dense :readonly="!canEditForm" />
+          <v-text-field v-for="(metadata, key) in vitalSignMetadata" :key="key" :id="`history-field-vital_signs-${key}`" :value="getDynamicFieldValue({ key: 'vital_signs' }, { key })" :label="metadata.label" :suffix="metadata.unit" :hint="dynamicFieldHint({ key: 'vital_signs' }, { key })" persistent-hint :type="key === 'blood_pressure' ? 'text' : 'number'" min="0" :max="key === 'oxygen_saturation' ? 100 : undefined" step="any" :error-messages="vitalInputError(key)" outlined dense :readonly="!canEditForm" @input="setDynamicFieldValue({ key: 'vital_signs' }, { key }, $event)" />
         </div>
       </article>
 
@@ -855,11 +860,23 @@
     <v-dialog content-class="clinical-history-dialog" v-model="showLeaveDialog" persistent max-width="680">
       <div @keydown="trapDialogFocus" @keydown.esc.stop="resolveLeave('stay')" v-dialog-name="'Tienes cambios sin guardar'" class="dialog-card">
         <header><p class="section-kicker">Guardar avances</p><h3>Tienes cambios sin guardar</h3><p>Puedes guardar el borrador antes de salir.</p></header>
-        <p v-if="saveError || validationErrors.length" class="form-warning" role="alert">{{ saveError || 'Hay campos que exceden 5000 caracteres. Sigue editando para corregirlos.' }}</p>
+        <p v-if="saveError || validationErrors.length" class="form-warning" role="alert">{{ saveError || 'Hay datos con formato inválido. Sigue editando para corregirlos.' }}</p>
         <div class="button-row dialog-actions">
           <button class="clinical-button primary" type="button" :disabled="isBusy" @click="resolveLeave('save')">Guardar y salir</button>
           <button class="clinical-button danger-soft" type="button" :disabled="isBusy" @click="resolveLeave('discard')">Descartar cambios</button>
           <button class="clinical-button secondary" type="button" :disabled="isBusy" @click="resolveLeave('stay')">Seguir editando</button>
+        </div>
+      </div>
+    </v-dialog>
+    <v-dialog content-class="clinical-history-dialog" v-model="showConsentSetupDialog" max-width="620">
+      <div @keydown="trapDialogFocus" v-dialog-name="'Prepara el consentimiento del consultorio'" class="dialog-card">
+        <header><p class="section-kicker">Preparación del consultorio</p><h3>Prepara el consentimiento del consultorio</h3></header>
+        <p>Aún no hay un formato activo de consentimiento de datos personales sensibles. Primero debe crearse y activarse en Configuración &gt; Documentos y consentimientos.</p>
+        <p>{{ canPrepareDocuments ? 'Puedes prepararlo en otra pestaña. Tu captura permanece aquí; al volver, actualiza los requisitos.' : 'Pide al administrador del consultorio que prepare y active ese formato. Puedes continuar y guardar el borrador mientras lo hace.' }}</p>
+        <div class="button-row dialog-actions">
+          <a v-if="canPrepareDocuments" class="clinical-button primary" href="/admin?section=documents" target="_blank" rel="noopener">Preparar formato</a>
+          <button class="clinical-button secondary" type="button" @click="showConsentSetupDialog = false; refreshPreparation()">Actualizar requisitos</button>
+          <button class="clinical-button secondary" type="button" @click="showConsentSetupDialog = false">Volver al expediente</button>
         </div>
       </div>
     </v-dialog>
@@ -880,6 +897,8 @@ import { mapGetters } from 'vuex';
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
 import { editorSnapshot, textLengthErrors, canRefreshAllergyRevision } from '../../../domain/clinical-history/history.editor';
+import { vitalSignMetadata, vitalSignError, vitalSignErrors, heightInCm } from '../../../domain/clinical-history/vitalSigns.validation';
+import { getSettingsSections } from '../../../security/settingsAccess';
 import { allergySnapshot, allergyLabels } from '../../../domain/patient/allergy';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
@@ -1015,6 +1034,8 @@ export default {
       saveError: '',
       revisionConflict: false,
       showValidation: false,
+      showConsentSetupDialog: false,
+      vitalSignMetadata,
       showLeaveDialog: false,
       showQuickActionDialog: false,
       pendingQuickAction: null,
@@ -1058,7 +1079,17 @@ export default {
     },
     contextReady() { return this.historyLoaded && !this.isLoading && !this.loadError && !this.contextError && (!this.templateLoadError || Boolean(this.historyTemplateSchema)); },
     dirty() { return Boolean(this.isDraft && this.savedSnapshot && this.savedSnapshot !== editorSnapshot(this.form, this.doctorResponsibleUserId)); },
-    validationErrors() { return this.showValidation ? textLengthErrors(this.form, this.dynamicSections) : []; },
+    validationErrors() { return this.showValidation ? this.validateTextLengths().errors : []; },
+    allowedPreparationSections() { return getSettingsSections(this.currentUserRole, this.hasPermission).map(section => section.key); },
+    canPrepareOwnProfile() { return this.allowedPreparationSections.includes('doctor-identity'); },
+    canPrepareDocuments() { return this.allowedPreparationSections.includes('documents'); },
+    profilePreparationMessage() {
+      if(!this.hasPermission('clinical_history.finalize')) return 'Puedes guardar un borrador. Pide a un doctor o administrador con permiso de finalización que lo revise y cierre.';
+      if(!this.currentDoctorProfile) return 'Puedes iniciar y guardar un borrador. Para finalizar, tu perfil profesional debe estar activo y tener nombre profesional y cédula. Completa Mi perfil profesional; si tu perfil está inactivo o necesitas permisos, solicita ayuda al administrador.';
+      if(this.selectedDoctor && !this.selectedDoctorProfileReady) return 'El doctor responsable seleccionado aún no tiene un perfil activo con nombre profesional y cédula. Pídele que complete Mi perfil profesional o selecciona otro responsable preparado. Puedes guardar el borrador.';
+      return '';
+    },
+    responsibleDoctorHelp() { return this.isDraft || !this.clinicalHistory ? 'Este doctor revisará y finalizará la historia clínica.' : 'Doctor responsable registrado al cerrar esta versión; se conserva su identidad histórica.'; },
     canCancelDraft() { return this.hasPermission('clinical_history.cancel'); },
     canCreateNewVersion() {
       return Boolean(
@@ -1324,6 +1355,7 @@ export default {
       return 'pending';
     },
     sensitiveConsentHelpText() {
+      if(this.clinicalHistory && !this.isDraft) return 'Esta historia está cerrada y es de consulta. El estado del consentimiento utilizado al cerrarla está registrado en el historial de versiones.';
       if(this.hasSignedConsent) {
         return 'Ya se cuenta con consentimiento firmado. La historia puede finalizarse cuando esté completa.';
       }
@@ -1333,6 +1365,7 @@ export default {
       if(this.sensitiveConsent) {
         return 'Puedes guardar el borrador. Para finalizar, falta capturar la firma o registrar una negativa.';
       }
+      if(!this.sensitiveConsentTemplate) return 'Puedes guardar un borrador. Antes de gestionar el consentimiento, el consultorio debe preparar y activar el formato de datos personales sensibles en Configuración > Documentos y consentimientos.';
       return 'Puedes guardar un borrador. Para finalizar la historia será necesario contar con consentimiento firmado o registrar una negativa.';
     },
     doctorOptions() {
@@ -1834,6 +1867,7 @@ export default {
     },
     async createDraft(source) {
       if(this.isBusy || !this.contextReady || !this.canCreateDraft) return false;
+      if(!this.validateTextLengths().ok) { this.showValidation = true; this.focusHistoryField(this.validateTextLengths().errors[0]); return false; }
       this.isBusy = true;
       this.saveError = '';
       try {
@@ -2226,6 +2260,10 @@ export default {
       return { id: this.fieldId(section, field), required: Boolean(field.required), invalid: Boolean(this.dynamicFieldError(section, field)) };
     },
     dynamicFieldError(section, field) {
+      if(this.isDraft && section.key === 'vital_signs') {
+        const valueError = vitalSignError(field.key, this.form.vital_signs[field.key]);
+        if(valueError) return valueError;
+      }
       const error = this.validationErrors.find(item => item.sectionKey === section.key && item.fieldKey === field.key);
       return error ? error.message : '';
     },
@@ -2298,6 +2336,14 @@ export default {
       };
       return placeholders[`${section.key}.${field.key}`] || '';
     },
+    vitalMetadata(section, field) { return section.key === 'vital_signs' ? vitalSignMetadata[field.key] || {} : {}; },
+    vitalInputError(key) { return this.isDraft ? vitalSignError(key, this.form.vital_signs[key]) : ''; },
+    dynamicFieldHint(section, field) {
+      const metadata = this.vitalMetadata(section, field);
+      const previousHeight = Number(String(this.form.vital_signs.height || '').replace(',', '.'));
+      const legacyHeight = section.key === 'vital_signs' && field.key === 'height' && (this.form.vital_signs.height_unit === 'm' || (!this.form.vital_signs.height_unit && previousHeight > 0 && previousHeight <= 3));
+      return [metadata.hint, legacyHeight ? 'La captura anterior estaba en metros; aquí se muestra en centímetros, sin modificar el registro guardado.' : '', field.help_text || field.help].filter(Boolean).join(' ');
+    },
     fieldLabel(field) {
       return `${field.label || 'Campo'}${field.required ? ' *' : ''}`;
     },
@@ -2310,6 +2356,7 @@ export default {
       }
       const sectionValues = this.form[section.key] || {};
       const value = sectionValues[field.key];
+      if(section.key === 'vital_signs' && field.key === 'height') return heightInCm(value, sectionValues.height_unit);
       if(value === undefined || value === null) {
         return this.defaultDynamicFieldValue(field);
       }
@@ -2334,6 +2381,7 @@ export default {
         this.$set(this.form, section.key, {});
       }
       this.$set(this.form[section.key], field.key, value);
+      if(section.key === 'vital_signs' && field.key === 'height') this.$set(this.form.vital_signs, 'height_unit', 'cm');
       this.saveError = '';
       if(this.lastQuickAction && this.lastQuickAction.sectionKey === section.key && this.lastQuickAction.field.key === field.key) this.lastQuickAction = null;
       if(section.key === 'vital_signs' && ['weight', 'height'].includes(field.key)) {
@@ -2447,20 +2495,19 @@ export default {
       return !this.hasText(value) || (typeof value === 'string' && value.length > 5000);
     },
     validateTextLengths() {
-      const errors = textLengthErrors(this.form, this.dynamicSections);
+      const errors = [...textLengthErrors(this.form, this.dynamicSections), ...vitalSignErrors(this.form)];
       return { ok: errors.length === 0, errors };
     },
     updateBmi() {
       const weight = Number(String(this.form.vital_signs.weight || '').replace(',', '.'));
-      const heightRaw = Number(String(this.form.vital_signs.height || '').replace(',', '.'));
-      const height = heightRaw > 3 ? heightRaw / 100 : heightRaw;
+      const height = Number(String(heightInCm(this.form.vital_signs.height, this.form.vital_signs.height_unit) || '').replace(',', '.')) / 100;
       if(weight > 0 && height > 0) {
         this.form.vital_signs.bmi = (weight / (height * height)).toFixed(2);
       }
     },
     async createSensitiveConsent() {
       if(!this.sensitiveConsentTemplate) {
-        this.notify('warning', 'No hay formato activo de consentimiento de datos personales sensibles.');
+        this.showConsentSetupDialog = true;
         return;
       }
       const doctor = this.selectedDoctor || this.currentDoctorForDocuments();
@@ -2489,6 +2536,11 @@ export default {
       } else {
         this.notify('error', response && response.message ? response.message : 'No se pudo crear el consentimiento.');
       }
+    },
+    async refreshPreparation() {
+      if(this.isBusy) return;
+      this.contextError = '';
+      await this.loadConsentStatus();
     },
     async registerSensitiveRefusal() {
       if(!this.sensitiveConsent) {
@@ -2553,7 +2605,7 @@ export default {
       return Boolean(
         doctor &&
         doctor.id_doctor_professional_profile &&
-        doctor.professional_profile_active !== 0 &&
+        Number(doctor.professional_profile_active) === 1 &&
         doctor.professional_name &&
         doctor.professional_license
       );
@@ -2765,8 +2817,10 @@ export default {
         ? this.printableReadonlyValue(field, patientFields, sectionValues)
         : sectionValues[field.key];
       if(section.key === 'allergies_medications' && field.key === 'allergy_status') value = allergyLabels[value] || 'Sin revisar';
+      const vital = section.key === 'vital_signs' ? vitalSignMetadata[field.key] : null;
+      if(vital && field.key === 'height') value = heightInCm(value, sectionValues.height_unit);
       return {
-        label: `${field.label || field.key}${field.required ? ' *' : ''}`,
+        label: `${field.label || field.key}${vital ? ` (${vital.unit})` : ''}${field.required ? ' *' : ''}`,
         value: this.printableFieldValue(value, field.type),
         wide: field.type === 'textarea'
       };
