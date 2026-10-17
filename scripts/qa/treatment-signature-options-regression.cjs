@@ -52,7 +52,7 @@ const bind = (options, props) => {
     const helper = await import(`data:text/javascript;base64,${Buffer.from(helperSource).toString('base64')}`);
     const planServices = {};
     const planOptions = load('src/views/Patient/Sections/TreatmentPlan.vue', { component: null, ...helper, mapActions: () => ({}), mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { TREATMENT: {}, CONFIGURATION: {}, AUTH: {} }, fnTypes: {},
-        isD2AuthMode: () => true, DocumentSignatureOptionsDialog: {}, DATreatmentService: planServices, DOMPurify: { sanitize: value => value }, dialogName: {}, fieldError: {}, window: {}, document: { activeElement: null, contains: () => false }, Blob });
+        isD2AuthMode: () => true, DocumentSignatureOptionsDialog: {}, DATreatmentService: planServices, sanitizeHtmlForDocumentSnapshot: value => value, dialogName: {}, fieldError: {}, window: {}, document: { activeElement: null, contains: () => false }, Blob });
     const view = bind(planOptions, { px: { person: { id_person: 'qa-patient', name: 'QA', surname: 'Patient' } }, hasPermission: () => true, authUser: { id_login: 'qa-doctor' }, authRole: 'doctor', $refs: {}, $nextTick: callback => callback ? callback() : Promise.resolve() });
     const data = { patient: { id_person: 'qa-patient', name: 'QA', surname: 'Patient' }, permissions: { view: true, consentSign: true, consentView: true, remoteRequest: true },
         config: { consentVersioningAvailable: true, consentDocumentAvailable: true }, activePlan: { id_treatment_plan: 'qa-plan', review_token: 'synthetic-review', title: 'QA', treatments: [] } };

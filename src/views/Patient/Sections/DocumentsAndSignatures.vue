@@ -216,7 +216,7 @@
               <div><strong>Firmado</strong><span>{{ selectedDocument.signed_at ? formatDateTime(selectedDocument.signed_at) : '--' }}</span></div>
             </section>
 
-            <section class="sheet-content" v-html="selectedDocument.signed_content_html_snapshot || selectedDocument.content_html_snapshot"></section>
+            <section class="sheet-content" v-html="documentContentHtml(selectedDocument)"></section>
 
             <section v-if="selectedDocument.status === 'NO_FIRMADO_POR_NEGATIVA'" class="sheet-warning">
               <strong>Negativa de firma registrada</strong>
@@ -364,6 +364,7 @@ import fnTypes from '../../../store/modules/common/fn-types';
 import { DADocumentService, DAPrescriptionService } from '../../../services/context/core-proccess-context';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
+import { sanitizeHtmlForDocumentSnapshot, safeDocumentImageSource } from '../../../utils/sanitizeHtml';
 
 export default {
   mixins: [VuexMixin],
@@ -983,6 +984,7 @@ export default {
       }
       const html = this.printableHtml(item);
       const frame = document.createElement('iframe');
+      frame.setAttribute('sandbox', 'allow-same-origin allow-modals');
       frame.style.position = 'fixed';
       frame.style.right = '0';
       frame.style.bottom = '0';
@@ -1006,7 +1008,7 @@ export default {
       const signatures = this.visibleSignatures(item).map((signature) => `
         <article class="signature-card">
           <span>${this.escapeHtml(this.signatureRoleLabel(signature.signature_role))}</span>
-          ${signature.signature_image ? `<img src="${signature.signature_image}" alt="Firma">` : '<p>Sin imagen de firma.</p>'}
+          ${signature.signature_image ? `<img src="${this.escapeHtml(safeDocumentImageSource(signature.signature_image))}" alt="Firma">` : '<p>Sin imagen de firma.</p>'}
           <strong>${this.escapeHtml(signature.signer_name_snapshot || '--')}</strong>
           <small>${signature.signed_at ? this.escapeHtml(this.formatDateTime(signature.signed_at)) : ''}</small>
         </article>
@@ -1014,7 +1016,7 @@ export default {
       const doctorSignature = item.doctor_signature_snapshot ? `
         <article class="signature-card">
           <span>Doctor responsable</span>
-          <img src="${item.doctor_signature_snapshot}" alt="Firma del doctor">
+          <img src="${this.escapeHtml(safeDocumentImageSource(item.doctor_signature_snapshot))}" alt="Firma del doctor">
           <strong>${this.escapeHtml(item.doctor_name_snapshot || '--')}</strong>
           <small>${item.signed_at ? this.escapeHtml(this.formatDateTime(item.signed_at)) : ''}</small>
         </article>
@@ -1070,13 +1072,16 @@ export default {
                 <div><strong>Creado</strong><span>${this.escapeHtml(this.formatDateTime(item.created_at))}</span></div>
                 <div><strong>Firmado</strong><span>${item.signed_at ? this.escapeHtml(this.formatDateTime(item.signed_at)) : '--'}</span></div>
               </section>
-              <section class="content">${item.signed_content_html_snapshot || item.content_html_snapshot || ''}</section>
+              <section class="content">${this.documentContentHtml(item)}</section>
               ${warning}
               <section class="signatures">${signatures}${doctorSignature}</section>
             </main>
           </body>
         </html>
       `;
+    },
+    documentContentHtml: function(item) {
+      return sanitizeHtmlForDocumentSnapshot(item && (item.signed_content_html_snapshot || item.content_html_snapshot) || '');
     },
     canSign: function(item) {
       if(!item) {

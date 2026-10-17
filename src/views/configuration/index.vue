@@ -824,6 +824,7 @@ import VuexMixin from '../../mixins/VuexMixin';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import { resizeImage } from '../../utils/file';
+import { sanitizeHtmlForDocumentSnapshot } from '../../utils/sanitizeHtml';
 import { DEFAULT_THEME, applyTheme, themeState, getThemeContext } from '../../plugins/theme';
 import { setStoredLoginLogo } from '../../utils/branding';
 import { DAAppointmentService, DAPrescriptionService, DAUserService, DABusinessService, DADocumentService } from '../../services/context/core-proccess-context';
@@ -1415,8 +1416,8 @@ export default {
                 nombreTutor: 'María Juárez López',
                 parentescoTutor: 'Madre'
             }
-            return String(this.documentTemplateContentForSave || '')
-                .replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) => examples[key] || 'No especificado')
+            return sanitizeHtmlForDocumentSnapshot(String(this.documentTemplateContentForSave || '')
+                .replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) => examples[key] || 'No especificado'))
         }
     },
     methods: {

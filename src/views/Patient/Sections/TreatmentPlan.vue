@@ -707,7 +707,7 @@ import { isD2AuthMode } from '../../../services/config/authTransport.config';
 import { DATreatmentService } from '../../../services/context/core-proccess-context';
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
-import DOMPurify from 'dompurify';
+import { sanitizeHtmlForDocumentSnapshot } from '../../../utils/sanitizeHtml';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
 import { localToday, requestId, snapshot, treatmentErrors, planErrors } from '../../../domain/treatment-plan/plan.editor';
 
@@ -1269,7 +1269,7 @@ export default {
     textToHtml: function(value) {
       const text = String(value || '');
       if(/<[^>]+>/.test(text)) {
-        return DOMPurify.sanitize(text);
+        return sanitizeHtmlForDocumentSnapshot(text);
       }
       return this.escapeHtml(text).replace(/\n/g, '<br>');
     },
@@ -1295,8 +1295,10 @@ export default {
         diagnostico: this.activePlan ? this.activePlan.diagnosis || '' : '',
         planTratamiento: this.activeTreatments.map((item) => item.name).join(', ')
       };
-      return String(template || '').replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) => (
-        replacements[key] === undefined || replacements[key] === null ? '' : String(replacements[key])
+      const source = String(template || '');
+      const html = /<[^>]+>/.test(source) ? source : `<span>${this.escapeHtml(source).replace(/\n/g, '<br>')}</span>`;
+      return html.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) => (
+        replacements[key] === undefined || replacements[key] === null ? '' : this.escapeHtml(replacements[key])
       ));
     },
     planTreatments: function(plan) {
