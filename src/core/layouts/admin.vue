@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-full app-background tenant-layout">
+  <div class="min-h-full app-background tenant-layout" :class="{ 'tenant-settings-layout': $route.path === '/admin' }">
     <header class="tenant-header">
       <nav class="tenant-header-nav">
         <div class="tenant-header-left">
@@ -65,6 +65,7 @@
     <main class="tenant-main-shell">
       <da-re-login :show="isRelogin" v-on:auth="isRelogin = false"></da-re-login>
       <div class="tenant-content">
+        <legal-update-notice />
         <slot></slot>
       </div>
     </main>
@@ -103,6 +104,7 @@ import { getLoginImageData, setStoredLoginLogo } from '../../utils/branding';
 import decode from 'jwt-decode';
 import { isD2AuthMode } from '../../services/config/authTransport.config';
 import TenantNavigationRail from '../components/navigation/TenantNavigationRail.vue';
+import LegalUpdateNotice from '../components/legal/LegalUpdateNotice.vue';
 import {
   tenantNavigationItems,
   sortTenantNavigationItems,
@@ -121,6 +123,7 @@ export default {
         }
     },
     components: {
+      LegalUpdateNotice,
       'da-re-login': ReLogin,
       'tenant-navigation-rail': TenantNavigationRail
     },
@@ -454,7 +457,7 @@ html[data-theme="clinical-night"] .app-background {
   z-index: 50;
   overflow: hidden;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.96);
+  background: #fff;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
@@ -622,7 +625,7 @@ html[data-theme="clinical-night"] .app-background {
 
 html[data-theme="clinical-night"] .tenant-header {
   border-bottom-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.96);
+  background: #0f172a;
 }
 
 html[data-theme="clinical-night"] .tenant-route-context {
@@ -761,4 +764,10 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
     display: none;
   }
 }
+.tenant-settings-layout .tenant-main-shell { min-height: calc(100vh - 3.25rem); padding-bottom: 0; }
+.tenant-settings-layout .tenant-content { min-height: calc(100vh - 7.25rem); }
+.tenant-settings-layout .tenant-footer { position: relative; left: auto; right: auto; bottom: auto; z-index: auto; background: #f8fafc; }
+html[data-theme="clinical-night"] .tenant-settings-layout .tenant-footer { background: #0f172a; }
+@media (min-width: 1024px) { .tenant-settings-layout .tenant-footer { margin-left: 17rem; } }
+@media (max-width: 639px) { .tenant-settings-layout .tenant-main-shell { min-height: calc(100vh - 2.65rem); } }
 </style>

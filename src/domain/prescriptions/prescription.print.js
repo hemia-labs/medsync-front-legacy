@@ -7,6 +7,24 @@ const escapeHtml = (value) => String(value || '')
 
 const pick = (...values) => values.find((value) => value !== undefined && value !== null && value !== '') || '';
 
+const templateOptions = (snapshot) => {
+    let value = snapshot;
+    if(typeof value === 'string') {
+        try { value = JSON.parse(value); } catch (_) { value = null; }
+    }
+    const saved = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const visible = key => ![false, 0, '0', 'false'].includes(saved[key]);
+    const opacity = Number(saved.background_opacity);
+    return {
+        showUniversity: visible('show_university'), showSpecialty: visible('show_specialty'), showFooter: visible('show_footer_note'),
+        // Missing legacy preferences retain the previous visible content/both
+        // images. Never replace a saved false flag with today's configuration.
+        mode: ['header','background'].includes(saved.template_mode) ? saved.template_mode : 'legacy',
+        backgroundOpacity: saved.background_opacity !== null && saved.background_opacity !== '' && Number.isFinite(opacity)
+            ? Math.min(1, Math.max(0, opacity)) : 0.12
+    };
+};
+
 const imageTag = (src, className, alt) => {
     if(!src) {
         return '';
@@ -17,6 +35,7 @@ const imageTag = (src, className, alt) => {
 
 export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
     if (!prescription || prescription.status !== 'issued') return '';
+    const options = templateOptions(prescription.template_snapshot);
     const doctorName = pick(prescription.doctor_name_snapshot, prescription.doctor_name, config.doctor_name, 'Doctor emisor');
     const professionalLicense = pick(prescription.professional_license_snapshot, config.professional_license);
     const university = pick(prescription.university_snapshot, config.university);
@@ -27,8 +46,8 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
     const clinicAddress = pick(prescription.clinic_address_snapshot, config.clinic_address);
     const clinicPhone = pick(prescription.clinic_phone_snapshot, config.clinic_phone);
     const signature = pick(prescription.signature_snapshot, config.signature_image);
-    const headerImage = pick(prescription.header_image_snapshot, config.header_image);
-    const backgroundImage = pick(prescription.background_image_snapshot, config.background_image);
+    const headerImage = options.mode === 'background' ? '' : pick(prescription.header_image_snapshot, config.header_image);
+    const backgroundImage = options.mode === 'header' ? '' : pick(prescription.background_image_snapshot, config.background_image);
     const footerNote = pick(prescription.footer_note_snapshot, config.footer_note);
     const patientName = pick(prescription.patient_name, 'Paciente');
     const patientMeta = [
@@ -52,7 +71,8 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
         </section>
     `).join('');
 
-    const backgroundStyle = backgroundImage ? `background-image: linear-gradient(rgba(255,255,255,.88), rgba(255,255,255,.88)), url('${escapeHtml(backgroundImage)}');` : '';
+    const overlay = Number((1 - options.backgroundOpacity).toFixed(2));
+    const backgroundStyle = backgroundImage ? `background-image: linear-gradient(rgba(255,255,255,${overlay}), rgba(255,255,255,${overlay})), url('${escapeHtml(backgroundImage)}');` : '';
 
     return `
 <!doctype html>
@@ -95,10 +115,10 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
             <div class="doctor">
                 <div class="label">Receta medica</div>
                 <h1>${escapeHtml(doctorName)}</h1>
-                ${specialty ? `<p>${escapeHtml(specialty)}</p>` : ''}
+                ${options.showSpecialty && specialty ? `<p>${escapeHtml(specialty)}</p>` : ''}
                 ${professionalLicense ? `<p>Cedula profesional: ${escapeHtml(professionalLicense)}</p>` : ''}
-                ${specialtyLicense ? `<p>Cedula especialidad: ${escapeHtml(specialtyLicense)}</p>` : ''}
-                ${university ? `<p>${escapeHtml(university)}</p>` : ''}
+                ${options.showSpecialty && specialtyLicense ? `<p>Cedula especialidad: ${escapeHtml(specialtyLicense)}</p>` : ''}
+                ${options.showUniversity && university ? `<p>${escapeHtml(university)}</p>` : ''}
                 ${professionalPhone ? `<p>Tel. profesional: ${escapeHtml(professionalPhone)}</p>` : ''}
             </div>
             <div class="clinic">
@@ -132,10 +152,30 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
             <div class="signature-line">${escapeHtml(doctorName)}</div>
         </section>
 
-        ${footerNote ? `<footer class="footer">${escapeHtml(footerNote)}</footer>` : ''}
+        ${options.showFooter && footerNote ? `<footer class="footer">${escapeHtml(footerNote)}</footer>` : ''}
     </main>
 </body>
 </html>`;
+};
+
+// Preview reuses the exact print markup with synthetic, in-memory data. It
+// neither persists nor issues a prescription and runs in a sandboxed iframe.
+export const buildPrescriptionPreviewHtml = (config = {}, doctor = {}) => {
+    const html = buildPrescriptionPrintHtml({
+        status: 'issued', folio: 'Vista previa', patient_name: 'Nombre del paciente de ejemplo',
+        doctor_name_snapshot: doctor.professional_name || 'Nombre profesional',
+        professional_license_snapshot: doctor.professional_license || 'Sin cédula',
+        university_snapshot: doctor.university, specialty_snapshot: doctor.specialty,
+        specialty_license_snapshot: doctor.specialty_license, signature_snapshot: doctor.signature_image,
+        template_snapshot: {...config},
+        items: [{generic_name:'Medicamento de ejemplo',dose:'Dosis',administration_route:'Vía',frequency:'Frecuencia',duration:'Duración'}]
+    }, config);
+    return html.replace('</style>', `
+        body { background: #f8fafc; }
+        .sheet { width: 100%; max-width: 816px; min-height: 560px; padding: 24px; }
+        .header { flex-wrap: wrap; } .clinic { max-width: 100%; }
+        @media (max-width: 450px) { .sheet { padding: 16px; } .header, .meta-grid { display: block; } .clinic { text-align: left; margin-top: 12px; } .meta { margin-top: 12px; } .signature { max-width: 100%; } }
+    </style>`);
 };
 
 export const openPrescriptionPrintWindow = (prescription, config = {}, shouldPrint = true) => {

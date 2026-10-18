@@ -1,10 +1,10 @@
 <template>
     <div v-if="sectionAllowed" class="w-full pb-8">
-        <router-link v-if="$route.query.returnTo === '/px/dates'" to="/px/dates" class="inline-block mb-4 px-4 py-2 rounded-lg bg-white border border-primary-200 text-primary-900">Volver a Citas</router-link>
+        <v-alert v-if="activeSection === 'summary' && (appearanceError || clinicalModulesError)" type="error" text role="alert">Algunos ajustes opcionales no se pudieron consultar. <button type="button" class="underline font-semibold" @click="init">Reintentar consulta</button></v-alert>
         <admin-summary v-if="activeSection === 'summary'" :items="configurationSummary"></admin-summary>
 
         <roles-permissions-config
-            v-if="activeSection === 'roles-permissions'"
+            v-if="activeSection === 'roles-permissions'" @contact-plan="$emit('contact-plan', $event)"
         ></roles-permissions-config>
 
         <section v-if="activeSection === 'doctor-identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
@@ -32,11 +32,13 @@
                     <p class="m-0 mt-2 text-gray-500 text-sm">Elige qué apartados aparecen dentro del expediente del paciente.</p>
                 </div>
                 <div class="flex flex-wrap justify-start lg:justify-end gap-2">
-                    <da-button-primary @click.native="onSaveClinicalModules()" :label="'Guardar secciones'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+                    <da-button-primary @click.native="onSaveClinicalModules()" :disabled="clinicalModulesLoading || !!clinicalModulesError || clinicalModulesSaving" :label="clinicalModulesSaving ? 'Guardando...' : 'Guardar secciones'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 p-7">
+            <p v-if="clinicalModulesLoading" class="p-7" role="status">Cargando las secciones guardadas…</p>
+            <v-alert v-else-if="clinicalModulesError" type="error" text role="alert" class="m-5">{{ clinicalModulesError }} <button type="button" class="underline font-semibold" @click="onLoadClinicalModules">Reintentar</button></v-alert>
+            <fieldset v-else class="grid grid-cols-1 md:grid-cols-2 gap-5 p-7 min-w-0" :disabled="clinicalModulesSaving">
                 <article class="border border-gray-200 bg-white shadow-md p-5">
                     <div class="flex items-start justify-between gap-4">
                         <div>
@@ -44,7 +46,7 @@
                             <h3 class="m-0 text-gray-700 text-lg font-semibold">Mostrar odontograma</h3>
                             <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Aparece oculto al inicio. Actívalo solo si tu consultorio registra odontogramas.</p>
                         </div>
-                        <v-switch v-model="clinicalModulesForm.odontogramEnabled" inset :color="themePrimaryColor" class="m-0"></v-switch>
+                        <v-switch v-model="clinicalModulesForm.odontogramEnabled" :disabled="clinicalModulesSaving" aria-label="Mostrar odontograma" inset :color="themePrimaryColor" class="m-0"></v-switch>
                     </div>
                     <div class="mt-4 px-3 py-2 text-sm border" :class="clinicalModulesForm.odontogramEnabled ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'">
                         {{ clinicalModulesForm.odontogramEnabled ? 'Odontograma visible en expediente.' : 'Odontograma oculto en expediente.' }}
@@ -58,7 +60,7 @@
                             <h3 class="m-0 text-gray-700 text-lg font-semibold">Tratamientos activos e historicos</h3>
                             <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Permite crear un plan activo por paciente, cerrarlo como historico y abrir uno nuevo.</p>
                         </div>
-                        <v-switch v-model="clinicalModulesForm.treatmentPlanEnabled" inset :color="themePrimaryColor" class="m-0"></v-switch>
+                        <v-switch v-model="clinicalModulesForm.treatmentPlanEnabled" :disabled="clinicalModulesSaving" aria-label="Mostrar plan de tratamiento" inset :color="themePrimaryColor" class="m-0"></v-switch>
                     </div>
                     <div class="mt-4 px-3 py-2 text-sm border" :class="clinicalModulesForm.treatmentPlanEnabled ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'">
                         {{ clinicalModulesForm.treatmentPlanEnabled ? 'Plan de tratamiento visible en expediente.' : 'Plan de tratamiento oculto en expediente.' }}
@@ -72,7 +74,7 @@
                             <h3 class="m-0 text-gray-700 text-lg font-semibold">Asociar tratamientos a dientes</h3>
                             <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Solo aplica cuando el odontograma esta activo. El diente nunca sera obligatorio.</p>
                         </div>
-                        <v-switch v-model="clinicalModulesForm.allowTreatmentToothSelection" :disabled="!clinicalModulesForm.odontogramEnabled" inset :color="themePrimaryColor" class="m-0"></v-switch>
+                        <v-switch v-model="clinicalModulesForm.allowTreatmentToothSelection" aria-label="Asociar tratamientos a dientes" :disabled="clinicalModulesSaving || !clinicalModulesForm.odontogramEnabled" inset :color="themePrimaryColor" class="m-0"></v-switch>
                     </div>
                     <div class="mt-4 px-3 py-2 text-sm border" :class="clinicalModulesForm.odontogramEnabled && clinicalModulesForm.allowTreatmentToothSelection ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'">
                         {{ clinicalModulesForm.odontogramEnabled && clinicalModulesForm.allowTreatmentToothSelection ? 'Los tratamientos pueden guardar dientes asociados.' : 'No se mostrara selector de dientes en tratamientos.' }}
@@ -85,11 +87,11 @@
                     <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Controla si el plan muestra costos y estados en la vista clinica.</p>
                     <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label class="flex items-center gap-2 text-sm text-gray-600">
-                            <v-checkbox v-model="clinicalModulesForm.showTreatmentCosts" :color="themePrimaryColor" hide-details class="m-0 p-0"></v-checkbox>
+                            <v-checkbox v-model="clinicalModulesForm.showTreatmentCosts" :disabled="clinicalModulesSaving" aria-label="Mostrar costos" :color="themePrimaryColor" hide-details class="m-0 p-0"></v-checkbox>
                             Mostrar costos
                         </label>
                         <label class="flex items-center gap-2 text-sm text-gray-600">
-                            <v-checkbox v-model="clinicalModulesForm.showTreatmentStatus" :color="themePrimaryColor" hide-details class="m-0 p-0"></v-checkbox>
+                            <v-checkbox v-model="clinicalModulesForm.showTreatmentStatus" :disabled="clinicalModulesSaving" aria-label="Mostrar estados" :color="themePrimaryColor" hide-details class="m-0 p-0"></v-checkbox>
                             Mostrar estados
                         </label>
                     </div>
@@ -100,7 +102,7 @@
                     <h3 class="m-0 text-gray-700 text-lg font-semibold">Fotos no disponibles por ahora</h3>
                     <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">La sección de fotos no está disponible en esta versión. Cuando se active, aparecerá dentro del expediente.</p>
                 </article>
-            </div>
+            </fieldset>
         </section>
 
         <section v-if="activeSection === 'identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
@@ -114,7 +116,7 @@
                     <da-button-primary
                         v-if="!businessInfoEditing"
                         @click.native="onStartBusinessInfoEdit()"
-                        :label="'Editar datos'"
+                        :label="'Editar datos'" :disabled="businessInfoLoading || !!businessInfoError || !businessInfoOriginal"
                         rxl
                         swpr
                         class="py-1 px-3 font-light"
@@ -123,7 +125,7 @@
                         v-if="businessInfoEditing"
                         type="button"
                         class="cursor-pointer border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 font-semibold shadow-sm"
-                        @click="onCancelBusinessInfoEdit()"
+                        @click="onCancelBusinessInfoEdit()" :disabled="businessInfoSaving"
                     >
                         Cancelar
                     </button>
@@ -139,7 +141,9 @@
                 </div>
             </div>
 
-            <div v-if="!businessInfoEditing" class="grid grid-cols-1 lg:grid-cols-2 gap-6 p-7 pb-0">
+            <p v-if="businessInfoLoading" class="p-7" role="status">Cargando los datos guardados del consultorio…</p>
+            <v-alert v-else-if="businessInfoError" type="error" text role="alert" class="m-5">{{ businessInfoError }} <button type="button" class="underline font-semibold" @click="onGetBusinessInfo">Reintentar</button></v-alert>
+            <div v-if="!businessInfoLoading && !businessInfoError && !businessInfoEditing" class="grid grid-cols-1 lg:grid-cols-2 gap-6 p-7 pb-0">
                 <article class="min-w-0 border border-gray-200 bg-white shadow-sm p-5">
                     <div class="flex items-start gap-3">
                         <div class="flex items-center justify-center w-10 h-10 bg-primary-100 text-primary-900 border border-primary-200">
@@ -196,16 +200,17 @@
                 </article>
             </div>
 
-            <div v-else class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-7 pb-0">
+            <v-alert v-if="businessInfoEditing && (businessSaveError || Object.keys(businessFieldErrors).length)" type="error" text role="alert" class="m-5">{{ businessSaveError || 'Revisa los campos señalados. Tu captura se conserva.' }}</v-alert>
+            <div v-if="businessInfoEditing" class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-7 pb-0">
                 <article class="min-w-0 lg:col-span-2 border border-gray-200 bg-white shadow-sm p-5">
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Perfil del consultorio</p>
                     <h3 class="m-0 text-gray-700 text-lg font-semibold">Nombre e identidad visible</h3>
                     <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Solo estos datos generales pueden modificarse desde esta pantalla.</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
-                        <v-text-field v-model="businessInfo.name" label="Nombre comercial" dense outlined :color="themePrimaryColor"></v-text-field>
-                        <v-text-field v-model="businessInfo.legalName" label="Razón social" dense outlined :color="themePrimaryColor"></v-text-field>
+                        <v-text-field ref="business_name" v-model="businessInfo.name" :error-messages="businessFieldErrors.name" :disabled="businessInfoSaving" label="Nombre comercial *" dense outlined :color="themePrimaryColor"></v-text-field>
+                        <v-text-field ref="business_legalName" v-model="businessInfo.legalName" :error-messages="businessFieldErrors.legalName" :disabled="businessInfoSaving" label="Razón social" dense outlined :color="themePrimaryColor"></v-text-field>
                     </div>
-                    <v-text-field v-model="businessInfo.logoUrl" label="Enlace del logo" dense outlined :color="themePrimaryColor"></v-text-field>
+                    <v-text-field ref="business_logoUrl" v-model="businessInfo.logoUrl" :error-messages="businessFieldErrors.logoUrl" :disabled="businessInfoSaving" label="Enlace del logo del consultorio (opcional)" hint="Se usa al imprimir historias clínicas y en firmas públicas. El logo de acceso se configura en Apariencia." persistent-hint dense outlined :color="themePrimaryColor"></v-text-field>
                 </article>
 
                 <article class="min-w-0 lg:col-span-3 border border-gray-200 bg-white shadow-sm p-5">
@@ -213,10 +218,10 @@
                     <h3 class="m-0 text-gray-700 text-lg font-semibold">Canales del consultorio</h3>
                     <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Estos datos se usan como referencia operativa y en documentos del consultorio.</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
-                        <v-text-field v-model="businessInfo.email" label="Email contacto" dense outlined :color="themePrimaryColor"></v-text-field>
-                        <v-text-field v-model="businessInfo.phone" label="Teléfono del consultorio" dense outlined :color="themePrimaryColor"></v-text-field>
+                        <v-text-field ref="business_email" v-model="businessInfo.email" :error-messages="businessFieldErrors.email" :disabled="businessInfoSaving" label="Email contacto (opcional)" inputmode="email" dense outlined :color="themePrimaryColor"></v-text-field>
+                        <v-text-field ref="business_phone" v-model="businessInfo.phone" :error-messages="businessFieldErrors.phone" :disabled="businessInfoSaving" label="Teléfono del consultorio *" inputmode="tel" hint="10 dígitos nacionales; también puedes pegar +52." persistent-hint dense outlined :color="themePrimaryColor"></v-text-field>
                     </div>
-                    <v-textarea v-model="businessInfo.address" label="Domicilio" rows="2" outlined :color="themePrimaryColor"></v-textarea>
+                    <v-textarea ref="business_address" v-model="businessInfo.address" :error-messages="businessFieldErrors.address" :disabled="businessInfoSaving" label="Domicilio *" rows="2" outlined :color="themePrimaryColor"></v-textarea>
                 </article>
             </div>
 
@@ -245,7 +250,7 @@
                         </div>
                         <div class="border-l-4 border-yellow-300 bg-white px-4 py-3 min-w-0">
                             <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Periodo de prueba</p>
-                            <p class="m-0 mt-1 text-gray-700">{{ businessInfo.trialEndsAt ? 'Hasta ' + businessInfo.trialEndsAt : 'Sin periodo de prueba' }}</p>
+                            <p class="m-0 mt-1 text-gray-700">{{ formatBusinessDate(businessInfo.trialEndsAt) }}</p>
                         </div>
                         <div class="border-l-4 border-gray-300 bg-white px-4 py-3 min-w-0">
                             <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Licencia y facturación</p>
@@ -256,70 +261,7 @@
             </div>
         </section>
 
-        <section v-if="activeSection === 'account-legal'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
-                <div>
-                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Cuenta y legal</p>
-                    <h2 class="m-0 text-gray-600 text-2xl font-normal">Documentos legales de MedSync</h2>
-                    <p class="m-0 mt-2 text-gray-500 text-sm">Consulta el estado de documentos de la cuenta SaaS, términos, privacidad y políticas aplicables al consultorio.</p>
-                </div>
-                <span class="self-start inline-flex items-center px-3 py-1 bg-white border border-blue-200 text-blue-700 text-xs font-semibold uppercase tracking-wider">Próximamente</span>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-7">
-                <article class="min-w-0 lg:col-span-5 border border-blue-200 bg-blue-50 p-5">
-                    <div class="flex flex-col md:flex-row md:items-start gap-4">
-                        <div class="flex items-center justify-center w-10 h-10 bg-white text-blue-700 border border-blue-200">
-                            <v-icon color="inherit" size="22">mdi-information-outline</v-icon>
-                        </div>
-                        <div class="min-w-0">
-                            <p class="m-0 text-blue-900 font-semibold">Seccion informativa por ahora</p>
-                            <p class="m-0 mt-1 text-blue-800 text-sm leading-relaxed">
-                                La aceptacion legal real se habilitara cuando exista backend con versionado, auditoria y comprobantes. Esta seccion no sustituye los consentimientos del consultorio hacia pacientes.
-                            </p>
-                        </div>
-                    </div>
-                </article>
-
-                <div class="min-w-0 lg:col-span-5">
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                        <article v-for="document in accountLegalDocuments" :key="document.key" class="min-w-0 border border-gray-200 bg-white shadow-sm p-5 flex flex-col">
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="min-w-0">
-                                    <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">{{ document.category }}</p>
-                                    <h3 class="m-0 mt-1 text-gray-700 text-lg font-semibold leading-snug">{{ document.title }}</h3>
-                                </div>
-                                <span class="flex-none inline-flex px-2 py-1 text-xs font-semibold uppercase tracking-wider" :class="legalStatusClass(document.status)">
-                                    {{ document.statusLabel }}
-                                </span>
-                            </div>
-                            <p class="m-0 mt-3 text-gray-500 text-sm leading-relaxed">{{ document.description }}</p>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-                                <div class="border-l-4 border-gray-200 bg-gray-50 px-3 py-2">
-                                    <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Version</p>
-                                    <p class="m-0 mt-1 text-gray-700">{{ document.version }}</p>
-                                </div>
-                                <div class="border-l-4 border-gray-200 bg-gray-50 px-3 py-2">
-                                    <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Aceptacion</p>
-                                    <p class="m-0 mt-1 text-gray-700">{{ document.acceptedAt || 'Sin registro' }}</p>
-                                </div>
-                            </div>
-
-                            <div class="flex flex-wrap gap-2 mt-5 pt-4 border-t border-gray-100">
-                                <button type="button" class="cursor-not-allowed border border-gray-200 bg-gray-50 text-gray-500 px-3 py-2 text-xs font-semibold" disabled>
-                                    Ver documento
-                                </button>
-                                <button type="button" class="cursor-not-allowed border border-gray-200 bg-gray-50 text-gray-500 px-3 py-2 text-xs font-semibold" disabled>
-                                    Aceptar
-                                </button>
-                            </div>
-                            <p class="m-0 mt-3 text-gray-400 text-xs">En construcción para una siguiente versión.</p>
-                        </article>
-                    </div>
-                </div>
-            </div>
-        </section>
+        <account-legal-documents v-if="activeSection === 'account-legal'" />
 
         <section v-if="activeSection === 'documents'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
             <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
@@ -343,10 +285,12 @@
                                 Estas plantillas usan versiones. Editar una plantilla no modifica documentos ya firmados.
                             </p>
                         </div>
-                        <button type="button" class="cursor-pointer border border-primary-200 bg-primary-100 hover:bg-primary-200 text-primary-900 px-4 py-2 font-semibold shadow-sm" @click="onGetDocumentTemplates()">Recargar lista</button>
+                        <button type="button" class="cursor-pointer border border-primary-200 bg-primary-100 hover:bg-primary-200 text-primary-900 px-4 py-2 font-semibold shadow-sm" :disabled="documentTemplatesLoading" @click="onGetDocumentTemplates()">{{ documentTemplatesLoading ? 'Cargando…' : 'Recargar lista' }}</button>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+                    <p v-if="documentTemplatesLoading" role="status" class="mt-4">Cargando plantillas…</p>
+                    <v-alert v-else-if="documentTemplatesError" type="error" text role="alert" class="mt-4">{{ documentTemplatesError }}</v-alert>
+                    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
                         <article
                             v-for="template in documentTemplates"
                             :key="template.id_document_template"
@@ -373,7 +317,7 @@
                             </div>
                         </article>
 
-                        <article v-if="documentTemplates.length === 0" class="border border-dashed border-gray-300 bg-gray-50 p-5 text-center text-gray-500 md:col-span-2">
+                        <article v-if="!documentTemplatesLoading && !documentTemplatesError && documentTemplates.length === 0" class="border border-dashed border-gray-300 bg-gray-50 p-5 text-center text-gray-500 md:col-span-2">
                             No hay plantillas configuradas. Crea un formato para usarlo en Documentos y firmas.
                         </article>
                     </div>
@@ -408,11 +352,13 @@
                         accept="image/jpeg,image/png,image/webp"
                         @change="onSelectLoginImage"
                     />
-                    <da-button-secondary @click.native="$refs.loginImageFile.click()" :label="'Seleccionar logo'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
-                    <da-button-primary @click.native="onSaveLoginImage()" :label="'Guardar logo'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+                    <da-button-secondary @click.native="$refs.loginImageFile.click()" :disabled="loginImageSaving || loginImageProcessing || appearanceLoading || !!appearanceError" :label="loginImageProcessing ? 'Preparando imagen...' : 'Seleccionar logo'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
+                    <da-button-primary @click.native="onSaveLoginImage()" :disabled="loginImageSaving || loginImageProcessing || appearanceLoading || !!appearanceError" :label="loginImageSaving ? 'Guardando...' : 'Guardar logo'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
                 </div>
             </div>
 
+            <p v-if="appearanceLoading" class="p-7" role="status">Cargando la apariencia guardada…</p>
+            <v-alert v-if="appearanceError" type="error" text role="alert" class="m-5">{{ appearanceError }} <button type="button" class="underline font-semibold" @click="onLoadAppearance">Reintentar</button></v-alert>
             <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-7">
                 <div class="lg:col-span-3 h-56 bg-gray-100 bg-center bg-contain bg-no-repeat border border-gray-200 flex items-center justify-center text-gray-500" :style="loginImagePreviewStyle">
                     <span v-if="!loginImagePreview">Vista previa</span>
@@ -420,7 +366,7 @@
                 <div class="lg:col-span-2">
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Archivo actual</p>
                     <h3 class="m-0 mb-3 text-gray-600 text-lg font-semibold break-words">{{ loginImageFileName || 'Sin logo personalizado' }}</h3>
-                    <p class="text-gray-500 leading-relaxed">La pantalla de acceso mostrará este logo. Si no cargas uno, se usará el logo predeterminado.</p>
+                    <p class="text-gray-500 leading-relaxed">Este logo identifica el acceso y la cabecera del sistema. No cambia el logo del consultorio en historias clínicas o firmas públicas, que se configura en Datos del consultorio.</p>
                     <p v-if="loginImageError" class="text-red-600 font-semibold">{{ loginImageError }}</p>
                 </div>
             </div>
@@ -434,7 +380,7 @@
         ></prescription-config>
 
         <clinical-history-template-config
-            v-if="activeSection === 'clinical-history-template'"
+            v-if="activeSection === 'clinical-history-template'" @contact-plan="$emit('contact-plan', $event)"
             :theme-color="themePrimaryColor"
             @saved="toastFunction('success',$event)"
             @error="toastFunction('error',$event)"
@@ -448,16 +394,17 @@
                     <p class="m-0 mt-2 text-gray-500 text-sm">Elige la paleta de colores que verán los usuarios en el sistema.</p>
                 </div>
                 <div class="flex flex-wrap justify-start lg:justify-end gap-2">
-                    <da-button-primary @click.native="onSaveTheme()" :disabled="isThemeSaving" :label="isThemeSaving ? 'Guardando...' : 'Guardar tema'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+                    <da-button-primary @click.native="onSaveTheme()" :disabled="isThemeSaving || appearanceLoading || !!appearanceError" :label="isThemeSaving ? 'Guardando...' : 'Guardar tema'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-5 p-7">
+            <p v-if="appearanceDirty" class="px-7 pt-5 text-sm" role="status">Vista previa sin guardar. Guarda cada cambio para aplicarlo al consultorio o descártalo al salir.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5 p-7" role="group" aria-label="Tema del sistema">
                 <button
                     v-for="theme in themeList"
                     :key="theme.code"
                     type="button"
-                    class="text-left border bg-white shadow-md p-4 transition duration-150 ease-in-out hover:shadow-xl focus:outline-none"
+                    class="settings-theme-option text-left border bg-white shadow-md p-4 transition duration-150 ease-in-out hover:shadow-xl" :disabled="isThemeSaving || appearanceLoading || !!appearanceError" :aria-pressed="selectedThemeCode === theme.code ? 'true' : 'false'"
                     :class="selectedThemeCode === theme.code ? 'border-primary-700' : 'border-gray-200'"
                     @click="onSelectTheme(theme)"
                 >
@@ -563,14 +510,16 @@
             </v-card>
         </v-dialog>
 
-        <v-dialog v-if="activeSection === 'documents'" v-model="documentTemplateDialog" persistent max-width="1180">
+        <v-dialog v-if="activeSection === 'documents'" v-model="documentTemplateDialog" persistent scrollable :retain-focus="false" max-width="1180" role="dialog" aria-modal="true" aria-labelledby="document-template-title" @keydown.esc="onCancelDocumentTemplate">
             <v-card>
                 <div class="px-6 py-5 border-b border-gray-200 bg-primary-100">
                     <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Formato clínico</p>
-                    <h3 class="m-0 mt-1 text-gray-700 text-xl font-semibold">{{ documentTemplateForm.id_document_template ? 'Editar plantilla' : 'Crear plantilla' }}</h3>
+                    <h3 id="document-template-title" class="m-0 mt-1 text-gray-700 text-xl font-semibold">{{ documentTemplateForm.id_document_template ? 'Editar plantilla' : 'Crear plantilla' }}</h3>
                     <p class="m-0 mt-2 text-gray-500 text-sm">Los cambios solo aplicarán a documentos nuevos. Los documentos ya firmados no cambian.</p>
                 </div>
-                <v-card-text class="pt-5">
+                <v-card-text class="pt-5 settings-dialog-scroll">
+                    <v-alert v-if="documentTemplateSaveError || Object.keys(documentTemplateErrors).length" type="error" text role="alert">{{ documentTemplateSaveError || 'Revisa el nombre y el contenido señalados. Tu captura se conserva.' }}</v-alert>
+                    <fieldset :disabled="documentTemplateSaving" class="min-w-0">
                     <div class="border border-primary-200 bg-primary-100 p-4 mb-4">
                         <p class="m-0 text-gray-700 font-semibold">Escribe el documento como normalmente lo harías.</p>
                         <p class="m-0 mt-1 text-gray-500 text-sm">
@@ -582,10 +531,10 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <v-text-field v-model="documentTemplateForm.name" label="Nombre del formato" dense outlined :color="themePrimaryColor"></v-text-field>
-                        <v-select v-model="documentTemplateForm.template_type" :items="documentTemplateTypeOptions" item-text="label" item-value="value" label="Tipo de documento" dense outlined :color="themePrimaryColor"></v-select>
+                        <v-text-field ref="documentTemplateName" v-model="documentTemplateForm.name" :disabled="documentTemplateSaving" :error-messages="documentTemplateErrors.name" label="Nombre del formato *" dense outlined :color="themePrimaryColor"></v-text-field>
+                        <v-select v-model="documentTemplateForm.template_type" :disabled="documentTemplateSaving" :items="documentTemplateTypeOptions" item-text="label" item-value="value" label="Tipo de documento" dense outlined :color="themePrimaryColor"></v-select>
                         <v-select
-                            v-model="documentTemplateForm.document_license_tier"
+                            v-model="documentTemplateForm.document_license_tier" :disabled="documentTemplateSaving"
                             :items="documentLicenseTierOptionsForPlan"
                             item-text="label"
                             item-value="value"
@@ -599,13 +548,13 @@
                     <div v-if="selectedDocumentTierLocked" class="border border-gray-300 bg-gray-50 text-gray-700 p-4 mb-4">
                         <p class="m-0 font-semibold">{{ selectedDocumentTierLocked.title }}</p>
                         <p class="m-0 mt-1 text-sm">{{ selectedDocumentTierLocked.message }}</p>
-                        <button type="button" class="mt-3 border border-primary-700 bg-white text-primary-900 px-4 py-2 text-sm font-semibold">Contactar para cambiar plan</button>
+                        <button type="button" class="mt-3 border border-primary-700 bg-white text-primary-900 px-4 py-2 text-sm font-semibold" @click="$emit('contact-plan')">Contactar para cambiar plan</button>
                     </div>
-                    <v-textarea v-model="documentTemplateForm.description" label="Descripción opcional" rows="2" outlined :color="themePrimaryColor"></v-textarea>
+                    <v-textarea v-model="documentTemplateForm.description" :disabled="documentTemplateSaving" label="Descripción opcional" rows="2" outlined :color="themePrimaryColor"></v-textarea>
 
                     <div class="border border-gray-200 bg-gray-50 p-4 mb-4">
                         <p class="m-0 mb-2 text-primary-900 text-xs font-bold tracking-widest uppercase">Estado de la plantilla</p>
-                        <v-checkbox v-model="documentTemplateForm.is_active" label="Plantilla activa" :color="themePrimaryColor" hide-details></v-checkbox>
+                        <v-checkbox v-model="documentTemplateForm.is_active" :disabled="documentTemplateSaving" label="Plantilla activa" :color="themePrimaryColor" hide-details></v-checkbox>
                         <p class="m-0 mt-2 text-gray-500 text-xs">Una plantilla activa puede usarse para crear documentos nuevos.</p>
                     </div>
 
@@ -613,9 +562,9 @@
                         <p class="m-0 mb-2 text-primary-900 text-xs font-bold tracking-widest uppercase">Firmas requeridas</p>
                         <p class="m-0 mb-3 text-gray-500 text-sm">Selecciona quién debe firmar este documento. Cuando se genere, el sistema pedirá las firmas marcadas aquí.</p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                            <v-checkbox v-model="documentTemplateForm.requires_patient_signature" label="Paciente" :color="themePrimaryColor" hide-details></v-checkbox>
-                            <v-checkbox v-model="documentTemplateForm.requires_tutor_signature" label="Solicitar firma de tutor o representante" :color="themePrimaryColor" hide-details></v-checkbox>
-                            <v-checkbox v-model="documentTemplateForm.requires_doctor_signature" label="Doctor" :color="themePrimaryColor" hide-details></v-checkbox>
+                            <v-checkbox v-model="documentTemplateForm.requires_patient_signature" :disabled="documentTemplateSaving" label="Paciente" :color="themePrimaryColor" hide-details></v-checkbox>
+                            <v-checkbox v-model="documentTemplateForm.requires_tutor_signature" :disabled="documentTemplateSaving" label="Solicitar firma de tutor o representante" :color="themePrimaryColor" hide-details></v-checkbox>
+                            <v-checkbox v-model="documentTemplateForm.requires_doctor_signature" :disabled="documentTemplateSaving" label="Doctor" :color="themePrimaryColor" hide-details></v-checkbox>
                             <v-checkbox v-model="documentTemplateForm.requires_witness1_signature" label="Testigo 1" :color="themePrimaryColor" hide-details></v-checkbox>
                             <v-checkbox v-model="documentTemplateForm.requires_witness2_signature" label="Testigo 2" :color="themePrimaryColor" hide-details></v-checkbox>
                         </div>
@@ -657,7 +606,7 @@
                                         Insertar ejemplo
                                     </button>
                                     <v-checkbox
-                                        v-model="documentTemplateForm.advanced_mode"
+                                        v-model="documentTemplateForm.advanced_mode" :disabled="documentTemplateSaving"
                                         label="Usar edición con apoyo técnico"
                                         :color="themePrimaryColor"
                                         hide-details
@@ -674,7 +623,7 @@
                             </p>
                             <v-textarea
                                 ref="documentContentInput"
-                                v-model="activeDocumentContentModel"
+                                v-model="activeDocumentContentModel" :disabled="documentTemplateSaving" :error-messages="documentTemplateErrors.content_html"
                                 :label="documentTemplateForm.advanced_mode ? 'Contenido de soporte del documento' : 'Contenido del documento'"
                                 rows="10"
                                 outlined
@@ -707,7 +656,7 @@
                         <div class="flex flex-wrap gap-2">
                             <button type="button" class="cursor-pointer border border-primary-200 bg-white hover:bg-primary-100 text-primary-900 px-3 py-2 font-semibold" @click="insertDocumentExample()">Insertar ejemplo</button>
                             <button type="button" class="cursor-pointer border border-primary-200 bg-white hover:bg-primary-100 text-primary-900 px-3 py-2 font-semibold" @click="showDocumentPreview = !showDocumentPreview">{{ showDocumentPreview ? 'Ocultar vista previa' : 'Vista previa' }}</button>
-                            <v-checkbox v-model="documentTemplateForm.advanced_mode" label="Usar edición con apoyo técnico" :color="themePrimaryColor" hide-details class="m-0" @change="onToggleDocumentAdvancedMode"></v-checkbox>
+                            <v-checkbox v-model="documentTemplateForm.advanced_mode" :disabled="documentTemplateSaving" label="Usar edición con apoyo técnico" :color="themePrimaryColor" hide-details class="m-0" @change="onToggleDocumentAdvancedMode"></v-checkbox>
                         </div>
                     </div>
                     <p v-if="false" class="border border-yellow-200 bg-yellow-50 text-yellow-800 p-3 text-sm">
@@ -716,7 +665,7 @@
                     <v-textarea
                         v-if="false"
                         ref="documentContentInput"
-                        v-model="activeDocumentContentModel"
+                        v-model="activeDocumentContentModel" :disabled="documentTemplateSaving" :error-messages="documentTemplateErrors.content_html"
                         :label="documentTemplateForm.advanced_mode ? 'Contenido de soporte del documento' : 'Contenido del documento'"
                         rows="10"
                         outlined
@@ -764,10 +713,11 @@
                         <p class="m-0 mt-1 mb-4 text-gray-500 text-sm">Esta vista previa usa datos de ejemplo. Al generar el documento se usarán los datos reales del paciente.</p>
                         <div class="border border-gray-200 p-5 bg-gray-50 leading-relaxed" v-html="documentTemplatePreview"></div>
                     </div>
+                    </fieldset>
                 </v-card-text>
                 <v-card-actions class="px-6 pb-5 justify-end gap-3">
-                    <da-button-secondary @click.native="documentTemplateDialog = false" :label="'Cancelar'" rxl swpr class="py-1 px-4 font-light"></da-button-secondary>
-                    <da-button-primary @click.native="saveDocumentTemplate()" :label="documentTemplateSaveLabel" rxl swpr class="py-1 px-4 font-light"></da-button-primary>
+                    <da-button-secondary :disabled="documentTemplateSaving" @click.native="onCancelDocumentTemplate()" :label="'Cancelar'" rxl swpr class="py-1 px-4 font-light"></da-button-secondary>
+                    <da-button-primary @click.native="saveDocumentTemplate()" :disabled="documentTemplateSaving" :label="documentTemplateSaving ? 'Guardando...' : documentTemplateSaveLabel" rxl swpr class="py-1 px-4 font-light"></da-button-primary>
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -788,14 +738,14 @@
             </v-card>
         </v-dialog>
 
-        <v-dialog v-if="activeSection === 'documents'" v-model="automaticDataHelpDialog" max-width="760">
+        <v-dialog v-if="activeSection === 'documents'" v-model="automaticDataHelpDialog" scrollable max-width="760" role="dialog" aria-modal="true" aria-labelledby="automatic-data-help-title">
             <v-card>
                 <div class="px-6 py-5 border-b border-gray-200 bg-primary-100">
                     <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Ayuda</p>
-                    <h3 class="m-0 mt-1 text-gray-700 text-xl font-semibold">Datos automáticos disponibles</h3>
+                    <h3 id="automatic-data-help-title" class="m-0 mt-1 text-gray-700 text-xl font-semibold">Datos automáticos disponibles</h3>
                     <p class="m-0 mt-2 text-gray-500 text-sm">El sistema los llena con información real al crear documentos para un paciente.</p>
                 </div>
-                <v-card-text class="pt-5">
+                <v-card-text class="pt-5 settings-dialog-scroll">
                     <v-text-field v-model="documentVariableSearch" label="Buscar dato automático" dense outlined hide-details :color="themePrimaryColor" class="mb-4"></v-text-field>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <article v-for="group in filteredDocumentVariableGroups" :key="group.title" class="border border-gray-200 bg-gray-50 p-4">
@@ -820,13 +770,17 @@
 <script>
 import { mapActions, mapGetters } from 'vuex';
 import ProfessionalAgendaConfig from './components/ProfessionalAgendaConfig.vue';
+import AccountLegalDocuments from './components/AccountLegalDocuments.vue';
 import { getSettingsSections } from '../../security/settingsAccess';
 import VuexMixin from '../../mixins/VuexMixin';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import { resizeImage } from '../../utils/file';
 import { sanitizeHtmlForDocumentSnapshot } from '../../utils/sanitizeHtml';
-import { DEFAULT_THEME, applyTheme, themeState, getThemeContext } from '../../plugins/theme';
+import { DEFAULT_THEME, applyTheme, restoreThemePreview, themeState, getThemeContext } from '../../plugins/theme';
+import { confirmSettingsDiscard, registerSettingsNavigationGuard } from '../../domain/settings/settings.navigation';
+import { authorizationContext, isCurrentAuthorization } from '../../security/authorizationContext';
+import { validateBusinessProfile } from '../../domain/settings/business.validation';
 import { setStoredLoginLogo } from '../../utils/branding';
 import { DAAppointmentService, DAPrescriptionService, DAUserService, DABusinessService, DADocumentService } from '../../services/context/core-proccess-context';
 import { buildLicenseLimitMessage } from '../../utils/licenseLimitMessage';
@@ -854,6 +808,7 @@ import {
 export default {
     mixins:[VuexMixin],
     components: {
+        AccountLegalDocuments,
         ProfessionalAgendaConfig,
         PrescriptionConfig,
         AdminSummary,
@@ -883,6 +838,15 @@ export default {
             loginImageFileName: '',
             loginImageError: '',
             loginImageInputKey: 0,
+            loginImageOriginal: '',
+            loginImageOriginalName: '',
+            loginImageSaving: false,
+            loginImageProcessing: false,
+            appearanceLoading: false,
+            appearanceError: '',
+            savedTheme: null,
+            savedThemeContext: '',
+            disposed: false,
             selectedThemeCode: DEFAULT_THEME.code,
             isThemeSaving: false,
             businessInfo: {
@@ -905,74 +869,14 @@ export default {
             businessInfoOriginal: null,
             businessInfoEditing: false,
             businessInfoSaving: false,
-            accountLegalDocuments: [
-                {
-                    key: 'terms',
-                    category: 'Uso de plataforma',
-                    title: 'Términos y condiciones',
-                    description: 'Reglas generales de uso de la plataforma MedSync.',
-                    version: 'Pendiente',
-                    status: 'coming_soon',
-                    statusLabel: 'Próximamente',
-                    acceptedAt: '',
-                    acceptedBy: ''
-                },
-                {
-                    key: 'privacy',
-                    category: 'Privacidad',
-                    title: 'Aviso de privacidad',
-                    description: 'Tratamiento de datos personales asociado a la cuenta SaaS.',
-                    version: 'Pendiente',
-                    status: 'coming_soon',
-                    statusLabel: 'Próximamente',
-                    acceptedAt: '',
-                    acceptedBy: ''
-                },
-                {
-                    key: 'saas_contract',
-                    category: 'Contrato',
-                    title: 'Contrato SaaS',
-                    description: 'Condiciones comerciales entre MedSync y el titular de la cuenta.',
-                    version: 'Pendiente',
-                    status: 'pending_integration',
-                    statusLabel: 'En construcción',
-                    acceptedAt: '',
-                    acceptedBy: ''
-                },
-                {
-                    key: 'dpa',
-                    category: 'Datos',
-                    title: 'Anexo de tratamiento de datos',
-                    description: 'Responsabilidades de encargado/responsable y medidas operativas.',
-                    version: 'Pendiente',
-                    status: 'pending_integration',
-                    statusLabel: 'En construcción',
-                    acceptedAt: '',
-                    acceptedBy: ''
-                },
-                {
-                    key: 'support_sla',
-                    category: 'Servicio',
-                    title: 'Soporte y SLA',
-                    description: 'Niveles de servicio, soporte y ventanas de respuesta.',
-                    version: 'Pendiente',
-                    status: 'pending',
-                    statusLabel: 'Pendiente',
-                    acceptedAt: '',
-                    acceptedBy: ''
-                },
-                {
-                    key: 'retention_export',
-                    category: 'Datos',
-                    title: 'Retención y exportación',
-                    description: 'Políticas de retención, descarga y salida de datos.',
-                    version: 'Pendiente',
-                    status: 'pending',
-                    statusLabel: 'Pendiente',
-                    acceptedAt: '',
-                    acceptedBy: ''
-                }
-            ],
+            businessInfoLoading: false,
+            businessInfoError: '',
+            businessFieldErrors: {},
+            businessSaveError: '',
+            clinicalModulesLoading: false,
+            clinicalModulesError: '',
+            clinicalModulesSaving: false,
+            clinicalModulesOriginal: null,
             prescriptionConfigStatus: null,
             professionalProfileStatus: null,
             signatureImageError: false,
@@ -1022,6 +926,12 @@ export default {
             },
             documentTemplates: [],
             documentTemplateDialog: false,
+            documentTemplateOriginal: '',
+            documentTemplateSaving: false,
+            documentTemplateErrors: {},
+            documentTemplateSaveError: '',
+            documentTemplatesLoading: false,
+            documentTemplatesError: '',
             documentTemplateForm: {
                 id_document_template: '',
                 template_type: 'CUSTOM_DOCUMENT',
@@ -1101,9 +1011,25 @@ export default {
         }
     },
     created() {
+        this.removeSettingsGuard = registerSettingsNavigationGuard(this, {
+            hasChanges: () => this.hasUnsavedChanges,
+            isSaving: () => this.settingsSaving,
+            onDiscard: () => this.discardSettingsChanges()
+        })
         this.init()
     },
+    beforeDestroy() {
+        this.disposed = true
+        if(this.removeSettingsGuard) this.removeSettingsGuard()
+        this.restoreAppearancePreview()
+    },
     computed: {
+        businessInfoDirty() { return this.businessInfoEditing && JSON.stringify(this.businessInfo) !== JSON.stringify(this.businessInfoOriginal) },
+        clinicalModulesDirty() { return this.clinicalModulesOriginal !== null && JSON.stringify(this.clinicalModulesForm) !== this.clinicalModulesOriginal },
+        appearanceDirty() { return Boolean(this.savedTheme && this.selectedThemeCode !== this.savedTheme.code) || this.loginImagePreview !== this.loginImageOriginal },
+        documentTemplateDirty() { return this.documentTemplateDialog && JSON.stringify(this.documentTemplateForm) !== this.documentTemplateOriginal },
+        hasUnsavedChanges() { return this.businessInfoDirty || this.clinicalModulesDirty || this.appearanceDirty || this.documentTemplateDirty },
+        settingsSaving() { return this.businessInfoSaving || this.clinicalModulesSaving || this.isThemeSaving || this.loginImageSaving || this.loginImageProcessing || this.documentTemplateSaving },
         ...mapGetters(moduleTypes.CONFIGURATION, {
             getConfigurations:      fnTypes.getConfiguration,
             hasErrorConfiguration:  fnTypes.hasErrorInService,
@@ -1147,7 +1073,7 @@ export default {
         },
 
         businessPlanLabel: function() {
-            return this.businessInfo && this.businessInfo.plan ? this.businessInfo.plan : 'Sin plan'
+            return ({ basic: 'Individual', pro: 'Profesional', enterprise: 'Clínica' })[String(this.businessInfo.plan || '').toLowerCase()] || 'Sin plan identificado'
         },
 
         businessStatusLabel: function() {
@@ -1275,7 +1201,12 @@ export default {
                     detail: 'Apartado del expediente del paciente',
                     statusClass: odontogramActive ? 'bg-green-500' : 'bg-gray-400'
                 }
-            ]
+            ].map(item => {
+                const appearance = item.label !== 'Odontograma'
+                const known = appearance ? Boolean(this.savedTheme) && !this.appearanceLoading && !this.appearanceError : this.clinicalModulesOriginal !== null && !this.clinicalModulesLoading && !this.clinicalModulesError
+                if(known) return item
+                return { ...item, value: (appearance ? this.appearanceError : this.clinicalModulesError) ? 'No disponible' : 'Consultando…', detail: 'Abre el apartado para consultar su configuración guardada.', statusClass: 'bg-gray-400' }
+            })
         },
 
         knownDocumentVariables: function() {
@@ -1408,13 +1339,76 @@ export default {
             const section=this.activeSection
             if(section==='documents') await this.onGetConfiguration()
             if(section==='identity') await this.onGetBusinessInfo()
-            if(['summary','appearance'].includes(section)) {
-                await this.getLoginImage();await this.getThemeList();await this.getTheme({ force: true });this.ensureSelectedTheme()
-            }
-            if(['summary','clinical-modules'].includes(section)) {
-                await this.getClinicalModules();this.applyClinicalModules()
-            }
+            if(['summary','appearance'].includes(section)) await this.onLoadAppearance()
+            if(['summary','clinical-modules'].includes(section)) await this.onLoadClinicalModules()
             if(section==='documents' && this.hasPermission('documents.config')) await this.onGetDocumentTemplates()
+        },
+
+        discardSettingsChanges() {
+            if(this.businessInfoOriginal) this.businessInfo = this.cloneBusinessInfo(this.businessInfoOriginal)
+            this.businessInfoEditing = false
+            if(this.clinicalModulesOriginal) this.clinicalModulesForm = JSON.parse(this.clinicalModulesOriginal)
+            this.documentTemplateDialog = false
+            this.restoreAppearancePreview()
+            this.loginImagePreview = this.loginImageOriginal
+            this.loginImageFileName = this.loginImageOriginalName
+        },
+        restoreAppearancePreview() {
+            if(this.savedTheme && getThemeContext(this.$store.state.CORE.AUTH) === this.savedThemeContext && themeState.hasPreview) {
+                restoreThemePreview(this.savedTheme)
+                this.selectedThemeCode = this.savedTheme.code
+            }
+        },
+        formatBusinessDate(value) {
+            if(!value) return 'Sin periodo de prueba'
+            const date = new Date(value)
+            return Number.isNaN(date.getTime()) ? 'Fecha no disponible' : 'Hasta ' + new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(date) + ' (hora del centro de México)'
+        },
+        focusInvalid(refs) {
+            this.$nextTick(() => {
+                const field = refs.map(name => this.$refs[name]).find(Boolean)
+                if(field && typeof field.focus === 'function') field.focus()
+                else if(field && field.$el) { const input = field.$el.querySelector('input,textarea'); if(input) input.focus() }
+            })
+        },
+        settingsReadStillCurrent(context, errorField) {
+            if(this.disposed) return false
+            if(isCurrentAuthorization(context, this.$store)) return true
+            this[errorField] = 'La sesión o tus accesos cambiaron durante la consulta. Reintenta para ver la configuración actual.'
+            return false
+        },
+        async onLoadAppearance() {
+            if(this.appearanceLoading || this.appearanceDirty) return
+            const context = authorizationContext(this.$store)
+            this.appearanceLoading = true
+            this.appearanceError = ''
+            try {
+                const results = await Promise.all([this.getLoginImage(), this.getThemeList(), this.getTheme({ force: true })])
+                if(!this.settingsReadStillCurrent(context, 'appearanceError')) return
+                if(results.some(result => !result || !result.success)) throw new Error('read')
+                this.loginImagePreview = (this.getLoginImageData || {}).image_data || ''
+                this.loginImageFileName = (this.getLoginImageData || {}).original_name || ''
+                this.loginImageOriginal = this.loginImagePreview
+                this.loginImageOriginalName = this.loginImageFileName
+                this.savedTheme = { ...this.activeTheme }
+                this.savedThemeContext = getThemeContext(this.$store.state.CORE.AUTH)
+                this.ensureSelectedTheme()
+            } catch(_) { if(isCurrentAuthorization(context, this.$store)) this.appearanceError = 'No se pudo cargar la apariencia guardada. Reintenta antes de hacer cambios.' }
+            finally { this.appearanceLoading = false }
+        },
+        async onLoadClinicalModules() {
+            if(this.clinicalModulesLoading || this.clinicalModulesDirty) return
+            const context = authorizationContext(this.$store)
+            this.clinicalModulesLoading = true
+            this.clinicalModulesError = ''
+            try {
+                const response = await this.getClinicalModules()
+                if(!this.settingsReadStillCurrent(context, 'clinicalModulesError')) return
+                if(!response || !response.success) throw new Error('read')
+                this.applyClinicalModules()
+                this.clinicalModulesOriginal = JSON.stringify(this.clinicalModulesForm)
+            } catch(_) { if(isCurrentAuthorization(context, this.$store)) this.clinicalModulesError = 'No se pudieron cargar las secciones guardadas. Reintenta antes de modificarlas.' }
+            finally { this.clinicalModulesLoading = false }
         },
 
         isDocumentTierLocked: function(tier) {
@@ -1518,8 +1512,17 @@ export default {
         },
 
         onGetDocumentTemplates: async function() {
-            const response = await DADocumentService.getTemplates()
-            this.documentTemplates = response && response.success ? response.data || [] : []
+            if(this.documentTemplatesLoading) return
+            const context = authorizationContext(this.$store)
+            this.documentTemplatesLoading = true
+            this.documentTemplatesError = ''
+            try {
+                const response = await DADocumentService.getTemplates()
+                if(!this.settingsReadStillCurrent(context, 'documentTemplatesError')) return
+                if(!response || !response.success) throw new Error('read')
+                this.documentTemplates = response.data || []
+            } catch(_) { if(isCurrentAuthorization(context, this.$store)) this.documentTemplatesError = 'No se pudieron cargar las plantillas. Reintenta para ver la lista actual.' }
+            finally { this.documentTemplatesLoading = false }
         },
 
         openDocumentTemplateDialog: function(template) {
@@ -1548,12 +1551,30 @@ export default {
             this.documentContentMode = 'edit'
             this.confirmExampleDialog = false
             this.documentVariableSearch = ''
+            this.documentTemplateErrors = {}
+            this.documentTemplateSaveError = ''
+            this.documentTemplateOriginal = JSON.stringify(this.documentTemplateForm)
             this.documentTemplateDialog = true
         },
 
+        async onCancelDocumentTemplate() {
+            if(this.documentTemplateSaving) return
+            if(this.documentTemplateDirty && !await confirmSettingsDiscard(this)) return
+            this.documentTemplateDialog = false
+        },
+
         saveDocumentTemplate: async function() {
-            if(!this.documentTemplateForm.name || !this.activeDocumentContentModel) {
-                this.toastFunction('error','Captura nombre y contenido de la plantilla.')
+            if(this.documentTemplateSaving) return
+            this.documentTemplateErrors = {}
+            this.documentTemplateSaveError = ''
+            const name = String(this.documentTemplateForm.name || '').trim()
+            const content = sanitizeHtmlForDocumentSnapshot(this.documentTemplateContentForSave)
+            const fragment = document.createElement('div')
+            fragment.innerHTML = content
+            if(!name) this.$set(this.documentTemplateErrors, 'name', 'Escribe el nombre de la plantilla.')
+            if(!String(fragment.textContent || '').replace(/[\s\u200b-\u200d\ufeff]/g, '') && !fragment.querySelector('img[src]')) this.$set(this.documentTemplateErrors, 'content_html', 'Escribe el contenido del documento o inserta datos automáticos.')
+            if(Object.keys(this.documentTemplateErrors).length) {
+                this.focusInvalid([this.documentTemplateErrors.name ? 'documentTemplateName' : 'documentContentInput'])
                 return
             }
             if(this.unknownDocumentVariables.length > 0) {
@@ -1563,19 +1584,23 @@ export default {
 
             const payload = {
                 ...this.documentTemplateForm,
+                name,
                 ...this.documentTemplateLicenseMetadata(this.documentTemplateForm.document_license_tier),
-                content_html: this.documentTemplateContentForSave
+                content_html: content
             }
-
-            const response = await DADocumentService.saveTemplate(payload)
-            if(response && response.success) {
-                this.documentTemplates = response.data || []
-                this.documentTemplateDialog = false
-                this.toastFunction('success', this.documentTemplateForm.id_document_template ? 'Nueva versión guardada.' : 'Plantilla creada.')
-                return
-            }
-
-            this.toastFunction('error', buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo guardar la plantilla.'))
+            this.documentTemplateSaving = true
+            try {
+                const response = await DADocumentService.saveTemplate(payload)
+                if(response && response.success) {
+                    this.documentTemplates = response.data || []
+                    this.documentTemplateDialog = false
+                    this.toastFunction('success', payload.id_document_template ? 'Nueva versión guardada.' : 'Plantilla creada.')
+                    return
+                }
+                this.documentTemplateErrors = (response && response.data && response.data.fieldErrors) || {}
+                this.documentTemplateSaveError = buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo guardar la plantilla. Conservamos tu captura; revisa los datos e intenta de nuevo.')
+            } catch(_) { this.documentTemplateSaveError = 'No se pudo guardar la plantilla. Conservamos tu captura; revisa la conexión e intenta de nuevo.' }
+            finally { this.documentTemplateSaving = false }
         },
 
         appendDocumentVariable: function(variable) {
@@ -1800,42 +1825,32 @@ export default {
         },
 
         onStartBusinessInfoEdit: function() {
+            if(this.businessInfoLoading || this.businessInfoError || !this.businessInfoOriginal) return
             this.businessInfoOriginal = this.cloneBusinessInfo()
+            this.businessFieldErrors = {}
+            this.businessSaveError = ''
             this.businessInfoEditing = true
         },
 
-        onCancelBusinessInfoEdit: function() {
+        onCancelBusinessInfoEdit: async function() {
+            if(this.businessInfoSaving) return
+            if(this.businessInfoDirty && !await confirmSettingsDiscard(this)) return
             if(this.businessInfoOriginal) {
                 this.businessInfo = this.cloneBusinessInfo(this.businessInfoOriginal)
             }
 
-            this.businessInfoSaving = false
             this.businessInfoEditing = false
         },
 
-        legalStatusClass: function(status) {
-            if(status === 'accepted') {
-                return 'bg-green-100 text-green-700'
-            }
-
-            if(status === 'expired') {
-                return 'bg-red-100 text-red-700'
-            }
-
-            if(status === 'coming_soon') {
-                return 'bg-blue-100 text-blue-700'
-            }
-
-            if(status === 'pending') {
-                return 'bg-gray-100 text-gray-600'
-            }
-
-            return 'bg-yellow-100 text-yellow-700'
-        },
-
         onGetBusinessInfo: async function(){
-            const response = await DABusinessService.getCurrent()
-            if(response && response.success && response.data) {
+            if(this.businessInfoLoading || this.businessInfoDirty) return
+            const context = authorizationContext(this.$store)
+            this.businessInfoLoading = true
+            this.businessInfoError = ''
+            try {
+                const response = await DABusinessService.getCurrent()
+                if(!this.settingsReadStillCurrent(context, 'businessInfoError')) return
+                if(!response || !response.success || !response.data) throw new Error('read')
                 this.businessInfo = {
                     id_business: response.data.id_business || '',
                     name: response.data.name || '',
@@ -1855,31 +1870,39 @@ export default {
                 }
                 this.businessInfoOriginal = this.cloneBusinessInfo(this.businessInfo)
                 this.businessInfoEditing = false
-                this.businessInfoSaving = false
-            }
+            } catch(_) { if(isCurrentAuthorization(context, this.$store)) this.businessInfoError = 'No se pudieron cargar los datos del consultorio. Reintenta para verlos y editarlos.' }
+            finally { this.businessInfoLoading = false }
         },
 
         onSaveBusinessInfo: async function(){
-            if(this.businessInfoSaving) {
+            if(this.businessInfoSaving || this.businessInfoLoading || this.businessInfoError || !this.businessInfoOriginal) {
                 return
             }
 
-            if(!this.businessInfo.name || !this.businessInfo.phone || !this.businessInfo.address) {
-                this.toastFunction('error','Completa nombre, telefono y domicilio del consultorio.')
+            const validation = validateBusinessProfile(this.getBusinessInfoPayload())
+            this.businessFieldErrors = validation.fieldErrors
+            this.businessSaveError = ''
+            if(!validation.isValid) {
+                this.focusInvalid(Object.keys(validation.fieldErrors).map(field => 'business_' + field))
                 return
             }
 
             this.businessInfoSaving = true
             try {
-                const response = await DABusinessService.updateCurrent(this.getBusinessInfoPayload())
+                const response = await DABusinessService.updateCurrent(validation.data)
                 if(response && response.success) {
+                    this.businessInfo = { ...this.businessInfo, ...validation.data, ...(response.data || {}) }
+                    this.businessInfoOriginal = this.cloneBusinessInfo()
+                    this.businessInfoEditing = false
                     this.toastFunction('success','Informacion del consultorio guardada.')
-                    await this.onGetBusinessInfo()
                     return
                 }
 
-                this.toastFunction('error', response && response.message ? response.message : 'No se pudo guardar el consultorio.')
-            } finally {
+                this.businessFieldErrors = response && response.data && response.data.fieldErrors || {}
+                this.businessSaveError = response && response.message ? response.message : 'No se pudo guardar el consultorio. Conservamos tu captura; revisa los datos e intenta de nuevo.'
+                this.focusInvalid(Object.keys(this.businessFieldErrors).map(field => 'business_' + field))
+            } catch(_) { this.businessSaveError = 'No se pudo guardar el consultorio. Conservamos tu captura; revisa la conexión e intenta de nuevo.' }
+            finally {
                 this.businessInfoSaving = false
             }
         },
@@ -1908,6 +1931,7 @@ export default {
         },
 
         onSelectLoginImage: async function(event) {
+            if(this.loginImageSaving || this.loginImageProcessing || this.appearanceLoading || this.appearanceError) return
             const file = event.target.files && event.target.files[0];
             if(!file) {
                 return;
@@ -1928,33 +1952,52 @@ export default {
                 return;
             }
 
-            const imageData = await this.readFileAsDataUrl(file);
-            this.loginImagePreview = await resizeImage(imageData, 700, 250, file.type, 0.92);
-            this.loginImageFileName = file.name;
+            const context = authorizationContext(this.$store)
+            this.loginImageProcessing = true
+            try {
+                const imageData = await this.readFileAsDataUrl(file);
+                const resized = await resizeImage(imageData, 700, 250, file.type, 0.92);
+                if(this.disposed || this.activeSection !== 'appearance' || !isCurrentAuthorization(context, this.$store)) return
+                this.loginImagePreview = resized;
+                this.loginImageFileName = file.name;
+            } catch(_) { this.loginImageError = 'No se pudo abrir la imagen. Selecciona otro archivo JPG, PNG o WEBP.'; this.clearLoginImageInput() }
+            finally { this.loginImageProcessing = false }
         },
 
         onSaveLoginImage: async function() {
+            if(this.loginImageSaving || this.loginImageProcessing || this.appearanceLoading || this.appearanceError) return
             if(!this.loginImagePreview) {
                 this.toastFunction('error','Selecciona un logo primero.')
                 return;
             }
 
-            await this.saveLoginImage({
+            this.loginImageSaving = true
+            try {
+            const response = await this.saveLoginImage({
                 image_data: this.loginImagePreview,
                 original_name: this.loginImageFileName
             })
 
-            if(this.hasErrorConfiguration && this.hasErrorConfiguration.error) {
-                this.toastFunction('error', this.hasErrorConfiguration.message)
+            if(!response || !response.success) {
+                this.loginImageError = response && response.message || 'No se pudo guardar el logo. Conservamos la imagen seleccionada; intenta de nuevo.'
                 return
             }
 
             this.toastFunction('success','Logo de acceso guardado.')
-            await this.getLoginImage()
+            this.loginImageOriginal = this.loginImagePreview
+            this.loginImageOriginalName = this.loginImageFileName
             setStoredLoginLogo(this.loginImagePreview)
+            } catch(_) { this.loginImageError = 'No se pudo guardar el logo. Conservamos la imagen seleccionada; revisa la conexión e intenta de nuevo.' }
+            finally { this.loginImageSaving = false }
         },
 
         onSelectTheme: function(theme) {
+            if(this.isThemeSaving || this.appearanceLoading || this.appearanceError) return
+            if(this.savedTheme && theme.code === this.savedTheme.code) {
+                restoreThemePreview(this.savedTheme)
+                this.selectedThemeCode = this.savedTheme.code
+                return
+            }
             if(applyTheme(theme)) this.selectedThemeCode = theme.code
         },
 
@@ -1965,7 +2008,7 @@ export default {
         },
 
         onSaveTheme: async function() {
-            if(this.isThemeSaving) return
+            if(this.isThemeSaving || this.appearanceLoading || this.appearanceError) return
             if(!this.selectedThemeCode) {
                 this.toastFunction('error','Selecciona un tema primero.')
                 return
@@ -1981,7 +2024,10 @@ export default {
                     return
                 }
                 this.toastFunction('success','Tema guardado.')
-            } finally {
+                this.savedTheme = { ...this.activeTheme }
+                this.savedThemeContext = context
+            } catch(_) { this.toastFunction('error', 'No se pudo guardar el tema. Puedes reintentar o descartar la vista previa.') }
+            finally {
                 this.isThemeSaving = false
             }
         },
@@ -2001,6 +2047,9 @@ export default {
         },
 
         onSaveClinicalModules: async function() {
+            if(this.clinicalModulesSaving || this.clinicalModulesLoading || this.clinicalModulesError || !this.clinicalModulesOriginal) return
+            this.clinicalModulesSaving = true
+            try {
             const response = await this.saveClinicalModules({
                 config: {
                     odontogramEnabled: Boolean(this.clinicalModulesForm.odontogramEnabled),
@@ -2013,11 +2062,14 @@ export default {
 
             if(response && response.success) {
                 this.applyClinicalModules()
+                this.clinicalModulesOriginal = JSON.stringify(this.clinicalModulesForm)
                 this.toastFunction('success','Secciones clínicas guardadas.')
                 return
             }
 
             this.toastFunction('error', response && response.message ? response.message : 'No se pudieron guardar las secciones clínicas.')
+            } catch(_) { this.toastFunction('error', 'No se pudieron guardar las secciones clínicas. Conservamos tu selección; intenta de nuevo.') }
+            finally { this.clinicalModulesSaving = false }
         },
 
         themeSwatches: function(theme) {
@@ -2369,6 +2421,7 @@ export default {
             }
         },
         getLoginImageData: function() {
+            if(this.appearanceDirty || this.appearanceLoading || this.loginImageSaving) return
             if(this.getLoginImageData && this.getLoginImageData.image_data) {
                 this.loginImagePreview = this.getLoginImageData.image_data
                 this.loginImageFileName = this.getLoginImageData.original_name || 'Imagen configurada'
@@ -2382,8 +2435,14 @@ export default {
             this.ensureSelectedTheme()
         },
         clinicalModules: function() {
-            this.applyClinicalModules()
+            if(!this.clinicalModulesDirty && !this.clinicalModulesLoading && !this.clinicalModulesSaving) this.applyClinicalModules()
         }
     }
 }
 </script>
+
+<style scoped>
+.settings-dialog-scroll { overscroll-behavior: contain; }
+.settings-theme-option:focus-visible { outline: 3px solid var(--color-primary-700); outline-offset: 3px; }
+fieldset { border: 0; margin: 0; }
+</style>

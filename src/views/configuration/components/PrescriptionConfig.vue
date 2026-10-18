@@ -18,6 +18,12 @@
             <p v-else-if="!selectedDoctorId && !loading">Selecciona el doctor cuyo formato quieres configurar.</p>
             <p v-if="loading" role="status">Cargando formato del doctor…</p>
             <p v-if="loadError" role="alert" class="text-red-700">{{ loadError }} <button type="button" @click="selectedDoctorId ? load() : init()">Reintentar</button></p>
+            <p v-if="selectedDoctorId && !loading && !loadError" role="status" class="mb-3 text-sm text-gray-600">{{ dirty ? 'Tienes cambios sin guardar. ' : '' }}{{ isFormatReady ? 'Domicilio y teléfono completos. La emisión también requiere perfil y autorización del doctor.' : 'Preparación pendiente: completa el domicilio y un teléfono válido antes de guardar el formato.' }} Los controles cambian la vista previa; pulsa Guardar recetas para conservarlos.</p>
+            <div v-if="submitAttempted && Object.keys(configErrors).length" ref="validationSummary" role="alert" tabindex="-1" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+                <strong>Revisa los datos del formato</strong>
+                <ul class="mt-2 pl-4"><li v-for="(error, field) in configErrors" :key="field">{{ error }}</li></ul>
+            </div>
+            <p v-if="saveError" role="alert" class="mb-4 text-red-700">{{ saveError }}</p>
         </div>
         <div v-if="selectedDoctorId && !loading && !loadError" class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-7">
             <article class="lg:col-span-3 border border-gray-200 bg-white shadow-md p-5">
@@ -28,14 +34,15 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
-                    <v-text-field v-model="form.clinic_name" label="Consultorio o clinica" dense outlined :color="themeColor"></v-text-field>
-                    <v-text-field v-model="form.clinic_phone" label="Telefono de contacto" dense outlined :color="themeColor"></v-text-field>
+                    <v-text-field v-model="form.clinic_name" :disabled="saving" label="Consultorio o clínica (opcional)" dense outlined :color="themeColor"></v-text-field>
+                    <v-text-field v-model="form.clinic_phone" :disabled="saving" label="Teléfono de contacto (obligatorio)" inputmode="tel" maxlength="100" hint="De 10 a 15 dígitos. Puedes usar +, espacios, paréntesis o guiones." persistent-hint :error-messages="configFieldErrors('clinic_phone')" @blur="touchConfigField('clinic_phone')" dense outlined :color="themeColor"></v-text-field>
                     <v-select
                         v-model="form.template_mode"
                         :items="templateModes"
                         item-text="text"
                         item-value="value"
                         label="Plantilla"
+                        :disabled="saving"
                         dense
                         outlined
                         :color="themeColor"
@@ -43,13 +50,13 @@
                 </div>
                 <p class="m-0 -mt-2 mb-4 text-xs text-gray-500">La plantilla de cabecera es la recomendada para lectura e impresion.</p>
 
-                <v-textarea v-model="form.clinic_address" label="Domicilio completo del consultorio" rows="2" outlined :color="themeColor"></v-textarea>
-                <v-textarea v-model="form.footer_note" label="Nota inferior o texto legal" rows="2" outlined :color="themeColor"></v-textarea>
+                <v-textarea v-model="form.clinic_address" :disabled="saving" label="Domicilio completo del consultorio (obligatorio)" maxlength="2000" :error-messages="configFieldErrors('clinic_address')" @blur="touchConfigField('clinic_address')" rows="2" outlined :color="themeColor"></v-textarea>
+                <v-textarea v-model="form.footer_note" :disabled="saving" label="Nota inferior o texto legal (opcional)" rows="2" outlined :color="themeColor"></v-textarea>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <v-checkbox v-model="form.show_university" label="Mostrar universidad" :color="themeColor" hide-details></v-checkbox>
-                    <v-checkbox v-model="form.show_specialty" label="Mostrar especialidad" :color="themeColor" hide-details></v-checkbox>
-                    <v-checkbox v-model="form.show_footer_note" label="Mostrar nota inferior" :color="themeColor" hide-details></v-checkbox>
+                    <v-checkbox v-model="form.show_university" :disabled="saving" label="Mostrar universidad" :color="themeColor" hide-details></v-checkbox>
+                    <v-checkbox v-model="form.show_specialty" :disabled="saving" label="Mostrar especialidad" :color="themeColor" hide-details></v-checkbox>
+                    <v-checkbox v-model="form.show_footer_note" :disabled="saving" label="Mostrar nota inferior" :color="themeColor" hide-details></v-checkbox>
                 </div>
             </article>
 
@@ -63,7 +70,7 @@
                         <label class="text-sm text-gray-600 font-semibold">Imagen de cabecera</label>
                         <input ref="headerInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="readImage($event, 'header_image')">
                         <div class="flex flex-wrap items-center gap-2 mt-2">
-                            <da-button-secondary @click.native="$refs.headerInput.click()" :label="'Seleccionar cabecera'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
+                            <da-button-secondary :disabled="saving" @click.native="$refs.headerInput.click()" :label="'Seleccionar cabecera'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
                             <span class="text-sm text-gray-500">{{ form.header_image ? 'Imagen lista' : 'Sin archivo' }}</span>
                         </div>
                         <div v-if="form.header_image" class="mt-2 h-24 border border-gray-200 bg-gray-50 bg-contain bg-center bg-no-repeat" :style="imageStyle(form.header_image)"></div>
@@ -73,10 +80,11 @@
                         <label class="text-sm text-gray-600 font-semibold">Imagen de fondo</label>
                         <input ref="backgroundInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="readImage($event, 'background_image')">
                         <div class="flex flex-wrap items-center gap-2 mt-2">
-                            <da-button-secondary @click.native="$refs.backgroundInput.click()" :label="'Seleccionar fondo'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
+                            <da-button-secondary :disabled="saving" @click.native="$refs.backgroundInput.click()" :label="'Seleccionar fondo'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
                             <span class="text-sm text-gray-500">{{ form.background_image ? 'Imagen lista' : 'Sin archivo' }}</span>
                         </div>
                         <p class="m-0 mt-2 text-xs text-gray-500">Asegurate de que el fondo no afecte la lectura de la receta.</p>
+                        <v-slider v-if="form.template_mode === 'background'" :value="Math.round(Number(form.background_opacity) * 100)" :disabled="saving" min="0" max="100" step="5" label="Intensidad del fondo (%)" thumb-label="always" class="mt-8" :color="themeColor" @input="form.background_opacity = $event / 100"></v-slider>
                     </div>
                 </div>
             </article>
@@ -128,36 +136,9 @@
             </article>
 
             <article class="lg:col-span-5 border border-gray-200 bg-gray-50 p-5">
-                <div class="bg-white border border-gray-200 mx-auto max-w-3xl p-6 shadow-sm prescription-preview">
-                    <div v-if="form.header_image" class="h-24 bg-contain bg-center bg-no-repeat mb-4" :style="imageStyle(form.header_image)"></div>
-                    <div class="flex justify-between gap-4 border-b border-gray-200 pb-4">
-                        <div>
-                            <h3 class="m-0 text-gray-700 text-xl font-semibold">{{ doctorProfile.professional_name || 'Nombre profesional' }}</h3>
-                            <p class="m-0 text-sm text-gray-500">Ced. Prof. {{ doctorProfile.professional_license || 'Sin cedula' }}</p>
-                            <p v-if="form.show_university" class="m-0 text-sm text-gray-500">{{ doctorProfile.university || 'Universidad no configurada' }}</p>
-                            <p v-if="form.show_specialty && doctorProfile.specialty" class="m-0 text-sm text-gray-500">{{ doctorProfile.specialty }} {{ doctorProfile.specialty_license ? `- Ced. Esp. ${doctorProfile.specialty_license}` : '' }}</p>
-                        </div>
-                        <div class="text-right text-sm text-gray-500">
-                            <p class="m-0 font-semibold text-gray-700">{{ form.clinic_name || 'Consultorio' }}</p>
-                            <p class="m-0">{{ form.clinic_phone || 'Telefono' }}</p>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4 py-4 text-sm text-gray-600">
-                        <p class="m-0">Paciente: Nombre del paciente</p>
-                        <p class="m-0 text-right">Folio: RX-2026-000001</p>
-                    </div>
-                    <div class="border border-gray-200 p-4 text-gray-600">
-                        <p class="m-0 font-semibold">Medicamento</p>
-                        <p class="m-0 mt-1 text-sm">Dosis, via, frecuencia, duracion e indicaciones.</p>
-                    </div>
-                    <div class="mt-8 flex justify-end">
-                        <div class="w-48 text-center">
-                            <div v-if="doctorProfile.signature_image" class="h-20 bg-contain bg-center bg-no-repeat" :style="imageStyle(doctorProfile.signature_image)"></div>
-                            <div class="border-t border-gray-300 pt-2 text-sm text-gray-600">Firma</div>
-                        </div>
-                    </div>
-                    <p v-if="form.show_footer_note && form.footer_note" class="m-0 mt-4 text-xs text-gray-500 text-center">{{ form.footer_note }}</p>
-                </div>
+                <h3 class="m-0 text-lg font-semibold text-gray-700">Vista previa del formato</h3>
+                <p class="my-2 text-sm text-gray-500">Usa datos de ejemplo y el mismo formato de impresión. El tamaño de la hoja se adapta aquí a tu pantalla.</p>
+                <iframe title="Vista previa del formato de receta con datos de ejemplo" sandbox="" :srcdoc="previewHtml" class="prescription-preview w-full border border-gray-200 bg-white" style="height: 680px;"></iframe>
             </article>
         </div>
         <v-dialog v-model="leaveOpen" persistent max-width="520"><v-card class="p-5"><h3 class="text-xl font-semibold text-gray-700">Cambios sin guardar</h3><p>Guarda este formato antes de cambiar de doctor o descarta los cambios.</p><div class="flex flex-wrap gap-2"><v-btn :color="themeColor" dark :loading="saving" @click="saveAndSwitch">Guardar y cambiar</v-btn><v-btn outlined :disabled="saving" @click="switchDoctor(pendingDoctor)">Descartar cambios</v-btn><v-btn text :disabled="saving" @click="leaveOpen = false">Seguir editando</v-btn></div></v-card></v-dialog>
@@ -170,6 +151,7 @@ import { mapGetters } from 'vuex';
 import { isTenantAdministrator } from '../../../security/settingsAccess';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
+import { buildPrescriptionPreviewHtml } from '../../../domain/prescriptions/prescription.print';
 
 const emptyForm = () => ({
     doctor_name: '',
@@ -203,6 +185,7 @@ export default {
             doctors: [], selectedDoctorId: '', loading: false, saving: false, loadError: '', request: 0,
             baseline: '', leaveOpen: false, pendingDoctor: '', selectorRevision: 0,
             doctorProfile: {},
+            submitAttempted: false, touchedConfigFields: {}, saveError: '',
             signaturePadVisible: false,
             templateModes: [
                 { text: 'Cabecera', value: 'header' },
@@ -225,6 +208,16 @@ export default {
         canManageAllDoctors() { return isTenantAdministrator(this.role) && this.hasPermission('admin.config'); },
         doctorOptions() { return this.doctors.filter(d => this.canManageAllDoctors || d.id_login === (this.authUser || {}).id_login).map(d => ({id:d.id_doctor_professional_profile,label:d.professional_name || d.name})); },
         dirty() { return !!this.baseline && JSON.stringify(this.form) !== this.baseline; },
+        configErrors() {
+            const errors = {};
+            if(!String(this.form.clinic_address || '').trim()) errors.clinic_address = 'Indica el domicilio del consultorio.';
+            else if(String(this.form.clinic_address).trim().length > 2000) errors.clinic_address = 'El domicilio admite hasta 2000 caracteres.';
+            const phone = String(this.form.clinic_phone || '').trim(), digits = phone.replace(/\D/g, '');
+            if(!/^\+?[\d\s().-]+$/.test(phone) || digits.length < 10 || digits.length > 15 || phone.length > 100) errors.clinic_phone = 'Ingresa un teléfono de contacto de 10 a 15 dígitos.';
+            return errors;
+        },
+        isFormatReady() { return Object.keys(this.configErrors).length === 0; },
+        previewHtml() { return buildPrescriptionPreviewHtml(this.form, this.doctorProfile); },
         doctorProfileWarning() {
             if(!this.doctorProfile || !this.doctorProfile.id_doctor_professional_profile) {
                 return 'Para emitir recetas, completa el perfil profesional en Configuracion > Mi perfil profesional.';
@@ -236,6 +229,8 @@ export default {
         }
     },
     methods: {
+        touchConfigField(field) { this.$set(this.touchedConfigFields, field, true); },
+        configFieldErrors(field) { return (this.submitAttempted || this.touchedConfigFields[field]) && this.configErrors[field] ? [this.configErrors[field]] : []; },
         async init() {
             this.loading = true; this.loadError = '';
             try {
@@ -250,7 +245,7 @@ export default {
         },
         chooseDoctor(id) { if(this.dirty) {this.selectorRevision++;this.pendingDoctor=id;this.leaveOpen=true;} else this.switchDoctor(id); },
         switchDoctor(id) {this.leaveOpen=false;this.selectedDoctorId=id;this.load();},
-        async saveAndSwitch() {if(await this.save())this.switchDoctor(this.pendingDoctor);},
+        async saveAndSwitch() {if(await this.save() && !this.dirty)this.switchDoctor(this.pendingDoctor);},
         async load() {
             if(!this.selectedDoctorId) return;
             const request = ++this.request; this.loading = true; this.loadError = '';
@@ -264,12 +259,14 @@ export default {
                 this.form = {
                     ...emptyForm(),
                     ...response.data,
+                    background_opacity: response.data.background_opacity == null ? 0.1 : Number(response.data.background_opacity),
                     show_specialty: response.data.show_specialty !== 0,
                     show_university: response.data.show_university !== 0,
                     show_footer_note: response.data.show_footer_note !== 0,
                 };
             }
             this.doctorProfile = response.data && response.data.doctor_profile || {};
+            this.submitAttempted = false; this.touchedConfigFields = {}; this.saveError = '';
             this.baseline = JSON.stringify(this.form);
             this.signaturePadVisible = false;
             } catch(error) { if(request === this.request)this.loadError = error.message; }
@@ -277,13 +274,17 @@ export default {
         },
         async save() {
             if(this.loading || this.saving || this.loadError || !this.selectedDoctorId) return false;
+            this.submitAttempted = true; this.saveError = '';
+            if(!this.isFormatReady) { this.$nextTick(() => { if(this.$refs.validationSummary) this.$refs.validationSummary.focus(); }); return false; }
             this.saving = true;
             try {
+            const submittedForm = {...this.form};
+            const submittedText = JSON.stringify(submittedForm);
             const payload = {
                 doctor_profile_id: this.selectedDoctorId,
                 clinic_name: this.form.clinic_name,
-                clinic_address: this.form.clinic_address,
-                clinic_phone: this.form.clinic_phone,
+                clinic_address: this.form.clinic_address.trim(),
+                clinic_phone: this.form.clinic_phone.trim(),
                 header_image: this.form.header_image,
                 background_image: this.form.background_image,
                 footer_note: this.form.footer_note,
@@ -295,24 +296,27 @@ export default {
             };
             const response = await DAPrescriptionService.saveConfig(payload);
             if(response.success) {
-                this.form = {
-                    ...this.form,
+                const savedForm = {
+                    ...submittedForm,
                     ...response.data,
                     show_specialty: response.data.show_specialty !== 0,
                     show_university: response.data.show_university !== 0,
                     show_footer_note: response.data.show_footer_note !== 0,
                 };
+                if(JSON.stringify(this.form) === submittedText) this.form = savedForm;
                 this.$emit('saved');
-                this.baseline = JSON.stringify(this.form);
+                this.baseline = JSON.stringify(savedForm);
                 return true;
             }
 
-            this.$emit('error', response.message || 'No fue posible guardar los datos de recetas.');
+            this.saveError = response.message || 'No fue posible guardar los datos de recetas. Tus cambios se conservaron.';
+            this.$emit('error', this.saveError);
             return false;
-            } catch(error) { this.$emit('error', 'No se pudo guardar. Tus cambios se conservaron.'); return false; }
+            } catch(error) { this.saveError = 'No se pudo guardar. Tus cambios se conservaron.'; this.$emit('error', this.saveError); return false; }
             finally { this.saving = false; }
         },
         readImage(event, field) {
+            if(this.saving) return;
             const file = event.target.files && event.target.files[0];
             if(!file) {
                 return;

@@ -10,6 +10,8 @@
         </div>
         <p v-if="loading" role="status">Consultando perfil profesional…</p>
         <p v-if="loadError" role="alert" class="text-red-800">{{ loadError }} <button type="button" class="underline" @click="load">Reintentar</button></p>
+        <p v-if="saveError" role="alert" class="mb-4 p-3 border border-red-200 bg-red-50 text-red-800">{{ saveError }}</p>
+        <p v-if="!loading && !loadError" class="mb-4 text-sm text-gray-600" role="status">{{ saving ? 'Guardando perfil. Espera antes de salir.' : hasUnsavedChanges ? 'Tienes cambios sin guardar.' : 'Sin cambios pendientes.' }}</p>
         <template v-if="!loading && !loadError">
 
         <div v-if="warning" class="mb-4 px-4 py-3 border border-yellow-200 bg-yellow-50 text-yellow-800 text-sm">
@@ -21,18 +23,18 @@
         </div>
 
         <div v-if="!adminControlsOnly" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <v-text-field v-model="form.professional_name" label="Nombre profesional" dense outlined :color="themePrimary"></v-text-field>
-            <v-text-field v-model="form.professional_license" label="Cedula profesional" dense outlined :color="themePrimary"></v-text-field>
-            <v-text-field v-model="form.university" label="Universidad" dense outlined :color="themePrimary"></v-text-field>
-            <v-text-field v-model="form.specialty" label="Especialidad" dense outlined :color="themePrimary"></v-text-field>
-            <v-text-field v-model="form.specialty_license" label="Cedula de especialidad" dense outlined :color="themePrimary"></v-text-field>
-            <v-text-field v-model="form.professional_phone" label="Telefono profesional" dense outlined :color="themePrimary"></v-text-field>
+            <v-text-field v-model="form.professional_name" :disabled="saving" label="Nombre profesional" dense outlined :color="themePrimary"></v-text-field>
+            <v-text-field v-model="form.professional_license" :disabled="saving" label="Cedula profesional" dense outlined :color="themePrimary"></v-text-field>
+            <v-text-field v-model="form.university" :disabled="saving" label="Universidad" dense outlined :color="themePrimary"></v-text-field>
+            <v-text-field v-model="form.specialty" :disabled="saving" label="Especialidad" dense outlined :color="themePrimary"></v-text-field>
+            <v-text-field v-model="form.specialty_license" :disabled="saving" label="Cedula de especialidad" dense outlined :color="themePrimary"></v-text-field>
+            <v-text-field ref="professionalPhone" v-model="form.professional_phone" :disabled="saving" :error-messages="professionalPhoneError" @input="professionalPhoneError = ''" label="Teléfono profesional (opcional)" inputmode="tel" hint="De 10 a 15 dígitos; puedes usar + al inicio, espacios, paréntesis o guiones." persistent-hint dense outlined :color="themePrimary"></v-text-field>
         </div>
 
         <div v-if="showAdminControls || adminControlsOnly" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-            <v-checkbox v-model="form.can_issue_prescriptions" label="Autorizado como doctor emisor" :color="themePrimary" hide-details></v-checkbox>
-            <v-checkbox v-model="form.can_sign_documents" label="Autorizado como firmante profesional" :color="themePrimary" hide-details></v-checkbox>
-            <v-checkbox v-model="form.is_active" label="Perfil activo" :color="themePrimary" hide-details></v-checkbox>
+            <v-checkbox v-model="form.can_issue_prescriptions" :disabled="saving" label="Autorizado como doctor emisor" :color="themePrimary" hide-details></v-checkbox>
+            <v-checkbox v-model="form.can_sign_documents" :disabled="saving" label="Autorizado como firmante profesional" :color="themePrimary" hide-details></v-checkbox>
+            <v-checkbox v-model="form.is_active" :disabled="saving" label="Perfil activo" :color="themePrimary" hide-details></v-checkbox>
         </div>
         <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
             <div class="px-3 py-2 border text-sm" :class="form.can_issue_prescriptions ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-800 border-yellow-200'">
@@ -54,6 +56,7 @@
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <p class="m-0 text-gray-700 font-semibold">Firma profesional</p>
                 <da-button-secondary
+                    :disabled="saving"
                     @click.native="signaturePadVisible = !signaturePadVisible"
                     :label="signaturePadVisible ? 'Cancelar firma' : (form.signature_image ? 'Cambiar firma' : 'Capturar firma')"
                     rxl
@@ -62,7 +65,7 @@
                 ></da-button-secondary>
             </div>
 
-            <da-signature-pad v-if="signaturePadVisible" required v-on:signed="onSigned"></da-signature-pad>
+            <da-signature-pad v-if="signaturePadVisible && !saving" required v-on:signed="onSigned"></da-signature-pad>
             <div v-else class="min-h-32 flex items-center justify-center text-center">
                 <div v-if="form.signature_image" class="w-full">
                     <div class="h-24 bg-contain bg-center bg-no-repeat" :style="imageStyle(form.signature_image)"></div>
@@ -82,6 +85,7 @@ import { mapGetters } from 'vuex';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
 import { getSettingsSections } from '../../../security/settingsAccess';
+import { confirmSettingsDiscard, registerSettingsNavigationGuard } from '../../../domain/settings/settings.navigation';
 
 const emptyForm = () => ({
     professional_name: '',
@@ -95,6 +99,23 @@ const emptyForm = () => ({
     can_sign_documents: false,
     is_active: true
 });
+const profileSnapshot = form => JSON.stringify(Object.fromEntries(Object.keys(emptyForm()).map(key => [key, form[key]])));
+const profileForm = data => ({
+    ...emptyForm(), ...(data || {}),
+    can_issue_prescriptions: Boolean(data && Number(data.can_issue_prescriptions) === 1),
+    can_sign_documents: Boolean(data && Number(data.can_sign_documents) === 1),
+    is_active: data && data.is_active !== undefined ? Number(data.is_active) === 1 : true
+});
+const validateProfessionalPhone = value => {
+    const message = 'El teléfono profesional debe contener de 10 a 15 dígitos. Puedes usar + al inicio, espacios, paréntesis o guiones, o dejar el campo vacío.';
+    if(value === undefined || value === null || value === '') return { isValid: true, value: '' };
+    if(typeof value !== 'string') return { isValid: false, message };
+    const phone = value.trim();
+    if(!phone) return { isValid: true, value: '' };
+    const digits = phone.replace(/\D/g, '');
+    if(!/^\+?[\d\s().-]+$/.test(phone) || digits.length < 10 || digits.length > 15 || phone.length > 100) return { isValid: false, message };
+    return { isValid: true, value: (phone.startsWith('+') ? '+' : '') + digits };
+};
 
 export default {
     props: {
@@ -119,12 +140,14 @@ export default {
         return {
             form: emptyForm(),
             warning: '',
-            signaturePadVisible: false
-            ,hasProfile:false, loading:false, loadError:'', saving:false, loadRequest:0
+            signaturePadVisible: false,
+            hasProfile:false, loading:false, loadError:'', saving:false, loadRequest:0,
+            saveError:'', professionalPhoneError:'', baseline:'', disposed:false, reloadAfterSave:false
         };
     },
     computed: {
         ...mapGetters(moduleTypes.AUTH,{role:fnTypes.getRole,hasPermission:fnTypes.hasPermission}),
+        hasUnsavedChanges() { return Boolean(!this.loading && !this.loadError && this.baseline && (profileSnapshot(this.form) !== this.baseline || this.signaturePadVisible)); },
         canManageAuthorizations() {return getSettingsSections(this.role,this.hasPermission).some(section=>section.key==='users');},
         themePrimary() {
             return 'var(--color-primary-700)';
@@ -143,36 +166,57 @@ export default {
         idLogin: {
             immediate: true,
             handler(value) {
+                if(this.saving) {
+                    this.loadRequest++;
+                    this.form = emptyForm(); this.baseline = ''; this.hasProfile = false;
+                    this.loading = true; this.reloadAfterSave = true;
+                    return;
+                }
                 if(value) {
-                    this.load();
+                    this.load({ discardConfirmed: true });
                 }
             }
         }
     },
+    mounted() {
+        if(!this.adminControlsOnly) this.removeSettingsGuard = registerSettingsNavigationGuard(this, {
+            hasChanges: () => this.hasUnsavedChanges,
+            isSaving: () => this.saving,
+            onDiscard: () => this.discardChanges()
+        });
+    },
+    beforeDestroy() {
+        this.disposed = true;
+        this.loadRequest++;
+        if(this.removeSettingsGuard) this.removeSettingsGuard();
+    },
     methods: {
-        async load() {
-            const request=++this.loadRequest;this.loading=true;this.loadError='';
+        discardChanges() {
+            if(this.baseline) this.form = { ...this.form, ...JSON.parse(this.baseline) };
+            this.signaturePadVisible = false;
+            this.saveError = '';
+            this.professionalPhoneError = '';
+        },
+        async load(options = {}) {
+            if(this.saving) return;
+            if(this.hasUnsavedChanges && !options.discardConfirmed && !await confirmSettingsDiscard(this)) return;
+            const id = this.idLogin, request=++this.loadRequest;this.loading=true;this.loadError='';this.saveError='';this.professionalPhoneError='';
             try {
-            const response = await DAUserService.getProfessionalProfile(this.idLogin);
-            if(request!==this.loadRequest)return;
+            const response = await DAUserService.getProfessionalProfile(id);
+            if(this.disposed || request!==this.loadRequest || id!==this.idLogin)return;
             if(!response || !response.success)throw new Error();
             this.hasProfile=Boolean(response.data && response.data.id_doctor_professional_profile);
             if(response.success && response.data) {
-                this.form = {
-                    ...emptyForm(),
-                    ...response.data,
-                    can_issue_prescriptions: response.data.can_issue_prescriptions !== 0,
-                    can_sign_documents: response.data.can_sign_documents === 1,
-                    is_active: response.data.is_active !== 0
-                };
+                this.form = profileForm(response.data);
             }
             else {
                 this.form = emptyForm();
             }
             this.warning = this.validationMessage();
             this.signaturePadVisible = false;
-            } catch(_) {if(request===this.loadRequest){this.loadError='No se pudo cargar el perfil profesional. Reintenta para consultar su estado.';this.hasProfile=false;}}
-            finally {if(request===this.loadRequest)this.loading=false;}
+            this.baseline = profileSnapshot(this.form);
+            } catch(_) {if(!this.disposed && request===this.loadRequest && id===this.idLogin){this.loadError='No se pudo cargar el perfil profesional. Reintenta para consultar su estado.';this.hasProfile=false;}}
+            finally {if(!this.disposed && request===this.loadRequest)this.loading=false;}
         },
         validationMessage() {
             if(this.adminControlsOnly) {
@@ -185,38 +229,65 @@ export default {
         },
         async save() {
             if(this.loading || this.saving || this.loadError)return;
+            if(this.signaturePadVisible) {
+                this.saveError = 'Aplica la firma que estás capturando o pulsa Cancelar firma antes de guardar el perfil.';
+                return { success: false, message: this.saveError };
+            }
+            this.professionalPhoneError = '';
+            const phone = validateProfessionalPhone(this.form.professional_phone);
+            if(!phone.isValid && !this.adminControlsOnly) {
+                this.professionalPhoneError = phone.message;
+                this.saveError = 'Revisa el teléfono profesional. Tu captura se conserva.';
+                this.$nextTick(() => { const field = this.$refs.professionalPhone; if(field && typeof field.focus === 'function') field.focus(); });
+                return { success: false, message: this.saveError, data: { fieldErrors: { professional_phone: phone.message } } };
+            }
             this.saving=true;
+            this.saveError='';
+            const id = this.idLogin, request = this.loadRequest, submitted = profileSnapshot(this.form);
             try {
             this.warning = this.validationMessage();
-            const payload = this.showAdminControls
-                ? this.form
-                : {
-                    ...this.form,
-                    can_issue_prescriptions: this.form.can_issue_prescriptions,
-                    can_sign_documents: this.form.can_sign_documents,
-                    is_active: this.form.is_active
-                };
-            const response = await DAUserService.saveProfessionalProfile(this.idLogin, payload);
-            if(response.success) {
+            const payload = this.adminControlsOnly ? {
+                can_issue_prescriptions: this.form.can_issue_prescriptions,
+                can_sign_documents: this.form.can_sign_documents,
+                is_active: this.form.is_active
+            } : { ...JSON.parse(submitted), professional_phone: phone.value };
+            const response = await DAUserService.saveProfessionalProfile(id, payload);
+            if(this.disposed || id !== this.idLogin || request !== this.loadRequest) return response;
+            if(response && response.success && response.data) {
                 this.hasProfile=Boolean(response.data && response.data.id_doctor_professional_profile);
-                this.form = {
-                    ...this.form,
-                    ...response.data,
-                    can_issue_prescriptions: response.data.can_issue_prescriptions !== 0,
-                    can_sign_documents: response.data.can_sign_documents === 1,
-                    is_active: response.data.is_active !== 0
-                };
+                const saved = profileForm(response.data);
+                // Disabled controls prevent normal edits during the request. Preserve
+                // any later programmatic/input event instead of silently replacing it.
+                if(profileSnapshot(this.form) === submitted) this.form = saved;
+                this.baseline = profileSnapshot(saved);
                 this.warning = this.validationMessage();
                 this.$emit('saved', response.data);
                 return response;
             }
-            this.$emit('error', buildLicenseLimitMessage(response, response.message || 'No fue posible guardar el perfil profesional.'));
+            this.professionalPhoneError = response && response.data && response.data.fieldErrors && response.data.fieldErrors.professional_phone || '';
+            this.saveError = buildLicenseLimitMessage(response, response && response.message || 'No fue posible guardar el perfil profesional. Tus cambios siguen aquí; reintenta.');
+            this.$emit('error', this.saveError);
             return response;
-            } finally {this.saving=false;}
+            } catch(_) {
+                if(!this.disposed && id === this.idLogin && request === this.loadRequest) {
+                    this.saveError = 'No se pudo guardar el perfil profesional. Tus cambios siguen aquí; revisa la conexión y reintenta.';
+                    this.$emit('error', this.saveError);
+                }
+                return { success: false, message: this.saveError || 'No se pudo confirmar el guardado del perfil.' };
+            } finally {
+                this.saving=false;
+                if(this.reloadAfterSave && !this.disposed) {
+                    this.reloadAfterSave=false;
+                    if(this.idLogin) this.load({ discardConfirmed: true });
+                    else this.loading=false;
+                }
+            }
         },
         onSigned(data) {
+            if(this.saving) return;
             this.form.signature_image = data;
             this.signaturePadVisible = false;
+            this.saveError = '';
             this.warning = this.validationMessage();
         },
         imageStyle(image) {

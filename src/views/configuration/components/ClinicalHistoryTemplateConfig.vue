@@ -1,5 +1,5 @@
 <template>
-  <section class="clinical-template-config bg-white bg-opacity-95 border border-primary-200 shadow-xl">
+  <section class="clinical-template-config bg-white bg-opacity-95 border border-primary-200 shadow-xl" :aria-busy="String(isLoading || isSaving)">
     <div class="section-header">
       <div class="header-copy">
         <p class="eyebrow">Configuración clínica</p>
@@ -15,7 +15,7 @@
         <span v-if="hasUnsavedChanges && canEditTemplate" class="unsaved-indicator">
           Cambios sin guardar
         </span>
-        <button class="btn-outline" type="button" :disabled="isLoading" @click="loadTemplate">
+        <button class="btn-outline" type="button" :disabled="isLoading || isSaving" @click="reloadTemplate">
           <v-icon size="17">mdi-refresh</v-icon>
           Recargar
         </button>
@@ -23,7 +23,7 @@
           v-if="usesSystemTemplate && canManageTemplate && !isCustomTemplateLocked"
           class="btn-primary"
           type="button"
-          :disabled="isSaving"
+          :disabled="isSaving || isLoading || !!loadError"
           @click="createBusinessTemplate"
         >
           <v-icon size="17">mdi-content-copy</v-icon>
@@ -33,7 +33,7 @@
           v-if="canEditTemplate"
           class="btn-primary cta"
           type="button"
-          :disabled="isSaving"
+          :disabled="isSaving || isLoading"
           @click="saveNewVersion"
         >
           <v-icon size="17">mdi-content-save-outline</v-icon>
@@ -45,6 +45,8 @@
     <div v-if="isLoading" class="loading-card">
       Cargando plantilla de historia clínica...
     </div>
+    <p v-if="isSaving" role="status" class="loading-card">Guardando la versión de la plantilla…</p>
+    <p v-if="loadError" role="alert" class="notice-card">{{ loadError }} <button type="button" :disabled="isLoading || isSaving" @click="reloadTemplate">Reintentar</button></p>
 
     <template v-else>
       <section class="template-status compact-summary">
@@ -74,7 +76,7 @@
         <div>
           <strong>Disponible en Profesional.</strong>
           <p>{{ customTemplateLockedMessage }}</p>
-          <button type="button" class="locked-cta">Contactar para cambiar plan</button>
+          <button type="button" class="locked-cta" @click="$emit('contact-plan', { feature: 'clinical_history_templates', minimumPlan: 'pro', section: 'clinical-history-template' })">Contactar para cambiar plan</button>
         </div>
       </section>
 
@@ -94,11 +96,13 @@
           <v-icon size="18">{{ showTemplateHelp ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
         </button>
         <div v-if="showTemplateHelp" class="guide-body">
-          <p>
+          <p v-if="!canManageTemplate">Tu usuario puede consultar la plantilla y su vista previa. Pide a una persona con permiso de administrar plantillas que ajuste los campos del consultorio.</p>
+          <p v-else-if="isCustomTemplateLocked">Tu plan permite usar y consultar la plantilla vigente. La personalización está disponible desde Profesional.</p>
+          <p v-else>
             Esta plantilla define qué secciones y campos aparecerán al crear una historia clínica.
             Puedes activar o desactivar secciones, agregar campos propios y guardar una nueva versión para el consultorio.
           </p>
-          <div class="guide-steps">
+          <div v-if="canManageTemplate && !isCustomTemplateLocked" class="guide-steps">
             <span>1. Selecciona una sección</span>
             <span>2. Ajusta sus campos</span>
             <span>3. Guarda una nueva versión</span>
@@ -111,7 +115,7 @@
           <div class="pane-header compact-title">
             <div>
               <h3>Secciones</h3>
-              <p>{{ orderedSections.length }} secciones · {{ totalFieldCount }} campos en la plantilla</p>
+              <p>{{ countLabel(orderedSections.length, 'sección', 'secciones') }} · {{ countLabel(totalFieldCount, 'campo', 'campos') }} en la plantilla</p>
             </div>
             <button v-if="canEditTemplate" class="btn-icon" type="button" title="Agregar sección" @click="openSectionDialog()">
               <v-icon size="17">mdi-plus</v-icon>
@@ -129,8 +133,8 @@
             <span class="section-list-copy">
               <strong>{{ section.label || 'Sección sin nombre' }}</strong>
               <small>
-                {{ activeFieldCount(section) }} de {{ section.fields.length }} campos
-                <template v-if="requiredFieldCount(section) > 0"> · {{ requiredFieldCount(section) }} obligatorios</template>
+                {{ activeFieldCount(section) }} de {{ countLabel(section.fields.length, 'campo', 'campos') }}
+                <template v-if="requiredFieldCount(section) > 0"> · {{ countLabel(requiredFieldCount(section), 'obligatorio', 'obligatorios') }}</template>
                 · {{ section.system ? 'Sección base' : 'Propia' }}
               </small>
             </span>
@@ -153,7 +157,7 @@
                   <p>{{ selectedSection.description || 'Sin descripción.' }}</p>
                   <div class="section-meta-line">
                     <span>{{ selectedSection.enabled !== false ? 'Activa' : 'Inactiva' }}</span>
-                    <span>{{ activeFieldCount(selectedSection) }} de {{ selectedSection.fields.length }} campos visibles</span>
+                    <span>{{ activeFieldCount(selectedSection) }} de {{ countLabel(selectedSection.fields.length, 'campo visible', 'campos visibles') }}</span>
                     <span>{{ selectedSection.system ? 'Sección base' : 'Propia' }}</span>
                     <span v-if="selectedSection.locked">No eliminable</span>
                     <span>Posición {{ selectedSection.order }}</span>
@@ -176,7 +180,7 @@
                     <v-icon size="17">mdi-plus</v-icon>
                     Agregar campo propio
                   </button>
-                  <button class="btn-outline compact" type="button" @click="sectionPreviewDialog = true">
+                  <button class="btn-outline compact" type="button" @click="openSectionPreview">
                     <v-icon size="17">mdi-eye-outline</v-icon>
                     Mostrar vista previa
                   </button>
@@ -192,7 +196,7 @@
               <div class="fields-toolbar">
                 <div>
                   <strong>Campos de la sección</strong>
-                  <span>{{ selectedSection.fields.length || 0 }} campos</span>
+                  <span>{{ countLabel(selectedSection.fields.length || 0, 'campo', 'campos') }}</span>
                 </div>
               </div>
 
@@ -260,7 +264,7 @@
           </article>
 
           <div class="preview-actions">
-            <button class="btn-outline full" type="button" @click="fullPreviewDialog = true">
+            <button class="btn-outline full" type="button" @click="openFullPreview">
               Ver vista previa completa
             </button>
           </div>
@@ -290,13 +294,13 @@
     </template>
 
     <v-dialog v-model="sectionPreviewDialog" max-width="520">
-      <v-card>
+      <v-card v-dialog-name="'Vista previa de la sección ' + (selectedSection && selectedSection.label || '')">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Vista previa</p>
             <h3>Vista previa de la sección</h3>
           </div>
-          <v-btn icon @click="sectionPreviewDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar vista previa de la sección" @click="sectionPreviewDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
           <article v-if="selectedSection" class="preview-section focused-preview">
@@ -340,13 +344,13 @@
     </v-dialog>
 
     <v-dialog v-model="fullPreviewDialog" max-width="760">
-      <v-card>
+      <v-card v-dialog-name="'Vista previa completa de la plantilla'">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Vista previa</p>
             <h3>Vista previa de toda la plantilla</h3>
           </div>
-          <v-btn icon @click="fullPreviewDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar vista previa completa" @click="fullPreviewDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
           <div class="preview-list full-preview-list">
@@ -362,7 +366,7 @@
                   <small>{{ fieldTypeLabel(field.type) }}</small>
                 </div>
                 <em v-if="previewHiddenFieldCount(section) > 0" class="preview-more">
-                  +{{ previewHiddenFieldCount(section) }} campos más
+                  +{{ countLabel(previewHiddenFieldCount(section), 'campo', 'campos') }} más
                 </em>
               </div>
             </article>
@@ -375,18 +379,18 @@
     </v-dialog>
 
     <v-dialog v-model="sectionDialog" max-width="620">
-      <v-card>
+      <v-card v-dialog-name="sectionForm.isNew ? 'Agregar sección propia' : 'Editar sección'">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">{{ sectionForm.isNew ? 'Nueva sección' : 'Editar sección' }}</p>
             <h3>{{ sectionForm.isNew ? 'Agregar sección propia' : 'Editar sección' }}</h3>
           </div>
-          <v-btn icon @click="sectionDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar edición de sección" @click="sectionDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
           <v-text-field v-model="sectionForm.label" label="Nombre de la sección" outlined dense :color="themeColor"></v-text-field>
           <v-textarea v-model="sectionForm.description" label="Descripción breve" outlined rows="3" :color="themeColor"></v-textarea>
-          <v-text-field v-if="!sectionForm.isNew" v-model.number="sectionForm.order" label="Posición" type="number" outlined dense :color="themeColor"></v-text-field>
+          <v-text-field v-if="!sectionForm.isNew" v-model.number="sectionForm.order" label="Posición" type="number" min="1" :max="schema.sections.length" step="1" :error-messages="sectionPositionError ? [sectionPositionError] : []" :hint="'Entero entre 1 y ' + schema.sections.length + '. Las demás secciones se reordenan automáticamente.'" persistent-hint outlined dense :color="themeColor" @input="sectionPositionError = ''"></v-text-field>
           <v-checkbox
             v-model="sectionForm.enabled"
             label="Sección activa"
@@ -396,22 +400,23 @@
           <p v-if="sectionForm.locked" class="help-note">
             Esta sección forma parte de la plantilla base y no puede eliminarse, pero puedes ajustar su texto.
           </p>
+          <p class="help-note">Aplicar cambia el borrador local. Después pulsa Guardar nueva versión para conservarlo.</p>
         </v-card-text>
         <v-card-actions class="dialog-actions">
           <button class="btn-outline" type="button" @click="sectionDialog = false">Cancelar</button>
-          <button class="btn-primary" type="button" @click="saveSectionDialog">Guardar cambios</button>
+          <button class="btn-primary" type="button" @click="saveSectionDialog">Aplicar al borrador</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="fieldDialog" max-width="620">
-      <v-card>
+      <v-card v-dialog-name="'Editar campo ' + (fieldForm.label || '')">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Editar campo</p>
             <h3>{{ fieldForm.system ? 'Campo base' : 'Campo propio' }}</h3>
           </div>
-          <v-btn icon @click="fieldDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar edición del campo" @click="fieldDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
           <p v-if="fieldForm.system" class="help-note">
@@ -434,22 +439,23 @@
             :color="themeColor"
           ></v-textarea>
           <p v-if="fieldForm.system_core" class="help-note">El estado y su detalle se capturan con el editor compartido de alergias del paciente.</p>
+          <p class="help-note">Aplicar cambia el borrador local. Después pulsa Guardar nueva versión para conservarlo.</p>
         </v-card-text>
         <v-card-actions class="dialog-actions">
           <button class="btn-outline" type="button" @click="fieldDialog = false">Cancelar</button>
-          <button class="btn-primary" type="button" @click="saveFieldDialog">Guardar campo</button>
+          <button class="btn-primary" type="button" @click="saveFieldDialog">Aplicar al borrador</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="customFieldDialog" max-width="620">
-      <v-card>
+      <v-card v-dialog-name="'Agregar campo propio'">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Campo propio</p>
             <h3>Agregar campo</h3>
           </div>
-          <v-btn icon @click="customFieldDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar nuevo campo" @click="customFieldDialog = false"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
         </div>
         <v-card-text class="dialog-body">
           <v-text-field v-model="customFieldForm.label" label="Nombre del campo" outlined dense :color="themeColor"></v-text-field>
@@ -479,7 +485,7 @@
         </v-card-text>
         <v-card-actions class="dialog-actions">
           <button class="btn-outline" type="button" @click="customFieldDialog = false">Cancelar</button>
-          <button class="btn-primary" type="button" @click="saveCustomField">Agregar campo</button>
+          <button class="btn-primary" type="button" @click="saveCustomField">Agregar al borrador</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -492,6 +498,8 @@ import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
 import { DAClinicalHistoryTemplateService } from '../../../services/context/core-proccess-context';
 import { buildLicenseLimitMessage } from '../../../utils/licenseLimitMessage';
+import dialogName from '../../../core/directives/dialog-name';
+import { confirmSettingsDiscard, registerSettingsNavigationGuard } from '../../../domain/settings/settings.navigation';
 
 const FIELD_TYPES = [
   { value: 'text', label: 'Texto corto' },
@@ -508,6 +516,7 @@ const FIELD_TYPES = [
 const clone = (value) => JSON.parse(JSON.stringify(value || {}));
 
 export default {
+  directives: { dialogName },
   props: {
     themeColor: {
       type: String,
@@ -518,6 +527,7 @@ export default {
     return {
       isLoading: false,
       isSaving: false,
+      loadError: '', loadRequest: 0, sectionPositionError: '', dialogBaseline: '', dialogActivator: null,
       currentTemplate: null,
       templateSource: '',
       schema: { sections: [] },
@@ -550,7 +560,7 @@ export default {
       return this.hasPermission('clinical_history_template.manage');
     },
     canEditTemplate() {
-      return this.canManageTemplate && !this.isCustomTemplateLocked && !this.usesSystemTemplate && Boolean(this.currentTemplate);
+      return this.canManageTemplate && !this.isCustomTemplateLocked && !this.usesSystemTemplate && Boolean(this.currentTemplate) && !this.isLoading && !this.isSaving && !this.loadError;
     },
     usesSystemTemplate() {
       return this.templateSource === 'SYSTEM' || (this.currentTemplate && this.currentTemplate.is_system_template === true);
@@ -603,24 +613,52 @@ export default {
       return this.selectedSection ? this.schemaSectionIndex(this.selectedSection.key) : -1;
     },
     selectedPreviewFields() {
-      return this.selectedSection ? this.previewFields(this.selectedSection).slice(0, 6) : [];
+      return this.selectedSection ? this.previewFields(this.selectedSection) : [];
     },
     totalFieldCount() {
       return this.orderedSections.reduce((total, section) => total + (section.fields || []).length, 0);
     },
     hasUnsavedChanges() {
       return Boolean(this.initialSchemaText) && JSON.stringify(this.schema) !== this.initialSchemaText;
+    },
+    hasPendingCapture() {
+      const dialog = this.currentDialogForm();
+      return this.hasUnsavedChanges || Boolean(dialog && this.dialogBaseline && JSON.stringify(dialog) !== this.dialogBaseline)
+        || Boolean(this.showAdvancedJson && this.advancedJsonText !== JSON.stringify(this.schema, null, 2));
     }
   },
   mounted() {
     this.loadTemplate();
+    this.removeNavigationGuard = registerSettingsNavigationGuard(this, {hasChanges: () => this.hasPendingCapture, isSaving: () => this.isSaving});
+  },
+  beforeDestroy() { this.loadRequest++; if(this.removeNavigationGuard) this.removeNavigationGuard(); },
+  watch: {
+    sectionDialog(value) { if(!value) this.restoreDialogFocus(); },
+    fieldDialog(value) { if(!value) this.restoreDialogFocus(); },
+    customFieldDialog(value) { if(!value) this.restoreDialogFocus(); },
+    sectionPreviewDialog(value) { if(!value) this.restoreDialogFocus(); },
+    fullPreviewDialog(value) { if(!value) this.restoreDialogFocus(); }
   },
   methods: {
+    countLabel(count, singular, plural) { return `${count} ${Number(count) === 1 ? singular : plural}`; },
+    currentDialogForm() { return this.sectionDialog ? this.sectionForm : this.fieldDialog ? this.fieldForm : this.customFieldDialog ? this.customFieldForm : null; },
+    rememberDialogFocus() { this.dialogActivator = typeof document !== 'undefined' ? document.activeElement : null; },
+    restoreDialogFocus() { const element = this.dialogActivator; this.$nextTick(() => { if(element && element.isConnected && element.focus) element.focus(); }); },
+    openSectionPreview() { this.rememberDialogFocus(); this.sectionPreviewDialog = true; },
+    openFullPreview() { this.rememberDialogFocus(); this.fullPreviewDialog = true; },
+    async reloadTemplate() {
+      if(this.isLoading || this.isSaving) return false;
+      if(this.hasPendingCapture && !await confirmSettingsDiscard(this, {text:'Recargar descartará los cambios locales de la plantilla que aún no guardaste como una nueva versión.'})) return false;
+      this.sectionDialog = false; this.fieldDialog = false; this.customFieldDialog = false;
+      return this.loadTemplate();
+    },
     async loadTemplate() {
+      const request = ++this.loadRequest;
       this.isLoading = true;
+      this.loadError = '';
+      try {
       const response = await DAClinicalHistoryTemplateService.getCurrent();
-      this.isLoading = false;
-
+      if(request !== this.loadRequest) return false;
       if(response && response.success && response.data && response.data.template) {
         this.currentTemplate = response.data.template;
         this.templateSource = response.data.source || '';
@@ -629,18 +667,24 @@ export default {
         this.selectedSectionKey = this.resolveSelectedSectionKey();
         this.initialSchemaText = JSON.stringify(this.schema);
         this.syncAdvancedJson();
-        return;
+        return true;
       }
-
-      this.$emit('error', response && response.message ? response.message : 'No se pudo cargar la plantilla de historia clínica.');
+      this.loadError = 'No se pudo cargar la plantilla de historia clínica. Tus cambios locales se conservan; reintenta la carga.';
+      this.$emit('error', this.loadError);
+      return false;
+      } catch (_) {
+        if(request === this.loadRequest) { this.loadError = 'No se pudo cargar la plantilla. Revisa tu conexión y reintenta.'; this.$emit('error', this.loadError); }
+        return false;
+      } finally { if(request === this.loadRequest) this.isLoading = false; }
     },
     async createBusinessTemplate() {
+      if(this.isSaving || this.isLoading || this.loadError || !this.canManageTemplate || this.isCustomTemplateLocked) return false;
       this.isSaving = true;
+      try {
       const response = await DAClinicalHistoryTemplateService.createBusinessTemplate({
         name: 'Historia clínica del consultorio',
         description: 'Plantilla del consultorio.'
       });
-      this.isSaving = false;
 
       if(response && response.success) {
         this.$emit('saved', 'Plantilla del consultorio creada correctamente.');
@@ -649,9 +693,12 @@ export default {
       }
 
       this.$emit('error', buildLicenseLimitMessage(response, this.cleanBackendMessage(response && response.message)));
+      return false;
+      } catch (_) { this.$emit('error', 'No se pudo confirmar la creación. Recarga la plantilla para comprobar su estado antes de reintentar.'); return false; }
+      finally { this.isSaving = false; }
     },
     async saveNewVersion() {
-      if(!this.canEditTemplate) {
+      if(this.isSaving || this.isLoading || !this.canEditTemplate) {
         return;
       }
 
@@ -662,19 +709,25 @@ export default {
       }
 
       this.isSaving = true;
+      try {
+      const submittedSchema = clone(this.schema);
       const response = await DAClinicalHistoryTemplateService.createVersion(
         this.currentTemplate.id_clinical_history_template,
-        { schema_json: this.schema }
+        { schema_json: submittedSchema }
       );
-      this.isSaving = false;
 
       if(response && response.success) {
+        const laterChanges = JSON.stringify(this.schema) !== JSON.stringify(submittedSchema) ? clone(this.schema) : null;
         this.$emit('saved', 'Nueva versión guardada correctamente.');
         await this.loadTemplate();
-        return;
+        if(laterChanges) { this.schema = laterChanges; this.syncAdvancedJson(); }
+        return true;
       }
 
       this.$emit('error', buildLicenseLimitMessage(response, this.cleanBackendMessage(response && response.message)));
+      return false;
+      } catch (_) { this.$emit('error', 'No se pudo confirmar la nueva versión. Recarga la plantilla para comprobar su estado antes de reintentar.'); return false; }
+      finally { this.isSaving = false; }
     },
     normalizeSchema(rawSchema) {
       const schema = clone(rawSchema);
@@ -746,6 +799,7 @@ export default {
         return;
       }
       this.editingSectionIndex = sectionIndex;
+      this.sectionPositionError = '';
       this.sectionForm = section ? {
         isNew: false,
         label: section.label || '',
@@ -758,12 +812,20 @@ export default {
         isNew: true,
         order: this.nextSectionOrder()
       };
+      this.dialogBaseline = JSON.stringify(this.sectionForm);
+      this.rememberDialogFocus();
       this.sectionDialog = true;
     },
     saveSectionDialog() {
       if(!this.sectionForm.label || !this.sectionForm.label.trim()) {
         this.$emit('error', 'Escribe el nombre de la sección.');
         return;
+      }
+
+      const position = Number(this.sectionForm.order);
+      if(!this.sectionForm.isNew && (!Number.isInteger(position) || position < 1 || position > this.schema.sections.length)) {
+        this.sectionPositionError = `Indica una posición entera entre 1 y ${this.schema.sections.length}.`;
+        return false;
       }
 
       if(this.sectionForm.isNew) {
@@ -784,7 +846,9 @@ export default {
         const section = this.schema.sections[this.editingSectionIndex];
         section.label = this.sectionForm.label.trim();
         section.description = this.sectionForm.description || '';
-        section.order = Number(this.sectionForm.order || section.order || 1);
+        const ordered = this.orderedSections.filter(item => item !== section);
+        ordered.splice(position - 1, 0, section);
+        ordered.forEach((item, index) => { item.order = index + 1; });
         if(!section.locked) {
           section.enabled = Boolean(this.sectionForm.enabled);
         }
@@ -810,6 +874,8 @@ export default {
         system_core: Boolean(field.system_core),
         optionsText: this.optionsToText(field.options)
       };
+      this.dialogBaseline = JSON.stringify(this.fieldForm);
+      this.rememberDialogFocus();
       this.fieldDialog = true;
     },
     saveFieldDialog() {
@@ -849,6 +915,8 @@ export default {
       }
       this.editingSectionIndex = sectionIndex;
       this.customFieldForm = this.emptyCustomFieldForm();
+      this.dialogBaseline = JSON.stringify(this.customFieldForm);
+      this.rememberDialogFocus();
       this.customFieldDialog = true;
     },
     saveCustomField() {
@@ -897,7 +965,10 @@ export default {
       }
 
       const sectionKeys = new Set();
+      const positions = new Set();
       for(const section of this.schema.sections) {
+        if(!Number.isInteger(Number(section.order)) || Number(section.order) < 1 || Number(section.order) > this.schema.sections.length || positions.has(Number(section.order))) return {ok:false, message:'Las posiciones deben ser enteros distintos entre 1 y el total de secciones.'};
+        positions.add(Number(section.order));
         if(sectionKeys.has(section.key)) {
           return { ok: false, message: `Hay secciones repetidas: ${section.label || section.key}.` };
         }
@@ -965,7 +1036,7 @@ export default {
       return (section.fields || []).filter((field) => field.enabled !== false);
     },
     previewVisibleFields(section) {
-      return this.previewFields(section).slice(0, 4);
+      return this.previewFields(section);
     },
     previewHiddenFieldCount(section) {
       return Math.max(this.previewFields(section).length - this.previewVisibleFields(section).length, 0);

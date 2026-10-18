@@ -1,0 +1,115 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const compiler = require('vue-template-compiler');
+const root = path.resolve(__dirname, '../..');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const stripImports = source => source.replace(/^import[\s\S]*?from ['"][^'"]+['"];?\r?\n/gm, '');
+const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return {promise, resolve}; };
+
+(async () => {
+  const navigation = await import(`data:text/javascript;base64,${Buffer.from(read('src/domain/settings/settings.navigation.js')).toString('base64')}`);
+  const base = { mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {AUTH:'AUTH'}, fnTypes: {getUser:'getUser',getToken:'getToken'}, mutationTypes: {}, VuexMixin: {}, ACTIONS: {}, validationMixin: {}, DAUserModel: function() { this.name=''; }, DAProfessionalProfile: {}, required: () => true, emailPattern: () => true, phonePattern: () => true, buildLicenseLimitMessage: response => response && response.message || 'No se pudo guardar.', isD2AuthMode: () => false, ...navigation };
+  function load(file, bindings={}) {
+    const sfc=compiler.parseComponent(read(file));
+    assert.deepEqual(compiler.compile(sfc.template.content).errors, [], `${file} template compiles`);
+    const context={component:null,...base,...bindings};
+    vm.runInNewContext(stripImports(sfc.script.content).replace('export default','component ='),context,{filename:file});
+    return context.component;
+  }
+  function state(component, extras={}) {
+    const view={...component.data(),$refs:{},$nextTick:callback=>callback(),$emit(){},...extras};
+    Object.entries(component.methods||{}).forEach(([name,method])=>{view[name]=method.bind(view);});
+    Object.entries(component.computed||{}).forEach(([name,getter])=>Object.defineProperty(view,name,{get:getter.bind(view),configurable:true}));
+    return view;
+  }
+  const types=Object.fromEntries(['SET_USER','SET_USERS','SET_ERROR_SERVICE','SET_ERROR_SERVICE_MESSAGE','SET_ERROR_SERVICE_DETAILS'].map(key=>[key,key]));
+  const api={}; const actionContext={actionsResult:null,DAUserService:api,types};
+  vm.runInNewContext(stripImports(read('src/store/modules/user/actions.js')).replace('export default actions','actionsResult = actions'),actionContext);
+  const actions=actionContext.actionsResult;
+  const stored={user:{id_login:'A',name:'Synthetic A'},users:[],hasErrorInService:false};
+  const fields={SET_USER:'user',SET_USERS:'users',SET_ERROR_SERVICE:'hasErrorInService',SET_ERROR_SERVICE_MESSAGE:'message',SET_ERROR_SERVICE_DETAILS:'details'};
+  const store={commit:(type,value)=>{stored[fields[type]]=value;},dispatch:async()=>undefined};
+  api.getUser=async()=>({success:false,message:'Synthetic detail failure'});
+  assert.equal((await actions.getUser(store,'B')).success,false);
+  assert.equal(stored.user,null,'Failed detail read clears another persons cached model');
+  api.getUsers=async()=>({success:false,message:'Synthetic list failure'});
+  assert.equal((await actions.getUsers(store)).success,false,'List action returns resolved service failure to its caller');
+
+  const directoryOptions=load('src/views/User/DAUser.vue');
+  const directory=state(directoryOptions,{users:[],ActionWrapp:()=>actions.getUsers(store)});
+  assert.equal(await directory.init(),false); assert.equal(directory.usersServiceError,true);
+  assert.match(directory.usersErrorMessage,/Synthetic list failure/);
+  const person={id_login:'QA',name:'Synthetic account',active:1}; directory.users=[person];directory.isDelete=true;
+  let updates=0; directory.update=async payload=>{updates++;assert.equal(payload.data.active,false);assert.notEqual(payload.data,person);return {success:false,message:'Synthetic deactivation rejection'};};
+  assert.equal(await directory.onDelete('QA'),false); assert.equal(person.active,1);
+  assert.equal(directory.isDelete,true); assert.match(directory.deleteError,/Synthetic deactivation rejection/);
+  const deactivate=deferred();directory.update=async()=>{updates++;return deactivate.promise;};
+  const firstDelete=directory.onDelete('QA');assert.equal(await directory.onDelete('QA'),false);
+  assert.equal(updates,2,'A second click cannot send another deactivation');
+  directory.ActionWrapp=async()=>{directory.users=[];return {success:true};};deactivate.resolve({success:true});
+  assert.equal(await firstDelete,true);assert.equal(directory.isDelete,false);assert.equal(directory.users.length,0);
+
+  const editOptions=load('src/views/User/DAEditUser.vue');
+  const emitted=[];
+  const edit=state(editOptions,{id:'B',loadedUserId:'B',user:{id_login:'B',name:'Pending edit',phone:'0123456789'},$v:{$touch(){},$anyError:false},$emit:(...event)=>emitted.push(event),roles:[]});
+  api.update=async()=>({success:false,message:'Synthetic update rejection'});
+  edit.update=payload=>actions.update(store,payload);
+  let authorizations=0;edit.saveProfessionalProfileIfNeeded=async()=>{authorizations++;return true;};
+  const baseline=JSON.stringify({id_login:'B',name:'Previous',phone:'0123456789'});edit.baseline=baseline;
+  assert.equal(await edit.onSave(),false); assert.equal(stored.hasErrorInService,true);
+  assert.equal(emitted.length,0);assert.equal(authorizations,0,'Rejected contact update cannot continue to authorization writes');
+  assert.equal(edit.user.name,'Pending edit');assert.equal(edit.baseline,baseline);assert.equal(edit.dirty,true);
+  assert.match(edit.saveError,/Synthetic update rejection/);
+  edit.getUser=async()=>({success:false,message:'Synthetic detail rejection'});
+  edit.loadedUserId='';edit.loadRequest=1;
+  assert.equal(await edit.getUserById('B',1),false);assert.equal(edit.loadedUserId,'');assert.match(edit.loadError,/Synthetic detail rejection/);
+  const reads={A:deferred(),B:deferred()}; edit.getUser=id=>reads[id].promise;
+  edit.id='A';edit.loadRequest=2;const readA=edit.getUserById('A',2);
+  edit.id='B';edit.loadRequest=3;const readB=edit.getUserById('B',3);
+  reads.B.resolve({success:true,data:{id_login:'B',name:'Synthetic B'}});assert.equal(await readB,true);
+  reads.A.resolve({success:true,data:{id_login:'A',name:'Synthetic A'}});assert.equal(await readA,false);
+  assert.equal(edit.user.id_login,'B','Late detail response cannot populate another users editor');
+  let confirmation=true, prompts=0;
+  edit.$swal={fire:async()=>{prompts++;return {isConfirmed:confirmation};}};
+  edit.$refs.professionalProfile={hasUnsavedChanges:true,saving:false};
+  confirmation=false; assert.equal(await edit.requestClose(),false);assert.equal(emitted.length,0);
+  confirmation=true;assert.equal(await edit.requestClose(),true);assert.equal(emitted[0][0],'close');
+  edit.$refs.professionalProfile.saving=true;assert.equal(await edit.requestClose(),false);assert.equal(prompts,2,'Busy child profile blocks close without offering discard');
+  edit.$refs.professionalProfile={hasUnsavedChanges:true,saving:false,save:async()=>({success:false})};
+  edit.loadError='';edit.loadedUserId='B';edit.update=async()=>({success:true});edit.user.name='Contact saved';
+  edit.saveProfessionalProfileIfNeeded=editOptions.methods.saveProfessionalProfileIfNeeded.bind(edit);
+  Object.defineProperty(edit,'isDoctorLike',{get:()=>true,configurable:true});
+  assert.equal(await edit.onSave(),false);assert.equal(edit.dirty,false);assert.match(edit.saveError,/contacto se guardaron/);
+  assert.equal(edit.hasPendingChanges(),true,'Failed authorization save keeps pending child capture and explains partial success');
+
+  const add=state(load('src/views/User/DAAddUser.vue'),{$v:{$touch(){},$anyError:false},user:{name:'Synthetic new user'},$emit:(...event)=>emitted.push(event)});
+  add.baseline=JSON.stringify({name:''});add.$swal=edit.$swal;
+  confirmation=false;assert.equal(await add.requestClose(),false);
+  add.save=async()=>({success:false,message:'Synthetic create rejection'});
+  assert.equal(await add.onSave(),false);assert.equal(add.user.name,'Synthetic new user');assert.equal(add.dirty,true);assert.match(add.saveError,/Synthetic create rejection/);
+
+  const permissionReads={A:deferred(),B:deferred()};let permissionSaves=0;
+  const roleService={getPermissions:id=>permissionReads[id].promise,savePermissions:async()=>{permissionSaves++;return {success:false};}};
+  const roleOptions=load('src/views/configuration/components/RolesPermissionsConfig.vue',{DARolService:roleService});
+  const roles=state(roleOptions,{$swal:edit.$swal,$store:{getters:{'AUTH/getUser':{id_rol:'OTHER'}},commit(){},dispatch:async()=>{}}});
+  const roleA=roles.selectRole('A');const roleB=roles.selectRole('B');
+  assert.equal(await roles.savePermissions(),false);assert.equal(permissionSaves,0,'Loading permissions cannot be saved');
+  permissionReads.B.resolve({success:true,data:[{code:'B_ACCESS',allowed:true}]});assert.equal(await roleB,true);
+  permissionReads.A.resolve({success:true,data:[{code:'A_ACCESS',allowed:true}]});assert.equal(await roleA,false);
+  assert.equal(roles.selectedRoleId,'B');assert.equal(roles.selectedPermissions.join(','),'B_ACCESS');assert.equal(roles.permissionsLoaded,true);
+  roles.selectedPermissions.push('B_NEW');confirmation=false;
+  assert.equal(await roles.selectRole('A'),false);assert.equal(roles.selectedRoleId,'B');assert.equal(roles.dirty,true);
+  const saveRoles=deferred();let sent;
+  roleService.savePermissions=async(id,permissions)=>{permissionSaves++;sent={id,permissions};return saveRoles.promise;};
+  const save=roles.savePermissions();assert.equal(await roles.savePermissions(),false);assert.equal(await roles.selectRole('A'),false);
+  assert.equal(sent.id,'B');assert.equal(sent.permissions.join(','),'B_ACCESS,B_NEW');
+  saveRoles.resolve({success:false,message:'Synthetic permission rejection'});assert.equal(await save,false);
+  assert.equal(roles.selectedPermissions.join(','),'B_ACCESS,B_NEW');assert.equal(roles.dirty,true);assert.match(roles.errorMessage,/Synthetic permission rejection/);
+  roleService.savePermissions=async()=>({success:true,data:[{code:'B_ACCESS',allowed:true},{code:'B_NEW',allowed:true}]});
+  assert.equal(await roles.savePermissions(),true);assert.equal(roles.dirty,false);assert.equal(roles.isSaving,false);
+  assert.equal(roles.permissionNameId({code:'B_ACCESS'}),'permission-name-B_ACCESS');
+  assert.match(roles.permissionLockReason({code:'admin.users'}),/reserva al puesto administrador/);
+  console.log('PASS UX12 staff/permissions: resolved read failures, no cached cross-user data, stale responses, rejected update retains text, no false success, partial authorization failure, aggregate cancel guards, failed/debounced deactivation, dirty selection, fixed permission payload and failed save recovery. Real methods; synthetic services only. No browser, network, SQL or live permission changes.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

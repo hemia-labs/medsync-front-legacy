@@ -1,15 +1,23 @@
 import { DAConfigService } from '../../../services/context/core-proccess-context';
+import { authorizationFingerprint } from '../../../security/authorizationContext';
 import DAHasErrorModel from '../../../models/error/DAHasErrorModel';
 import types from '../common/mutation-types';
 import { getThemeContext, loadTheme, saveTheme } from '../../../plugins/theme';
+
+const configurationContext = rootState => {
+    const auth = rootState && rootState.CORE && rootState.CORE.AUTH;
+    return auth ? JSON.stringify([authorizationFingerprint(auth), auth.accessRevision || 0]) : null;
+};
 
 const actions = {
     /**
      *  Función que permite Agregar una configuracion
      * @param {*} param0 
      */
-    async saveConfiguration({commit},data) {
+    async saveConfiguration({commit, rootState},data) {
+        const context = configurationContext(rootState);
         let response = await DAConfigService.saveConfiguration(data);
+        if(context !== configurationContext(rootState)) return { success: false, message: 'La sesión o los accesos cambiaron. Vuelve a consultar la configuración.' };
         if(response.success) {
             commit(types.SET_ADD_CONFIG, response.data)
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel() )
@@ -25,8 +33,10 @@ const actions = {
      *  Función que lista la configuracion
      * @param {*} param0 
      */
-    async getConfiguration({commit}) {
+    async getConfiguration({commit, rootState}) {
+        const context = configurationContext(rootState);
         let response = await DAConfigService.getConfiguration();
+        if(context !== configurationContext(rootState)) return { success: false, message: 'La sesión o los accesos cambiaron. Vuelve a consultar la configuración.' };
         if(response.success) {
             commit(types.SET_GET_CONFIG, response.data)
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel() )
@@ -42,8 +52,10 @@ const actions = {
      *  Función que edita la configuracion
      * @param {*} param0 
      */
-    async editConfiguration({commit},data) {
+    async editConfiguration({commit, rootState},data) {
+        const context = configurationContext(rootState);
         let response = await DAConfigService.editConfiguration(data);
+        if(context !== configurationContext(rootState)) return { success: false, message: 'La sesión o los accesos cambiaron. Vuelve a consultar la configuración.' };
         if(response.success) {
             commit(types.SET_UPD_CONFIG, response.data)
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel() )
@@ -55,8 +67,10 @@ const actions = {
         return response;
     },
 
-    async saveLoginImage({commit}, data) {
+    async saveLoginImage({commit, rootState}, data) {
+        const context = configurationContext(rootState);
         let response = await DAConfigService.saveLoginImage(data);
+        if(context !== configurationContext(rootState)) return { success: false, message: 'La sesión o los accesos cambiaron. Vuelve a consultar la configuración.' };
         if(response.success) {
             commit(types.SET_SAVE_LOGIN_IMAGE, response.data)
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel() )
@@ -65,10 +79,13 @@ const actions = {
             commit(types.SET_SAVE_LOGIN_IMAGE,[])
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel(true, response.message) )
         }
+        return response;
     },
 
-    async getLoginImage({commit}) {
+    async getLoginImage({commit, rootState}) {
+        const context = configurationContext(rootState);
         let response = await DAConfigService.getLoginImage();
+        if(context !== configurationContext(rootState)) return { success: false, message: 'La sesión o los accesos cambiaron. Vuelve a consultar la configuración.' };
         if(response.success) {
             commit(types.SET_GET_LOGIN_IMAGE, response.data)
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel() )
@@ -77,10 +94,13 @@ const actions = {
             commit(types.SET_GET_LOGIN_IMAGE,[])
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel(true, response.message) )
         }
+        return response;
     },
 
-    async getThemeList({commit}) {
+    async getThemeList({commit, rootState}) {
+        const context = configurationContext(rootState);
         let response = await DAConfigService.getThemeList();
+        if(context !== configurationContext(rootState)) return { success: false, message: 'La sesión o los accesos cambiaron. Vuelve a consultar la configuración.' };
         if(response.success) {
             commit(types.SET_THEME_LIST, response.data)
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel() )
@@ -89,6 +109,7 @@ const actions = {
             commit(types.SET_THEME_LIST,[])
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel(true, response.message) )
         }
+        return response;
     },
 
     async getTheme({commit, rootState}, options = {}) {
@@ -124,27 +145,24 @@ const actions = {
         return response;
     },
 
-    async getClinicalModules({commit}) {
+    async getClinicalModules({commit, rootState}) {
+        const context = configurationContext(rootState);
         let response = await DAConfigService.getClinicalModules();
+        if(context !== configurationContext(rootState)) return { success: false, message: 'La sesión o los accesos cambiaron. Vuelve a consultar la configuración.' };
         if(response.success) {
             commit(types.SET_CLINICAL_MODULES, response.data)
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel() )
         }
         else {
-            commit(types.SET_CLINICAL_MODULES, {
-                odontogramEnabled: false,
-                treatmentPlanEnabled: true,
-                allowTreatmentToothSelection: false,
-                showTreatmentCosts: true,
-                showTreatmentStatus: true
-            })
             commit(types.SET_CONFING_EXCEPTION, new DAHasErrorModel(true, response.message) )
         }
         return response;
     },
 
-    async saveClinicalModules({commit}, data) {
+    async saveClinicalModules({commit, rootState}, data) {
+        const context = configurationContext(rootState);
         let response = await DAConfigService.saveClinicalModules(data);
+        if(context !== configurationContext(rootState)) return { success: false, message: 'La sesión o los accesos cambiaron. Vuelve a consultar la configuración.' };
         if(response.success) {
             commit(types.SET_SAVE_CLINICAL_MODULES, response.data)
             commit(types.SET_CLINICAL_MODULES, response.data)
