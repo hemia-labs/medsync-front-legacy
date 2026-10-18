@@ -2,15 +2,24 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { JSDOM } = require('jsdom');
+const DOMPurify = require('dompurify');
 
 (async () => {
+    const dom = new JSDOM('', { url: 'https://qa.invalid/' });
+    const sanitizerContext = { module: { exports: {} }, DOMPurify, window: dom.window };
+    const sanitizerSource = fs.readFileSync(path.join(__dirname, '../../src/utils/sanitizeHtml.js'), 'utf8');
+    vm.runInNewContext(sanitizerSource.replace(/^import[^;]+;\r?\n/gm, '').replace(/export default[^;]+;/g, '').replace(/export /g, '')
+        + '\nmodule.exports = { sanitizeHtmlForDocumentSnapshot };', sanitizerContext);
+    const settingsSource = fs.readFileSync(path.join(__dirname, '../../src/security/settingsAccess.js'), 'utf8');
+    const settings = await import(`data:text/javascript;base64,${Buffer.from(settingsSource).toString('base64')}`);
     const helperSource = fs.readFileSync(path.join(__dirname, '../../src/domain/treatment-plan/plan.editor.js'), 'utf8');
     const helper = await import(`data:text/javascript;base64,${Buffer.from(helperSource).toString('base64')}`);
     const sfc = fs.readFileSync(path.join(__dirname, '../../src/views/Patient/Sections/TreatmentPlan.vue'), 'utf8');
     const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[^;]+;\r?\n/gm, '').replace('export default', 'component =');
     const context = { component: null, mapActions: () => ({}), mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { TREATMENT: {}, CONFIGURATION: {}, AUTH: {} }, fnTypes: {},
-        isD2AuthMode: () => true, DADocumentService: {}, DATreatmentService: {}, DocumentSignatureOptionsDialog: {}, dialogName: {}, fieldError: {}, sanitizeHtmlForDocumentSnapshot: value => value, ...helper,
-        Blob, window: { addEventListener() {}, removeEventListener() {} }, document: { activeElement: null, contains: () => false }, getComputedStyle: () => ({ getPropertyValue: () => '#0e7490' }) };
+        isD2AuthMode: () => true, DADocumentService: {}, DATreatmentService: {}, DocumentSignatureOptionsDialog: {}, dialogName: {}, fieldError: {}, ...sanitizerContext.module.exports, ...settings, ...helper,
+        Blob, window: dom.window, document: dom.window.document, getComputedStyle: () => ({ getPropertyValue: () => '#0e7490' }) };
     vm.runInNewContext(script, context);
     const options = context.component;
     const fresh = () => {

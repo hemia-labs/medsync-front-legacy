@@ -67,6 +67,7 @@ export default {
         { key: 'businesses', label: 'Negocios', icon: 'mdi-domain', route: 'superAdminBusinesses' },
         { key: 'users', label: 'Usuarios', icon: 'mdi-account-group-outline', route: 'superAdminUsers' },
         { key: 'sessions', label: 'Sesiones activas', icon: 'mdi-monitor-account', route: 'superAdminSessions' },
+        { key: 'legal-documents', label: 'Documentos legales', icon: 'mdi-file-document-edit-outline', route: 'superAdminLegalDocuments' },
         { key: 'audit', label: 'Auditoria', icon: 'mdi-clipboard-search-outline', route: 'superAdminAudit' }
       ]
     };

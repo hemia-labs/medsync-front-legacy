@@ -8,7 +8,7 @@ export function getSettingsSections(role, hasPermission) {
   const entries = [
     {key:'summary',title:'Resumen',description:'Vista general del consultorio',icon:'mdi-view-dashboard-outline',scope:'Consultorio',allowed:admin && hasPermission('admin.config')},
     {key:'identity',title:'Informacion del consultorio',description:'Datos del consultorio',icon:'mdi-card-account-details-outline',scope:'Consultorio',allowed:admin && hasPermission('admin.config')},
-    {key:'account-legal',title:'Cuenta y legal',description:'Documentos SaaS y legales',icon:'mdi-file-certificate-outline',scope:'Consultorio',allowed:admin && hasPermission('admin.config')},
+    {key:'account-legal',title:'Cuenta y legal',description:'Documentos de MedSync y mis aceptaciones',icon:'mdi-file-certificate-outline',scope:'Mi cuenta',allowed:Boolean(role)},
     {key:'users',title:'Personal y usuarios',description:'Doctores, asistentes y recepcion',icon:'mdi-account-group-outline',scope:'Consultorio',allowed:admin && hasPermission('admin.users')},
     {key:'roles-permissions',title:'Puestos y accesos',description:'Accesos dentro de este consultorio',icon:'mdi-shield-key-outline',scope:'Consultorio',allowed:admin && hasPermission('admin.users')},
     {key:'clinical-modules',title:'Secciones clinicas',description:'Apartados visibles del expediente',icon:'mdi-view-module-outline',scope:'Consultorio',allowed:admin && hasPermission('admin.config')},

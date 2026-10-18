@@ -1,5 +1,5 @@
 <template>
-  <section class="staff-page">
+  <section class="staff-page" :class="{'staff-compact': isCompactLayout}">
     <div class="staff-shell">
       <section v-if="!isNew && !isEdit" class="staff-hero">
         <div class="staff-hero-copy">
@@ -11,7 +11,7 @@
         </div>
 
         <div class="staff-actions">
-          <button type="button" class="staff-icon-button" aria-label="Actualizar usuarios" @click="init">
+          <button type="button" class="staff-icon-button" aria-label="Actualizar usuarios" :disabled="isUsersLoading || !!deactivatingId" @click="init">
             <v-icon size="20">mdi-refresh</v-icon>
           </button>
           <button type="button" class="staff-primary-action" @click="openNewUser">
@@ -26,7 +26,7 @@
           <span class="summary-icon"><v-icon size="22">mdi-account-group-outline</v-icon></span>
           <div>
             <strong>{{ totalUsers }}</strong>
-            <small>Personas registradas</small>
+            <small>{{ totalUsers === 1 ? 'Persona registrada' : 'Personas registradas' }}</small>
           </div>
         </article>
 
@@ -34,7 +34,7 @@
           <span class="summary-icon"><v-icon size="22">mdi-filter-outline</v-icon></span>
           <div>
             <strong>{{ filteredUsers.length }}</strong>
-            <small>Coincidencias visibles</small>
+            <small>{{ filteredUsers.length === 1 ? 'Coincidencia visible' : 'Coincidencias visibles' }}</small>
           </div>
         </article>
 
@@ -42,7 +42,7 @@
           <span class="summary-icon"><v-icon size="22">mdi-briefcase-account-outline</v-icon></span>
           <div>
             <strong>{{ roleCount }}</strong>
-            <small>Puestos asignados</small>
+            <small>{{ roleCount === 1 ? 'Puesto asignado' : 'Puestos asignados' }}</small>
           </div>
         </article>
       </section>
@@ -99,7 +99,7 @@
         <div v-if="usersServiceError" class="staff-state staff-state-error">
           <v-icon size="32">mdi-alert-circle-outline</v-icon>
           <strong>No pudimos cargar el personal.</strong>
-          <p>Intenta actualizar el listado en unos segundos.</p>
+          <p>{{ usersErrorMessage || 'Intenta actualizar el listado en unos segundos.' }}</p>
           <button type="button" class="staff-primary-action compact" @click="init">
             <v-icon size="18">mdi-refresh</v-icon>
             <span>Actualizar</span>
@@ -179,15 +179,16 @@
                           <button
                             type="button"
                             class="staff-action-button danger"
+                            :disabled="!!deactivatingId"
                             v-bind="attrs"
                             v-on="on"
                             @click="onEvent(ACTIONS.DELETE, user.id_login)"
                           >
-                            <v-icon size="18">mdi-trash-can-outline</v-icon>
-                            <span>Eliminar</span>
+                            <v-icon size="18">mdi-account-off-outline</v-icon>
+                            <span>Desactivar</span>
                           </button>
                         </template>
-                        <span>Eliminar usuario</span>
+                        <span>Desactivar usuario</span>
                       </v-tooltip>
                     </div>
                   </td>
@@ -226,9 +227,9 @@
                   <v-icon size="18">mdi-pencil-outline</v-icon>
                   <span>Editar</span>
                 </button>
-                <button type="button" class="staff-action-button danger mobile" @click="onEvent(ACTIONS.DELETE, user.id_login)">
-                  <v-icon size="18">mdi-trash-can-outline</v-icon>
-                  <span>Eliminar</span>
+                <button type="button" class="staff-action-button danger mobile" :disabled="!!deactivatingId" @click="onEvent(ACTIONS.DELETE, user.id_login)">
+                  <v-icon size="18">mdi-account-off-outline</v-icon>
+                  <span>Desactivar</span>
                 </button>
               </div>
             </article>
@@ -245,18 +246,18 @@
         </div>
       </section>
 
-      <da-dialog v-model="isDelete" :persist="true">
-        <template #body>
-          <da-dialog-confirm
-            :title="'¿Eliminar personal?'"
-            :confirmcolor="'#F83D3D'"
-            :message="'¿Deseas eliminar el usuario seleccionado? Esta acción no se puede revertir.'"
-            v-model="currentID"
-            v-on:confirm="onDelete"
-            v-on:close="isDelete = false"
-          ></da-dialog-confirm>
-        </template>
-      </da-dialog>
+      <v-dialog v-model="isDelete" persistent max-width="560">
+        <v-card aria-labelledby="staff-deactivate-title">
+          <v-card-title id="staff-deactivate-title">¿Desactivar a {{ selectedUserName }}?</v-card-title>
+          <v-card-text>Esta persona dejará de tener acceso al sistema. Sus expedientes, documentos y actividad registrada se conservan; no se borran sus datos.</v-card-text>
+          <v-card-text v-if="deleteError" role="alert" class="error--text">{{ deleteError }}</v-card-text>
+          <v-card-actions class="flex-wrap">
+            <v-spacer />
+            <v-btn text :disabled="!!deactivatingId" @click="isDelete = false">Cancelar</v-btn>
+            <v-btn color="error" :loading="!!deactivatingId" :disabled="!!deactivatingId" @click="onDelete(currentID)">Desactivar acceso</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
     </div>
   </section>
 </template>
@@ -277,6 +278,11 @@ export default {
             itemsPerPage: 8,
             isUsersLoading: false,
             usersServiceError: false,
+            usersErrorMessage: '',
+            listRequest: 0,
+            deactivatingId: '',
+            deleteError: '',
+            isCompactLayout: false,
             isNew: false,
             isDelete: false,
             isEdit: false,
@@ -291,6 +297,8 @@ export default {
     created() {
         this.init()
     },
+    mounted() { this.startResponsiveLayout(); },
+    beforeDestroy() { this.listRequest++; this.stopResponsiveLayout(); },
     computed: {
         ...mapGetters(moduleTypes.USER, {
             users: fnTypes.getUsers,
@@ -352,27 +360,57 @@ export default {
 
         themePrimaryColor: function() {
             return 'var(--color-primary-700)'
-        }
+        },
+        selectedUserName() { return this.userName(this.safeUsers.find(user => user.id_login === this.currentID) || {}); }
     },
     methods: {
+        updateCompactLayout(width) {
+            const measuredWidth = Number(width)
+            if(Number.isFinite(measuredWidth) && measuredWidth > 0) this.isCompactLayout = measuredWidth <= 864
+        },
+        startResponsiveLayout() {
+            this._staffResizeHandler = () => this.updateCompactLayout(this.$el.getBoundingClientRect().width || window.innerWidth)
+            this._staffResizeHandler()
+            if(typeof window.ResizeObserver === 'function') {
+                this._staffResizeObserver = new window.ResizeObserver(entries => {
+                    const entry = entries.find(item => item.target === this.$el)
+                    if(entry) this.updateCompactLayout(entry.contentRect.width)
+                })
+                this._staffResizeObserver.observe(this.$el)
+            }
+            window.addEventListener('resize', this._staffResizeHandler)
+        },
+        stopResponsiveLayout() {
+            if(this._staffResizeObserver) this._staffResizeObserver.disconnect()
+            if(this._staffResizeHandler) window.removeEventListener('resize', this._staffResizeHandler)
+            this._staffResizeObserver = null
+            this._staffResizeHandler = null
+        },
         ...mapActions(moduleTypes.USER, [
             fnTypes.update
         ]),
 
         init: async function() {
+            const request = ++this.listRequest
             this.isNew = false
             this.isEdit = false
             this.isUsersLoading = true
             this.usersServiceError = false
+            this.usersErrorMessage = ''
 
             try {
-                await this.ActionWrapp(moduleTypes.USER, fnTypes.getUsers)
+                const response = await this.ActionWrapp(moduleTypes.USER, fnTypes.getUsers)
+                if(request !== this.listRequest) return false
+                this.usersServiceError = !(response && response.success)
+                if(this.usersServiceError) this.usersErrorMessage = response && response.message ? response.message : 'No se pudo consultar el personal. Actualiza para reintentar.'
+                return !this.usersServiceError
             }
             catch(error) {
-                this.usersServiceError = true
+                if(request === this.listRequest) { this.usersServiceError = true; this.usersErrorMessage = 'No se pudo consultar el personal. Revisa la conexión y vuelve a intentar.' }
+                return false
             }
             finally {
-                this.isUsersLoading = false
+                if(request === this.listRequest) this.isUsersLoading = false
             }
         },
 
@@ -400,6 +438,7 @@ export default {
             this.currentID = id
             switch(type) {
                 case this.ACTIONS.DELETE:
+                    this.deleteError = ''
                     this.isDelete = true
                     break
                 case this.ACTIONS.EDIT:
@@ -410,12 +449,24 @@ export default {
         },
 
         onDelete: async function(id) {
-            this.isDelete = false
-            let item = this.users.find(x => x.id_login == id)
-            if(item) {
-                item.active = false
-                await this.update({data: item, id: id})
-            }
+            if(this.deactivatingId) return false
+            const item = this.safeUsers.find(user => user.id_login === id)
+            if(!item) return false
+            this.deactivatingId = id
+            this.deleteError = ''
+            try {
+                const response = await this.update({data: {...item, active:false}, id})
+                if(!response || !response.success) {
+                    this.deleteError = response && response.message ? response.message : 'No se pudo confirmar la desactivación. Actualiza el listado para verificar el estado antes de reintentar.'
+                    return false
+                }
+                this.isDelete = false
+                await this.init()
+                return true
+            } catch(error) {
+                this.deleteError = 'No se pudo confirmar la desactivación. Actualiza el listado antes de volver a intentar.'
+                return false
+            } finally { this.deactivatingId = '' }
         },
 
         onSuccess: function() {
@@ -423,7 +474,7 @@ export default {
         },
 
         onSuccessEdit: function() {
-            this.isEdit = false
+            this.init()
         },
 
         userKey: function(user) {
@@ -636,7 +687,7 @@ export default {
 
 .staff-summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
   gap: 0.85rem;
   margin-top: 1rem;
 }
@@ -646,8 +697,13 @@ export default {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.8rem;
+  min-width: 0;
   min-height: 5.3rem;
   padding: 1rem;
+}
+
+.staff-summary-card > div {
+  min-width: 0;
 }
 
 .summary-icon {
@@ -678,6 +734,9 @@ export default {
   color: #64748b;
   font-size: 0.82rem;
   font-weight: 700;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .staff-form-wrap {
@@ -752,6 +811,7 @@ export default {
 
 .staff-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -799,7 +859,7 @@ export default {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.75rem;
-  min-width: 15rem;
+  min-width: 0;
 }
 
 .staff-avatar {
@@ -879,12 +939,13 @@ export default {
 
 .staff-row-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
 }
 
 .staff-action-button {
-  min-width: 7.4rem;
+  min-width: 0;
   padding: 0 0.85rem;
   border: 1px solid var(--color-primary-700, #1497bd);
   color: var(--color-primary-900, #086783);
@@ -1014,93 +1075,109 @@ html[data-theme="clinical-night"] .staff-action-button {
   }
 }
 
-@media (max-width: 980px) {
-  .staff-summary-grid {
-    grid-template-columns: 1fr;
-  }
+.staff-page.staff-compact .staff-summary-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
 
+.staff-page.staff-compact .staff-table-wrap {
+  display: none;
+}
+
+.staff-page.staff-compact .staff-mobile-list {
+  display: grid;
+}
+
+.staff-mobile-list {
+  gap: 0.8rem;
+  padding: 0.9rem;
+}
+
+.staff-mobile-card {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid #e0edf0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.staff-mobile-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.staff-mobile-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.staff-mobile-meta div {
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid #e8eef2;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.staff-mobile-meta dt {
+  margin: 0 0 0.25rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.staff-mobile-meta dd {
+  overflow: hidden;
+  margin: 0;
+  color: #12313a;
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-mobile-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.65rem;
+}
+
+.staff-action-button.mobile {
+  width: 100%;
+  min-width: 0;
+}
+
+html[data-theme="clinical-night"] .staff-mobile-card,
+html[data-theme="clinical-night"] .staff-mobile-meta div {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(30, 41, 59, 0.62);
+}
+
+html[data-theme="clinical-night"] .staff-mobile-meta dd {
+  color: #e2e8f0;
+}
+
+@media (max-width: 980px) {
   .staff-table-wrap {
     display: none;
   }
 
   .staff-mobile-list {
     display: grid;
-    gap: 0.8rem;
-    padding: 0.9rem;
-  }
-
-  .staff-mobile-card {
-    display: grid;
-    gap: 0.8rem;
-    padding: 0.9rem;
-    border: 1px solid #e0edf0;
-    border-radius: 8px;
-    background: #ffffff;
-  }
-
-  .staff-mobile-head {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .staff-mobile-meta {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.65rem;
-    margin: 0;
-  }
-
-  .staff-mobile-meta div {
-    min-width: 0;
-    padding: 0.7rem;
-    border: 1px solid #e8eef2;
-    border-radius: 8px;
-    background: #f8fafc;
-  }
-
-  .staff-mobile-meta dt {
-    margin: 0 0 0.25rem;
-    color: #64748b;
-    font-size: 0.72rem;
-    font-weight: 900;
-    text-transform: uppercase;
-  }
-
-  .staff-mobile-meta dd {
-    overflow: hidden;
-    margin: 0;
-    color: #12313a;
-    font-size: 0.86rem;
-    font-weight: 800;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .staff-mobile-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.65rem;
-  }
-
-  .staff-action-button.mobile {
-    width: 100%;
-    min-width: 0;
-  }
-
-  html[data-theme="clinical-night"] .staff-mobile-card,
-  html[data-theme="clinical-night"] .staff-mobile-meta div {
-    border-color: rgba(148, 163, 184, 0.18);
-    background: rgba(30, 41, 59, 0.62);
-  }
-
-  html[data-theme="clinical-night"] .staff-mobile-meta dd {
-    color: #e2e8f0;
   }
 }
-
 @media (max-width: 720px) {
+  .staff-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .staff-hero,
   .staff-panel-header {
     align-items: stretch;

@@ -108,6 +108,14 @@ const applyTheme = theme => {
 };
 
 const themeFromResponse = response => response && response.success && Array.isArray(response.data) ? response.data[0] : null;
+const restoreThemePreview = theme => {
+  if(!validTheme(theme)) return false;
+  themeVersion += 1;
+  themeState.hasPreview = false;
+  themeState.loading = false;
+  renderTheme(theme);
+  return true;
+};
 const currentRequest = (context, version, isCurrent) => themeState.context === context && themeVersion === version && isCurrent();
 
 const loadTheme = (context, read, isCurrent, { force = false } = {}) => {
@@ -166,6 +174,7 @@ const saveTheme = async (context, write, isCurrent) => {
 export {
   DEFAULT_THEME,
   applyTheme,
+  restoreThemePreview,
   themeState,
   getThemeContext,
   syncThemeContext,

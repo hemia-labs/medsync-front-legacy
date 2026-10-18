@@ -1,6 +1,6 @@
 <template>
     <aside class="admin-settings-sidebar">
-        <div class="sticky top-24 bg-white border border-gray-200 shadow-md p-3">
+        <nav class="admin-settings-nav bg-white border border-gray-200 shadow-md p-3" aria-label="Apartados de configuración">
           <div v-for="group in groups" :key="group.label">
             <p class="px-4 pt-3 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider">{{ group.label }}</p>
             <button
@@ -9,6 +9,7 @@
                 type="button"
                 class="w-full text-left px-4 py-3 mb-2 border transition duration-150 ease-in-out"
                 :class="activeSection === section.key ? 'bg-primary-100 border-primary-300 shadow-sm' : 'bg-white border-transparent hover:bg-gray-50 hover:border-gray-200'"
+                :aria-current="activeSection === section.key ? 'page' : null"
                 @click="$emit('select', section.key)"
             >
                 <div class="flex items-start gap-3">
@@ -20,7 +21,7 @@
                 </div>
             </button>
           </div>
-        </div>
+        </nav>
     </aside>
 </template>
 
@@ -58,6 +59,11 @@ export default {
     .admin-settings-sidebar {
         display: block;
         grid-column: span 3 / span 3;
+        position: sticky;
+        top: 5rem;
+        min-width: 0;
     }
+    .admin-settings-nav { max-height: max(15rem, calc(100vh - 19rem)); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 }
+.admin-settings-nav button:focus-visible { outline: 3px solid var(--color-primary-700); outline-offset: 2px; }
 </style>

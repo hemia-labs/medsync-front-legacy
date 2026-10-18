@@ -1,34 +1,24 @@
 const resizeImage = (base64Str, maxWidth = 500, maxHeight = 500, outputType = 'image/png', quality = 0.92) => {
-    return new Promise((resolve) => {
-      let img = new Image()
-      img.src = base64Str
-      img.onload = () => {
-        let canvas = document.createElement('canvas')
-        const MAX_WIDTH = maxWidth
-        const MAX_HEIGHT = maxHeight
-        let width = img.width
-        let height = img.height
-  
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width
-            width = MAX_WIDTH
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height
-            height = MAX_HEIGHT
-          }
+    return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onerror = () => reject(new Error('No se pudo abrir la imagen.'))
+        img.onload = () => {
+            try {
+                if(!img.width || !img.height || !Number.isFinite(maxWidth) || !Number.isFinite(maxHeight) || maxWidth <= 0 || maxHeight <= 0) throw new Error('Dimensiones de imagen inválidas.')
+                const scale = Math.min(1, maxWidth / img.width, maxHeight / img.height)
+                const width = Math.max(1, Math.round(img.width * scale))
+                const height = Math.max(1, Math.round(img.height * scale))
+                const canvas = document.createElement('canvas')
+                canvas.width = width
+                canvas.height = height
+                const ctx = canvas.getContext('2d')
+                if(!ctx) throw new Error('No se pudo preparar la imagen.')
+                ctx.drawImage(img, 0, 0, width, height)
+                resolve(canvas.toDataURL(outputType, quality))
+            } catch(error) { reject(error) }
         }
-        canvas.width = width
-        canvas.height = height
-        let ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0, width, height)
-        resolve(canvas.toDataURL(outputType, quality))
-      }
+        img.src = base64Str
     })
-  }
+}
 
-  export {
-    resizeImage
-  }
+export { resizeImage }

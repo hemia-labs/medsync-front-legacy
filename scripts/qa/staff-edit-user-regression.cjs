@@ -10,7 +10,7 @@ const context = { component: null, mapGetters: () => ({}), mapActions: () => ({}
 vm.runInNewContext(sfc.script.content.replace(/^import[\s\S]*?from ['"][^'"]+['"];?\r?\n/gm, '').replace('export default', 'component ='), context);
 const component = context.component;
 let saves = 0, authorizedWrites = 0, focused = false;
-const state = { ...component.data(), user: { phone: '0123456789' }, $nextTick: fn => fn(), $refs: { validationSummary: { scrollIntoView() {}, focus() { focused = true; } } }, update: async () => { saves++; }, saveProfessionalProfileIfNeeded: async () => { authorizedWrites++; } };
+const state = { ...component.data(), id:'QA_USER', loadedUserId:'QA_USER', user: { phone: '0123456789' }, $nextTick: fn => fn(), $refs: { validationSummary: { scrollIntoView() {}, focus() { focused = true; } } }, update: async () => { saves++; }, saveProfessionalProfileIfNeeded: async () => { authorizedWrites++; } };
 state.$v = { $anyError: true, user: Object.fromEntries(['name', 'phone', 'email', 'id_rol'].map(field => [field, { $dirty: false, $invalid: true }])), $touch() { Object.values(this.user).forEach(field => { field.$dirty = true; }); } };
 for(const [key, method] of Object.entries(component.methods)) state[key] = method.bind(state);
 for(const [key, getter] of Object.entries(component.computed)) Object.defineProperty(state, key, { get: getter.bind(state) });

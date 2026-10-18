@@ -80,6 +80,9 @@ function isD2TenantRestrictedSession() {
 }
 
 function canRouteInTenantRestrictedMode(to) {
+    if (to.name === 'admin' && to.query && to.query.section === 'account-legal') {
+        return true;
+    }
     if (to.matched.some(record => record.meta.allowTenantRestricted)) {
         return true;
     }

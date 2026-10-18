@@ -10,6 +10,11 @@
     </div>
 
     <div class="staff-editor-body">
+      <p v-if="isLoading" role="status">Cargando los datos de esta persona…</p>
+      <div v-if="loadError" role="alert" class="mb-4 p-4 rounded-lg border border-red-300 bg-red-50 text-red-800">{{ loadError }} <button type="button" class="underline" @click="init">Reintentar</button></div>
+      <p v-if="saveError" role="alert" class="mb-4 error--text">{{ saveError }}</p>
+      <p v-if="!isLoading && !loadError" role="status">{{ dirty ? 'Cambios sin guardar' : 'Sin cambios pendientes' }}</p>
+      <template v-if="!isLoading && !loadError">
       <div v-if="validationErrors.length" ref="validationSummary" tabindex="-1" role="alert" class="mb-5 p-4 rounded-lg border border-red-300 bg-red-50 text-red-800">
         <strong>Revisa los datos para actualizar el usuario:</strong>
         <ul><li v-for="item in validationErrors" :key="item.field"><button type="button" class="underline" @click="focusField(item.field)">{{ item.message }}</button></li></ul>
@@ -21,10 +26,10 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5" v-if="user">
-          <v-text-field ref="name" label="Nombre *" outlined dense :color="themePrimary" :error-messages="fieldErrors('name')"
+          <v-text-field ref="name" label="Nombre *" outlined dense :disabled="isSaving" :color="themePrimary" :error-messages="fieldErrors('name')"
             v-model="$v.user.name.$model"
           />
-          <v-text-field ref="phone" label="Teléfono *" type="tel" inputmode="numeric" outlined dense :color="themePrimary" :error-messages="fieldErrors('phone')" hint="Ingresa un teléfono de 10 dígitos." persistent-hint
+          <v-text-field ref="phone" label="Teléfono *" type="tel" inputmode="numeric" outlined dense :disabled="isSaving" :color="themePrimary" :error-messages="fieldErrors('phone')" hint="Ingresa un teléfono de 10 dígitos." persistent-hint
             v-model="$v.user.phone.$model"
           />
         </div>
@@ -37,11 +42,12 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <v-text-field ref="email" label="Correo *" type="email" outlined dense :color="themePrimary" :error-messages="fieldErrors('email')"
+          <v-text-field ref="email" label="Correo *" type="email" outlined dense :disabled="isSaving" :color="themePrimary" :error-messages="fieldErrors('email')"
             v-model="$v.user.email.$model"
           />
           <v-select
             ref="id_rol"
+            :disabled="isSaving"
             :color="themePrimary"
             :items="roles"
             label="Puesto *"
@@ -81,12 +87,14 @@
         ></da-professional-profile>
       </section>
 
+      </template>
+
       <div class="staff-editor-actions">
-        <button type="button" class="staff-save-button" :disabled="isSaving" @click="onSave">
+        <button type="button" class="staff-save-button" :disabled="isSaving || isLoading || !!loadError || loadedUserId !== id" @click="onSave">
           <v-icon size="18">mdi-content-save-outline</v-icon>
           <span>{{ isSaving ? 'Guardando...' : 'Guardar cambios' }}</span>
         </button>
-        <button type="button" class="staff-cancel-button" @click="$emit('close')">
+        <button type="button" class="staff-cancel-button" :disabled="isSaving" @click="requestClose">
           <v-icon size="18">mdi-close-circle-outline</v-icon>
           <span>Cancelar</span>
         </button>
@@ -105,6 +113,7 @@ import fnTypes from '../../store/modules/common/fn-types';
 import { emailPattern, phonePattern } from '../../utils/common/regex'
 import DAProfessionalProfile from './components/DAProfessionalProfile.vue';
 import { buildLicenseLimitMessage } from '../../utils/licenseLimitMessage';
+import { confirmSettingsDiscard, registerSettingsNavigationGuard } from '../../domain/settings/settings.navigation';
 
 export default {
     mixins: [validationMixin],
@@ -121,7 +130,14 @@ export default {
         return {
             user: new DAUserModel(),
             showPWD: false,
-            isSaving: false
+            isSaving: false,
+            isLoading: false,
+            loadedUserId: '',
+            loadError: '',
+            saveError: '',
+            baseline: '',
+            loadRequest: 0,
+            navigationCleanup: null
         }
     },
     validations: {
@@ -145,7 +161,15 @@ export default {
     created() {
         this.init()
     },
+    mounted() {
+        this.navigationCleanup = registerSettingsNavigationGuard(this, { hasChanges: () => this.hasPendingChanges(), isSaving: () => this.isWorking() });
+    },
+    beforeDestroy() {
+        this.loadRequest++;
+        if(this.navigationCleanup) this.navigationCleanup();
+    },
     computed: {
+        dirty() { return !!this.baseline && this.baseline !== JSON.stringify(this.user); },
         validationErrors() {
             return ['name', 'phone', 'email', 'id_rol'].flatMap(field => this.fieldErrors(field).map(message => ({ field, message })));
         },
@@ -156,7 +180,6 @@ export default {
             hasErrorInService: fnTypes.hasErrorInService,
             lastErrorInService: fnTypes.lastErrorInService,
             lastErrorInServiceDetails: fnTypes.lastErrorInServiceDetails,
-            userModel: fnTypes.getUser,
         }),
         themePrimary: function() {
             return 'var(--color-primary-700)'
@@ -171,6 +194,21 @@ export default {
         }
     },
     methods: {
+        hasPendingChanges() {
+            const profile = this.$refs.professionalProfile;
+            return this.dirty || Boolean(profile && profile.hasUnsavedChanges);
+        },
+        isWorking() {
+            const profile = this.$refs.professionalProfile;
+            return this.isSaving || Boolean(profile && profile.saving);
+        },
+        async requestClose() {
+            if(this.isWorking()) return false;
+            if(this.hasPendingChanges() && !await confirmSettingsDiscard(this)) return false;
+            if(this.isWorking()) return false;
+            this.$emit('close');
+            return true;
+        },
         fieldErrors(field) {
             const value = this.$v.user[field];
             if(!value || !value.$dirty || !value.$invalid) return [];
@@ -189,14 +227,22 @@ export default {
             fnTypes.update, fnTypes.getUser
         ]),
         init: async function() {
+            const request=++this.loadRequest;
             this.$v.$reset()
             this.user = new DAUserModel()
-            await this.getUserById(this.id)
-            await this.getRoles()
+            this.isLoading=true; this.loadedUserId=''; this.baseline=''; this.loadError=''; this.saveError='';
+            try {
+                if(!await this.getUserById(this.id, request)) return false;
+                await this.getRoles();
+                return true;
+            } catch(_) {
+                if(request===this.loadRequest) this.loadError='No se pudieron cargar los datos de esta persona. Reintenta antes de editar.';
+                return false;
+            } finally { if(request===this.loadRequest) this.isLoading=false; }
         },
         onSave: async function() {
-            if(this.isSaving) {
-                return
+            if(this.isWorking() || this.isLoading || this.loadError || this.loadedUserId !== this.id) {
+                return false
             }
 
             this.$v.$touch();
@@ -205,29 +251,29 @@ export default {
                     const summary = this.$refs.validationSummary;
                     if(summary) { summary.scrollIntoView({ block: 'center' }); summary.focus(); }
                 });
-                return;
+                return false;
             }
             if(!this.$v.$anyError) {
                 this.isSaving = true
+                this.saveError = ''
+                const payload = JSON.parse(JSON.stringify(this.user));
                 try {
-                    await this.update({data: this.user, id: this.id})
-                    if(!this.hasErrorInService.error) {
-                        const professionalProfileSaved = await this.saveProfessionalProfileIfNeeded()
-                        if(professionalProfileSaved) {
-                            this.$emit('success', true)
-                        }
-                    } else {
-                        this.toastFunction(
-                            'error',
-                            buildLicenseLimitMessage({
-                                message: this.lastErrorInService,
-                                data: this.lastErrorInServiceDetails
-                            }, this.lastErrorInService || 'No fue posible actualizar el usuario.')
-                        )
+                    const response = await this.update({data: payload, id: this.id})
+                    if(!response || !response.success) {
+                        this.saveError = buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo actualizar el usuario. Tu captura se conserva; puedes reintentar.');
+                        return false;
                     }
+                    this.baseline = JSON.stringify(payload);
+                    if(!await this.saveProfessionalProfileIfNeeded()) {
+                        this.saveError='Los datos de contacto se guardaron, pero las autorizaciones siguen pendientes. Revisa su mensaje y reintenta sin salir de esta pantalla.';
+                        return false;
+                    }
+                    this.$emit('success', true);
+                    return true;
                 }
                 catch(error) {
-                    this.toastFunction('error','No fue posible guardar los cambios.')
+                    this.saveError='No se pudo confirmar el guardado. Tu captura se conserva; revisa la conexión y vuelve a intentar.';
+                    return false;
                 }
                 finally {
                     this.isSaving = false
@@ -243,15 +289,23 @@ export default {
             if(!professionalProfile || typeof professionalProfile.save !== 'function') {
                 return true
             }
+            if(!professionalProfile.hasUnsavedChanges) return true;
 
             const response = await professionalProfile.save()
             return Boolean(response && response.success)
         },
-        getUserById: async function(id) {
-            await this.getUser(id)
-            if(this.userModel) {
-                this.user = this.userModel
+        getUserById: async function(id, request = this.loadRequest) {
+            const response = await this.getUser(id)
+            if(request !== this.loadRequest || id !== this.id) return false;
+            if(!response || !response.success || !response.data || response.data.id_login !== id) {
+                this.loadError=response && response.message ? response.message : 'No se pudieron verificar los datos de esta persona. Reintenta la carga.';
+                this.loadedUserId='';
+                return false;
             }
+            this.user=JSON.parse(JSON.stringify(response.data));
+            this.loadedUserId=id;
+            this.baseline=JSON.stringify(this.user);
+            return true;
         },
         toastFunction: function(type,text){
             const Toast = this.$swal.mixin({

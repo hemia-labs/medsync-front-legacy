@@ -20,9 +20,10 @@
         </div>
       </div>
       <p v-if="loading" role="status" class="mt-4 text-gray-600">Cargando configuracion…</p>
-      <div v-if="!loading && !error && !doctors.length" role="status" class="agenda-notice">
-        <p>Todavía no hay doctores con perfil activo. Completa y guarda tu perfil profesional; después configura sus horarios de atención. Los cierres generales no sustituyen la agenda del doctor.</p>
-        <router-link to="/admin?section=doctor-identity&returnTo=%2Fpx%2Fdates" class="agenda-link underline">Completar mi perfil profesional</router-link>
+      <div v-if="!loading && !error && !options.some(option => option.id !== 'business')" role="status" class="agenda-notice">
+        <p>{{ canManageAllDoctors ? 'Todavía no hay doctores con perfil activo.' : 'No tienes un perfil profesional activo con una agenda propia.' }} Completa y guarda tu perfil profesional; después configura sus horarios de atención. Los cierres generales no sustituyen la agenda del doctor.</p>
+        <router-link v-if="canCompleteOwnProfile" to="/admin?section=doctor-identity&returnTo=%2Fpx%2Fdates" class="agenda-link underline">Completar mi perfil profesional</router-link>
+        <p v-else>Pide al administrador que revise el perfil y los accesos del doctor.</p>
       </div>
       <div v-if="error" role="alert" class="agenda-notice agenda-notice-error">
         {{ error }} <button v-if="!loading" type="button" class="agenda-link" @click="loaded ? save() : selected ? load() : init()">Reintentar</button>
@@ -123,7 +124,22 @@
       <v-card class="agenda-dialog"><div class="agenda-dialog-header"><div><p class="agenda-eyebrow">{{ doctorName }} · Copiar horario</p><h3 class="agenda-title">Copiar {{ dayName(copySourceDay.dayOfWeek) }}</h3></div><v-btn icon aria-label="Cerrar copia de horario" @click="copyDialog = false"><v-icon>mdi-close</v-icon></v-btn></div><v-card-text class="pt-5"><p>Selecciona los dias que recibiran estos rangos. Reemplazara sus horarios actuales dentro de esta agenda.</p><div class="flex flex-wrap gap-2 mb-3"><span v-for="(range, i) in copySourceDay.timeRanges" :key="i" class="agenda-range-chip">{{ range.startTime }} - {{ range.endTime }}</span></div><v-checkbox v-for="day in copyTargetOptions" :key="day.value" v-model="copyTargetDays" :value="day.value" :label="day.label" :color="themeColor" hide-details></v-checkbox><p class="text-sm text-gray-500 mt-4">Despues pulsa Guardar cambios en la agenda.</p></v-card-text><v-card-actions class="agenda-dialog-actions"><v-btn rounded outlined :color="themeColor" @click="copyDialog = false">Cancelar</v-btn><v-btn rounded depressed :color="themeColor" dark :disabled="!copyTargetDays.length" @click="applyCopy">Copiar horario</v-btn></v-card-actions></v-card>
     </v-dialog>
     <v-dialog v-model="blockDialog" persistent max-width="600">
-      <v-card class="agenda-dialog"><div class="agenda-dialog-header"><div><p class="agenda-eyebrow">{{ doctorName }}</p><h3 class="agenda-title">{{ editingBlockIndex === -1 ? 'Agregar' : 'Editar' }} bloqueo</h3></div><v-btn icon aria-label="Cerrar edicion de bloqueo" @click="blockDialog = false"><v-icon>mdi-close</v-icon></v-btn></div><v-card-text class="pt-5"><div class="agenda-block-form"><v-checkbox v-model="editingBlock.repeats" label="Repetir cada semana" :color="themeColor" hide-details></v-checkbox><v-checkbox v-model="editingBlock.allDay" label="Todo el dia" :color="themeColor" hide-details></v-checkbox><v-select v-if="editingBlock.repeats" v-model="editingBlock.dayOfWeek" :items="weekDays" item-text="label" item-value="value" label="Dia de la semana" outlined dense hide-details :color="themeColor"></v-select><v-text-field v-else v-model="editingBlock.date" type="date" label="Fecha del bloqueo" outlined dense hide-details :color="themeColor"></v-text-field><v-text-field v-model="editingBlock.reason" label="Motivo (opcional)" outlined dense hide-details :color="themeColor"></v-text-field><v-text-field v-if="!editingBlock.allDay" v-model="editingBlock.startTime" type="time" label="Inicio del bloqueo" outlined dense hide-details :color="themeColor"></v-text-field><v-text-field v-if="!editingBlock.allDay" v-model="editingBlock.endTime" type="time" label="Fin del bloqueo" outlined dense hide-details :color="themeColor"></v-text-field></div><p v-if="blockError" role="alert" class="text-red-700 mt-3">{{ blockError }}</p><p class="text-sm text-gray-500 mt-4">Los cambios se guardan al pulsar Guardar cambios en la agenda.</p></v-card-text><v-card-actions class="agenda-dialog-actions"><v-btn rounded outlined :color="themeColor" @click="blockDialog = false">Cancelar</v-btn><v-btn rounded depressed :color="themeColor" dark @click="applyBlock">Aplicar bloqueo</v-btn></v-card-actions></v-card>
+      <v-card class="agenda-dialog">
+        <div class="agenda-dialog-header"><div><p class="agenda-eyebrow">{{ doctorName }}</p><h3 class="agenda-title">{{ editingBlockIndex === -1 ? 'Agregar' : 'Editar' }} bloqueo</h3></div><v-btn icon aria-label="Cerrar edicion de bloqueo" @click="blockDialog = false"><v-icon>mdi-close</v-icon></v-btn></div>
+        <v-card-text class="pt-5">
+          <div class="agenda-block-form">
+            <v-checkbox v-model="editingBlock.repeats" label="Repetir cada semana" :color="themeColor" hide-details></v-checkbox>
+            <v-checkbox v-model="editingBlock.allDay" label="Todo el día" :color="themeColor" hide-details></v-checkbox>
+            <v-select v-if="editingBlock.repeats" v-model="editingBlock.dayOfWeek" :items="weekDays" item-text="label" item-value="value" label="Día de la semana (obligatorio)" outlined dense hide-details :color="themeColor"></v-select>
+            <v-text-field v-else v-model="editingBlock.date" type="date" label="Fecha del bloqueo (obligatoria)" aria-required="true" :error-messages="blockAttempted && !validBlockDate(editingBlock.date) ? ['Selecciona una fecha válida para el bloqueo.'] : []" hint="Necesaria para un bloqueo que no se repite cada semana." persistent-hint outlined dense :color="themeColor"></v-text-field>
+            <v-text-field v-model="editingBlock.reason" label="Motivo (opcional)" outlined dense hide-details :color="themeColor"></v-text-field>
+            <v-text-field v-if="!editingBlock.allDay" v-model="editingBlock.startTime" type="time" label="Inicio del bloqueo" outlined dense hide-details :color="themeColor"></v-text-field>
+            <v-text-field v-if="!editingBlock.allDay" v-model="editingBlock.endTime" type="time" label="Fin del bloqueo" outlined dense hide-details :color="themeColor"></v-text-field>
+          </div>
+          <p v-if="blockError" role="alert" class="text-red-700 mt-3">{{ blockError }}</p><p class="text-sm text-gray-500 mt-4">Los cambios se guardan al pulsar Guardar cambios en la agenda.</p>
+        </v-card-text>
+        <v-card-actions class="agenda-dialog-actions"><v-btn rounded outlined :color="themeColor" @click="blockDialog = false">Cancelar</v-btn><v-btn rounded depressed :color="themeColor" dark @click="applyBlock">Aplicar bloqueo</v-btn></v-card-actions>
+      </v-card>
     </v-dialog>
     <v-dialog v-model="leaveOpen" persistent max-width="500">
       <v-card class="p-5"><h3 class="text-xl font-semibold text-gray-700">Cambios sin guardar</h3><p>Guarda la agenda antes de cambiar de doctor o descarta estos cambios.</p>
@@ -134,7 +150,7 @@
 </template>
 <script>
 import { mapGetters } from 'vuex';
-import { isTenantAdministrator } from '../../../security/settingsAccess';
+import { isTenantAdministrator, getSettingsSections } from '../../../security/settingsAccess';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
 import { DAAppointmentService } from '../../../services/context/core-proccess-context';
@@ -149,13 +165,14 @@ export default {
       loading:false, loaded:false, saving:false, error:'', message:'', baseline:'', leaveOpen:false, pending:'', request:0, selectorRevision:0,
       agendaTab:0, dayDialog:false, editingDay:{dayOfWeek:1,enabled:false,timeRanges:[]}, editingDayError:'',
       copyDialog:false, copySourceDay:{dayOfWeek:1,timeRanges:[]}, copyTargetDays:[],
-      blockDialog:false, editingBlock:{}, editingBlockIndex:-1, blockError:'',
+      blockDialog:false, editingBlock:{}, editingBlockIndex:-1, blockError:'', blockAttempted:false,
       previewDate: `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
     };
   },
   computed: {
     ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, hasPermission: fnTypes.hasPermission, role:fnTypes.getRole }),
     canManageAllDoctors() { return isTenantAdministrator(this.role) && this.hasPermission('admin.config'); },
+    canCompleteOwnProfile() { return getSettingsSections(this.role, this.hasPermission).some(section => section.key === 'doctor-identity'); },
     options() { const list = this.doctors.filter(d => this.canManageAllDoctors || d.id_login === (this.authUser || {}).id_login).map(d => ({id:d.id_doctor_professional_profile,label:d.display_name})); return this.canManageAllDoctors ? [...list,{id:'business',label:'Consultorio — cierres generales'}] : list; },
     doctorName() { return (this.options.find(d => d.id === this.selected) || {}).label || ''; },
     dirty() { return this.loaded && !!this.baseline && JSON.stringify(this.capture()) !== this.baseline; },
@@ -188,20 +205,35 @@ export default {
   },
   beforeDestroy() { this.request++; if(this.removeNavigationGuard)this.removeNavigationGuard(); },
   methods: {
-    async init() { this.loading=true;this.error='';try { const r = await DAAppointmentService.doctors(); if(!r.success) { this.error=r.message || 'No se pudieron cargar los doctores.'; return; } this.doctors=r.data || []; const own=this.doctors.find(d => d.id_login === (this.authUser || {}).id_login); this.selected=this.options.some(d=>d.id===this.initialDoctorId) ? this.initialDoctorId : own ? own.id_doctor_professional_profile : this.doctors.length === 1 ? this.doctors[0].id_doctor_professional_profile : ''; if(this.selected) await this.load(); }catch(error){this.error='No se pudieron cargar los doctores. Reintenta.';}finally{this.loading=false;} },
+    async init() { this.loading=true;this.error='';try { const r = await DAAppointmentService.doctors(); if(!r.success) { this.error=r.message || 'No se pudieron cargar los doctores.'; return; } this.doctors=r.data || []; const available=this.options.filter(option=>option.id!=='business'); const own=this.doctors.find(d => d.id_login === (this.authUser || {}).id_login && available.some(option=>option.id===d.id_doctor_professional_profile)); this.selected=this.options.some(d=>d.id===this.initialDoctorId) ? this.initialDoctorId : own ? own.id_doctor_professional_profile : available.length === 1 ? available[0].id : ''; if(this.selected) await this.load(); }catch(error){this.error='No se pudieron cargar los doctores. Reintenta.';}finally{this.loading=false;} },
     dayName(value) { return (WEEK_DAYS.find(d => d.value === Number(value)) || {}).label || ''; },
     capture() { return {...this.form,doctorProfileId:this.selected,blockedDates:this.blocks.filter(b=>b.allDay).map(b=>({...b,dayOfWeek:b.repeats?b.dayOfWeek:null})),blockedHours:this.blocks.filter(b=>!b.allDay).map(b=>({...b,dayOfWeek:b.repeats?b.dayOfWeek:null}))}; },
     choose(id) { if(this.dirty) {this.selectorRevision++;this.pending=id;this.leaveOpen=true;} else this.switchTo(id); },
     switchTo(id) { this.leaveOpen=false;if(id==='__close__'){this.$emit('close');return;}this.agendaTab=0;this.dayDialog=false;this.copyDialog=false;this.blockDialog=false;this.selected=id;this.load(); },
     async saveAndSwitch() { if(await this.save()) this.switchTo(this.pending); },
     async load() { if(!this.selected) return; const request=++this.request;this.loading=true;this.loaded=false;this.error='';this.message=''; try {const r=await DAAppointmentService.getConfig(this.selected);if(request!==this.request)return;if(!r.success||!r.data)throw new Error(r.message||'No se pudo cargar esta agenda.');this.form=normalizeAppointmentConfig(r.data);this.blocks=[...this.form.blockedDates.map(b=>({...b,allDay:true})),...this.form.blockedHours.map(b=>({...b,allDay:false}))];this.loaded=true;this.baseline=JSON.stringify(this.capture());}catch(e){if(request===this.request)this.error=e.message;}finally{if(request===this.request)this.loading=false;} },
-    async save() { if(this.saving||!this.loaded)return false;this.saving=true;this.error='';this.message='';try {const r=await DAAppointmentService.saveConfig(this.capture());if(!r.success)throw new Error(r.message||'No se pudo guardar. Tus cambios se conservaron.');this.baseline=JSON.stringify(this.capture());this.message='Agenda guardada.';this.$emit('saved');return true;}catch(e){this.error=e.message;return false;}finally{this.saving=false;} },
+    async save() { if(this.saving||!this.loaded)return false;if(!this.options.some(option=>option.id===this.selected)){this.error='Selecciona una agenda que tengas permiso para configurar.';return false;}this.saving=true;this.error='';this.message='';try {const r=await DAAppointmentService.saveConfig(this.capture());if(!r.success)throw new Error(r.message||'No se pudo guardar. Tus cambios se conservaron.');this.baseline=JSON.stringify(this.capture());this.message='Agenda guardada.';this.$emit('saved');return true;}catch(e){this.error=e.message;return false;}finally{this.saving=false;} },
     displayDate(value) { return formatDisplayDate(value); },
     openEditDay(day) {
       this.editingDay = {...day,timeRanges:day.timeRanges.map(range=>({...range}))};
       this.editingDayError='';this.dayDialog=true;
     },
-    addEditingRange() { this.editingDay.timeRanges.push({id:createId('range'),startTime:'08:00',endTime:'12:00'}); },
+    addEditingRange() {
+      const ranges = this.editingDay.timeRanges;
+      if(!ranges.length) { ranges.push({id:createId('range'),startTime:'08:00',endTime:'12:00'}); return; }
+      const error = this.validateRanges(ranges);
+      if(error) { this.editingDayError = 'Corrige los rangos actuales antes de agregar otro. ' + error; return; }
+      const ordered = [...ranges].sort((a,b)=>timeToMinutes(a.startTime)-timeToMinutes(b.startTime));
+      const gaps = [{start:timeToMinutes(ordered[ordered.length-1].endTime),end:1439}];
+      let end = 0;
+      ordered.forEach(range=>{ gaps.push({start:end,end:timeToMinutes(range.startTime)}); end=timeToMinutes(range.endTime); });
+      const duration = Math.max(5, Number(this.form.defaultAppointmentDuration) || 30);
+      const gap = gaps.find(item=>item.end-item.start>=duration);
+      if(!gap) {this.editingDayError='No queda un espacio libre para agregar otro rango. Ajusta los horarios existentes.';return;}
+      const time = value => `${String(Math.floor(value/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`;
+      ranges.push({id:createId('range'),startTime:time(gap.start),endTime:time(Math.min(gap.end,gap.start+Math.max(60,duration)))});
+      this.editingDayError='';
+    },
     validateRanges(ranges) {
       if(!ranges.length) return 'Agrega al menos un rango para este dia laboral.';
       const ordered = [...ranges].sort((a,b)=>timeToMinutes(a.startTime)-timeToMinutes(b.startTime));
@@ -234,11 +266,13 @@ export default {
     openBlockDialog(allDay,index=-1) {
       this.editingBlockIndex=index;
       this.editingBlock=index>=0 ? {...this.blocks[index]} : {date:'',repeats:false,repeatType:'none',dayOfWeek:1,allDay,reason:'',startTime:'13:00',endTime:'14:00'};
-      this.blockError='';this.blockDialog=true;
+      this.blockError='';this.blockAttempted=false;this.blockDialog=true;
     },
+    validBlockDate(value) { if(!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;const parsed=new Date(`${value}T12:00:00Z`);return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0,10)===value; },
     applyBlock() {
       this.blockError='';
-      if(!this.editingBlock.repeats && (!/^\d{4}-\d{2}-\d{2}$/.test(this.editingBlock.date || '') || !Number.isFinite(new Date(`${this.editingBlock.date}T00:00:00`).getTime()))) this.blockError='Selecciona una fecha para el bloqueo.';
+      this.blockAttempted=true;
+      if(!this.editingBlock.repeats && !this.validBlockDate(this.editingBlock.date)) this.blockError='Selecciona una fecha válida para el bloqueo.';
       else if(this.editingBlock.repeats && !this.weekDays.some(day=>day.value===this.editingBlock.dayOfWeek)) this.blockError='Selecciona el dia de la semana.';
       else if(!this.editingBlock.allDay) this.blockError=this.validateRanges([this.editingBlock]);
       if(this.blockError) return false;

@@ -10,6 +10,8 @@
     </div>
 
     <div class="staff-editor-body">
+      <p role="status">{{ dirty ? 'Cambios sin guardar' : 'Completa el formulario para crear el usuario.' }}</p>
+      <p v-if="saveError" role="alert" class="mb-4 error--text">{{ saveError }}</p>
       <div v-if="validationErrors.length" ref="validationSummary" tabindex="-1" role="alert" class="mb-5 p-4 rounded-lg border border-red-300 bg-red-50 text-red-800">
         <strong>Revisa los datos para crear el usuario:</strong>
         <ul><li v-for="item in validationErrors" :key="item.field"><button type="button" class="underline" @click="focusField(item.field)">{{ item.message }}</button></li></ul>
@@ -21,10 +23,10 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <v-text-field ref="name" label="Nombre *" outlined dense :color="themePrimary" :error-messages="fieldErrors('name')"
+          <v-text-field ref="name" label="Nombre *" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('name')"
             v-model="$v.user.name.$model"
           />
-          <v-text-field ref="phone" label="Teléfono *" type="tel" inputmode="numeric" maxlength="10" outlined dense :color="themePrimary" :error-messages="fieldErrors('phone')" hint="Ingresa un teléfono de 10 dígitos." persistent-hint
+          <v-text-field ref="phone" label="Teléfono *" type="tel" inputmode="numeric" maxlength="10" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('phone')" hint="Ingresa un teléfono de 10 dígitos." persistent-hint
             v-model="$v.user.phone.$model"
           />
         </div>
@@ -37,11 +39,12 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <v-text-field ref="email" label="Correo *" type="email" outlined dense :color="themePrimary" :error-messages="fieldErrors('email')"
+          <v-text-field ref="email" label="Correo *" type="email" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('email')"
             v-model="$v.user.email.$model"
           />
           <v-select
             ref="id_rol"
+            :disabled="saving"
             :color="themePrimary"
             :items="roles"
             label="Puesto *"
@@ -56,7 +59,7 @@
               <span class="text-primary-900">{{ data.item.desc_rol ? data.item.desc_rol : '' }}</span>
             </template>
           </v-select>
-          <v-text-field ref="password" label="Contraseña inicial *" outlined dense :color="themePrimary" :error-messages="fieldErrors('password')"
+          <v-text-field ref="password" label="Contraseña inicial *" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('password')"
             v-model="$v.user.password.$model"
             :type="showPWD ? 'text': 'password'"
           >
@@ -101,7 +104,7 @@
           <v-icon size="18">mdi-content-save-outline</v-icon>
           <span>Guardar usuario</span>
         </button>
-        <button type="button" class="staff-cancel-button" @click="$emit('close')">
+        <button type="button" class="staff-cancel-button" :disabled="saving" @click="requestClose">
           <v-icon size="18">mdi-close-circle-outline</v-icon>
           <span>Cancelar</span>
         </button>
@@ -120,6 +123,7 @@ import fnTypes from '../../store/modules/common/fn-types';
 import { emailPattern, phonePattern } from '../../utils/common/regex'
 import { buildLicenseLimitMessage } from '../../utils/licenseLimitMessage';
 import { DABusinessService } from '../../services/context/core-proccess-context';
+import { confirmSettingsDiscard, registerSettingsNavigationGuard } from '../../domain/settings/settings.navigation';
 
 export default {
     mixins: [validationMixin],
@@ -130,7 +134,10 @@ export default {
             licenseSummary: null,
             licenseLoading: false,
             licenseError: false,
-            saving: false
+            saving: false,
+            baseline: '',
+            saveError: '',
+            navigationCleanup: null
         }
     },
     validations: {
@@ -157,7 +164,12 @@ export default {
     created() {
         this.init()
     },
+    mounted() {
+        this.navigationCleanup=registerSettingsNavigationGuard(this, { hasChanges: () => this.dirty, isSaving: () => this.saving });
+    },
+    beforeDestroy() { if(this.navigationCleanup) this.navigationCleanup(); },
     computed: {
+        dirty() { return !!this.baseline && this.baseline !== JSON.stringify(this.user); },
         validationErrors() {
             return ['name','phone','email','id_rol','password'].flatMap(field=>this.fieldErrors(field).map(message=>({field,message})));
         },
@@ -241,6 +253,12 @@ export default {
         }
     },
     methods: {
+        async requestClose() {
+            if(this.saving) return false;
+            if(this.dirty && !await confirmSettingsDiscard(this)) return false;
+            if(this.saving) return false;
+            this.$emit('close'); return true;
+        },
         fieldErrors(field) {
             const value=this.$v.user[field];
             if(!value || !value.$dirty || !value.$invalid) return [];
@@ -257,6 +275,7 @@ export default {
         init: async function() {
             this.$v.$reset()
             this.user = new DAUserModel()
+            this.baseline = JSON.stringify(this.user)
             await this.getRoles()
             await this.loadLicenseSummary()
         },
@@ -281,18 +300,17 @@ export default {
             if(!this.$v.$anyError) {
                 this.saving=true;
                 try {
-                await this.save(this.user)
-                if(this.isSave) {
-                    this.$emit('success', this.isSave)
-                } else if(this.hasErrorInService) {
-                    this.toastFunction(
-                        'error',
-                        buildLicenseLimitMessage({
-                            message: this.lastErrorInService,
-                            data: this.lastErrorInServiceDetails
-                        }, this.lastErrorInService || 'No fue posible guardar el usuario.')
-                    )
+                this.saveError='';
+                const payload=JSON.parse(JSON.stringify(this.user));
+                const response=await this.save(payload)
+                if(response && response.success) {
+                    this.baseline=JSON.stringify(payload);
+                    this.$emit('success', true);
+                    return true;
                 }
+                this.saveError=buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo crear el usuario. Tu captura se conserva; puedes reintentar.');
+                return false;
+                } catch(_) { this.saveError='No se pudo confirmar el guardado. Tu captura se conserva; revisa la conexión antes de reintentar.'; return false;
                 } finally {this.saving=false;}
             }
         },

@@ -89,28 +89,31 @@
         <div class="consent-copy">
           <div class="consent-status-row">
             <p class="eyebrow">Consentimiento del plan</p>
-            <span class="consent-status" :class="{ signed: hasActiveConsent }">{{ !canViewConsent ? 'Sin acceso de consulta' : hasActiveConsent ? 'Firmado' : 'Pendiente de firma' }}</span>
+            <span class="consent-status" :class="{ signed: hasActiveConsent }">{{ !canViewConsent ? 'Sin acceso de consulta' : hasActiveConsent ? 'Firmado' : needsConsentConfiguration ? 'Falta configurar' : 'Pendiente de firma' }}</span>
           </div>
-          <h3>{{ !canViewConsent ? 'Capturar consentimiento del plan' : hasActiveConsent ? 'Consentimiento del plan firmado' : 'Firma pendiente del paciente' }}</h3>
+          <h3>{{ !canViewConsent ? 'Capturar consentimiento del plan' : hasActiveConsent ? 'Consentimiento del plan firmado' : needsConsentConfiguration ? 'Falta el formato de consentimiento del plan' : 'Firma pendiente del paciente' }}</h3>
           <span v-if="hasActiveConsent">Firmado: {{ formatDateTime(activeConsent.signed_at) }}</span>
           <p>
             {{ !canViewConsent ? 'Puedes capturar una nueva versión según tus permisos. El contenido de versiones anteriores no está disponible para consulta con tu acceso.' : hasActiveConsent
               ? 'Se conservaron el texto del consentimiento, la firma del paciente y los datos del doctor, junto con su firma si estaba registrada.'
+              : needsConsentConfiguration ? 'Antes de solicitar una firma, el consultorio debe guardar un formato activo de tipo «Consentimiento del plan de tratamiento». El consentimiento general de atención es un formato distinto.'
               : 'El paciente puede revisar el consentimiento y firmar aquí o desde un enlace por QR, correo o WhatsApp.' }}
           </p>
           <p v-if="hasPendingConsentDocument" class="field-help">Hay un documento preparado pendiente de firma. Si actualizas el plan, deberás preparar una nueva versión y sus enlaces.</p>
         </div>
         <div class="consent-actions">
           <v-select v-if="canManageSignature" v-model="doctorUserId" :items="eligibleDoctors" item-text="professional_name" item-value="id_login" label="Doctor que firma el consentimiento" outlined dense :disabled="contextLoading || isBusy" hide-details></v-select>
-          <p v-if="canManageSignature && consentPrerequisite" class="field-help" role="status">{{ consentPrerequisite }}</p>
+          <p v-if="canManageSignature && consentPrerequisite" id="plan-consent-prerequisite" class="field-help" role="status">{{ consentPrerequisite }}</p>
+          <router-link v-if="needsConsentConfiguration && canConfigurePlanConsent" class="btn-outline" :to="{ path: '/admin', query: { section: 'documents' } }">Configurar consentimiento</router-link>
+          <button v-if="needsConsentConfiguration" class="btn-outline" type="button" :disabled="contextLoading || isBusy" @click="loadConsentContext()">Actualizar requisitos</button>
           <button :disabled="isBusy" v-if="canManageSignature && contextError" class="btn-outline" type="button" @click="loadConsentContext()">Reintentar doctores y texto</button>
           <button :disabled="isBusy" v-if="hasActiveConsent && canViewConsent" class="btn-outline" type="button" @click="openConsentDialog('view')">
             <v-icon size="17">mdi-eye-outline</v-icon>
             Ver consentimiento
           </button>
-          <button v-if="canManageSignature" class="btn-soft" type="button" :disabled="Boolean(consentPrerequisite) || isBusy" @click="requestConsentSignature">
+          <button v-if="canManageSignature" class="btn-soft" type="button" :disabled="Boolean(consentPrerequisite) || isBusy" :aria-describedby="consentPrerequisite ? 'plan-consent-prerequisite' : null" @click="requestConsentSignature">
             <v-icon size="17">mdi-draw-pen</v-icon>
-            {{ hasPendingConsentDocument ? 'Continuar firma' : !canViewConsent ? 'Preparar firma' : hasActiveConsent ? 'Nueva versión de firma' : 'Solicitar firma' }}
+            {{ canReuseConsentDocument ? 'Continuar firma' : !canViewConsent ? 'Preparar firma' : hasActiveConsent ? 'Nueva versión de firma' : 'Solicitar firma' }}
           </button>
         </div>
       </section>
@@ -712,6 +715,7 @@ import fieldError from '../../../core/directives/field-error';
 import { sanitizeHtmlForDocumentSnapshot } from '../../../utils/sanitizeHtml';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
 import { localToday, requestId, snapshot, treatmentErrors, planErrors } from '../../../domain/treatment-plan/plan.editor';
+import { getSettingsSections } from '../../../security/settingsAccess';
 
 const today = localToday;
 
@@ -848,13 +852,29 @@ export default {
     },
     unfinishedCount() { return this.activeTreatments.filter(item => ['pending', 'in_progress', 'paused'].includes(item.status)).length; },
     eligibleDoctors() { return this.doctors.filter(doctor => this.isDoctorProfileReady(doctor)); },
+    canConfigurePlanConsent() { return getSettingsSections(this.currentUser.rol, this.hasPermission).some(section => section.key === 'documents'); },
+    hasConsentText() {
+      if(this.planConsentTemplate) {
+        const content = document.createElement('div');
+        content.innerHTML = sanitizeHtmlForDocumentSnapshot(this.planConsentTemplate.content_html || '');
+        return Boolean(String(content.textContent || '').replace(/[\s\u200b-\u200d\ufeff]/g, '') || content.querySelector('img[src]'));
+      }
+      return Boolean(String(this.signatureConfig.state || '').replace(/[\s\u200b-\u200d\ufeff]/g, '') || String(this.signatureConfig.consent || '').replace(/[\s\u200b-\u200d\ufeff]/g, ''));
+    },
+    canReuseConsentDocument() {
+      return Boolean(this.hasPendingConsentDocument && this.activeConsentDocument.responsible_doctor_user_id === this.doctorUserId
+        && Number(this.activeConsentDocument.includes_costs) === Number(this.showCosts));
+    },
+    needsConsentConfiguration() { return this.canManageSignature && !this.contextLoading && !this.contextError && !this.hasConsentText && !this.canReuseConsentDocument; },
     consentPrerequisite() {
       if(this.contextLoading) return 'Cargando doctores y texto del consentimiento…';
       if(this.contextError) return this.contextError;
       if(!this.config.consentVersioningAvailable) return 'Falta habilitar el historial de versiones antes de guardar una firma.';
       if(this.config.consentDocumentAvailable === false) return 'Falta habilitar la integración de documentos del plan antes de solicitar una firma.';
       if(!this.currentDoctorForConsent) return 'Selecciona un doctor con perfil activo, cédula y autorización de firma. Si no aparece, revisa su perfil en Configuración.';
-      if(!this.planConsentTemplate && !(this.signatureConfig && (this.signatureConfig.state || this.signatureConfig.consent))) return 'Configura el texto del consentimiento antes de solicitar la firma.';
+      if(!this.hasConsentText && !this.canReuseConsentDocument) return this.canConfigurePlanConsent
+        ? 'Ve a Configuración > Documentos y consentimientos, crea un formato de tipo «Consentimiento del plan de tratamiento» y guárdalo activo. Después vuelve y actualiza los requisitos.'
+        : 'Pide a un administrador que configure «Consentimiento del plan de tratamiento» en Configuración > Documentos y consentimientos. Después pulsa «Actualizar requisitos». Tu usuario sí tiene permiso para solicitar la firma.';
       return '';
     },
     consentVersions() { return this.consentPlan && this.consentPlan.consent_versions || []; },

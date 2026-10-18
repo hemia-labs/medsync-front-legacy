@@ -12,6 +12,7 @@ const actions = {
             if(response.success) {
                 commit(types.SET_USERS, response.data)
             }
+            return response
     },
 
     /**
@@ -20,10 +21,12 @@ const actions = {
      * @param {*} id ID del usuario
      */
     async getUser({commit}, id) {
+            commit(types.SET_USER, null)
             let response = await DAUserService.getUser(id);
             if(response.success) {
                 commit(types.SET_USER, response.data)
             }
+            return response
     },
 
     /**
