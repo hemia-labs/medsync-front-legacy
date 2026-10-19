@@ -1970,7 +1970,7 @@ export default {
     },
     async cancelDraft() {
       if(!this.canCancelDraft || !this.isDraft || this.isBusy || !this.contextReady) return;
-      const result = await this.confirmDialog('Cancelar borrador', 'El borrador dejará de estar disponible para editarse. Esta acción no cambia historias finalizadas ni documentos firmados.');
+      const result = await this.confirmDialog('Cancelar borrador', 'El borrador dejará de estar disponible para editarse. Esta acción no cambia historias finalizadas ni documentos firmados.', { destructive: true });
       if(!result) {
         return;
       }
@@ -2555,7 +2555,7 @@ export default {
         showCancelButton: true,
         confirmButtonText: 'Registrar negativa',
         cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#b42318'
+        customClass: { confirmButton: 'medsync-alert-danger' }
       });
       if(!result.isConfirmed) {
         return;
@@ -3007,7 +3007,7 @@ export default {
         });
       }
     },
-    async confirmDialog(title, text) {
+    async confirmDialog(title, text, { destructive = false } = {}) {
       if(!this.$swal) {
         return false;
       }
@@ -3017,7 +3017,8 @@ export default {
         text,
         showCancelButton: true,
         confirmButtonText: 'Continuar',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        customClass: { confirmButton: destructive ? 'medsync-alert-danger' : '' }
       });
       return result.isConfirmed;
     }

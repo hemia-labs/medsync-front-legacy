@@ -9,6 +9,7 @@ export async function confirmSettingsDiscard(view, { title = 'Tienes cambios sin
             const options = {
                 title, text, icon: 'warning', showCancelButton: true,
                 confirmButtonText: 'Descartar cambios', cancelButtonText: 'Seguir editando',
+                customClass: { confirmButton: 'medsync-alert-danger' },
                 focusCancel: true, reverseButtons: true
             };
             const result = typeof swal.fire === 'function' ? await swal.fire(options) : await swal(options);

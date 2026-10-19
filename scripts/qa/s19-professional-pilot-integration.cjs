@@ -129,7 +129,7 @@ const AppointmentService = service('appointment/DAAppointmentService.js');
 const MonitoringService = service('monitoring/DAMonitoringService.js');
 const PatientService = service('px/DAPxService.js');
 const TemplateService = service('clinicalHistoryTemplate/DAClinicalHistoryTemplateService.js');
-const bindings = { mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {}, VuexMixin: {},
+const bindings = { ListPageNav: {}, mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {}, VuexMixin: {},
   getSettingsSections: load('src/security/settingsAccess.js', {}, ['getSettingsSections']).getSettingsSections,
   dialogName: {}, fieldError: {}, window: {}, document: {}, isD2AuthMode: () => true,
   HistoryService, DAClinicalHistoryService: HistoryService, DAPrescriptionService: RxService, DADocumentService: DocumentService,

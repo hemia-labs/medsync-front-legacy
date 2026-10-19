@@ -203,7 +203,7 @@
             <h3>Planes cerrados</h3>
           </div>
           <div class="history-toggle-meta">
-            <span>{{ historyPlans.length }} registro(s)</span>
+            <span>{{ localPlanData && localPlanData.historyPagination ? localPlanData.historyPagination.total : historyPlans.length }} registro(s)</span>
             <v-icon size="22">{{ showHistorySection ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
           </div>
         </button>
@@ -262,6 +262,7 @@
             </article>
           </div>
         </transition>
+        <list-page-nav :pagination="localPlanData && localPlanData.historyPagination" :busy="isLoading || isBusy" label="Páginas de planes anteriores" @change="changeHistoryPage" />
       </section>
     </template>
 
@@ -719,10 +720,12 @@ import { getSettingsSections } from '../../../security/settingsAccess';
 
 const today = localToday;
 
+import ListPageNav from '../../../components/common/ListPageNav.vue';
+
 export default {
   mixins: [VuexMixin],
   directives: { dialogName, fieldError },
-  components: { DocumentSignatureOptionsDialog },
+  components: { DocumentSignatureOptionsDialog, ListPageNav },
   props: {
     px: {
       type: Object,
@@ -737,6 +740,7 @@ export default {
       planLoaded: false,
       loadError: '',
       loadRequest: 0,
+      historyPage: 1,
       notice: { type: 'info', message: '' },
       validationErrors: {},
       showValidation: false,
@@ -1109,6 +1113,7 @@ export default {
   },
   watch: {
     patientId: { immediate: true, handler() {
+      this.historyPage = 1;
       this.localPlanData = null;
       this.planLoaded = false;
       this.closeEditors();
@@ -1198,14 +1203,17 @@ export default {
       this.isBusy = true;
       this.notice = { type: 'info', message: 'Guardando…' };
       try {
-        const result = await action(payload);
+        const result = await action({ ...payload, page: this.historyPage, page_size: 5 });
         if(!result || !result.success) {
           this.toastFunction('error', result && result.message || 'No se guardaron los cambios. Reintenta conservando la captura.');
           if(result && result.data && result.data.errors) this.validationErrors = result.data.errors;
           return false;
         }
         if(payload.id_person !== this.patientId) return true;
-        if(result.data && result.data.patient && result.data.patient.id_person === this.patientId) this.localPlanData = result.data;
+        if(result.data && result.data.patient && result.data.patient.id_person === this.patientId) {
+          this.localPlanData = result.data;
+          if(result.data.historyPagination) this.historyPage = result.data.historyPagination.page;
+        }
         if(result.data && result.data.refreshRequired) {
           this.loadError = 'Los cambios se guardaron, pero no se pudo actualizar la consulta. Reintenta para verlos.';
           this.toastFunction('warning', this.loadError);
@@ -1369,16 +1377,22 @@ export default {
       this.toastFunction('warning', this.consentPrerequisite || 'No tienes permiso para guardar una firma.');
       return false;
     },
+    changeHistoryPage: async function(page) {
+      if(this.isBusy || !await this.confirmLeave()) return;
+      this.historyPage = page;
+      await this.loadPlan();
+    },
     loadPlan: async function() {
       const request = ++this.loadRequest, patientId = this.patientId;
       if(!patientId) return;
       this.isLoading = true;
       this.loadError = '';
       try {
-        const result = await this.getTreatmentPlan(patientId);
+        const result = await this.getTreatmentPlan({ idPerson: patientId, params: { page: this.historyPage, page_size: 5 } });
         if(request !== this.loadRequest) return;
         if(!result || !result.success || !result.data || !result.data.patient || result.data.patient.id_person !== patientId) throw new Error(result && result.message || 'No se pudo consultar el plan.');
         this.localPlanData = result.data;
+        if(result.data.historyPagination) this.historyPage = result.data.historyPagination.page;
         this.planLoaded = true;
         this.loadConsentContext(request, patientId);
       } catch(error) {

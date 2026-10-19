@@ -18,7 +18,7 @@ const root=path.resolve(__dirname,'../..');
     for(const file of ['src/views/prescriptions/Prescriptions.vue','src/views/Patient/Sections/Prescriptions.vue']) {
         let api=0,outputs=0,loads=0;const messages=[];
         const service={async prepareOutput(){ api++; return {success:true,data:{prescription:{id_prescription:'qa-rx',status:'issued'},config:{}}};}};
-        const context={component:null,mapGetters:()=>({}),moduleTypes:{AUTH:'AUTH'},fnTypes:{},PrescriptionForm:{},dialogName:{},DAPrescriptionService:service,DAPxService:{},openPrescriptionPrintWindow:()=>{outputs++;return true;}};
+        const context={component:null,ListPageNav:{},mapGetters:()=>({}),moduleTypes:{AUTH:'AUTH'},fnTypes:{},PrescriptionForm:{},dialogName:{},DAPrescriptionService:service,DAPxService:{},openPrescriptionPrintWindow:()=>{outputs++;return true;}};
         const sfc=fs.readFileSync(path.join(root,file),'utf8');
         vm.runInNewContext(sfc.split('<script>')[1].split('</script>')[0].replace(/^import[^;]+;\r?\n/gm,'').replace('export default','component ='),context);
         const view={outputBusy:false,canPrint:true,canDownload:true,previewData:{id_prescription:'qa-rx',status:'issued'},notify:(_type,message)=>messages.push(message),toast:(_type,message)=>messages.push(message),load:async()=>{loads++;}};

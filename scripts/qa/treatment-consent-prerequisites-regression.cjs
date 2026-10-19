@@ -36,7 +36,7 @@ async function check(name, run) {
     assert.deepEqual(compiler.compile(sfc.template.content).errors,[],'The real treatment template compiles');
     const context={component:null,...editor,...settingsPolicy,...sanitizerContext.module.exports,
         mapActions:()=>({}),mapGetters:()=>({}),VuexMixin:{},moduleTypes:{TREATMENT:{},CONFIGURATION:{},AUTH:{}},fnTypes:{},
-        isD2AuthMode:()=>true,DocumentSignatureOptionsDialog:{},DATreatmentService:services,dialogName:{},fieldError:{},
+        isD2AuthMode:()=>true,DocumentSignatureOptionsDialog: {}, ListPageNav: {},DATreatmentService:services,dialogName:{},fieldError:{},
         Blob,window:dom.window,document:dom.window.document};
     vm.runInNewContext(strip(sfc.script.content).replace('export default','component ='),context,{filename:'TreatmentPlan.vue'});
     const options=context.component;
@@ -135,7 +135,7 @@ async function check(name, run) {
     await check('late signing-context responses for the previous patient cannot overwrite the current patient or doctor selection',async()=>{
         const view=fresh(),oldGate=deferred(),newGate=deferred();
         contextResponse=patient=>patient==='qa-patient' ? oldGate.promise : newGate.promise;
-        view.getTreatmentPlan=async patient=>({success:true,data:planData(patient)});
+        view.getTreatmentPlan=async request=>({success:true,data:planData(request.idPerson)});
         await view.loadPlan();assert.equal(view.contextLoading,true);
         view.px={person:{id_person:'qa-next-patient'}};await view.loadPlan();
         newGate.resolve({success:true,data:{doctors:[doctor('doctor-new')],template:planTemplate('<p>Current patient context.</p>'),legacyText:{}}});await flush();

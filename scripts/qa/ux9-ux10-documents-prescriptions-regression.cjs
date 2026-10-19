@@ -11,7 +11,7 @@ const loadVue = (file, dependencies = {}) => {
     const source = read(file);
     const parsed = compiler.parseComponent(source);
     assert.deepEqual(compiler.compile(parsed.template.content).errors, [], `${file}: template compiles`);
-    const context = { component: null, mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { AUTH: {} }, fnTypes: {}, dialogName: {}, fieldError: {}, DocumentSignatureOptionsDialog: {}, PrescriptionForm: {}, uuid: { v4: () => 'qa-request' }, ...dependencies };
+    const context = { component: null, mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { AUTH: {} }, fnTypes: {}, dialogName: {}, fieldError: {}, DocumentSignatureOptionsDialog: {}, ListPageNav: {}, PrescriptionForm: {}, uuid: { v4: () => 'qa-request' }, ...dependencies };
     vm.runInNewContext(parsed.script.content.replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component ='), context);
     return context.component;
 };

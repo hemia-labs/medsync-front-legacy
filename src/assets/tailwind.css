@@ -1082,9 +1082,7 @@ html[data-theme="clinical-night"] .prescription-add:hover {
 
 html[data-theme="clinical-night"] .monitoring-action,
 html[data-theme="clinical-night"] .monitoring-dialog-action,
-html[data-theme="clinical-night"] .rx-action,
-html[data-theme="clinical-night"] .rx-swal-confirm,
-html[data-theme="clinical-night"] .rx-swal-cancel {
+html[data-theme="clinical-night"] .rx-action {
   box-shadow: 0 5px 12px rgba(2, 6, 23, 0.2);
 }
 

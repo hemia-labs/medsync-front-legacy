@@ -16,14 +16,14 @@
       </button>
     </section>
 
-    <section class="document-filters" v-if="documents.length > 0">
+    <section class="document-filters" v-if="documents.length > 0 || documentPagination">
       <button
         v-for="filter in documentFilters"
         :key="filter.value"
         type="button"
         class="filter-chip"
         :class="{ active: documentFilter === filter.value }"
-        @click="documentFilter = filter.value"
+        @click="changeDocumentFilter(filter.value)"
       >
         {{ filter.label }}
       </button>
@@ -91,6 +91,8 @@
         </div>
       </article>
     </section>
+
+    <list-page-nav :pagination="documentPagination" :busy="isLoading" @change="changeDocumentPage" />
 
     <v-dialog v-model="showCreateDialog" max-width="860" content-class="patient-document-dialog">
       <v-card v-dialog-name="'Crear documento desde plantilla'" class="document-modal">
@@ -420,10 +422,13 @@ import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
 import { getSettingsSections } from '../../../security/settingsAccess';
 
+import ListPageNav from '../../../components/common/ListPageNav.vue';
+
 export default {
   directives: { dialogName, fieldError },
   mixins: [VuexMixin],
   components: {
+    ListPageNav,
     DocumentSignatureOptionsDialog
   },
   props: {
@@ -440,6 +445,12 @@ export default {
     return {
       isLoading: false,
       documents: [],
+      documentPage: 1,
+      documentPagination: null,
+      creationHints: [],
+      documentLoadRequest: 0,
+      documentDetailRequest: 0,
+      resolvingDocumentFocus: null,
       documentsLoaded: false,
       handledDocumentFocusRequest: null,
       documentFocusAlive: true,
@@ -489,6 +500,7 @@ export default {
       authRole: fnTypes.getRole,
       authBusiness: fnTypes.getBusiness
     }),
+    documentIdentity: function() { return JSON.stringify([this.authUser, this.authBusiness]); },
     patientId: function() {
       return this.px && this.px.person ? this.px.person.id_person : '';
     },
@@ -522,13 +534,13 @@ export default {
       return this.doctors.find((doctor) => doctor.id_login === this.createForm.responsible_doctor_user_id) || null;
     },
     existingSignedSensitiveConsent: function() {
-      return this.documents.find((item) => item.document_type === 'SENSITIVE_DATA_CONSENT' && item.status === 'FIRMADO' && item.active !== 0) || null;
+      return [...this.documents, ...this.creationHints].find((item) => item.document_type === 'SENSITIVE_DATA_CONSENT' && item.status === 'FIRMADO' && item.active !== 0) || null;
     },
     existingOpenDocument: function() {
       if(!this.selectedTemplate) {
         return null;
       }
-      return this.asArray(this.documents).find((item) => (
+      return [...this.asArray(this.documents), ...this.creationHints].find((item) => (
         item.id_document_template === this.selectedTemplate.id_document_template &&
         ['BORRADOR', 'PENDIENTE_FIRMA'].includes(item.status) &&
         item.active !== 0
@@ -683,10 +695,20 @@ export default {
     }
   },
   watch: {
+    documentIdentity: function() { this.documentPage = 1; this.documents = []; this.creationHints = []; this.documentPagination = null; this.selectedDocument = null; this.showDocumentDialog = false; this.load(); },
     patientId: {
       immediate: true,
       handler: function(value) {
+        this.documentLoadRequest++;
+        this.documentDetailRequest++;
         if(value) {
+          this.documentPage = 1;
+          this.documentFilter = 'ALL';
+          this.documents = [];
+          this.documentPagination = null;
+          this.creationHints = [];
+          this.selectedDocument = null;
+          this.showDocumentDialog = false;
           this.load();
         }
       }
@@ -707,6 +729,8 @@ export default {
   },
   beforeDestroy() {
     this.documentFocusAlive = false;
+    this.documentLoadRequest++;
+    this.documentDetailRequest++;
     if(this.documentHighlightTimer) window.clearTimeout(this.documentHighlightTimer);
   },
   methods: {
@@ -722,29 +746,55 @@ export default {
         force_new_version: false
       };
     },
-    load: async function() {
+    documentPageParams: function() { return { page: this.documentPage, page_size: 10, document_filter: this.documentFilter }; },
+    applyDocumentPage: function(data) {
+      this.documents = Array.isArray(data) ? data : this.asArray(data && data.items);
+      this.documentPagination = data && data.pagination || null;
+      this.creationHints = data && data.creationHints || [];
+      if(this.documentPagination) this.documentPage = this.documentPagination.page;
+    },
+    changeDocumentPage: function(page) { this.documentPage = page; return this.load(); },
+    changeDocumentFilter: function(filter) { this.documentFilter = filter; this.documentPage = 1; return this.load(); },
+    documentScope: function() { return JSON.stringify([this.patientId, this.authUser, this.authBusiness]); },
+    ensureFullDocument: async function(item) {
+      if(!item || !item._summary) return item;
+      const request = ++this.documentDetailRequest, scope = this.documentScope();
+      try {
+        const response = await DADocumentService.getPatientDocument(this.patientId, item.id_patient_document);
+        if(!this.documentFocusAlive || request !== this.documentDetailRequest || scope !== this.documentScope()) return null;
+        if(!response || !response.success || !response.data || !response.data[0]) throw new Error('No se pudo consultar el documento. Reintenta.');
+        return response.data[0];
+      } catch(error) { if(this.documentFocusAlive && scope === this.documentScope()) this.notify('error', error.message || 'No se pudo consultar el documento.'); return null; }
+    },
+    load: async function(focus) {
+      const request = ++this.documentLoadRequest, scope = this.documentScope();
+      const optionsReady = this.documentsLoaded;
+      const focusParams = focus && (focus.id_patient_document || focus.document_type) ? { document_filter: 'ALL', ...(focus.id_patient_document ? { focus_document: focus.id_patient_document } : { focus_type: focus.document_type }) } : {};
+      const current = () => this.documentFocusAlive && request === this.documentLoadRequest && scope === this.documentScope();
       this.isLoading = true;
       this.loadError = '';
       this.documentsLoaded = false;
       try {
-        const docs = await DADocumentService.getPatientDocuments(this.patientId);
-        const templates = await DADocumentService.getTemplates();
-        const doctors = await DAPrescriptionService.doctors();
+        const docs = await DADocumentService.getPatientDocuments(this.patientId, { ...this.documentPageParams(), ...focusParams });
+        const templates = optionsReady ? { success: true, data: this.templates } : await DADocumentService.getTemplates();
+        const doctors = optionsReady ? { success: true, data: this.doctors } : await DAPrescriptionService.doctors();
+        if(!current()) return;
         if(!docs || !docs.success || !templates || !templates.success || !doctors || !doctors.success) {
           throw new Error('No se pudieron cargar los documentos, formatos o doctores. Reintenta antes de crear un documento.');
         }
-        this.documents = docs && docs.success ? this.asArray(docs.data) : [];
+        this.applyDocumentPage(docs.data);
         this.documentsLoaded = Boolean(docs && docs.success);
         this.templates = templates && templates.success ? this.asArray(templates.data) : [];
         this.doctors = doctors && doctors.success ? this.asArray(doctors.data) : [];
       } catch (error) {
+        if(!current()) return;
         this.documentsLoaded = false;
         this.documents = [];
         this.templates = [];
         this.doctors = [];
         this.loadError = error.message || 'No se pudo cargar Documentos y firmas. Reintenta cuando tengas conexión.';
       } finally {
-        this.isLoading = false;
+        if(current()) this.isLoading = false;
       }
     },
     openCreate: function() {
@@ -803,13 +853,14 @@ export default {
       this.isLoading = true;
       let response;
       try {
-        response = await DADocumentService.createDocument({ id_person: this.patientId, origin: 'DOCUMENT_CENTER', ...this.createForm });
+        response = await DADocumentService.createDocument({ id_person: this.patientId, origin: 'DOCUMENT_CENTER', ...this.createForm, page: 1, page_size: 10, document_filter: 'ALL' });
       } catch(error) {
         this.notify('error', 'No se pudo crear el documento. Tu captura sigue aquí; revisa la conexión y reintenta.');
         return;
       } finally { this.isLoading = false; }
       if(response && response.success) {
-        this.documents = response.data || [];
+        this.documentFilter = 'ALL';
+        this.applyDocumentPage(response.data);
         this.showCreateDialog = false;
         const createdDocument = this.findCreatedDocument(previousIds);
         if(mode === 'sign' && createdDocument) {
@@ -823,17 +874,32 @@ export default {
       }
     },
     openView: async function(item) {
+      const scope = this.documentScope();
+      item = await this.ensureFullDocument(item);
+      if(!item || !this.documentFocusAlive || scope !== this.documentScope()) return;
       this.selectedDocument = item;
       this.documentMode = 'view';
       this.showDocumentDialog = true;
       DADocumentService.auditAction({ id_patient_document: item.id_patient_document, event_type: 'VIEWED' });
     },
-    focusRequestedDocument: function(request) {
+    focusRequestedDocument: async function(request) {
       if(!request || !this.documentFocusAlive || !this.documentsLoaded || request === this.handledDocumentFocusRequest
           || request.id_person && request.id_person !== this.patientId) {
         return;
       }
-      const requestedDocument = this.findRequestedDocument(request);
+      if(this.resolvingDocumentFocus === request) return;
+      const focusScope = this.documentScope();
+      let requestedDocument = this.findRequestedDocument(request);
+      if(!requestedDocument && this.documentPagination) {
+        this.resolvingDocumentFocus = request;
+        this.documentFilter = 'ALL';
+        await this.load(request);
+        if(this.resolvingDocumentFocus !== request || focusScope !== this.documentScope()) return;
+        this.resolvingDocumentFocus = null;
+        if(!this.documentFocusAlive || request.id_person && request.id_person !== this.patientId) return;
+        if(this.loadError) return;
+        requestedDocument = this.findRequestedDocument(request);
+      }
       // Consume before queued DOM work so reloads/remounts cannot replay a completed request.
       this.handledDocumentFocusRequest = request;
       this.$emit('document-focus-consumed', request);
@@ -842,7 +908,7 @@ export default {
         this.notify('warning', 'No se encontró el consentimiento solicitado en Documentos y firmas.');
         return;
       }
-      this.documentFilter = this.filterForDocument(requestedDocument);
+      this.documentFilter = 'ALL';
       this.highlightedDocumentId = requestedDocument.id_patient_document;
       this.$nextTick(() => {
         if(!this.documentFocusAlive || this.handledDocumentFocusRequest !== request || request.id_person && request.id_person !== this.patientId) return;
@@ -906,7 +972,10 @@ export default {
         }, 180);
       });
     },
-    openSignatureOptions: function(item) {
+    openSignatureOptions: async function(item) {
+      const scope = this.documentScope();
+      item = await this.ensureFullDocument(item);
+      if(!item || !this.documentFocusAlive || scope !== this.documentScope()) return;
       if(!this.canSign(item)) {
         this.notify('warning', 'Este documento no esta disponible para firma.');
         return;
@@ -961,6 +1030,7 @@ export default {
       this.isLoading = true;
       const signerName = usesGuardian ? this.signForm.guardian_name : this.patientName;
       const response = await DADocumentService.signDocument({
+        ...this.documentPageParams(),
         id_patient_document: this.selectedDocument.id_patient_document,
         patient_signature: this.patientSignature,
         signer_name: signerName,
@@ -969,8 +1039,10 @@ export default {
       });
       this.isLoading = false;
       if(response && response.success) {
-        this.documents = response.data || [];
-        this.selectedDocument = this.documents.find((item) => item.id_patient_document === this.selectedDocument.id_patient_document) || this.selectedDocument;
+        this.applyDocumentPage(response.data);
+        this.selectedDocument = this.documents.find((item) => item.id_patient_document === this.selectedDocument.id_patient_document)
+          || await this.ensureFullDocument({ ...this.selectedDocument, _summary: true });
+        if(!this.selectedDocument) { this.showDocumentDialog = false; return; }
         this.documentMode = this.selectedDocument.status === 'FIRMADO' ? 'view' : this.documentMode;
         this.patientSignature = '';
         this.signaturePadReady = false;
@@ -994,12 +1066,13 @@ export default {
       }
       this.isLoading = true;
       const response = await DADocumentService.registerRefusal({
+        ...this.documentPageParams(),
         id_patient_document: this.refusalDocument.id_patient_document,
         refusal_reason: this.refusalReason.trim()
       });
       this.isLoading = false;
       if(response && response.success) {
-        this.documents = response.data || [];
+        this.applyDocumentPage(response.data);
         this.showRefusalDialog = false;
         this.notify('success', 'Negativa de firma registrada.');
       } else {
@@ -1036,12 +1109,13 @@ export default {
       this.isLoading = true;
       const response = await DADocumentService.cancelDocument({
         id_patient_document: item.id_patient_document,
+        ...this.documentPageParams(),
         reason: 'Cancelado desde Documentos y firmas.'
       });
       this.isLoading = false;
       this.resetCancelConfirmDialog();
       if(response && response.success) {
-        this.documents = response.data || [];
+        this.applyDocumentPage(response.data);
         this.notify('success', 'Documento cancelado.');
       } else {
         this.notify('error', response && response.message ? response.message : 'No se pudo cancelar documento.');

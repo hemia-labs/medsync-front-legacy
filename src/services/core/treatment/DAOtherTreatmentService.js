@@ -56,8 +56,9 @@ export default {
         return DACore.post(DAC_TRATAMENT_SAVED, data);
     },
 
-    async getTreatmentPlan(idPerson) {
-        return DACore.get(DAC_TREATMENT_PLAN_GET + idPerson);
+    async getTreatmentPlan(idPerson, params) {
+        const query = new URLSearchParams(params || {}).toString();
+        return DACore.get(DAC_TREATMENT_PLAN_GET + idPerson + (query ? '?' + query : ''));
     },
 
     async getSigningDoctors(idPerson) {

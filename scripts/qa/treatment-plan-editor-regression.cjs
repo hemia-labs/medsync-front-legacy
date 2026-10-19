@@ -18,7 +18,7 @@ const DOMPurify = require('dompurify');
     const sfc = fs.readFileSync(path.join(__dirname, '../../src/views/Patient/Sections/TreatmentPlan.vue'), 'utf8');
     const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[^;]+;\r?\n/gm, '').replace('export default', 'component =');
     const context = { component: null, mapActions: () => ({}), mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { TREATMENT: {}, CONFIGURATION: {}, AUTH: {} }, fnTypes: {},
-        isD2AuthMode: () => true, DADocumentService: {}, DATreatmentService: {}, DocumentSignatureOptionsDialog: {}, dialogName: {}, fieldError: {}, ...sanitizerContext.module.exports, ...settings, ...helper,
+        isD2AuthMode: () => true, DADocumentService: {}, DATreatmentService: {}, DocumentSignatureOptionsDialog: {}, ListPageNav: {}, dialogName: {}, fieldError: {}, ...sanitizerContext.module.exports, ...settings, ...helper,
         Blob, window: dom.window, document: dom.window.document, getComputedStyle: () => ({ getPropertyValue: () => '#0e7490' }) };
     vm.runInNewContext(script, context);
     const options = context.component;
