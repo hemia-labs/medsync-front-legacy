@@ -12,6 +12,7 @@ import '@/libs/directive';
 import VueSignature from 'vue-signature-pad';
 import VueSweetalert2 from 'vue-sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
+import './assets/sweetalert.css';
 import registerGlobalComponents from './plugins/global-components';
 
 import 'viewerjs/dist/viewer.css'
@@ -23,7 +24,7 @@ var options = {
 }
 Vue.use(VueSignature)
 Vue.use(VueSession, options)
-Vue.use(VueSweetalert2);
+Vue.use(VueSweetalert2, { buttonsStyling: false });
 library.add(fas);
 
 Vue.config.productionTip = false

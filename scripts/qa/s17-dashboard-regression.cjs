@@ -25,7 +25,7 @@ function component(file) {
     DashboardOperationalSummary: {}, DashboardProfessionalBreakdown: {}, DashboardTeamBreakdown: {},
     buildPlanFeatureMessage: () => '', isPlanFeatureResponse: () => false,
     DABusinessDashboardService: {
-      getSummary: defer('summary'), getTrends: defer('trends'), getOperationalSummary: defer('operational')
+      getOverview: defer('summary'), getTrends: defer('trends'), getOperationalSummary: defer('operational')
     }
   };
   vm.runInNewContext(compiler.parseComponent(source).script.content
@@ -133,7 +133,7 @@ async function run() {
   waiting.summary.shift()({ success: true, data: { private: 'previous actor' } }); await old;
   assert.equal(dashboard.summary, null);
   assert.equal(dashboard.isLoading, true);
-  waiting.summary.shift()({ success: true, data: { activity: { appointmentsCreated: 4 }, dashboard: { capabilities: {} } } });
+  waiting.summary.shift()({ success: true, data: { summary: { activity: { appointmentsCreated: 4 }, dashboard: { capabilities: {} } }, widgets: {} } });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(dashboard.summary.activity.appointmentsCreated, 4);
   const previous = dashboard.fetchWidget('trends', 'getTrends', 'trends');

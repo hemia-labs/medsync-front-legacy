@@ -198,7 +198,7 @@ export default {
         this.removeNavigationGuard = this.$router.beforeEach(async (to, from, next) => {
             if(this.saving) return next(false);
             if(!this.dirty) return next();
-            const result = await this.$swal.fire({title:'Cambios sin guardar',text:'Los cambios del formato de receta aun no se han guardado.',showCancelButton:true,confirmButtonText:'Descartar y salir',cancelButtonText:'Seguir editando',confirmButtonColor:this.themeColor,cancelButtonColor:'#526575'});
+            const result = await this.$swal.fire({title:'Cambios sin guardar',text:'Los cambios del formato de receta aun no se han guardado.',showCancelButton:true,confirmButtonText:'Descartar y salir',cancelButtonText:'Seguir editando',customClass:{confirmButton:'medsync-alert-danger'}});
             next(result.isConfirmed ? undefined : false);
         });
     },

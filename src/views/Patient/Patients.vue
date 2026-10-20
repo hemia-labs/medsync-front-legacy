@@ -34,7 +34,7 @@
         <article class="patients-summary-card">
           <span class="summary-icon"><v-icon size="22">mdi-filter-outline</v-icon></span>
           <div>
-            <strong>{{ filteredPatients.length }}</strong>
+            <strong>{{ totalMatches }}</strong>
             <small>Coincidencias visibles</small>
           </div>
         </article>
@@ -69,7 +69,7 @@
               hide-details
               :color="themePrimaryColor"
               class="patients-archive-checkbox"
-              @change="loadPatients"
+              @change="resetPageAndLoad"
             />
             <p id="patients-archive-help" class="patients-archive-help">Muestra también los pacientes archivados, sin reactivarlos.</p>
           </div>
@@ -87,6 +87,7 @@
                 hide-details
                 :color="themePrimaryColor"
                 class="patients-search-field"
+                maxlength="120"
               ></v-text-field>
 
               <button type="button" class="patients-clear-search" :disabled="!searchTerm" aria-label="Limpiar búsqueda" @click="onClearSearch">
@@ -225,6 +226,8 @@
               :length="pageCount"
               :total-visible="7"
               :color="themePrimaryColor"
+              :disabled="isPatientsLoading"
+              @input="loadPatients"
             ></v-pagination>
           </div>
         </div>
@@ -234,15 +237,19 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
-import VuexMixin from '../../mixins/VuexMixin';
+import { mapGetters } from 'vuex';
+import DAHomeService from '../../services/core/home/DAHomeService';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 
 export default {
-    mixins: [VuexMixin],
     data: function() {
         return {
+            patients: [],
+            pagination: { total: 0, totalPatients: 0, withOccupation: 0, pageCount: 1 },
+            searchTimer: null,
+            requestVersion: 0,
+            disposed: false,
             searchTerm: '',
             includeArchived: false,
             page: 1,
@@ -254,26 +261,39 @@ export default {
     created() {
       this.loadPatients()
     },
+    beforeDestroy() {
+      this.disposed = true
+      this.clearPatients()
+    },
     computed: {
-      ...mapGetters(moduleTypes.DASHBOARD, {
-        patients: fnTypes.getPatients
-      }),
       ...mapGetters(moduleTypes.AUTH, {
-        hasPermission: fnTypes.hasPermission
+        hasPermission: fnTypes.hasPermission,
+        authUser: fnTypes.getUser,
+        business: fnTypes.getBusiness,
+        authPermissions: fnTypes.getPermissions
       }),
+
+      patientSessionKey: function() {
+        const user = this.authUser || {}
+        const actor = user.id_login || user.id
+        const tenant = (this.business && this.business.id_business) || user.id_business
+        return actor && tenant ? JSON.stringify([actor, tenant, [...(this.authPermissions || [])].sort()]) : ''
+      },
 
       canCreatePatient: function() {
         return this.hasPermission('px.new')
       },
 
       totalPatients: function() {
-        return Array.isArray(this.patients) ? this.patients.length : 0
+        return this.pagination.totalPatients
+      },
+
+      totalMatches: function() {
+        return this.pagination.total
       },
 
       patientsWithOccupation: function() {
-        return this.safePatients.filter((patient) => {
-          return Boolean(patient.ocupation || patient.occupation)
-        }).length
+        return this.pagination.withOccupation
       },
 
       safePatients: function() {
@@ -281,34 +301,15 @@ export default {
       },
 
       filteredPatients: function() {
-        const term = this.normalizeText(this.searchTerm)
-        if(!term) {
-          return this.safePatients
-        }
-
-        return this.safePatients.filter((patient) => {
-          const searchable = [
-            this.patientName(patient),
-            this.patientContact(patient),
-            this.patientOccupation(patient),
-            this.patientAge(patient),
-            this.patientFolio(patient),
-            patient.id_person,
-            patient.code,
-            patient.folio
-          ].join(' ')
-
-          return this.normalizeText(searchable).indexOf(term) !== -1
-        })
+        return this.safePatients
       },
 
       pageCount: function() {
-        return Math.max(1, Math.ceil(this.filteredPatients.length / this.itemsPerPage))
+        return this.pagination.pageCount
       },
 
       paginatedPatients: function() {
-        const start = (this.page - 1) * this.itemsPerPage
-        return this.filteredPatients.slice(start, start + this.itemsPerPage)
+        return this.safePatients
       },
 
       pageRangeText: function() {
@@ -317,8 +318,8 @@ export default {
         }
 
         const start = ((this.page - 1) * this.itemsPerPage) + 1
-        const end = Math.min(this.page * this.itemsPerPage, this.filteredPatients.length)
-        return `${start}-${end} de ${this.filteredPatients.length}`
+        const end = Math.min(start + this.safePatients.length - 1, this.totalMatches)
+        return `${start}-${end} de ${this.totalMatches}`
       },
 
       themePrimaryColor: function() {
@@ -326,23 +327,54 @@ export default {
       }
     },
     methods: {
-      ...mapActions(moduleTypes.DASHBOARD, [
-        fnTypes.getPatients
-      ]),
+      clearPatients: function() {
+        clearTimeout(this.searchTimer)
+        this.searchTimer = null
+        this.requestVersion += 1
+        this.patients = []
+        this.pagination = { total: 0, totalPatients: 0, withOccupation: 0, pageCount: 1 }
+        this.isPatientsLoading = false
+        this.patientsServiceError = false
+      },
+
+      resetPageAndLoad: function() {
+        this.page = 1
+        return this.loadPatients()
+      },
 
       loadPatients: async function() {
+        clearTimeout(this.searchTimer)
+        this.searchTimer = null
+        const scope = this.patientSessionKey
+        if(this.disposed || !scope || !this.hasPermission('px.all')) {
+          this.clearPatients()
+          return
+        }
+        const version = ++this.requestVersion
+        const current = () => !this.disposed && scope === this.patientSessionKey && version === this.requestVersion
         this.isPatientsLoading = true
         this.patientsServiceError = false
+        this.patients = []
 
         try {
-          const response = await this.ActionWrapp(moduleTypes.DASHBOARD, fnTypes.getPatients, { param: '', include_archived: this.includeArchived })
-          this.patientsServiceError = !(response && response.success)
+          const response = await DAHomeService.getPatientsPage({ param: this.searchTerm, page: this.page,
+            page_size: this.itemsPerPage, include_archived: this.canCreatePatient && this.includeArchived })
+          if(!current()) return
+          const data = response && response.success && response.data
+          if(!data || !Array.isArray(data.items) || !data.pagination) {
+            this.patientsServiceError = true
+            return
+          }
+          this.patients = data.items
+          this.pagination = data.pagination
+          this.page = data.pagination.page
         }
         catch(error) {
+          if(!current()) return
           this.patientsServiceError = true
         }
         finally {
-          this.isPatientsLoading = false
+          if(current()) this.isPatientsLoading = false
         }
       },
 
@@ -414,13 +446,23 @@ export default {
     },
     watch: {
       searchTerm: function() {
+        if(this.disposed || !this.patientSessionKey || !this.hasPermission('px.all')) {
+          this.clearPatients()
+          return
+        }
         this.page = 1
+        clearTimeout(this.searchTimer)
+        this.requestVersion += 1
+        this.patients = []
+        this.isPatientsLoading = true
+        this.searchTimer = setTimeout(() => this.loadPatients(), 300)
       },
 
-      pageCount: function(value) {
-        if(this.page > value) {
-          this.page = value
-        }
+      patientSessionKey: function() {
+        this.clearPatients()
+        this.searchTerm = ''
+        this.includeArchived = false
+        this.$nextTick(() => this.resetPageAndLoad())
       }
     }
 }

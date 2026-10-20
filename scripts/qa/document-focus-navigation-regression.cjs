@@ -9,7 +9,7 @@ const load = (file, context) => {
     return context.component;
 };
 const context = { component: null, mapGetters: () => ({}), mapActions: () => ({}), VuexMixin: {}, moduleTypes: { AUTH: {}, PX: {}, CONFIGURATION: {} }, fnTypes: {},
-    DAHistoryHeader: {}, DAAlergyAlert: {}, AllergyEditor: {}, PatientAdministrativeForm: {}, DASweetConfirm: {}, DocumentsAndSignatures: {}, DocumentSignatureOptionsDialog: {}, DELETE: {}, buildProfilePhotoPayload: () => ({}),
+    DAHistoryHeader: {}, DAAlergyAlert: {}, AllergyEditor: {}, PatientAdministrativeForm: {}, DASweetConfirm: {}, DocumentsAndSignatures: {}, DocumentSignatureOptionsDialog: {}, ListPageNav: {}, DELETE: {}, buildProfilePhotoPayload: () => ({}),
     DADocumentService: {}, DAPrescriptionService: {}, dialogName: {}, fieldError: {}, getSettingsSections: () => [], isD2AuthMode: () => true, window: { setTimeout: () => 1, clearTimeout: () => {} } };
 const parentOptions = load('src/views/Patient/PatientShow.vue', { ...context });
 const documentOptions = load('src/views/Patient/Sections/DocumentsAndSignatures.vue', { ...context });

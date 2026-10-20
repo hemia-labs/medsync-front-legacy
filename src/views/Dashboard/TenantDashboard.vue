@@ -743,13 +743,29 @@ export default {
       this.clearDashboard();
       if(!this.sessionKey || this.dashboardDisposed) return;
       const request = this.beginDashboardRequest('summary');
+      const widgetRequests = Object.fromEntries(['trends', 'operational', 'professionalBreakdown', 'teamBreakdown']
+        .map(key => [key, this.beginDashboardRequest(key)]));
+      const requestedGranularity = this.trendsGranularity;
       this.isLoading = true;
       try {
-        const response = await DABusinessDashboardService.getSummary(this.dashboardParams());
+        const response = await DABusinessDashboardService.getOverview(this.dashboardParams({ granularity: requestedGranularity }));
         if(!this.isCurrentDashboardRequest(request)) return;
-        if(response && response.success && response.data) {
-          this.summary = response.data;
-          this.loadDashboardWidgetsForSummary(response.data);
+        if(response && response.success && response.data && response.data.summary) {
+          this.summary = response.data.summary;
+          const widgets = response.data.widgets || {};
+          const features = { trends: 'trends', operational: 'operational_analysis',
+            professionalBreakdown: 'professional_activity_metrics', teamBreakdown: 'team_usage_metrics' };
+          Object.keys(widgetRequests).forEach(key => {
+            if(!this.isCurrentDashboardRequest(widgetRequests[key])) return;
+            if(key === 'trends' && requestedGranularity !== this.trendsGranularity) {
+              this.fetchTrends();
+              return;
+            }
+            const widget = widgets[key];
+            this[key + 'Loading'] = false;
+            if(widget && widget.status === 200) this[key + 'Data'] = widget.data;
+            else if(widget) this[key + 'Error'] = this.dashboardFeatureMessage(widget, features[key]);
+          });
         }
         else {
           this.errorMessage = response && response.message

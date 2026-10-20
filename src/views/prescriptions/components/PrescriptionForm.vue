@@ -239,17 +239,8 @@ export default {
                     confirmButtonText: 'Guardar y salir',
                     denyButtonText: 'Descartar cambios',
                     cancelButtonText: 'Seguir editando',
-                    focusCancel: true,
-                    buttonsStyling: false,
-                    customClass: {
-                        popup: 'rx-leave-dialog',
-                        title: 'rx-leave-title',
-                        htmlContainer: 'rx-leave-description',
-                        actions: 'rx-leave-actions',
-                        confirmButton: 'rx-leave-button rx-leave-confirm',
-                        denyButton: 'rx-leave-button rx-leave-discard',
-                        cancelButton: 'rx-leave-button rx-leave-continue'
-                    }
+                    customClass: { popup: 'medsync-alert-wide' },
+                    focusCancel: true
                 });
             }
             finally { this.leaveDialogOpen = false; }
@@ -335,76 +326,4 @@ export default {
     .rx-footer-actions .rx-button { padding: 8px; font-size: 13px; }
 }
 @media (max-width: 360px) { .rx-core-fields { grid-template-columns: 1fr; } }
-</style>
-<style>
-.swal2-popup.rx-leave-dialog {
-    width: 36rem;
-    max-width: calc(100vw - 32px);
-    padding: 0;
-    overflow: hidden;
-    border: 1px solid var(--color-primary-200, #cdeef7);
-    border-radius: 16px;
-    background: #fff;
-    font-family: inherit;
-    box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
-}
-.rx-leave-dialog .rx-leave-title {
-    margin: 0;
-    padding: 22px 24px 18px;
-    background: linear-gradient(180deg, var(--color-primary-100, #e6f7fb), #fff);
-    color: #334155;
-    font-size: 1.25rem;
-    font-weight: 800;
-    line-height: 1.4;
-    text-align: left;
-}
-.rx-leave-dialog .rx-leave-description {
-    margin: 0;
-    padding: 0 24px 22px;
-    color: #64748b;
-    font-size: .9rem;
-    line-height: 1.6;
-    text-align: left;
-}
-.rx-leave-dialog .rx-leave-actions {
-    /* SweetAlert applies display:flex inline; keep the responsive button layout. */
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    width: 100%;
-    margin: 0;
-    padding: 16px 20px;
-    border-top: 1px solid var(--color-primary-200, #cdeef7);
-    background: #f8fcfd;
-}
-.rx-leave-dialog .rx-leave-button {
-    min-height: 44px;
-    margin: 0;
-    padding: 10px 12px;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    font-size: .82rem;
-    font-weight: 700;
-    line-height: 1.3;
-    transition: background-color .16s ease, box-shadow .16s ease;
-}
-.rx-leave-dialog .rx-leave-confirm {
-    background: var(--color-primary-900, #086783);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(8, 103, 131, .16);
-}
-.rx-leave-dialog .rx-leave-confirm:hover { background: var(--color-primary-1000, #064e63); }
-.rx-leave-dialog .rx-leave-discard { border-color: #fecdd3; background: #fff1f2; color: #a6001e; }
-.rx-leave-dialog .rx-leave-discard:hover { background: #ffe4e6; }
-.rx-leave-dialog .rx-leave-continue { border-color: var(--color-primary-200, #cdeef7); background: var(--color-primary-100, #e6f7fb); color: var(--color-primary-900, #086783); }
-.rx-leave-dialog .rx-leave-continue:hover { background: var(--color-primary-200, #cdeef7); }
-.rx-leave-dialog .rx-leave-button:focus-visible { outline: 3px solid var(--color-primary-900, #086783); outline-offset: 3px; }
-@media (max-width: 600px) {
-    .rx-leave-dialog .rx-leave-title { padding: 20px 20px 14px; font-size: 1.15rem; }
-    .rx-leave-dialog .rx-leave-description { padding: 0 20px 20px; }
-    .rx-leave-dialog .rx-leave-actions { grid-template-columns: 1fr; padding: 14px 20px; }
-}
-.rx-swal-confirm, .rx-swal-cancel { min-height: 44px; margin: 6px; padding: 10px 16px; border-radius: 8px; font-weight: 600; }
-.rx-swal-confirm { background: #116c70; color: white; }
-.rx-swal-cancel { background: #edf7fa; color: #116c70; border: 1px solid #b8cbd0; }
 </style>

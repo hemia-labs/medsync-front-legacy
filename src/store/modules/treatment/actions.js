@@ -96,12 +96,14 @@ const actions = {
         }
     },
 
-    async getTreatmentPlan({commit}, idPerson) {
+    async getTreatmentPlan({commit}, request) {
+        const idPerson = typeof request === 'string' ? request : request.idPerson;
+        const params = typeof request === 'string' ? undefined : request.params;
         const revision = ++planRequest;
         currentPatient = idPerson;
         commit(types.SET_TREATMENT_PLAN, null);
         try {
-            const response = await DATreatmentService.getTreatmentPlan(idPerson);
+            const response = await DATreatmentService.getTreatmentPlan(idPerson, params);
             if(revision === planRequest) {
                 if(response.success) commit(types.SET_TREATMENT_PLAN, response.data);
                 commit(types.SET_TREATMENT_EXCEPTION, new DAHasErrorModel(!response.success, response.message));

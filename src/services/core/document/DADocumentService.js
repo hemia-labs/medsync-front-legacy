@@ -21,8 +21,12 @@ export default {
     saveTemplate(data) {
         return DACore.post(DAC_DOCUMENT_TEMPLATE_SAVE, data);
     },
-    getPatientDocuments(idPerson) {
-        return DACore.get(DAC_DOCUMENT_PATIENT + idPerson);
+    getPatientDocuments(idPerson, params) {
+        const query = new URLSearchParams(params || {}).toString();
+        return DACore.get(DAC_DOCUMENT_PATIENT + idPerson + (query ? '?' + query : ''));
+    },
+    getPatientDocument(idPerson, idDocument) {
+        return DACore.get(DAC_DOCUMENT_PATIENT + encodeURIComponent(idPerson) + '/' + encodeURIComponent(idDocument));
     },
     createDocument(data) {
         return DACore.post(DAC_DOCUMENT_CREATE, data);

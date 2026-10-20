@@ -17,5 +17,9 @@ export default {
 
     getPatients(data) {
         return DACore.post(DAC_PX_SEARCHER, data);
+    },
+
+    getPatientsPage(data) {
+        return DACore.post('api/px/search-page', data);
     }
 }

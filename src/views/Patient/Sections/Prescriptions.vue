@@ -84,6 +84,8 @@
             </div>
         </div>
 
+        <list-page-nav :pagination="pagination" :busy="loading" @change="changePage" />
+
         <prescription-form
             ref="editor"
             :show="formDialog"
@@ -169,6 +171,8 @@ import PrescriptionForm from '../../prescriptions/components/PrescriptionForm.vu
 import { openPrescriptionPrintWindow } from '../../../domain/prescriptions/prescription.print';
 import dialogName from '../../../core/directives/dialog-name';
 
+import ListPageNav from '../../../components/common/ListPageNav.vue';
+
 export default {
     directives: { dialogName },
     props: {
@@ -178,11 +182,14 @@ export default {
         }
     },
     components: {
+        ListPageNav,
         PrescriptionForm
     },
     data() {
         return {
             items: [],
+            page: 1,
+            pagination: null,
             loading: true,
             outputBusy: false,
             loadError: '',
@@ -203,13 +210,18 @@ export default {
         this.load();
     },
     watch: {
+        pagingScope() { this.loadRequest++; this.page = 1; this.items = []; this.pagination = null; this.load(); },
         'px.person.id_person': function(value) {
             if(value) {
+                this.page = 1;
+                this.pagination = null;
+                this.items = [];
                 this.load();
             }
         }
     },
     computed: {
+        pagingScope() { const getters = this.$store && this.$store.getters || {}; return JSON.stringify([getters['auth/getUser'], getters['auth/getBusiness'], getters['auth/getPermissions']]); },
         ...mapGetters(moduleTypes.AUTH, {
             hasPermission: fnTypes.hasPermission
         }),
@@ -238,9 +250,11 @@ export default {
             return this.hasPermission('prescriptions.download');
         }
     },
+    beforeDestroy() { this.loadRequest++; },
     methods: {
+        changePage(page) { this.page = page; return this.load(); },
         async load() {
-            const request = ++this.loadRequest;
+            const request = ++this.loadRequest, scope = this.pagingScope;
             this.loading = true;
             this.loadError = '';
             const idPerson = this.patient.id_person;
@@ -250,12 +264,14 @@ export default {
                 return;
             }
             try {
-                const response = await DAPrescriptionService.listByPatient(idPerson);
-                if(request !== this.loadRequest) return;
+                const response = await DAPrescriptionService.listByPatient(idPerson, { page: this.page, page_size: 10 });
+                if(request !== this.loadRequest || scope !== this.pagingScope) return;
                 if(!response.success) throw new Error(response.message || 'No se pudo cargar el historial de recetas.');
-                this.items = response.data || [];
-            } catch(error) { if(request === this.loadRequest) this.loadError = error.message; }
-            finally { if(request === this.loadRequest) this.loading = false; }
+                this.items = Array.isArray(response.data) ? response.data : response.data.items || [];
+                this.pagination = response.data.pagination || null;
+                if(this.pagination) this.page = this.pagination.page;
+            } catch(error) { if(request === this.loadRequest && scope === this.pagingScope) this.loadError = error.message; }
+            finally { if(request === this.loadRequest && scope === this.pagingScope) this.loading = false; }
         },
         confirmLeave() {
             return this.$refs.editor ? this.$refs.editor.confirmLeave() : Promise.resolve(true);
@@ -326,7 +342,8 @@ export default {
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Eliminar',
-                cancelButtonText: 'Cancelar'
+                cancelButtonText: 'Cancelar',
+                customClass: { confirmButton: 'medsync-alert-danger' }
             });
             if(!confirm.value) {
                 return;
@@ -357,6 +374,7 @@ export default {
                 showCancelButton: true,
                 confirmButtonText: 'Cancelar receta',
                 cancelButtonText: 'Cerrar',
+                customClass: { confirmButton: 'medsync-alert-danger' },
                 inputValidator: (value) => !value ? 'Captura el motivo de cancelacion.' : undefined
             });
 
@@ -608,47 +626,5 @@ export default {
     .prescription-legend {
         justify-content: flex-start;
     }
-}
-</style>
-
-<style>
-.rx-swal-confirm,
-.rx-swal-cancel {
-    min-width: 9rem;
-    min-height: 2.65rem;
-    margin: 0 0.35rem;
-    padding: 0.65rem 1.1rem;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    font-size: 0.9rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
-    transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
-}
-
-.rx-swal-confirm:hover,
-.rx-swal-cancel:hover {
-    transform: translateY(-1px);
-}
-
-.rx-swal-confirm {
-    background: #e8f8ef;
-    border-color: #b8e8ca;
-    color: #137445;
-}
-
-.rx-swal-confirm:hover {
-    background: #d9f4e5;
-}
-
-.rx-swal-cancel {
-    background: #eef9fc;
-    border-color: #bdebf5;
-    color: var(--color-primary-700);
-}
-
-.rx-swal-cancel:hover {
-    background: #ddf5fa;
 }
 </style>

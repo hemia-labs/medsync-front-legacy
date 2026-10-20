@@ -111,6 +111,8 @@
             </div>
         </section>
 
+        <list-page-nav :pagination="pagination" :busy="loading" @change="changePage" />
+
         <v-dialog v-model="createDialog" max-width="760" aria-label="Seleccionar paciente para receta">
             <v-card v-dialog-name="'Seleccionar paciente para receta'">
                 <div class="px-6 py-5 border-b border-gray-200 flex items-start justify-between gap-4">
@@ -211,14 +213,19 @@ import { openPrescriptionPrintWindow } from '../../domain/prescriptions/prescrip
 import dialogName from '../../core/directives/dialog-name';
 import { validatePrescriptionDateRange } from '../../domain/prescriptions/prescription.filters';
 
+import ListPageNav from '../../components/common/ListPageNav.vue';
+
 export default {
     directives: { dialogName },
     components: {
+        ListPageNav,
         PrescriptionForm
     },
     data() {
         return {
             items: [],
+            page: 1,
+            pagination: null,
             loading: true,
             outputBusy: false,
             loadError: '',
@@ -251,6 +258,7 @@ export default {
         };
     },
     computed: {
+        pagingScope() { const getters = this.$store && this.$store.getters || {}; return JSON.stringify([getters['auth/getUser'], getters['auth/getBusiness'], getters['auth/getPermissions']]); },
         ...mapGetters(moduleTypes.AUTH, {
             hasPermission: fnTypes.hasPermission
         }),
@@ -278,12 +286,16 @@ export default {
         this.load();
     },
     watch: {
+        pagingScope() { this.loadRequest++; this.page = 1; this.items = []; this.pagination = null; this.load(); },
+        filters: { deep: true, handler() { this.page = 1; this.loadRequest++; this.loading = false; } },
         'filters.date_from'() { if(this.filterError) this.filterError = validatePrescriptionDateRange(this.filters); },
         'filters.date_to'() { if(this.filterError) this.filterError = validatePrescriptionDateRange(this.filters); }
     },
+    beforeDestroy() { this.loadRequest++; },
     methods: {
+        changePage(page) { this.page = page; return this.load(); },
         async load() {
-            const request = ++this.loadRequest;
+            const request = ++this.loadRequest, scope = this.pagingScope;
             this.filterError = validatePrescriptionDateRange(this.filters);
             if(this.filterError) {
                 this.loading = false;
@@ -294,18 +306,20 @@ export default {
             this.loading = true;
             this.loadError = '';
             try {
-                const response = await DAPrescriptionService.list(this.filters);
-                if(request !== this.loadRequest) return;
+                const response = await DAPrescriptionService.list({ ...this.filters, page: this.page, page_size: 10 });
+                if(request !== this.loadRequest || scope !== this.pagingScope) return;
                 if(!response.success) throw new Error(response.message || 'No se pudo cargar el historial de recetas.');
-                this.items = response.data || [];
-            } catch(error) { if(request === this.loadRequest) this.loadError = error.message; }
-            finally { if(request === this.loadRequest) this.loading = false; }
+                this.items = Array.isArray(response.data) ? response.data : response.data.items || [];
+                this.pagination = response.data.pagination || null;
+                if(this.pagination) this.page = this.pagination.page;
+            } catch(error) { if(request === this.loadRequest && scope === this.pagingScope) this.loadError = error.message; }
+            finally { if(request === this.loadRequest && scope === this.pagingScope) this.loading = false; }
         },
         async loadDoctors() {
             const response = await DAPrescriptionService.doctors();
             this.doctors = response.success ? response.data : [];
         },
-        clearFilters() {
+        async clearFilters() {
             this.filters = {
                 search: '',
                 date_from: '',
@@ -313,7 +327,8 @@ export default {
                 status: '',
                 issuer_doctor_id: ''
             };
-            this.load();
+            await this.$nextTick();
+            return this.load();
         },
         openCreate() {
             this.selectedPrescription = null;
@@ -414,7 +429,7 @@ export default {
             } finally { this.outputBusy = false; }
         },
         async cancel(item) {
-            const result = await this.$swal({ title: 'Cancelar receta', input: 'textarea', inputLabel: 'Motivo de cancelación', inputAttributes: { maxlength: 500 }, showCancelButton: true, confirmButtonText: 'Cancelar receta', cancelButtonText: 'Volver', inputValidator: value => !value.trim() ? 'Captura el motivo de cancelación.' : undefined });
+            const result = await this.$swal({ title: 'Cancelar receta', input: 'textarea', inputLabel: 'Motivo de cancelación', inputAttributes: { maxlength: 500 }, showCancelButton: true, confirmButtonText: 'Cancelar receta', cancelButtonText: 'Volver', customClass: { confirmButton: 'medsync-alert-danger' }, inputValidator: value => !value.trim() ? 'Captura el motivo de cancelación.' : undefined });
             if(!result.isConfirmed) return;
             const response = await DAPrescriptionService.cancel(item.id_prescription, result.value.trim());
             if(!response.success) { this.notify('error', response.message || 'No se pudo cancelar la receta.'); return; }

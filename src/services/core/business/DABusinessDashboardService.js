@@ -21,6 +21,10 @@ function buildQuery(endpoint, params = {}, allowedParams = []) {
 }
 
 export default {
+    getOverview(params = {}) {
+        return DACore.get(buildQuery('api/business/dashboard/overview', params, ['from', 'to', 'granularity', 'scope']));
+    },
+
     getSummary(params = {}) {
         return DACore.get(buildQuery(DAC_BUSINESS_DASHBOARD_SUMMARY, params, ['from', 'to', 'scope']));
     },
