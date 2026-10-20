@@ -526,7 +526,7 @@ export default {
       }
 
       if(this.dashboardLevel === 'operational') {
-        return 'Tu plan incluye tendencias y resumen operativo para seguir la actividad diaria del consultorio.';
+        return 'Tu plan incluye tendencias, resumen operativo y la vista administrativa del equipo para revisar usuarios, roles y capacidad del consultorio, segun tus permisos.';
       }
 
       return 'Tu plan incluye lo esencial para operar: estado del consultorio, capacidad de cuenta, actividad basica y avisos importantes.';
@@ -554,11 +554,18 @@ export default {
             message: 'Puedes revisar tendencias y comparativos del periodo.'
           },
           {
+            key: 'pro-team-ready',
+            tone: 'included',
+            icon: 'mdi-account-group-outline',
+            title: 'Vista administrativa del equipo',
+            message: 'Incluye uso del equipo, distribucion por roles y capacidad contratada, segun tus permisos administrativos.'
+          },
+          {
             key: 'enterprise-locked',
             tone: 'locked',
             icon: 'mdi-lock-outline',
-            title: 'Desglose administrativo',
-            message: 'Disponible en el plan Clinica para revisar profesionales y equipo.'
+            title: 'Actividad por profesional',
+            message: 'Disponible en el plan Clinica para revisar indicadores por profesional responsable.'
           }
         ];
       }

@@ -336,7 +336,7 @@ h3 {
 
 .team-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8.75rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
   gap: 0.65rem;
 }
 

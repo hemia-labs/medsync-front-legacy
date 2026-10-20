@@ -9,7 +9,7 @@ const metricContext = { module: { exports: {} } };
 vm.runInNewContext(read('src/domain/dashboard/metrics.js').replace(/export /g, '')
   + '\nmodule.exports = { metricNumber, formatMetric, hasMetric, sumMetric };', metricContext);
 const metrics = metricContext.module.exports;
-const waiting = { summary: [], trends: [], operational: [] };
+const waiting = { summary: [], trends: [], operational: [], team: [] };
 const calls = [];
 const defer = key => params => {
   calls.push({ key, params });
@@ -25,7 +25,7 @@ function component(file) {
     DashboardOperationalSummary: {}, DashboardProfessionalBreakdown: {}, DashboardTeamBreakdown: {},
     buildPlanFeatureMessage: () => '', isPlanFeatureResponse: () => false,
     DABusinessDashboardService: {
-      getOverview: defer('summary'), getTrends: defer('trends'), getOperationalSummary: defer('operational')
+      getOverview: defer('summary'), getTrends: defer('trends'), getOperationalSummary: defer('operational'), getTeamBreakdown: defer('team')
     }
   };
   vm.runInNewContext(compiler.parseComponent(source).script.content
@@ -119,6 +119,26 @@ async function run() {
   };
   const dashboard = instance(definition, { $store: { getters } });
   assert.equal(dashboard.canShowPlanStatus, false, 'Missing capabilities fail closed');
+  dashboard.summary = { dashboard: { level: 'operational', planLabel: 'Profesional', capabilities: {
+    planStatus: true, trends: true, operationalAnalysis: true, professionalBreakdown: false, teamBreakdown: true
+  } } };
+  assert.equal(dashboard.canShowTrends, true);
+  assert.equal(dashboard.canShowOperationalAnalysis, true);
+  assert.equal(dashboard.hasAdvancedDashboardWidgets, true, 'Profesional displays general advanced indicators');
+  assert.equal(dashboard.showProLockedPanel, false, 'General indicators are not advertised as locked');
+  assert.equal(dashboard.showEnterpriseLockedPanel, false, 'No team upgrade banner appears on Profesional');
+  assert.equal(dashboard.planScopeNotes.find(note => note.key === 'pro-team-ready').tone, 'included');
+  assert.equal(dashboard.planScopeNotes.find(note => note.key === 'enterprise-locked').title, 'Actividad por profesional');
+  await dashboard.fetchProfessionalBreakdown();
+  assert.equal(dashboard.canShowProfessionalBreakdown, false);
+  assert.equal(calls.length, 0, 'Profesional never requests per-person breakdowns');
+  assert.equal(dashboard.canShowTeamBreakdown, true);
+  const teamRequest = dashboard.fetchTeamBreakdown();
+  assert.equal(calls[calls.length - 1].key, 'team');
+  waiting.team.shift()({ success: true, data: { users: { active: 4 }, roles: [] } });
+  await teamRequest;
+  assert.equal(dashboard.teamBreakdownData.users.active, 4);
+  dashboard.summary = null;
   assert.equal(dashboard.planLabel, '', 'Omitted license must not become a false Sin plan badge');
   dashboard.summary = { business: { planName: 'Clinica' }, dashboard: { capabilities: { planStatus: false } } };
   assert.equal(dashboard.planLabel, '', 'Unauthorized license badge stays hidden even if metadata exists');

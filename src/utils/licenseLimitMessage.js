@@ -11,7 +11,7 @@ const FEATURE_MESSAGES = {
   trends: 'Las tendencias del dashboard estan disponibles desde el plan Profesional.',
   operational_analysis: 'El resumen operativo del dashboard esta disponible desde el plan Profesional.',
   professional_activity_metrics: 'Las metricas por profesional estan disponibles en el plan Clinica.',
-  team_usage_metrics: 'Las metricas de equipo estan disponibles en el plan Clinica.',
+  team_usage_metrics: 'Las metricas de equipo estan disponibles desde el plan Profesional.',
   advanced_basic_reports: 'Los reportes avanzados estan disponibles en el plan Clinica.'
 };
 
@@ -22,7 +22,7 @@ const FEATURE_PLAN_LABELS = {
   trends: 'Profesional',
   operational_analysis: 'Profesional',
   professional_activity_metrics: 'Clinica',
-  team_usage_metrics: 'Clinica',
+  team_usage_metrics: 'Profesional',
   advanced_basic_reports: 'Clinica'
 };
 
