@@ -30,6 +30,14 @@ export default {
         }
     },
 
+    async saveTimezone(timezone) {
+        try {
+            return await DACore.post(`${DAC_APPOINTMENT_CONFIG_GET}/timezone`, { timezone });
+        } catch (error) {
+            return error.response && error.response.data ? error.response.data : { success: false, message: 'No se pudo guardar la zona horaria. Reintenta.' };
+        }
+    },
+
     async list(params) {
         try {
             const query = new URLSearchParams(params || {}).toString();

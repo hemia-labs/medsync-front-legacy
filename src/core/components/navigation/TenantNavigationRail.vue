@@ -5,7 +5,7 @@
         <span class="brand-mark" aria-hidden="true">
           <v-icon size="20">mdi-hospital-building</v-icon>
         </span>
-        <div>
+        <div class="brand-copy">
           <strong>{{ businessName || 'Tu consultorio' }}</strong>
           <small>Consultorio</small>
         </div>
@@ -222,12 +222,16 @@ export default {
 
 .navigation-brand {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0.75rem;
   align-items: center;
   min-width: 0;
   padding: 0.35rem 0.35rem 0.85rem;
   border-bottom: 1px solid #e5edf1;
+}
+
+.brand-copy {
+  min-width: 0;
 }
 
 .brand-mark,
@@ -275,6 +279,11 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.navigation-brand strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .navigation-actions {
