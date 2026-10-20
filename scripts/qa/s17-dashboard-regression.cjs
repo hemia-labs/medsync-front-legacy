@@ -73,6 +73,54 @@ async function run() {
   assert.equal(op.decisionCards.some(card => card.key === 'followUps'), false);
   assert.equal(op.decisionCards.find(card => card.key === 'retention').value, 'No disponible');
   assert.equal(op.isEmpty, false, 'Measured zeros and unavailable values must remain readable');
+  const emptyOperations = () => ({
+    appointments: { total: 0, scheduled: 0 }, prescriptions: { total: 0, drafts: 0 },
+    clinicalHistories: { total: 0, pending: 0 },
+    decisionMetrics: { appointmentHealth: { scheduled: 0, pendingConfirmation: 0, noShow: 0, cancelled: 0 },
+      followUps: { available: true, due: 0, scheduled: 0, overdueWithoutAppointment: 0, upcomingWithoutAppointment: 0 } },
+    periodComparison: { appointmentsCreated: { current: 0, previous: 10 } }
+  });
+  op.data = emptyOperations();
+  assert.equal(op.hasOperationalActivity, false);
+  assert.equal(op.priorityActions[0].key, 'insufficient', 'New business and empty period cannot display a green all-clear');
+  assert.equal(op.priorityActions[0].tone, 'neutral');
+  op.data.users = { active: 3 };
+  op.data.periodComparison.patientsCreated = { current: 10 };
+  assert.equal(op.priorityActions[0].key, 'insufficient', 'Accounts, patient directory and previous-period activity are not operational activity in this period');
+  for (const group of ['appointments', 'prescriptions', 'clinicalHistories']) {
+    op.data = emptyOperations(); op.data[group].total = 2;
+    assert.equal(op.priorityActions[0].key, 'steady', group + ' has activity and measured zero pending counts');
+  }
+  op.data = emptyOperations(); op.data.appointments.scheduled = 1;
+  assert.equal(op.priorityActions[0].key, 'steady', 'Appointments created earlier but scheduled in this period count');
+  op.data = emptyOperations(); op.data.periodComparison.prescriptionsIssued = { current: 1 };
+  assert.equal(op.priorityActions[0].key, 'steady', 'Prescription created earlier but issued now counts');
+  op.data = { decisionMetrics: { followUps: { available: true, due: 3, scheduled: 2, overdueWithoutAppointment: 1, upcomingWithoutAppointment: 0 } } };
+  assert.equal(op.priorityActions[0].key, 'overdueFollowUps');
+  assert.equal(op.priorityActions[0].value, '1 sin cita', 'Subtract covered follow-ups, not the number of linked appointments');
+  op.data.decisionMetrics.followUps.scheduled = 3;
+  op.data.decisionMetrics.followUps.overdueWithoutAppointment = 0;
+  assert.equal(op.priorityActions[0].key, 'steady', 'Follow-up-only activity is recognized');
+  op.data.decisionMetrics.followUps.available = false;
+  assert.equal(op.priorityActions.length, 0, 'Unavailable follow-ups cannot supply actions or an all-clear even if stale numbers exist');
+  op.data = { decisionMetrics: { followUps: { available: true, due: 3, scheduled: null } } };
+  assert.equal(op.pendingFollowUps, null);
+  assert.equal(op.priorityActions.length, 0, 'Partial follow-up counts cannot produce a false all-clear');
+  op.data = { decisionMetrics: { followUps: { available: true, due: 3, scheduled: 2 } } };
+  assert.equal(op.priorityActions.length, 0, 'Older API response cannot invent overdue classification or a green message');
+  op.data = { decisionMetrics: { followUps: { available: true, due: 4, scheduled: 0, overdueWithoutAppointment: 0, upcomingWithoutAppointment: 4 } } };
+  assert.equal(op.priorityActions[0].key, 'steady', 'Today/future follow-ups never generate priority');
+  assert.equal(op.priorityActions[0].value, 'Sin pendientes prioritarios detectados');
+  assert.equal(op.decisionCards.find(card => card.key === 'followUpsUpcoming').value, '4');
+  assert.equal(op.decisionCards.find(card => card.key === 'followUpsUpcoming').tone, 'neutral');
+  op.data.decisionMetrics.followUps = { available: true, due: 5, scheduled: 0, overdueWithoutAppointment: 2, upcomingWithoutAppointment: 3 };
+  assert.equal(op.priorityActions[0].value, '2 sin cita', 'Priority uses only overdue count, never all unbooked follow-ups');
+  op.data = emptyOperations();
+  Object.assign(op.data.decisionMetrics.appointmentHealth, { pendingConfirmation: 2, noShow: 4, cancelled: 7 });
+  op.data.decisionMetrics.followUps = { available: true, due: 5, scheduled: 2, overdueWithoutAppointment: 3, upcomingWithoutAppointment: 0 };
+  op.data.clinicalHistories.pending = 3; op.data.prescriptions.drafts = 5;
+  assert.deepEqual(Array.from(op.priorityActions, item => item.key), ['cancelled', 'overdueFollowUps', 'noShow'], 'Scores sort correctly and show the top three');
+  assert.deepEqual(Array.from(op.priorityActions, item => item.value), ['7 canceladas', '3 sin cita', '4 no asistio']);
   op.data = { decisionMetrics: { treatmentEconomics: {
     available: false, totalEstimatedTreatmentValue: null, averageTreatmentValuePerPatient: null,
     patientsWithEstimatedTreatment: null, treatmentItemsWithCost: null

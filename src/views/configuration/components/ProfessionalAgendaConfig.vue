@@ -8,15 +8,16 @@
       </div>
       <div v-if="selected && loaded" class="agenda-header-actions">
         <v-switch v-model="form.enabled" inset hide-details :label="isBusiness ? 'Consultorio disponible' : 'Agenda activa'" :disabled="saving" :color="themeColor" class="m-0"></v-switch>
-        <v-btn rounded depressed :color="themeColor" dark :loading="saving" :disabled="loading" @click="save">Guardar cambios</v-btn>
+        <v-btn rounded depressed :color="themeColor" dark :loading="saving" :disabled="loading || timezoneSaving" @click="save">Guardar cambios</v-btn>
       </div>
     </header>
     <div class="agenda-body">
       <div class="agenda-scope">
-        <v-select :key="selected + '-' + selectorRevision" :value="selected" :items="options" item-text="label" item-value="id" label="Doctor / alcance de la configuracion" outlined dense hide-details :disabled="loading || saving" :color="themeColor" @change="choose"></v-select>
+        <v-select :key="selected + '-' + selectorRevision" :value="isBusiness ? null : selected" :items="options" item-text="label" item-value="id" label="Doctor" outlined dense hide-details :disabled="loading || saving || timezoneSaving" :color="themeColor" @change="choose"></v-select>
         <div class="text-sm text-gray-600">
           <p class="m-0">{{ !selected ? 'Selecciona el doctor cuya agenda quieres configurar.' : isBusiness ? 'Cierres generales que aplican a todos los doctores.' : 'Estos cambios aplican solo a ' + doctorName + '.' }}</p>
           <p v-if="loaded && !isBusiness" class="m-0 mt-1 text-gray-500">Los cierres del consultorio tambien se respetan.</p>
+          <v-btn v-if="canManageAllDoctors && !isBusiness" small text :color="themeColor" :disabled="loading || saving || timezoneSaving" @click="choose('business')">Cierres del consultorio</v-btn>
         </div>
       </div>
       <p v-if="loading" role="status" class="mt-4 text-gray-600">Cargando configuracion…</p>
@@ -48,7 +49,7 @@
                 <h3 class="agenda-title">Reglas base</h3>
                 <p class="agenda-description">{{ isBusiness ? 'Define la zona horaria y disponibilidad general del consultorio.' : 'Define como se generan los espacios disponibles.' }}</p>
                 <v-select v-if="!isBusiness" v-model="form.defaultAppointmentDuration" :items="durationOptions" item-text="label" item-value="value" label="Duracion habitual" outlined dense :disabled="saving" :color="themeColor" class="mt-5"></v-select>
-                <v-text-field v-model="form.timezone" label="Zona horaria del consultorio" :readonly="!isBusiness" outlined dense :disabled="saving" :color="themeColor" :class="{ 'mt-5': isBusiness }" :hint="!isBusiness ? 'Se administra en los cierres generales del consultorio.' : ''" :persistent-hint="!isBusiness"></v-text-field>
+                <ClinicTimeZoneField :value="form.timezone" :save-zone="persistTimezone" :can-manage="canManageAllDoctors" :disabled="saving || loading" :color="themeColor" />
                 <p class="agenda-note">{{ isBusiness ? 'Los horarios de atencion se configuran en la agenda de cada doctor. Los cierres generales aplican a todos.' : 'Las citas creadas desde seguimiento inician como pendientes de confirmar.' }}</p>
               </article>
               <article v-if="!isBusiness" class="agenda-panel">
@@ -107,7 +108,7 @@
             </article>
           </v-tab-item>
         </v-tabs-items>
-        <footer class="agenda-footer"><p class="m-0 text-sm text-gray-500">{{ dirty ? 'Tienes cambios sin guardar. ' : '' }}Guardar cambia la disponibilidad; las citas ya creadas conservan su horario.</p><v-btn rounded depressed :color="themeColor" dark :loading="saving" :disabled="loading" @click="save">Guardar cambios</v-btn></footer>
+        <footer class="agenda-footer"><p class="m-0 text-sm text-gray-500">{{ dirty ? 'Tienes cambios sin guardar. ' : '' }}Guardar cambia la disponibilidad; las citas ya creadas conservan su horario.</p><v-btn rounded depressed :color="themeColor" dark :loading="saving" :disabled="loading || timezoneSaving" @click="save">Guardar cambios</v-btn></footer>
       </template>
     </div>
     <v-dialog v-model="dayDialog" persistent max-width="620">
@@ -156,13 +157,15 @@ import fnTypes from '../../../store/modules/common/fn-types';
 import { DAAppointmentService } from '../../../services/context/core-proccess-context';
 import { normalizeAppointmentConfig, WEEK_DAYS, createId } from '../../../domain/appointments/appointment.storage';
 import { generateDaySlots, getDayWorkingConfig, getHourBlocksForDate, isDateBlocked, timeToMinutes, formatDisplayDate } from '../../../domain/appointments/availability';
+import ClinicTimeZoneField from './ClinicTimeZoneField.vue';
 export default {
+  components: { ClinicTimeZoneField },
   props: { themeColor: { type: String, default: '#087F8C' }, initialDoctorId: { type: String, default: '' } },
   data() {
     const today = new Date();
     return {
       doctors: [], selected: '', form: normalizeAppointmentConfig({enabled:false}), blocks: [], weekDays: WEEK_DAYS, durations:[10,15,20,30,45,60,90,120],
-      loading:false, loaded:false, saving:false, error:'', message:'', baseline:'', leaveOpen:false, pending:'', request:0, selectorRevision:0,
+      loading:false, loaded:false, saving:false, timezoneSaving:false, error:'', message:'', baseline:'', leaveOpen:false, pending:'', request:0, selectorRevision:0,
       agendaTab:0, dayDialog:false, editingDay:{dayOfWeek:1,enabled:false,timeRanges:[]}, editingDayError:'',
       copyDialog:false, copySourceDay:{dayOfWeek:1,timeRanges:[]}, copyTargetDays:[],
       blockDialog:false, editingBlock:{}, editingBlockIndex:-1, blockError:'', blockAttempted:false,
@@ -173,8 +176,8 @@ export default {
     ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, hasPermission: fnTypes.hasPermission, role:fnTypes.getRole }),
     canManageAllDoctors() { return isTenantAdministrator(this.role) && this.hasPermission('admin.config'); },
     canCompleteOwnProfile() { return getSettingsSections(this.role, this.hasPermission).some(section => section.key === 'doctor-identity'); },
-    options() { const list = this.doctors.filter(d => this.canManageAllDoctors || d.id_login === (this.authUser || {}).id_login).map(d => ({id:d.id_doctor_professional_profile,label:d.display_name})); return this.canManageAllDoctors ? [...list,{id:'business',label:'Consultorio — cierres generales'}] : list; },
-    doctorName() { return (this.options.find(d => d.id === this.selected) || {}).label || ''; },
+    options() { return this.doctors.filter(d => this.canManageAllDoctors || d.id_login === (this.authUser || {}).id_login).map(d => ({id:d.id_doctor_professional_profile,label:d.display_name})); },
+    doctorName() { return this.isBusiness ? 'Cierres del consultorio' : (this.options.find(d => d.id === this.selected) || {}).label || ''; },
     dirty() { return this.loaded && !!this.baseline && JSON.stringify(this.capture()) !== this.baseline; },
     isBusiness() { return this.selected === 'business'; },
     durationOptions() { return this.durations.map(value => ({value,label:`${value} minutos`})); },
@@ -197,7 +200,7 @@ export default {
   mounted() {
     this.init();
     this.removeNavigationGuard = this.$router.beforeEach(async (to, from, next) => {
-      if(this.saving) return next(false);
+      if(this.saving || this.timezoneSaving) return next(false);
       if(!this.dirty) return next();
       const result = await this.$swal.fire({title:'Cambios sin guardar',text:'Los cambios de agenda aun no se han guardado.',showCancelButton:true,confirmButtonText:'Descartar y salir',cancelButtonText:'Seguir editando',customClass:{confirmButton:'medsync-alert-danger'}});
       next(result.isConfirmed ? undefined : false);
@@ -208,11 +211,24 @@ export default {
     async init() { this.loading=true;this.error='';try { const r = await DAAppointmentService.doctors(); if(!r.success) { this.error=r.message || 'No se pudieron cargar los doctores.'; return; } this.doctors=r.data || []; const available=this.options.filter(option=>option.id!=='business'); const own=this.doctors.find(d => d.id_login === (this.authUser || {}).id_login && available.some(option=>option.id===d.id_doctor_professional_profile)); this.selected=this.options.some(d=>d.id===this.initialDoctorId) ? this.initialDoctorId : own ? own.id_doctor_professional_profile : available.length === 1 ? available[0].id : ''; if(this.selected) await this.load(); }catch(error){this.error='No se pudieron cargar los doctores. Reintenta.';}finally{this.loading=false;} },
     dayName(value) { return (WEEK_DAYS.find(d => d.value === Number(value)) || {}).label || ''; },
     capture() { return {...this.form,doctorProfileId:this.selected,blockedDates:this.blocks.filter(b=>b.allDay).map(b=>({...b,dayOfWeek:b.repeats?b.dayOfWeek:null})),blockedHours:this.blocks.filter(b=>!b.allDay).map(b=>({...b,dayOfWeek:b.repeats?b.dayOfWeek:null}))}; },
-    choose(id) { if(this.dirty) {this.selectorRevision++;this.pending=id;this.leaveOpen=true;} else this.switchTo(id); },
+    choose(id) { if(this.saving || this.timezoneSaving)return; if(this.dirty) {this.selectorRevision++;this.pending=id;this.leaveOpen=true;} else this.switchTo(id); },
     switchTo(id) { this.leaveOpen=false;if(id==='__close__'){this.$emit('close');return;}this.agendaTab=0;this.dayDialog=false;this.copyDialog=false;this.blockDialog=false;this.selected=id;this.load(); },
     async saveAndSwitch() { if(await this.save()) this.switchTo(this.pending); },
     async load() { if(!this.selected) return; const request=++this.request;this.loading=true;this.loaded=false;this.error='';this.message=''; try {const r=await DAAppointmentService.getConfig(this.selected);if(request!==this.request)return;if(!r.success||!r.data)throw new Error(r.message||'No se pudo cargar esta agenda.');this.form=normalizeAppointmentConfig(r.data);this.blocks=[...this.form.blockedDates.map(b=>({...b,allDay:true})),...this.form.blockedHours.map(b=>({...b,allDay:false}))];this.loaded=true;this.baseline=JSON.stringify(this.capture());}catch(e){if(request===this.request)this.error=e.message;}finally{if(request===this.request)this.loading=false;} },
-    async save() { if(this.saving||!this.loaded)return false;if(!this.options.some(option=>option.id===this.selected)){this.error='Selecciona una agenda que tengas permiso para configurar.';return false;}this.saving=true;this.error='';this.message='';try {const r=await DAAppointmentService.saveConfig(this.capture());if(!r.success)throw new Error(r.message||'No se pudo guardar. Tus cambios se conservaron.');this.baseline=JSON.stringify(this.capture());this.message='Agenda guardada.';this.$emit('saved');return true;}catch(e){this.error=e.message;return false;}finally{this.saving=false;} },
+    async save() { if(this.saving||this.timezoneSaving||!this.loaded)return false;if(!(this.isBusiness && this.canManageAllDoctors) && !this.options.some(option=>option.id===this.selected)){this.error='Selecciona una agenda que tengas permiso para configurar.';return false;}this.saving=true;this.error='';this.message='';try {const r=await DAAppointmentService.saveConfig(this.capture());if(!r.success)throw new Error(r.message||'No se pudo guardar. Tus cambios se conservaron.');this.baseline=JSON.stringify(this.capture());this.message='Agenda guardada.';this.$emit('saved');return true;}catch(e){this.error=e.message;return false;}finally{this.saving=false;} },
+    async persistTimezone(timezone) {
+      if(!this.canManageAllDoctors || this.loading || this.saving || this.timezoneSaving) throw new Error('No se puede cambiar la zona horaria en este momento.');
+      this.timezoneSaving=true;this.message='';
+      try {
+        const result=await DAAppointmentService.saveTimezone(timezone);
+        if(!result.success) throw new Error(result.message || 'No se pudo guardar la zona horaria. Reintenta.');
+        const savedZone=result.data.timezone;
+        this.form.timezone=savedZone;
+        // Updating only this baseline field preserves unsaved doctor hours and blocks.
+        if(this.baseline) {const baseline=JSON.parse(this.baseline);baseline.timezone=savedZone;this.baseline=JSON.stringify(baseline);}
+        this.message='Zona horaria del consultorio guardada.';this.$emit('saved');
+      } finally {this.timezoneSaving=false;}
+    },
     displayDate(value) { return formatDisplayDate(value); },
     openEditDay(day) {
       this.editingDay = {...day,timeRanges:day.timeRanges.map(range=>({...range}))};

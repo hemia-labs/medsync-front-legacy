@@ -10,11 +10,12 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 
 (async () => {
   const navigation = await import(`data:text/javascript;base64,${Buffer.from(read('src/domain/settings/settings.navigation.js')).toString('base64')}`);
+  const presentation = await import(`data:text/javascript;base64,${Buffer.from(read('src/domain/settings/permissions.presentation.js')).toString('base64')}`);
   const base = { mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {AUTH:'AUTH'}, fnTypes: {getUser:'getUser',getToken:'getToken'}, mutationTypes: {}, VuexMixin: {}, ACTIONS: {}, validationMixin: {}, DAUserModel: function() { this.name=''; }, DAProfessionalProfile: {}, required: () => true, emailPattern: () => true, phonePattern: () => true, buildLicenseLimitMessage: response => response && response.message || 'No se pudo guardar.', isD2AuthMode: () => false, ...navigation };
   function load(file, bindings={}) {
     const sfc=compiler.parseComponent(read(file));
     assert.deepEqual(compiler.compile(sfc.template.content).errors, [], `${file} template compiles`);
-    const context={component:null,...base,...bindings};
+    const context={component:null,...base,...presentation,...bindings};
     vm.runInNewContext(stripImports(sfc.script.content).replace('export default','component ='),context,{filename:file});
     return context.component;
   }

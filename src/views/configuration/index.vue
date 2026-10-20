@@ -97,11 +97,6 @@
                     </div>
                 </article>
 
-                <article class="border border-gray-200 bg-gray-50 shadow-md p-5 opacity-80">
-                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Fotos</p>
-                    <h3 class="m-0 text-gray-700 text-lg font-semibold">Fotos no disponibles por ahora</h3>
-                    <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">La sección de fotos no está disponible en esta versión. Cuando se active, aparecerá dentro del expediente.</p>
-                </article>
             </fieldset>
         </section>
 

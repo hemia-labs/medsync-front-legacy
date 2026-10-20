@@ -279,14 +279,31 @@ export default {
         }
       ];
     },
+    pendingFollowUps: function() {
+      const due = metricNumber(this.followUps.due);
+      const scheduled = metricNumber(this.followUps.scheduled);
+      return this.followUps.available === false || due === null || scheduled === null
+        ? null : Math.max(0, due - scheduled);
+    },
+    overdueFollowUps: function() {
+      return this.followUps.available === false ? null : metricNumber(this.followUps.overdueWithoutAppointment);
+    },
+    upcomingFollowUps: function() {
+      return this.followUps.available === false ? null : metricNumber(this.followUps.upcomingWithoutAppointment);
+    },
+    hasOperationalActivity: function() {
+      return [this.appointments.total, this.appointments.scheduled, this.appointmentHealth.scheduled,
+        this.prescriptions.total, this.clinicalHistories.total,
+        this.followUps.available === false ? null : this.followUps.due,
+        ...['appointmentsCreated', 'prescriptionsIssued', 'clinicalHistoriesFinalized']
+          .map(key => (this.comparison[key] || {}).current)]
+        .some(value => metricNumber(value) > 0);
+    },
     priorityActions: function() {
       const pendingConfirmations = normalizeNumber(this.appointmentHealth.pendingConfirmation);
       const noShow = normalizeNumber(this.appointmentHealth.noShow);
       const cancelled = normalizeNumber(this.appointmentHealth.cancelled);
-      const followUpsDue = normalizeNumber(this.followUps.due);
-      const followUpsScheduled = normalizeNumber(this.followUps.scheduled);
-      const followUpsWithoutAppointment = metricNumber(this.followUps.due) !== null && metricNumber(this.followUps.scheduled) !== null
-        ? Math.max(0, followUpsDue - followUpsScheduled) : 0;
+      const overdueFollowUps = this.overdueFollowUps || 0;
       const clinicalPending = normalizeNumber(this.clinicalHistories.pending);
       const prescriptionDrafts = normalizeNumber(this.prescriptions.drafts);
       const actions = [
@@ -295,29 +312,29 @@ export default {
           count: pendingConfirmations,
           score: pendingConfirmations * 4,
           label: 'Confirma tu agenda',
-          value: `${this.formatNumber(pendingConfirmations)} pendientes`,
+          value: `${this.formatNumber(pendingConfirmations)} ${pendingConfirmations === 1 ? 'pendiente' : 'pendientes'}`,
           impact: 'La agenda puede verse llena, pero esas citas todavia no estan aseguradas.',
           nextStep: 'Primero confirma o depura estas citas.',
           icon: 'mdi-calendar-alert-outline',
           tone: pendingConfirmations >= 5 ? 'danger' : 'warning'
         },
         {
-          key: 'followUpsWithoutAppointment',
-          count: followUpsWithoutAppointment,
-          score: followUpsWithoutAppointment * 4,
-          label: 'Recupera seguimientos',
-          value: `${this.formatNumber(followUpsWithoutAppointment)} sin cita`,
-          impact: 'Son pacientes que deberian volver y aun no tienen una cita ligada.',
-          nextStep: 'Conviene convertir seguimientos pendientes en citas.',
+          key: 'overdueFollowUps',
+          count: overdueFollowUps,
+          score: overdueFollowUps * 4,
+          label: 'Recupera seguimientos vencidos',
+          value: `${this.formatNumber(overdueFollowUps)} sin cita`,
+          impact: 'Su fecha sugerida ya paso y no tienen una cita vigente vinculada.',
+          nextStep: 'Revisa estos seguimientos vencidos y programa la atencion correspondiente.',
           icon: 'mdi-clipboard-pulse-outline',
-          tone: followUpsWithoutAppointment >= 3 ? 'danger' : 'warning'
+          tone: overdueFollowUps >= 3 ? 'danger' : 'warning'
         },
         {
           key: 'clinicalPending',
           count: clinicalPending,
           score: clinicalPending * 3,
           label: 'Revisa historias pendientes',
-          value: `${this.formatNumber(clinicalPending)} pendientes`,
+          value: `${this.formatNumber(clinicalPending)} ${clinicalPending === 1 ? 'pendiente' : 'pendientes'}`,
           impact: 'Son borradores de historia clinica pendientes de finalizar.',
           nextStep: 'Revisa si corresponde completarlos o continuar la captura.',
           icon: 'mdi-clipboard-text-clock-outline',
@@ -328,7 +345,7 @@ export default {
           count: prescriptionDrafts,
           score: prescriptionDrafts * 2,
           label: 'Revisa recetas borrador',
-          value: `${this.formatNumber(prescriptionDrafts)} borradores`,
+          value: `${this.formatNumber(prescriptionDrafts)} ${prescriptionDrafts === 1 ? 'borrador' : 'borradores'}`,
           impact: 'Pueden ser indicaciones que quedaron sin cerrar o sin emitir.',
           nextStep: 'Valida si deben emitirse, corregirse o descartarse.',
           icon: 'mdi-file-document-alert-outline',
@@ -350,7 +367,7 @@ export default {
           count: cancelled,
           score: cancelled * 2,
           label: 'Revisa cancelaciones',
-          value: `${this.formatNumber(cancelled)} canceladas`,
+          value: `${this.formatNumber(cancelled)} ${cancelled === 1 ? 'cancelada' : 'canceladas'}`,
           impact: 'Si no se recuperan, pueden convertirse en huecos de agenda.',
           nextStep: 'Busca que las cancelaciones importantes queden reagendadas.',
           icon: 'mdi-calendar-remove-outline',
@@ -361,17 +378,32 @@ export default {
         .sort((a, b) => b.score - a.score);
 
       if(!actions.length) {
+        // An older/incomplete response cannot classify pending follow-ups as safe.
+        if(this.pendingFollowUps > 0 && this.overdueFollowUps === null) return [];
         const measured = [this.appointmentHealth.pendingConfirmation, this.appointmentHealth.noShow,
-          this.appointmentHealth.cancelled, this.clinicalHistories.pending, this.prescriptions.drafts]
+          this.appointmentHealth.cancelled, this.clinicalHistories.pending, this.prescriptions.drafts, this.overdueFollowUps]
           .some(value => metricNumber(value) !== null);
         if(!measured) return [];
+        if(!this.hasOperationalActivity) {
+          return [{
+            key: 'insufficient',
+            label: 'Sin actividad en el periodo',
+            value: 'Aún no hay datos suficientes',
+            impact: 'No hay actividad registrada en los indicadores disponibles para este periodo.',
+            nextStep: 'Las recomendaciones apareceran cuando haya actividad registrada. Puedes revisar otro periodo.',
+            icon: 'mdi-chart-box-outline',
+            tone: 'neutral'
+          }];
+        }
         return [
           {
             key: 'steady',
             label: 'Datos disponibles',
-            value: 'Sin pendientes detectados',
-            impact: 'No hay pendientes en los indicadores disponibles para este periodo.',
-            nextStep: 'Los indicadores no disponibles quedan fuera de esta lectura.',
+            value: this.upcomingFollowUps > 0 ? 'Sin pendientes prioritarios detectados' : 'Sin pendientes detectados',
+            impact: this.upcomingFollowUps > 0 ? 'Hay seguimientos proximos por programar, pero no estan vencidos.'
+              : 'No hay pendientes en los indicadores disponibles para este periodo.',
+            nextStep: this.upcomingFollowUps > 0 ? 'Revisa Proximos seguimientos sin cita en los indicadores de continuidad.'
+              : 'Los indicadores no disponibles quedan fuera de esta lectura.',
             icon: 'mdi-check-circle-outline',
             tone: 'success'
           }
@@ -401,6 +433,24 @@ export default {
             : `${this.formatNumber(this.followUps.scheduled)} de ${this.formatNumber(this.followUps.due)} seguimientos`,
           interpretation: this.followUps.reason || this.followUps.definition || 'Seguimientos pendientes que ya tienen una cita registrada.',
           tone: 'success'
+        },
+        {
+          key: 'followUpsOverdue',
+          group: 'followUps',
+          label: 'Seguimientos vencidos sin cita',
+          value: this.formatNumber(this.overdueFollowUps),
+          helper: this.followUps.asOfDate ? `Fecha sugerida anterior al ${this.formatDate(this.followUps.asOfDate)}` : 'Fecha sugerida anterior a hoy',
+          interpretation: this.followUps.reason || 'Seguimientos activos del periodo sin cita vigente vinculada. Solo estos seguimientos generan prioridad.',
+          tone: this.overdueFollowUps > 0 ? 'warning' : 'neutral'
+        },
+        {
+          key: 'followUpsUpcoming',
+          group: 'followUps',
+          label: 'Próximos seguimientos sin cita',
+          value: this.formatNumber(this.upcomingFollowUps),
+          helper: 'Incluye hoy y las fechas posteriores del periodo',
+          interpretation: this.followUps.reason || 'Informacion para planificar la agenda; estos seguimientos todavia no estan vencidos y no generan prioridad.',
+          tone: 'neutral'
         },
         {
           key: 'noShow',
@@ -830,6 +880,11 @@ h3 {
 .priority-card.tone-success {
   border-color: #c8eadc;
   background: #f3fbf7;
+}
+
+.priority-card.tone-neutral {
+  border-color: #dbe3ed;
+  background: #f8fafc;
 }
 
 .economics-panel {
