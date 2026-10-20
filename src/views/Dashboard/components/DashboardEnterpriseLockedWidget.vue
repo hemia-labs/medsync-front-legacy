@@ -1,14 +1,14 @@
 <template>
-  <section class="enterprise-locked-widget" aria-label="Vista administrativa disponible en Clinica">
+  <section class="enterprise-locked-widget" aria-label="Actividad por profesional disponible en Clinica">
     <div class="locked-icon">
       <v-icon size="24">mdi-shield-lock-outline</v-icon>
     </div>
     <div>
       <p class="eyebrow">Disponible en el plan Clinica</p>
-      <h2>Vista administrativa del equipo</h2>
+      <h2>Actividad por profesional</h2>
       <p>
-        Tu plan actual mantiene el analisis operativo. En Clinica tambien puedes revisar actividad por profesional
-        y uso del equipo, sin mostrar datos de pacientes.
+        En Clinica puedes revisar la actividad documentada de cada profesional responsable,
+        sin mostrar datos de pacientes.
       </p>
       <button type="button" class="locked-cta">Contactar para cambiar plan</button>
     </div>
