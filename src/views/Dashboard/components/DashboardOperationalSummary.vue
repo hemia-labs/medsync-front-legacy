@@ -31,10 +31,10 @@
       <div v-if="priorityActions.length" class="priority-panel">
         <div class="decision-heading">
           <div>
-            <p class="eyebrow">Que atender primero</p>
-            <h3>Lectura automatica</h3>
+            <p class="eyebrow">Interpretación del periodo</p>
+            <h3>Lectura del periodo</h3>
           </div>
-          <small>Usa datos ya visibles</small>
+          <small>Alcance y periodo seleccionados</small>
         </div>
 
         <div class="priority-grid">
@@ -50,7 +50,7 @@
         </div>
 
         <p class="interpretation-note panel-note">
-          Como leerlo: este bloque no agrega mas numeros; toma los indicadores del resumen y los ordena como una lista de trabajo para decidir que conviene revisar primero.
+          Esta lectura describe los registros del periodo seleccionado. Consulta el Pulso para revisar obligaciones actuales de todo el consultorio, incluido el backlog anterior.
         </p>
       </div>
 
@@ -300,117 +300,18 @@ export default {
         .some(value => metricNumber(value) > 0);
     },
     priorityActions: function() {
-      const pendingConfirmations = normalizeNumber(this.appointmentHealth.pendingConfirmation);
-      const noShow = normalizeNumber(this.appointmentHealth.noShow);
-      const cancelled = normalizeNumber(this.appointmentHealth.cancelled);
-      const overdueFollowUps = this.overdueFollowUps || 0;
-      const clinicalPending = normalizeNumber(this.clinicalHistories.pending);
-      const prescriptionDrafts = normalizeNumber(this.prescriptions.drafts);
-      const actions = [
-        {
-          key: 'pendingConfirmations',
-          count: pendingConfirmations,
-          score: pendingConfirmations * 4,
-          label: 'Confirma tu agenda',
-          value: `${this.formatNumber(pendingConfirmations)} ${pendingConfirmations === 1 ? 'pendiente' : 'pendientes'}`,
-          impact: 'La agenda puede verse llena, pero esas citas todavia no estan aseguradas.',
-          nextStep: 'Primero confirma o depura estas citas.',
-          icon: 'mdi-calendar-alert-outline',
-          tone: pendingConfirmations >= 5 ? 'danger' : 'warning'
-        },
-        {
-          key: 'overdueFollowUps',
-          count: overdueFollowUps,
-          score: overdueFollowUps * 4,
-          label: 'Recupera seguimientos vencidos',
-          value: `${this.formatNumber(overdueFollowUps)} sin cita`,
-          impact: 'Su fecha sugerida ya paso y no tienen una cita vigente vinculada.',
-          nextStep: 'Revisa estos seguimientos vencidos y programa la atencion correspondiente.',
-          icon: 'mdi-clipboard-pulse-outline',
-          tone: overdueFollowUps >= 3 ? 'danger' : 'warning'
-        },
-        {
-          key: 'clinicalPending',
-          count: clinicalPending,
-          score: clinicalPending * 3,
-          label: 'Revisa historias pendientes',
-          value: `${this.formatNumber(clinicalPending)} ${clinicalPending === 1 ? 'pendiente' : 'pendientes'}`,
-          impact: 'Son borradores de historia clinica pendientes de finalizar.',
-          nextStep: 'Revisa si corresponde completarlos o continuar la captura.',
-          icon: 'mdi-clipboard-text-clock-outline',
-          tone: clinicalPending >= 3 ? 'danger' : 'warning'
-        },
-        {
-          key: 'prescriptionDrafts',
-          count: prescriptionDrafts,
-          score: prescriptionDrafts * 2,
-          label: 'Revisa recetas borrador',
-          value: `${this.formatNumber(prescriptionDrafts)} ${prescriptionDrafts === 1 ? 'borrador' : 'borradores'}`,
-          impact: 'Pueden ser indicaciones que quedaron sin cerrar o sin emitir.',
-          nextStep: 'Valida si deben emitirse, corregirse o descartarse.',
-          icon: 'mdi-file-document-alert-outline',
-          tone: 'warning'
-        },
-        {
-          key: 'noShow',
-          count: noShow,
-          score: noShow * 3,
-          label: 'Reduce ausencias',
-          value: `${this.formatNumber(noShow)} no asistio`,
-          impact: 'Cada ausencia puede representar tiempo clinico perdido.',
-          nextStep: 'Refuerza confirmacion y revisa si conviene reagendar.',
-          icon: 'mdi-account-cancel-outline',
-          tone: noShow >= 3 ? 'danger' : 'warning'
-        },
-        {
-          key: 'cancelled',
-          count: cancelled,
-          score: cancelled * 2,
-          label: 'Revisa cancelaciones',
-          value: `${this.formatNumber(cancelled)} ${cancelled === 1 ? 'cancelada' : 'canceladas'}`,
-          impact: 'Si no se recuperan, pueden convertirse en huecos de agenda.',
-          nextStep: 'Busca que las cancelaciones importantes queden reagendadas.',
-          icon: 'mdi-calendar-remove-outline',
-          tone: cancelled >= 5 ? 'danger' : 'warning'
-        }
-      ]
-        .filter((item) => item.count > 0)
-        .sort((a, b) => b.score - a.score);
-
-      if(!actions.length) {
-        // An older/incomplete response cannot classify pending follow-ups as safe.
-        if(this.pendingFollowUps > 0 && this.overdueFollowUps === null) return [];
-        const measured = [this.appointmentHealth.pendingConfirmation, this.appointmentHealth.noShow,
-          this.appointmentHealth.cancelled, this.clinicalHistories.pending, this.prescriptions.drafts, this.overdueFollowUps]
-          .some(value => metricNumber(value) !== null);
-        if(!measured) return [];
-        if(!this.hasOperationalActivity) {
-          return [{
-            key: 'insufficient',
-            label: 'Sin actividad en el periodo',
-            value: 'Aún no hay datos suficientes',
-            impact: 'No hay actividad registrada en los indicadores disponibles para este periodo.',
-            nextStep: 'Las recomendaciones apareceran cuando haya actividad registrada. Puedes revisar otro periodo.',
-            icon: 'mdi-chart-box-outline',
-            tone: 'neutral'
-          }];
-        }
-        return [
-          {
-            key: 'steady',
-            label: 'Datos disponibles',
-            value: this.upcomingFollowUps > 0 ? 'Sin pendientes prioritarios detectados' : 'Sin pendientes detectados',
-            impact: this.upcomingFollowUps > 0 ? 'Hay seguimientos proximos por programar, pero no estan vencidos.'
-              : 'No hay pendientes en los indicadores disponibles para este periodo.',
-            nextStep: this.upcomingFollowUps > 0 ? 'Revisa Proximos seguimientos sin cita en los indicadores de continuidad.'
-              : 'Los indicadores no disponibles quedan fuera de esta lectura.',
-            icon: 'mdi-check-circle-outline',
-            tone: 'success'
-          }
-        ];
-      }
-
-      return actions.slice(0, 3);
+      const definitions = [
+        ['pendingConfirmations', this.appointmentHealth.pendingConfirmation, 'Confirmaciones del periodo', 'Citas con fecha en el periodo que conservan ese estado; las futuras pueden estar dentro de su plazo normal.'],
+        ['overdueFollowUps', this.overdueFollowUps, 'Seguimientos de este periodo', 'Fecha sugerida vencida y sin cita vigente vinculada dentro del conjunto analizado. No incluye todo el backlog del consultorio.'],
+        ['clinicalPending', this.clinicalHistories.pending, 'Capturas de historia en borrador', 'Un borrador permite continuar una captura. Su estado no demuestra una obligación vencida.'],
+        ['prescriptionDrafts', this.prescriptions.drafts, 'Recetas en borrador', 'Existencias del periodo. Revisa el contexto antes de decidir si corresponde emitir o continuar.'],
+        ['noShow', this.appointmentHealth.noShow, 'Ausencias registradas', 'Resultado de citas del periodo; no se convierte automáticamente en una deuda actual.'],
+        ['cancelled', this.appointmentHealth.cancelled, 'Cancelaciones registradas', 'Resultado del periodo. Una nueva obligación requiere una tarea o seguimiento aplicable.']
+      ];
+      const rows = definitions.filter(row => metricNumber(row[1]) !== null && Number(row[1]) > 0).map(row => ({key:row[0],label:row[2],value:this.formatNumber(row[1]) + (row[0] === 'overdueFollowUps' ? ' sin cita' : ''),impact:row[3],nextStep:'Revisa las definiciones y el contexto del periodo.',icon:'mdi-chart-box-outline',tone:'neutral'}));
+      if(rows.length) return rows;
+      if(!definitions.some(row => metricNumber(row[1]) !== null)) return [];
+      return [{key:this.hasOperationalActivity?'steady':'insufficient',label:'Alcance de esta lectura',value:this.hasOperationalActivity?'Sin registros pendientes conocidos en este conjunto':'Aún no hay datos suficientes',impact:'Los indicadores no disponibles quedan fuera. Esta lectura del periodo no confirma el estado actual de todo el consultorio.',nextStep:'Puedes comparar otro periodo o consultar el Pulso si tienes acceso.',icon:'mdi-information-outline',tone:'neutral'}];
     },
     decisionCards: function() {
       return [

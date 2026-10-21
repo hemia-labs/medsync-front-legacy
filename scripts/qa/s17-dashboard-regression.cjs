@@ -22,7 +22,7 @@ function component(file) {
   const context = {
     module: { exports: {} }, ...metrics, moduleTypes: { AUTH: 'CORE/AUTH' },
     DashboardActivityTrends: {}, DashboardEnterpriseLockedWidget: {}, DashboardLockedWidget: {},
-    DashboardOperationalSummary: {}, DashboardProfessionalBreakdown: {}, DashboardTeamBreakdown: {},
+    DashboardOperationalSummary: {}, DashboardProfessionalBreakdown: {}, DashboardTeamBreakdown: {}, PulseEntry: {},
     buildPlanFeatureMessage: () => '', isPlanFeatureResponse: () => false,
     DABusinessDashboardService: {
       getOverview: defer('summary'), getTrends: defer('trends'), getOperationalSummary: defer('operational'), getTeamBreakdown: defer('team')
@@ -110,7 +110,7 @@ async function run() {
   assert.equal(op.priorityActions.length, 0, 'Older API response cannot invent overdue classification or a green message');
   op.data = { decisionMetrics: { followUps: { available: true, due: 4, scheduled: 0, overdueWithoutAppointment: 0, upcomingWithoutAppointment: 4 } } };
   assert.equal(op.priorityActions[0].key, 'steady', 'Today/future follow-ups never generate priority');
-  assert.equal(op.priorityActions[0].value, 'Sin pendientes prioritarios detectados');
+  assert.equal(op.priorityActions[0].value, 'Sin registros pendientes conocidos en este conjunto');
   assert.equal(op.decisionCards.find(card => card.key === 'followUpsUpcoming').value, '4');
   assert.equal(op.decisionCards.find(card => card.key === 'followUpsUpcoming').tone, 'neutral');
   op.data.decisionMetrics.followUps = { available: true, due: 5, scheduled: 0, overdueWithoutAppointment: 2, upcomingWithoutAppointment: 3 };
@@ -119,8 +119,9 @@ async function run() {
   Object.assign(op.data.decisionMetrics.appointmentHealth, { pendingConfirmation: 2, noShow: 4, cancelled: 7 });
   op.data.decisionMetrics.followUps = { available: true, due: 5, scheduled: 2, overdueWithoutAppointment: 3, upcomingWithoutAppointment: 0 };
   op.data.clinicalHistories.pending = 3; op.data.prescriptions.drafts = 5;
-  assert.deepEqual(Array.from(op.priorityActions, item => item.key), ['cancelled', 'overdueFollowUps', 'noShow'], 'Scores sort correctly and show the top three');
-  assert.deepEqual(Array.from(op.priorityActions, item => item.value), ['7 canceladas', '3 sin cita', '4 no asistio']);
+  assert.deepEqual(Array.from(op.priorityActions, item => item.key), ['pendingConfirmations','overdueFollowUps','clinicalPending','prescriptionDrafts','noShow','cancelled'], 'P3: period facts retain stable order without priority weights or truncated draft ranking');
+  assert.deepEqual(Array.from(op.priorityActions, item => item.value), ['2','3 sin cita','3','5','4','7']);
+  assert.equal(op.priorityActions.every(item => item.tone === 'neutral' && item.score === undefined),true,'Drafts and future confirmations are context, not current Pulse obligations');
   op.data = { decisionMetrics: { treatmentEconomics: {
     available: false, totalEstimatedTreatmentValue: null, averageTreatmentValuePerPatient: null,
     patientsWithEstimatedTreatment: null, treatmentItemsWithCost: null

@@ -1,9 +1,9 @@
 <template>
-  <section v-if="error || loading || (status && (status.pending || showCompleted))" class="preparation-card" aria-labelledby="preparation-title">
+  <section v-if="error || (showCompleted && loading) || (status && (status.pending || showCompleted))" class="preparation-card" aria-labelledby="preparation-title">
     <header class="preparation-heading">
       <div>
         <p class="preparation-eyebrow">Primeros pasos</p>
-        <h2 id="preparation-title">{{ status && !status.pending ? 'Preparación revisada' : 'Prepara tu consultorio' }}</h2>
+        <h2 id="preparation-title">{{ error ? 'No pudimos revisar la preparación' : !status ? 'Revisando preparación…' : !status.pending ? 'Preparación revisada' : 'Prepara tu consultorio' }}</h2>
         <p>Puedes registrar pacientes y guardar borradores según tus accesos. Para agendar, emitir o firmar, revisa los requisitos de cada tarea.</p>
       </div>
       <button type="button" class="preparation-link" :disabled="loading" @click="load">{{ loading ? 'Revisando…' : 'Actualizar preparación' }}</button>

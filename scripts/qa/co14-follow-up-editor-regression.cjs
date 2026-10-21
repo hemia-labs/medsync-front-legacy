@@ -19,7 +19,7 @@ const iso = value => {
   return value.slice(0, 4).includes('-') ? value.split('-').reverse().join('-') : value;
 };
 const context = {
-  component: null, VuexMixin: {}, mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {},
+  ...require('./agenda-test-helpers.cjs'), component: null, VuexMixin: {}, mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {},
   DASweetConfirm: {}, DELETE: '', DAMonitorPlanModel: class { constructor() { this.quote_date_after = ''; this.note = ''; } },
   uuid: { v4: () => '12345678-1234-4123-8123-123456789012' },
   APPOINTMENT_STATUSES: statuses, APPOINTMENT_STATUS_COLORS: {}, APPOINTMENT_STATUS_LABELS: {},
@@ -42,7 +42,7 @@ function state(permissions = ['px.tab.monitoring', 'tracing.create', 'tracing.co
   Object.entries(component.methods).forEach(([key, method]) => { s[key] = method.bind(s); });
   Object.entries(component.computed).forEach(([key, getter]) => Object.defineProperty(s, key, { configurable: true, get: () => getter.call(s) }));
   Object.assign(s, {
-    permissions, hasPermission: permission => s.permissions.includes(permission),
+    $set: (target,key,value) => { target[key]=value; }, permissions, hasPermission: permission => s.permissions.includes(permission),
     px: { person: { id_person: 'patient-1', name: 'QA', surname: 'Paciente' } },
     getAllTreatments: [{ id: 'treatment-1', name: 'Revision de rutina' }], authUser: {},
     toastFunction: () => {}, onGetMonitoring: async () => {}, onGetAllTreatment: async () => {},

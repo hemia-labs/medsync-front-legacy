@@ -20,7 +20,7 @@
         </div>
 
         <div class="hero-visual" aria-hidden="true">
-          <lottie-animation
+          <owned-home-lottie
             :key="heroLottiePath"
             :path="heroLottiePath"
             :width="190"
@@ -147,6 +147,7 @@
               <p>Escribe un nombre, telefono o folio para abrir rapidamente el expediente.</p>
             </div>
           </section>
+          <home-insights />
         </main>
 
         <aside class="home-side-column">
@@ -345,6 +346,8 @@
 </template>
 
 <script>
+import HomeInsights from './components/HomeInsights.vue';
+import OwnedHomeLottie from './components/OwnedHomeLottie.vue';
 import { mapGetters } from 'vuex';
 import decode from 'jwt-decode';
 import VuexMixin from '../../mixins/VuexMixin';
@@ -374,7 +377,7 @@ const EMPTY_CONTINUITY_SECTION = {
 
 export default {
     name: 'Home',
-    components: { PreparationChecklist },
+    components: { PreparationChecklist, HomeInsights, OwnedHomeLottie },
     mixins: [VuexMixin],
     data: function() {
         return {
@@ -556,7 +559,7 @@ export default {
           : {}
 
         return ['drafts', 'signatures', 'recentPatients', 'pulse']
-          .map((key) => sections[key])
+          .map((key) => key === 'pulse' && sections[key] ? {...sections[key], label:'Actividad reciente',title:'Actividad reciente'} : sections[key])
           .filter((section) => section && section.available)
       },
       continuityOptions: function() {
@@ -1148,6 +1151,7 @@ export default {
     linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(251, 253, 253, 0.96) 100%);
 }
 
+.home-main-column,
 .home-side-column {
   display: grid;
   gap: 1.25rem;

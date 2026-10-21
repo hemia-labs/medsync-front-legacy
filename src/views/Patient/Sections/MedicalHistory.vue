@@ -188,7 +188,7 @@
     </section>
 
     <section v-if="contextError || (templateLoadError && !historyTemplateSchema) || (loadError && clinicalHistory)" class="clinical-panel warning-panel" role="alert">
-      <strong>{{ contextError || (templateLoadError ? 'No se pudo verificar el formato configurado.' : 'No se pudo actualizar la historia clínica.') }}</strong>
+      <strong>{{ contextError || (templateLoadError ? (canViewCurrentTemplate ? 'No se pudo verificar el formato configurado.' : 'No tienes permiso para consultar la plantilla de Historia clínica. Solicita acceso al administrador del consultorio.') : 'No se pudo actualizar la historia clínica.') }}</strong>
       <span>Los datos capturados se conservan. Reintenta para verificar el contexto antes de continuar.</span>
       <button class="clinical-button secondary" type="button" :disabled="isLoading || isBusy" @click="loadInitialData">Reintentar</button>
     </section>
@@ -1056,6 +1056,7 @@ export default {
   },
   computed: {
     canReviewAllergies() { return this.hasPermission('clinical_history.edit_draft'); },
+    canViewCurrentTemplate() { return this.hasPermission('clinical_history_template.view'); },
     allergyStateLabel() { return allergyLabels[this.form.allergies_medications.allergy_status] || (this.isDraft ? 'Alergias sin revisar' : 'Registro de alergias de esta versión'); },
     ...mapGetters(moduleTypes.AUTH, {
       hasPermission: fnTypes.hasPermission,
@@ -1593,6 +1594,13 @@ export default {
     },
     async loadCurrentTemplate(request = this.loadRequest) {
       this.templateLoadError = false;
+      if(!this.canViewCurrentTemplate) {
+        this.currentTemplate = null;
+        this.currentTemplateSource = '';
+        this.currentTemplateSchema = null;
+        this.templateLoadError = true;
+        return;
+      }
       try {
         const response = await DAClinicalHistoryTemplateService.getCurrent();
         if(request !== this.loadRequest) return;

@@ -93,8 +93,11 @@ export const tenantNavigationItems = [
     upgradeTo: null
   },
   {
+    key: 'pulse', label: 'Pulso del consultorio', icon: 'mdi-creation', routeName: 'business-pulse', path:'/pulso', permission:null, pulseAccess:true, type:TENANT_NAVIGATION_TYPES.SECTION, group:TENANT_NAVIGATION_GROUPS.MANAGEMENT, order:54, activeRouteNames:['business-pulse'], activePathPrefixes:['/pulso']
+  },
+  {
     key: 'dashboard',
-    label: 'Dashboard',
+    label: 'Análisis del consultorio',
     icon: 'mdi-view-dashboard-outline',
     routeName: 'dashboard',
     path: '/dashboard',

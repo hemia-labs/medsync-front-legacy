@@ -30,9 +30,9 @@ export default {
         }
     },
 
-    async saveTimezone(timezone) {
+    async saveTimezone(timezone, revision) {
         try {
-            return await DACore.post(`${DAC_APPOINTMENT_CONFIG_GET}/timezone`, { timezone });
+            return await DACore.post(`${DAC_APPOINTMENT_CONFIG_GET}/timezone`, { timezone, revision });
         } catch (error) {
             return error.response && error.response.data ? error.response.data : { success: false, message: 'No se pudo guardar la zona horaria. Reintenta.' };
         }
@@ -61,6 +61,7 @@ export default {
         try {
             return DACore.post(DAC_APPOINTMENT_SAVE, {
                 appointment,
+                ...(options.requestId || appointment.requestId ? { request_id: options.requestId || appointment.requestId } : {}),
                 ...(options.syncFollowUp ? { sync_follow_up: true } : {}),
                 ...(options.explicitNewFollowUp ? { explicit_new_follow_up: true } : {})
             });
@@ -69,9 +70,21 @@ export default {
         }
     },
 
-    async delete(idAppointment) {
+    async reschedule(appointment, requestId) {
+        return DACore.post(DAC_APPOINTMENT_SAVE.replace(/\/save$/, '/reschedule'), { appointment, request_id: requestId });
+    },
+    async get(id) {
+        return DACore.get(DAC_APPOINTMENT_SAVE.replace(/\/save$/, '/' + encodeURIComponent(id)));
+    },
+    async audit(id, before) {
+        return DACore.get(DAC_APPOINTMENT_SAVE.replace(/\/save$/, '/' + encodeURIComponent(id) + '/audit') + (before ? '?before=' + encodeURIComponent(before) : ''));
+    },
+    async configImpact(config) {
+        return DACore.post(DAC_APPOINTMENT_CONFIG_GET + '/impact', { config });
+    },
+    async delete(idAppointment, revision) {
         try {
-            return DACore.delete(DAC_APPOINTMENT_DELETE, { id_appointment: idAppointment });
+            return DACore.delete(DAC_APPOINTMENT_DELETE, { id_appointment: idAppointment, revision });
         } catch (error) {
             return error.response.data;
         }

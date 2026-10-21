@@ -16,8 +16,9 @@
     </div>
 
     <template v-if="patientReady">
+    <v-alert v-if="tabAccessNotice" type="warning" text role="alert" class="mb-4">{{ tabAccessNotice }}</v-alert>
     <div class="mb-4">
-        <da-history-header :px="px" :can-edit="canManagePatient" :show-clinical="canViewClinical" v-model="isEditProfile" v-on:edit="requestProfileEdit"></da-history-header>
+        <da-history-header :px="px" :can-edit="canManagePatient" :archive-pending="archivePending" :show-clinical="canViewClinical" v-model="isEditProfile" v-on:edit="requestProfileEdit" @archive="requestArchive"></da-history-header>
     </div>
     <div v-if="canViewClinical" class="mb-4">
         <da-alergy-alert :px="px" :can-edit="canEditAllergies" v-on:edit="openAllergyEditor"></da-alergy-alert>
@@ -34,7 +35,7 @@
         <div v-if="canManagePatient" class="flex flex-wrap gap-3 mt-3">
             <v-btn v-if="!isEdit" outlined @click="requestPatientEdit">Editar datos administrativos</v-btn>
             <v-btn v-if="isArchived" outlined :disabled="archivePending" @click="restorePatient">Restaurar paciente</v-btn>
-            <v-btn v-else outlined @click="isDelete = true">Archivar paciente</v-btn>
+            <v-btn v-else outlined :disabled="archivePending" @click="requestArchive">Archivar paciente</v-btn>
         </div>
     </div>
     
@@ -70,7 +71,7 @@
                       :px="px"
                       :document-focus-request="documentFocusRequest"
                       v-on:edit="requestPatientEdit"
-                      v-on:delete="isDelete = true"
+                      v-on:delete="requestArchive"
                       v-on:open-documents="openTabByComponent('da-patient-documents', $event)"
                       v-on:document-focus-consumed="consumeDocumentFocusRequest"
                       v-on:edit-allergies="openAllergyEditor"
@@ -158,7 +159,8 @@ export default {
             isEditProfile: false,
             isUploadFile: false,
             DELETE,
-            tab: 'da-medical-history',
+            tab: null,
+            tabAccessNotice: '',
             tabNavigationRevision: 0,
             tabNavigationPending: false,
             sectionLeaveGuard: null,
@@ -200,6 +202,10 @@ export default {
       this.init()
   },
   methods: {
+    async requestArchive() {
+        if(!this.canManagePatient || this.isArchived || this.archivePending) return
+        if(await this.confirmSectionLeave()) this.isDelete = true
+    },
     requestProfileEdit() { if(this.canManagePatient) this.isEditProfile = true },
     async onAdministrativeSaved() { this.isEdit = false; await this.init() },
     async restorePatient() {
@@ -231,6 +237,8 @@ export default {
         const patientId = this.id
         this.loadingPatient = true
         this.patientError = ''
+        this.tab = null
+        this.tabAccessNotice = ''
         try {
             await this.ActionWrapp(moduleTypes.CONFIGURATION, fnTypes.getClinicalModules)
             const response = await this.ActionWrapp(moduleTypes.PX, fnTypes.getById, patientId)
@@ -240,7 +248,7 @@ export default {
                 this.patientError = response.message || 'No se pudo cargar el paciente. Reintenta para abrir su expediente.'
                 return
             }
-            this.applyRequestedTab()
+            await this.applyRequestedTab()
         } catch (error) {
             if(request === this.patientRequest) this.patientError = 'No se pudo cargar el expediente. Reintenta.'
         } finally {
@@ -279,15 +287,26 @@ export default {
     },
     async requestTabChange(component) {
         if(component === this.tab || this.tabNavigationPending) return false
-        if(!this.allowedTabs.some(item => item.component === component)) return false
+        if(!this.allowedTabs.some(item => item.component === component)) {
+            this.explainUnavailableTab(component)
+            this.ensureValidTab()
+            this.tabNavigationRevision++
+            return false
+        }
         this.tabNavigationPending = true
         try {
             if(!await this.confirmSectionLeave()) {
                 this.tabNavigationRevision++
                 return false
             }
+            if(!this.allowedTabs.some(item => item.component === component)) {
+                this.explainUnavailableTab(component)
+                this.ensureValidTab()
+                return false
+            }
             if(this.tab === 'da-patient-documents') this.documentFocusRequest = null
             this.tab = component
+            this.tabAccessNotice = ''
             return true
         } finally { this.tabNavigationPending = false }
     },
@@ -316,19 +335,38 @@ export default {
             prescriptions: 'da-patient-prescriptions',
             odontogram: 'da-odontogram'
         }
-        return tabs[tab] || null
+        return tabs[tab] || (this.configuration.some(item => item.component === tab) ? tab : null)
     },
-    applyRequestedTab: function() {
-        const requestedTab = this.$route && this.$route.query ? this.$route.query.tab : null
+    explainUnavailableTab(component) {
+        const item = this.configuration.find(item => item.component === component)
+        const name = item ? item.name : 'esta sección'
+        this.tabAccessNotice = item && item.moduleFlag && !(this.clinicalModules && this.clinicalModules[item.moduleFlag])
+            ? `${name} no está habilitado en este consultorio. Consulta al administrador.`
+            : `No tienes permiso para consultar ${name}. Solicita acceso al administrador del consultorio.`
+    },
+    applyRequestedTab: async function() {
+        const requestedTab = this.$route && this.$route.query && this.$route.query.tab
+            || (this.$route && this.$route.hash ? this.$route.hash.slice(1) : null)
         const component = this.componentFromTabQuery(requestedTab)
         if(component && this.allowedTabs.some(item => item.component === component)) {
-            this.openTabByComponent(component)
+            await this.openTabByComponent(component, component === 'da-patient-documents' && this.$route.query.returnKey === 'pulse' && this.$route.query.documentId ? {id_patient_document:this.$route.query.documentId,open:false} : null)
             return
+        }
+        if(component) {
+            this.explainUnavailableTab(component)
+            const first = this.allowedTabs[0]
+            if(first && this.tab !== first.component && await this.confirmSectionLeave()
+                && this.allowedTabs.some(item => item.component === first.component)) {
+                this.documentFocusRequest = null
+                this.tab = first.component
+            }
         }
         this.ensureValidTab()
     },
     ensureValidTab: function() {
         if(!this.allowedTabs || this.allowedTabs.length === 0) {
+            this.tab = null
+            this.documentFocusRequest = null
             return
         }
         const exists = this.allowedTabs.some((item) => item.component === this.tab)
@@ -384,7 +422,10 @@ export default {
             }
         },
         '$route.query.tab': function() {
-            this.applyRequestedTab()
+            if(this.patientReady) this.applyRequestedTab()
+        },
+        '$route.hash': function() {
+            if(this.patientReady) this.applyRequestedTab()
         },
         allowedTabs: function() {
             this.ensureValidTab()

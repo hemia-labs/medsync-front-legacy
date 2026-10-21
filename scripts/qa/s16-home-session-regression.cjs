@@ -6,6 +6,7 @@ const source = fs.readFileSync(path.resolve(__dirname, '../../src/views/Home/Hom
 const waiting = { summary: [], search: [], appointments: [] };
 const deferred = key => new Promise(resolve => waiting[key].push(resolve));
 const context = {
+  PreparationChecklist: {}, HomeInsights: {}, OwnedHomeLottie: {},
   module: { exports: {} }, mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { AUTH: 'auth' }, fnTypes: {},
   isD2AuthMode: () => true, clearClinicalContinuityCache: () => {},
   DAHomeService: { getContinuitySummary: () => deferred('summary'), getPatients: () => deferred('search'), getAppointments: () => deferred('appointments') },

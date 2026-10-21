@@ -1,12 +1,23 @@
 <template>
-  <aside v-if="sessionEligible && (pendingCount > 0 || error)" class="legal-update-notice text-gray-700" aria-labelledby="legal-update-notice-title">
+  <aside v-if="sessionEligible && (pendingCount > 0 || error)" class="legal-update-notice" aria-labelledby="legal-update-notice-title">
+    <span class="legal-update-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+        <path d="M14 3v6h6M12 12v3M12 18h.01" />
+      </svg>
+    </span>
     <div class="legal-update-copy">
-      <h2 id="legal-update-notice-title">{{ pendingCount > 0 ? 'Hay documentos legales por revisar' : 'No pudimos revisar las actualizaciones legales' }}</h2>
-      <p v-if="pendingCount > 0" role="status">{{ pendingCount }} {{ pendingCount === 1 ? 'documento requiere' : 'documentos requieren' }} una nueva aceptación. Puedes continuar con tu trabajo y revisarlos en Cuenta y legal.</p>
+      <h2 id="legal-update-notice-title">{{ pendingCount > 0 ? 'Documentos legales pendientes de aceptación' : 'No pudimos revisar las actualizaciones legales' }}</h2>
+      <p v-if="pendingCount > 0" role="status"><strong>{{ pendingCount }} {{ pendingCount === 1 ? 'documento requiere' : 'documentos requieren' }} tu revisión.</strong> Puedes continuar con tu trabajo y revisarlos en Cuenta y legal.</p>
       <p v-if="businessPending">La aceptación por el consultorio corresponde a una persona administradora. Las aceptaciones personales las realiza cada usuario.</p>
       <p v-if="error" role="alert">{{ error }}</p>
     </div>
-    <div class="legal-update-actions"><router-link class="legal-update-primary" to="/admin?section=account-legal">Abrir Cuenta y legal</router-link><button v-if="error" type="button" class="legal-update-retry" :disabled="loading" @click="load(true)">{{ loading ? 'Consultando…' : 'Reintentar consulta' }}</button></div>
+    <div class="legal-update-actions">
+      <router-link class="legal-update-primary" to="/admin?section=account-legal">
+        Revisar documentos <span aria-hidden="true">→</span>
+      </router-link>
+      <button v-if="error" type="button" class="legal-update-retry" :disabled="loading" @click="load(true)">{{ loading ? 'Consultando…' : 'Reintentar consulta' }}</button>
+    </div>
   </aside>
 </template>
 
@@ -58,8 +69,45 @@ export default {
 </script>
 
 <style scoped>
-.legal-update-notice{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:0 0 22px;padding:18px 22px;border:1px solid var(--color-primary-300,#94cbd0);border-radius:16px;background:var(--color-primary-100,#e8f5f6);color:var(--color-primary-1000,#153d4a)}.legal-update-copy{min-width:0}.legal-update-copy h2{font-size:17px;font-weight:750;line-height:1.4;margin:0 0 6px}.legal-update-copy p{font-size:14px;line-height:1.55;margin:5px 0 0}.legal-update-actions{display:flex;flex-direction:column;align-items:center;gap:12px;flex-shrink:0}.legal-update-primary{display:inline-block;padding:10px 16px;border-radius:10px;font-weight:750;background:var(--color-primary-700,#167b86);color:white;text-decoration:none;text-align:center;white-space:normal}.legal-update-retry{font-weight:700;text-decoration:underline}.legal-update-retry:disabled{opacity:.5;cursor:not-allowed}.legal-update-notice a:focus-visible,.legal-update-notice button:focus-visible{outline:3px solid var(--color-primary-500,#198b95);outline-offset:3px}@media(max-width:700px){.legal-update-notice{flex-direction:column;align-items:stretch;gap:14px;padding:16px}.legal-update-actions{align-items:stretch}.legal-update-primary{width:100%}}
-html[data-theme="clinical-night"] .legal-update-notice{background:#172f41;color:#e2e8f0!important;border-color:#3b4d63}
-html[data-theme="clinical-night"] .legal-update-primary{background:#0e7490;color:#fff}
-html[data-theme="clinical-night"] .legal-update-retry{color:#bae6fd}
+.legal-update-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin: 20px 24px 22px;
+  padding: 18px 20px;
+  border: 1px solid #f3d08b;
+  border-left: 5px solid #d97706;
+  border-radius: 14px;
+  background: #fffbeb;
+  color: #78350f;
+  box-shadow: 0 3px 12px rgba(120, 53, 15, .06);
+}
+.legal-update-icon { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: #fef3c7; color: #92400e; }
+.legal-update-icon svg { width: 25px; height: 25px; }
+.legal-update-copy { min-width: 0; }
+.legal-update-copy h2 { font-size: 16px; font-weight: 750; line-height: 1.4; margin: 0 0 5px; color: inherit; }
+.legal-update-copy p { font-size: 14px; line-height: 1.55; margin: 5px 0 0; color: inherit; }
+.legal-update-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.legal-update-primary { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 750; background: #92400e; color: #fff; text-decoration: none; text-align: center; white-space: normal; }
+.legal-update-primary:hover { background: #78350f; }
+.legal-update-retry { font-weight: 700; text-decoration: underline; color: inherit; }
+.legal-update-retry:disabled { opacity: .5; cursor: not-allowed; }
+.legal-update-notice a:focus-visible, .legal-update-notice button:focus-visible { outline: 3px solid #b45309; outline-offset: 3px; }
+@media (max-width: 900px) {
+  .legal-update-notice { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+  .legal-update-actions { grid-column: 2; align-items: flex-start; }
+}
+@media (max-width: 600px) {
+  .legal-update-notice { gap: 12px; margin: 12px 12px 18px; padding: 16px 14px; }
+  .legal-update-icon { width: 36px; height: 36px; border-radius: 10px; }
+  .legal-update-icon svg { width: 22px; height: 22px; }
+  .legal-update-actions { grid-column: 1 / -1; align-items: stretch; }
+  .legal-update-primary { width: 100%; }
+}
+html[data-theme="clinical-night"] .legal-update-notice { background: #302617; color: #fde8bb; border-color: #735325; border-left-color: #fbbf24; }
+html[data-theme="clinical-night"] .legal-update-icon { background: #49341b; color: #fcd34d; }
+html[data-theme="clinical-night"] .legal-update-primary { background: #fcd34d; color: #422006; }
+html[data-theme="clinical-night"] .legal-update-primary:hover { background: #fde68a; }
+html[data-theme="clinical-night"] .legal-update-notice a:focus-visible, html[data-theme="clinical-night"] .legal-update-notice button:focus-visible { outline-color: #fbbf24; }
 </style>

@@ -29,6 +29,7 @@
       <div v-if="error" role="alert" class="agenda-notice agenda-notice-error">
         {{ error }} <button v-if="!loading" type="button" class="agenda-link" @click="loaded ? save() : selected ? load() : init()">Reintentar</button>
       </div>
+      <v-btn v-if="error && loaded" small text :disabled="saving || timezoneSaving" @click="reloadCurrentConfig">Descartar cambios y recargar version vigente</v-btn>
       <p v-if="message" role="status" class="agenda-notice agenda-notice-success">{{ message }}</p>
       <template v-if="selected && loaded">
         <div class="agenda-summary" :class="{ 'agenda-summary-business': isBusiness }">
@@ -150,6 +151,7 @@
   </section>
 </template>
 <script>
+import { clinicClock } from '../../../domain/appointments/agendaInteraction';
 import { mapGetters } from 'vuex';
 import { isTenantAdministrator, getSettingsSections } from '../../../security/settingsAccess';
 import moduleTypes from '../../../store/modules/common/module-types';
@@ -176,7 +178,7 @@ export default {
     ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, hasPermission: fnTypes.hasPermission, role:fnTypes.getRole }),
     canManageAllDoctors() { return isTenantAdministrator(this.role) && this.hasPermission('admin.config'); },
     canCompleteOwnProfile() { return getSettingsSections(this.role, this.hasPermission).some(section => section.key === 'doctor-identity'); },
-    options() { return this.doctors.filter(d => this.canManageAllDoctors || d.id_login === (this.authUser || {}).id_login).map(d => ({id:d.id_doctor_professional_profile,label:d.display_name})); },
+    options() { return this.doctors.filter(d => d.active !== 0 && (this.canManageAllDoctors || d.id_login === (this.authUser || {}).id_login)).map(d => ({id:d.id_doctor_professional_profile,label:d.display_name})); },
     doctorName() { return this.isBusiness ? 'Cierres del consultorio' : (this.options.find(d => d.id === this.selected) || {}).label || ''; },
     dirty() { return this.loaded && !!this.baseline && JSON.stringify(this.capture()) !== this.baseline; },
     isBusiness() { return this.selected === 'business'; },
@@ -214,18 +216,42 @@ export default {
     choose(id) { if(this.saving || this.timezoneSaving)return; if(this.dirty) {this.selectorRevision++;this.pending=id;this.leaveOpen=true;} else this.switchTo(id); },
     switchTo(id) { this.leaveOpen=false;if(id==='__close__'){this.$emit('close');return;}this.agendaTab=0;this.dayDialog=false;this.copyDialog=false;this.blockDialog=false;this.selected=id;this.load(); },
     async saveAndSwitch() { if(await this.save()) this.switchTo(this.pending); },
-    async load() { if(!this.selected) return; const request=++this.request;this.loading=true;this.loaded=false;this.error='';this.message=''; try {const r=await DAAppointmentService.getConfig(this.selected);if(request!==this.request)return;if(!r.success||!r.data)throw new Error(r.message||'No se pudo cargar esta agenda.');this.form=normalizeAppointmentConfig(r.data);this.blocks=[...this.form.blockedDates.map(b=>({...b,allDay:true})),...this.form.blockedHours.map(b=>({...b,allDay:false}))];this.loaded=true;this.baseline=JSON.stringify(this.capture());}catch(e){if(request===this.request)this.error=e.message;}finally{if(request===this.request)this.loading=false;} },
-    async save() { if(this.saving||this.timezoneSaving||!this.loaded)return false;if(!(this.isBusiness && this.canManageAllDoctors) && !this.options.some(option=>option.id===this.selected)){this.error='Selecciona una agenda que tengas permiso para configurar.';return false;}this.saving=true;this.error='';this.message='';try {const r=await DAAppointmentService.saveConfig(this.capture());if(!r.success)throw new Error(r.message||'No se pudo guardar. Tus cambios se conservaron.');this.baseline=JSON.stringify(this.capture());this.message='Agenda guardada.';this.$emit('saved');return true;}catch(e){this.error=e.message;return false;}finally{this.saving=false;} },
+    async load() { if(!this.selected) return; const request=++this.request;this.loading=true;this.loaded=false;this.error='';this.message=''; try {const r=await DAAppointmentService.getConfig(this.selected);if(request!==this.request)return;if(!r.success||!r.data)throw new Error(r.message||'No se pudo cargar esta agenda.');this.form=normalizeAppointmentConfig(r.data);this.previewDate=clinicClock(this.form.timezone).date;this.blocks=[...this.form.blockedDates.map(b=>({...b,allDay:true})),...this.form.blockedHours.map(b=>({...b,allDay:false}))];this.loaded=true;this.baseline=JSON.stringify(this.capture());}catch(e){if(request===this.request)this.error=e.message;}finally{if(request===this.request)this.loading=false;} },
+    async reloadCurrentConfig() {
+      const answer = await this.$swal.fire({ title:'Recargar version vigente',text:'Se descartaran los cambios sin guardar de este formulario.',showCancelButton:true,confirmButtonText:'Descartar y recargar',cancelButtonText:'Seguir editando' });
+      if(answer.isConfirmed) await this.load();
+    },
+    async save() {
+      if(this.saving || this.timezoneSaving || !this.loaded) return false;
+      if(!(this.isBusiness && this.canManageAllDoctors) && !this.options.some(option => option.id === this.selected)) { this.error='Selecciona una agenda que tengas permiso para configurar.'; return false; }
+      this.saving=true;this.error='';this.message='';
+      try {
+        const impact=await DAAppointmentService.configImpact(this.capture());
+        if(!impact.success) throw new Error(impact.message || 'No se pudo revisar el impacto. Tus cambios se conservaron.');
+        const affected=impact.data;
+        const summary=affected.appointments.slice(0,8).map(a => a.date+' '+a.startTime+' · '+a.patientName+' · '+a.doctorName).join('\n');
+        const answer=await this.$swal.fire({title:'Revisar cambio de agenda',text:affected.count+' citas futuras quedarian fuera del horario. Las citas conservaran su fecha y duracion. Revisa cada una desde Agenda.'+(summary?'\n'+summary:'')+(affected.count>8?'\nConsulta las demas en Agenda.':''),showCancelButton:true,confirmButtonText:'Guardar configuracion',cancelButtonText:'Seguir editando'});
+        if(!answer.isConfirmed) return false;
+        const r=await DAAppointmentService.saveConfig(this.capture());
+        if(!r.success) throw new Error(r.message || 'No se pudo guardar. Tus cambios se conservaron.');
+        this.form={...this.form,...normalizeAppointmentConfig(r.data),timezone:this.form.timezone,businessRevision:this.form.businessRevision};
+        this.blocks=[...this.form.blockedDates.map(b=>({...b,allDay:true})),...this.form.blockedHours.map(b=>({...b,allDay:false}))];
+        this.baseline=JSON.stringify(this.capture());this.message='Agenda guardada. Las citas existentes conservan sus horarios.';this.$emit('saved');return true;
+      } catch(e) { this.error=e.message;return false; }
+      finally { this.saving=false; }
+    },
     async persistTimezone(timezone) {
       if(!this.canManageAllDoctors || this.loading || this.saving || this.timezoneSaving) throw new Error('No se puede cambiar la zona horaria en este momento.');
       this.timezoneSaving=true;this.message='';
       try {
-        const result=await DAAppointmentService.saveTimezone(timezone);
+        const result=await DAAppointmentService.saveTimezone(timezone, this.isBusiness ? this.form.revision : this.form.businessRevision);
         if(!result.success) throw new Error(result.message || 'No se pudo guardar la zona horaria. Reintenta.');
         const savedZone=result.data.timezone;
         this.form.timezone=savedZone;
+        const versionKey=this.isBusiness ? 'revision' : 'businessRevision';
+        this.form[versionKey]=result.data.revision;
         // Updating only this baseline field preserves unsaved doctor hours and blocks.
-        if(this.baseline) {const baseline=JSON.parse(this.baseline);baseline.timezone=savedZone;this.baseline=JSON.stringify(baseline);}
+        if(this.baseline) {const baseline=JSON.parse(this.baseline);baseline.timezone=savedZone;baseline[versionKey]=result.data.revision;this.baseline=JSON.stringify(baseline);}
         this.message='Zona horaria del consultorio guardada.';this.$emit('saved');
       } finally {this.timezoneSaving=false;}
     },

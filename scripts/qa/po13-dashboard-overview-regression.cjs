@@ -11,7 +11,7 @@ const waiting = { overview: [], trends: [] }, requests = [];
 const defer = key => params => { requests.push({ key, params }); return new Promise(resolve => waiting[key].push(resolve)); };
 const sandbox = { module: { exports: {} }, moduleTypes: { AUTH: 'auth' },
     DashboardActivityTrends: {}, DashboardEnterpriseLockedWidget: {}, DashboardLockedWidget: {},
-    DashboardOperationalSummary: {}, DashboardProfessionalBreakdown: {}, DashboardTeamBreakdown: {},
+    DashboardOperationalSummary: {}, DashboardProfessionalBreakdown: {}, DashboardTeamBreakdown: {}, PulseEntry: {},
     buildPlanFeatureMessage: () => 'Plan no disponible', isPlanFeatureResponse: () => false,
     DABusinessDashboardService: { getOverview: defer('overview'), getTrends: defer('trends') } };
 vm.runInNewContext(parsed.script.content.replace(/^import .*;\r?\n/gm, '').replace('export default', 'module.exports ='), sandbox);

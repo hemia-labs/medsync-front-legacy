@@ -159,7 +159,7 @@ export default {
     ...mapActions(moduleTypes.ODONTOGRAM, [
             fnTypes.setOdontogramDetail, fnTypes.status
     ]),
-    init: async function(openWhenEmpty = true) {
+    init: async function() {
       const request = ++this.loadRequest;
       this.loading = true;
       this.loadError = '';
@@ -175,7 +175,6 @@ export default {
           this.loadError = 'No se pudo cargar el odontograma. Intenta nuevamente.';
           return;
         }
-        if(openWhenEmpty && !this.id_odontogram) this.openCreate();
       } catch(error) {
         if(request === this.loadRequest) this.loadError = 'No se pudo cargar el odontograma. Intenta nuevamente.';
       } finally {

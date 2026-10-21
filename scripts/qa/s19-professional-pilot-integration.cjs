@@ -119,7 +119,7 @@ async function http(method, url, body) {
   throw Error(`Unexpected fixture request: ${method} ${url}`);
 }
 const transport = Object.fromEntries(['get', 'post', 'put', 'delete'].map(method => [method, (url, body) => http(method, url, body)]));
-const core = load('src/services/config/core.instance.js', { ...rights, store: { state: { CORE: { AUTH: auth } } },
+const core = load('src/services/config/core.instance.js', { ...rights, notifyPulseWrite: load('src/domain/pulse/pulseWrites.js', {}, ['notifyPulseWrite']).notifyPulseWrite, store: { state: { CORE: { AUTH: auth } } },
   axiosHelper: { buildRequestConfig: async () => ({}) }, context: { core: transport }, httpstatus: { SUCESS: 200 }, ResultData: class { constructor() { this.success = false; } } });
 const service = name => load(`src/services/core/${name}`, { ...api, DACore: core });
 const HistoryService = service('clinicalHistory/DAClinicalHistoryService.js');
@@ -129,7 +129,7 @@ const AppointmentService = service('appointment/DAAppointmentService.js');
 const MonitoringService = service('monitoring/DAMonitoringService.js');
 const PatientService = service('px/DAPxService.js');
 const TemplateService = service('clinicalHistoryTemplate/DAClinicalHistoryTemplateService.js');
-const bindings = { ListPageNav: {}, mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {}, VuexMixin: {},
+const bindings = { ...require('./agenda-test-helpers.cjs'), ListPageNav: {}, mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {}, VuexMixin: {},
   getSettingsSections: load('src/security/settingsAccess.js', {}, ['getSettingsSections']).getSettingsSections,
   dialogName: {}, fieldError: {}, window: {}, document: {}, isD2AuthMode: () => true,
   HistoryService, DAClinicalHistoryService: HistoryService, DAPrescriptionService: RxService, DADocumentService: DocumentService,

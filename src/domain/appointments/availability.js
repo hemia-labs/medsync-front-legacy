@@ -118,7 +118,7 @@ export function generateDaySlots(date, config, appointments) {
   const duration = Number(config.defaultAppointmentDuration || 30);
   const dayConfig = getDayWorkingConfig(config, isoDate);
 
-  if (!config.enabled || config.businessEnabled === false || !dayConfig || !dayConfig.enabled || isDateBlocked(config, isoDate)) {
+  if (!config.enabled || config.doctorActive === false || config.businessEnabled === false || !dayConfig || !dayConfig.enabled || isDateBlocked(config, isoDate)) {
     return [];
   }
 
@@ -182,6 +182,16 @@ export function getAvailableSlots(date, config, appointments) {
 
 export function validateAppointmentSlot(appointment, config, appointments) {
   const date = toIsoDate(appointment.date);
+  const start = appointment.startTime, end = appointment.endTime;
+  const day = getDayWorkingConfig(config, date);
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(start || '') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(end || '') || timeToMinutes(start) >= timeToMinutes(end)) {
+    return { valid: false, message: 'Revisa el inicio y fin de la cita.' };
+  }
+  if (!day || !(day.timeRanges || []).some(range => start >= range.startTime && end <= range.endTime)
+      || getHourBlocksForDate(config, date).some(block => rangesOverlap(start, end, block.startTime, block.endTime))
+      || (appointments || []).some(a => a.id !== appointment.id && toIsoDate(a.date) === date && appointmentBlocksSlot(a) && rangesOverlap(start, end, a.startTime, a.endTime))) {
+    return { valid: false, message: 'El intervalo completo debe estar disponible dentro del horario del doctor.' };
+  }
   const slots = generateDaySlots(date, config, appointments || []);
   const slot = slots.find((item) => item.startTime === appointment.startTime);
 

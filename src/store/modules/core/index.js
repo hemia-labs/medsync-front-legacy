@@ -1,3 +1,4 @@
+import PULSE from '../pulse';
 import AUTH         from "../auth/index"
 import USER         from "../user/index"
 import CATALOGS     from "../catalogs/index"
@@ -24,6 +25,7 @@ export default {
     getters:    getters,
     modules: {
         AUTH,
+        PULSE,
         USER,
         CATALOGS,
         HOME,

@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import { canAccessPulse } from '../security/pulseAccess';
 import VueRouter from 'vue-router';
 import dashboard from './routes/dashboard';
 import superAdmin from './routes/super-admin';
@@ -167,7 +168,27 @@ const router = new VueRouter({
         return;
     }
 
-    const runtimePermissions = store.getters[`${AUTH_NAMESPACE}/getPermissions`] || [];
+    if(to.matched.some(r=>r.meta.pulseAccess) && !canAccessPulse(store.state.CORE.AUTH.permissions,store.state.CORE.AUTH.role)) { next({name:'home'});return; }
+    let runtimePermissions = store.getters[`${AUTH_NAMESPACE}/getPermissions`] || [];
+    // A failed background access refresh can leave a still-authenticated client
+    // without rights. Revalidate before rejecting entry to a patient record.
+    if(to.name === 'ShowPx' && !hasPermission(runtimePermissions, 'px.all')) {
+        let response;
+        try { response = await store.dispatch(`${AUTH_NAMESPACE}/refreshAccess`, { clearOnFailure: true }); }
+        catch { response = null; }
+        if(!isD2Authorized()) { next({ name: 'auth' }); return; }
+        runtimePermissions = store.getters[`${AUTH_NAMESPACE}/getPermissions`] || [];
+        if(!response || !response.success || !hasPermission(runtimePermissions, 'px.all')) {
+            next(false);
+            Vue.prototype.$swal.fire({
+                icon: 'warning', title: 'No se pudo abrir el expediente',
+                text: response && response.success
+                    ? 'Tu acceso al expediente cambió. Solicita al administrador que revise tus permisos.'
+                    : 'No se pudo verificar tu acceso. Intenta abrir al paciente nuevamente.'
+            });
+            return;
+        }
+    }
     if(to.matched.some(record=>record.meta.settingsAccess) && !canAccessSettings(store.getters[`${AUTH_NAMESPACE}/getRole`], permission=>hasPermission(runtimePermissions,permission))) {
         next({name:'home'});return;
     }
@@ -218,6 +239,7 @@ const router = new VueRouter({
         return;
     }
 
+    if(requiredAuth && to.matched.some(r=>r.meta.pulseAccess) && !canAccessPulse(getSessionPermissions(Vue.prototype.$session),(getLegacyTokenPayload()||{}).rol)) { next({name:'home'});return; }
     const sessionPermissions = getSessionPermissions(Vue.prototype.$session);
     if(requiredAuth && to.matched.some(record=>record.meta.settingsAccess) && !canAccessSettings((getLegacyTokenPayload() || {}).rol, permission=>hasPermission(sessionPermissions,permission))) {
         next({name:'home'});return;
