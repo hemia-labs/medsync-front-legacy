@@ -1,4 +1,5 @@
 export default [
+    { path:'/pulso', name:'business-pulse', component:()=>import(/* webpackChunkName: "business-pulse" */ '../../views/Pulse/Pulse.vue'), meta:{title:'Pulso del consultorio', requireAuth:true,layout:'admin',pulseAccess:true} },
     {
         path:'/inicio',
         name:'home',
@@ -10,7 +11,7 @@ export default [
         name:'dashboard',
         component: () => import('../../views/Dashboard/TenantDashboard.vue'),
         meta: {
-            title: 'Dashboard',
+            title: 'Análisis del consultorio',
             requireAuth: true,
             layout: 'admin',
             permissionsAny: ['dashboard.tenant', 'reports.dashboard', 'dashboard', 'dashboard.operations', 'dashboard.clinical', 'dashboard.financial']

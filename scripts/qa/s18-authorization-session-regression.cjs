@@ -96,6 +96,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
   }
   d2 = true; commit(types.SET_D2_AUTH_SESSION, session());
   const core = load('src/services/config/core.instance.js', { store, ...rights,
+    notifyPulseWrite: named('src/domain/pulse/pulseWrites.js',['notifyPulseWrite']).notifyPulseWrite,
     axiosHelper: { buildRequestConfig: async () => ({}) }, context: { core: { get: network, post: network } },
     httpstatus: { SUCESS: 200 }, ResultData: class { constructor() { this.success = false; } }
   });
@@ -147,6 +148,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
   const realHelper = load('src/services/config/axios.helper.js', { Vue, DACsrfService: csrfService,
     getSafeAuthClientConfigSummary: () => ({}), isCsrfEnabled: () => true, isD2AuthMode: () => d2 });
   const closeCore = load('src/services/config/core.instance.js', { store, ...rights, axiosHelper: realHelper,
+    notifyPulseWrite: named('src/domain/pulse/pulseWrites.js',['notifyPulseWrite']).notifyPulseWrite,
     context: { core: { put: async (url, payload, config) => { closeRequests.push({ url, payload, config }); return closeReply; } } },
     httpstatus: { SUCESS: 200 }, ResultData: class { constructor() { this.success = false; } } });
   const realAuthService = load('src/services/core/auth/DAAuthService.js', { DACore: closeCore,
@@ -323,6 +325,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
       Vue, DACsrfService: actualCsrf, getSafeAuthClientConfigSummary: () => ({}), isCsrfEnabled: () => true, isD2AuthMode: () => true
     });
     const actualCore = load('src/services/config/core.instance.js', { store, ...rights, axiosHelper: actualHelper,
+      notifyPulseWrite: named('src/domain/pulse/pulseWrites.js',['notifyPulseWrite']).notifyPulseWrite,
       context: { core: {
         post: async (url, data, config) => {
           assert.equal(url, 'api/auth/refreshToken');

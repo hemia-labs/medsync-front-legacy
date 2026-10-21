@@ -54,6 +54,10 @@ function fixture(scenario = 'empty', options = {}) {
 
 async function loaded(f) { await until(() => !f.qa.vm.loading, 'initial odontogram load'); await f.window.Vue.nextTick(); }
 async function select(f, index = 0) {
+    if (!f.qa.vm.addOdontograma) {
+        f.click('[aria-label="Crear odontograma"]');
+        await f.window.Vue.nextTick();
+    }
     const input = f.window.document.querySelectorAll('.dentition-option input')[index];
     assert.ok(input, 'Expected dentition option');
     input.click();
@@ -67,6 +71,10 @@ function noWarnings(f) { assert.deepEqual(f.errors, [], 'Rendered fixture must n
         assert.equal(f.qa.vm.loading, true);
         assert.equal(f.qa.vm.addOdontograma, false, 'Creation must wait for a successful absence check');
         await loaded(f);
+        assert.equal(f.qa.vm.addOdontograma, false, 'Empty record stays on the page until the user chooses Create');
+        assert.equal(f.query('.odontogram-create'), null, 'The creation dialog is not mounted on entry');
+        f.click('.odontogram-create-button');
+        await f.window.Vue.nextTick();
         assert.equal(f.qa.vm.addOdontograma, true);
         assert.equal(f.query('[role="dialog"]').getAttribute('aria-label'), 'Crear odontograma');
         assert.equal(f.query('.create-submit').disabled, true, 'Dentition must be selected before creation');
@@ -128,7 +136,7 @@ function noWarnings(f) { assert.deepEqual(f.errors, [], 'Rendered fixture must n
             const retry = [...f.window.document.querySelectorAll('button')].find(button => /Reintentar/.test(button.textContent));
             assert.ok(retry); retry.click();
             await loaded(f);
-            assert.equal(f.qa.vm.addOdontograma, true);
+            assert.equal(f.qa.vm.addOdontograma, false, 'Retrying the lookup must not open the creation dialog');
             assert.equal(f.qa.calls.save, 0);
             noWarnings(f);
         } finally { f.close(); }

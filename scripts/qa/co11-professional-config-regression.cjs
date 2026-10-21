@@ -2,18 +2,19 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const interaction = require('./agenda-test-helpers.cjs');
 (async () => {
   const source=fs.readFileSync(path.join(__dirname,'../../src/domain/appointments/appointment.storage.js'),'utf8');
   const storage=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
   const settings=await import(`data:text/javascript;base64,${Buffer.from(fs.readFileSync(path.join(__dirname,'../../src/security/settingsAccess.js'),'utf8')).toString('base64')}`);
-  let requests=[], saved=[], service={getConfig:id=>new Promise(resolve=>requests.push({id,resolve})),saveConfig:async body=>{saved.push(body);return {success:false,message:'QA failure'};}};
+  let requests=[], saved=[], service={getConfig:id=>new Promise(resolve=>requests.push({id,resolve})),configImpact:async()=>({success:true,data:{count:0,appointments:[]}}),saveConfig:async body=>{saved.push(body);return {success:false,message:'QA failure'};}};
   function component(file, helpers={}) {
     const sfc=fs.readFileSync(path.join(__dirname,'../../src/views/configuration/components',file),'utf8');
     const script=sfc.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default','component =');
-    const context={component:null,ClinicTimeZoneField:{},mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},DAPrescriptionService:service,DAAppointmentService:service,...settings,...helpers};
+    const context={component:null,...interaction,...interaction,ClinicTimeZoneField:{},mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},DAPrescriptionService:service,DAAppointmentService:service,...settings,...helpers};
     vm.runInNewContext(script,context);
     const options=context.component, state=options.data();
-    Object.assign(state,{authUser:{id_login:'qa-actor'},role:'doctor',hasPermission:()=>true,themeColor:'#087F8C',initialDoctorId:'',$emit:()=>{},$nextTick:callback=>callback(),$refs:{}});
+    Object.assign(state,{authUser:{id_login:'qa-actor'},role:'doctor',hasPermission:()=>true,themeColor:'#087F8C',initialDoctorId:'',$swal:{fire:async()=>({isConfirmed:true})},$emit:()=>{},$nextTick:callback=>callback(),$refs:{}});
     Object.entries(options.methods).forEach(([key,value])=>state[key]=value.bind(state));
     Object.entries(options.computed).forEach(([key,value])=>Object.defineProperty(state,key,{get:value.bind(state),configurable:true}));
     return state;

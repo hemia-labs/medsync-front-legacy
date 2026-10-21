@@ -125,6 +125,7 @@ const vm = require('node:vm');
     vm.runInNewContext(parentScript, parentContext);
     const parent = { ...parentContext.parent.data(), allowedTabs: [{ component: 'da-medical-history' }, { component: 'da-patient-prescriptions' }] };
     Object.entries(parentContext.parent.methods).forEach(([key, method]) => { parent[key] = method.bind(parent); });
+    parent.ensureValidTab();
     parent.registerSectionGuard(async () => false);
     assert.equal(await parent.requestTabChange('da-patient-prescriptions'), false);
     assert.equal(parent.tab, 'da-medical-history', 'Rejected navigation never unmounts the editor');

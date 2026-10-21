@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const interaction = require('./agenda-test-helpers.cjs');
 
 (async () => {
   const root = path.join(__dirname, '../..');
@@ -14,11 +15,11 @@ const vm = require('node:vm');
   const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component =');
   const saved = [];
   const zones = []; let timezoneFailure = false;
-  const context = {component:null,ClinicTimeZoneField:{},mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},...storage,...availability,...settings,
-    DAAppointmentService:{saveConfig:async data => { saved.push(data); return {success:false,message:'QA simulated failure'}; },saveTimezone:async timezone=>{zones.push(timezone);return timezoneFailure ? {success:false,message:'QA zone failure'} : {success:true,data:{timezone}};}} };
+  const context = {component:null,...interaction,ClinicTimeZoneField:{},mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},...storage,...availability,...settings,
+    DAAppointmentService:{configImpact:async()=>({success:true,data:{count:0,appointments:[]}}),saveConfig:async data => { saved.push(data); return {success:false,message:'QA simulated failure'}; },saveTimezone:async timezone=>{zones.push(timezone);return timezoneFailure ? {success:false,message:'QA zone failure'} : {success:true,data:{timezone}};}} };
   vm.runInNewContext(script, context);
   const agenda = context.component.data();
-  Object.assign(agenda, {authUser:{id_login:'actor'},role:'doctor',doctors:[{id_login:'actor',id_doctor_professional_profile:'doctor-a'}],hasPermission:()=>true,$emit:()=>{},selected:'doctor-a',loaded:true});
+  Object.assign(agenda, {authUser:{id_login:'actor'},role:'doctor',doctors:[{id_login:'actor',id_doctor_professional_profile:'doctor-a'}],hasPermission:()=>true,$swal:{fire:async()=>({isConfirmed:true})},$emit:()=>{},selected:'doctor-a',loaded:true});
   Object.entries(context.component.methods).forEach(([key,method]) => agenda[key]=method.bind(agenda));
   Object.entries(context.component.computed).forEach(([key,getter]) => Object.defineProperty(agenda,key,{get:getter.bind(agenda)}));
   agenda.form=storage.normalizeAppointmentConfig({enabled:true,workingDays:[{dayOfWeek:1,enabled:true,timeRanges:[{id:'original',startTime:'09:00',endTime:'12:00'}]}],businessEnabled:true,businessBlockedDates:[{date:'2026-10-19'}]});

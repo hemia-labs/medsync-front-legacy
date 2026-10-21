@@ -10,7 +10,7 @@ import { clearLegacyAuthStorageForD2 } from '../../utils/authStorageCleanup';
 export const actions = {
     unauthorized: async (error) => {
         const payload = error.response && error.response.data;
-        const code = payload && payload.data && payload.data.code;
+        const code = payload && (payload.code || payload.data && payload.data.code);
         if(code === 'AUTH_ACCESS_EXPIRED') {
             await store.dispatch(modules.AUTH + '/refreshAccess');
             return Promise.reject(error);

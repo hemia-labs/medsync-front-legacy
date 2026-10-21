@@ -4,7 +4,7 @@
       <header class="dashboard-hero">
         <div class="hero-copy">
           <p class="eyebrow">Panel del consultorio</p>
-          <h1>{{ scopeLabel }}</h1>
+          <h1>Análisis del consultorio</h1><p>{{ scopeLabel }}</p>
           <p>Revisa los indicadores disponibles para tus permisos en este periodo, sin datos personales de pacientes.</p>
           <div class="hero-meta">
             <span v-if="businessName">
@@ -36,6 +36,7 @@
           <span>{{ isDashboardBusy ? 'Actualizando...' : 'Actualizar' }}</span>
         </button>
       </header>
+      <pulse-entry />
 
       <section class="filters-panel" aria-label="Filtros del resumen">
         <div>
@@ -304,6 +305,7 @@
 </template>
 
 <script>
+import PulseEntry from '../Pulse/PulseEntry.vue';
 import { DABusinessDashboardService } from '../../services/context/core-proccess-context';
 import DashboardActivityTrends from './components/DashboardActivityTrends.vue';
 import DashboardEnterpriseLockedWidget from './components/DashboardEnterpriseLockedWidget.vue';
@@ -349,6 +351,7 @@ function normalizeNumber(value) {
 export default {
   name: 'TenantDashboard',
   components: {
+    PulseEntry,
     DashboardActivityTrends,
     DashboardEnterpriseLockedWidget,
     DashboardLockedWidget,
@@ -431,7 +434,8 @@ export default {
       return Boolean(this.dashboardAccess.canSelectTenant && this.dashboardAccess.canSelectOwn);
     },
     scopeOptions: function() {
-      return [{ key: 'own', label: 'Mi actividad' }, { key: 'tenant', label: 'Todo el consultorio' }];
+      return [{ key: 'own', label: 'Mi actividad', allowed: this.dashboardAccess.canSelectOwn },
+        { key: 'tenant', label: 'Todo el consultorio', allowed: this.dashboardAccess.canSelectTenant }].filter(option => option.allowed);
     },
     isDashboardBusy: function() {
       return Boolean(

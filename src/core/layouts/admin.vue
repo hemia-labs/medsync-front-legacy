@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-full app-background tenant-layout" :class="{ 'tenant-settings-layout': $route.path === '/admin' }">
+  <div class="min-h-full app-background tenant-layout" :class="{ 'tenant-settings-layout': $route.path === '/admin', 'tenant-pulse-layout': $route.name === 'business-pulse' }">
     <header class="tenant-header">
       <nav class="tenant-header-nav">
         <div class="tenant-header-left">
@@ -66,6 +66,7 @@
       <da-re-login :show="isRelogin" v-on:auth="isRelogin = false"></da-re-login>
       <div class="tenant-content">
         <legal-update-notice />
+        <pulse-return />
         <slot></slot>
       </div>
     </main>
@@ -93,6 +94,8 @@
 </template>
 
 <script>
+import PulseReturn from '../../views/Pulse/PulseReturn.vue';
+import { canAccessPulse } from '../../security/pulseAccess';
 import { canAccessSettings } from '../../security/settingsAccess';
 import { mapActions, mapGetters } from 'vuex';
 import fnTypes from '../../store/modules/common/fn-types';
@@ -123,7 +126,7 @@ export default {
         }
     },
     components: {
-      LegalUpdateNotice,
+      LegalUpdateNotice, PulseReturn,
       'da-re-login': ReLogin,
       'tenant-navigation-rail': TenantNavigationRail
     },
@@ -315,6 +318,7 @@ export default {
           if(!item) {
             return false
           }
+          if(item.pulseAccess) return canAccessPulse(this.$store.state.CORE.AUTH.permissions,this.role)
           if(item.settingsAccess) return canAccessSettings(this.role, this.hasPermission)
 
           if(Array.isArray(item.permissionsAny) && item.permissionsAny.length) {
@@ -765,6 +769,9 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
   }
 }
 .tenant-settings-layout .tenant-main-shell { min-height: calc(100vh - 3.25rem); padding-bottom: 0; }
+.tenant-pulse-layout .tenant-main-shell { padding-bottom: 0; }
+.tenant-pulse-layout .tenant-footer { position: relative; left: auto; right: auto; bottom: auto; z-index: auto; }
+@media (min-width: 1024px) { .tenant-pulse-layout .tenant-footer { margin-left: 17rem; } }
 .tenant-settings-layout .tenant-content { min-height: calc(100vh - 7.25rem); }
 .tenant-settings-layout .tenant-footer { position: relative; left: auto; right: auto; bottom: auto; z-index: auto; background: #f8fafc; }
 html[data-theme="clinical-night"] .tenant-settings-layout .tenant-footer { background: #0f172a; }

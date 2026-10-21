@@ -26,6 +26,28 @@ const state = (options, extras) => {
     const service = { getPreparation: () => { calls++; return typeof response === 'function' ? response() : response; } };
     const context = { component: null, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, DABusinessService: service, getSettingsSections, window: { removeEventListener: () => {} } };
     const options = load('src/views/configuration/components/PreparationChecklist.vue', context);
+    // Render the real template while the response is delayed: a prepared clinic
+    // must not briefly mount the onboarding card on entry or focus refresh.
+    const Vue = require('vue');
+    const template = compiler.parseComponent(read('src/views/configuration/components/PreparationChecklist.vue')).template.content;
+    const render = compiler.compileToFunctions(template);
+    const card = new Vue({ ...render, data: () => ({ ...options.data(), user: { id_login: 'qa', id_business: 'qa' }, role: 'admin', showCompleted: false, hasPermission: () => false }), computed: options.computed, methods: options.methods });
+    const visible = () => !card._render().isComment;
+    const delayed = deferred(); response = () => delayed.promise;
+    const firstLoad = card.load();
+    assert.equal(visible(), false, 'Home does not mount preparation before its response');
+    delayed.resolve({ success: true, data: { pending: 0, completed: 0, steps: [] } }); await firstLoad;
+    assert.equal(visible(), false, 'A configured clinic keeps the card absent');
+    const refresh = deferred(); response = () => refresh.promise;
+    const refreshing = card.load();
+    assert.equal(visible(), false, 'Refreshing a configured clinic does not flash the card');
+    refresh.resolve({ success: true, data: { pending: 1, completed: 0, steps: [{ id: 'pending', ready: false }] } }); await refreshing;
+    assert.equal(visible(), true, 'Actual pending configuration is shown after confirmation');
+    card.status = null; card.loading = true; card.showCompleted = true;
+    assert.equal(visible(), true, 'Settings retains its explicit loading feedback');
+    card.showCompleted = false; card.loading = false; card.error = 'Error de consulta';
+    assert.equal(visible(), true, 'A query failure remains visible for retry');
+    card.$destroy();
     let permissions = new Set(['documents.view']);
     const make = extras => state(options, { user: { id_login: 'qa-user', id_business: 'qa-tenant' }, role: 'admin', showCompleted: false, hasPermission: code => permissions.has(code), ...extras });
     const view = make();

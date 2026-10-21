@@ -44,13 +44,13 @@
                 </template>
                 <span>Actualizar foto</span>
             </v-tooltip>
-            <v-tooltip bottom>
+            <v-tooltip v-if="canEdit && Number(patient.active) !== 0" bottom>
                 <template v-slot:activator="{ on, attrs }">
-                    <button type="button" class="patient-icon-action patient-icon-action--close" v-bind="attrs" v-on="on" aria-label="Cerrar expediente" @click="$router.push('/px/all')">
-                        <v-icon small>mdi-close</v-icon>
+                    <button type="button" class="patient-icon-action patient-icon-action--close" :disabled="archivePending" v-bind="attrs" v-on="on" aria-label="Archivar paciente" @click="$emit('archive')">
+                        <v-icon small>mdi-archive-outline</v-icon>
                     </button>
                 </template>
-                <span>Cerrar expediente</span>
+                <span>Archivar paciente</span>
             </v-tooltip>
         </div>
     </section>
@@ -60,6 +60,7 @@
 export default {
     props: {
         canEdit: { type: Boolean, default: false },
+        archivePending: { type: Boolean, default: false },
         showClinical: { type: Boolean, default: true },
         px: {
             type: Object,

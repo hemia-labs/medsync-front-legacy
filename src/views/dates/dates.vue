@@ -5,18 +5,40 @@
         <div>
           <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Agenda clinica</p>
           <h2 class="m-0 text-gray-700 text-2xl font-normal">Gestion de citas</h2>
-          <p class="m-0 mt-2 text-gray-500 text-sm">Consulta disponibilidad, bloqueos y citas de la semana.</p>
+          <p class="m-0 mt-2 text-gray-500 text-sm">Consulta citas, disponibilidad e historial.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <v-btn icon aria-label="Consultar semana anterior" @click="moveWeek(-7)">
             <v-icon color="#6B7280">mdi-chevron-left</v-icon>
           </v-btn>
-          <v-text-field v-model="selectedDate" type="date" label="Semana" dense outlined hide-details :color="themePrimaryColor" class="w-44"></v-text-field>
+          <v-text-field v-model="selectedDate" type="date" label="Fecha" dense outlined hide-details :color="themePrimaryColor" class="w-44"></v-text-field>
           <v-btn icon aria-label="Consultar semana siguiente" @click="moveWeek(7)">
             <v-icon color="#6B7280">mdi-chevron-right</v-icon>
           </v-btn>
-          <da-button-secondary @click.native="followUpDialog = true" :label="'Seguimientos'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
-          <da-button-primary :disabled="!selectedDoctorId || agendaLoading || !!agendaError" @click.native="openManualAppointment()" :label="'Nueva cita'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+          <v-tooltip bottom>
+            <template v-slot:activator="{ on, attrs }">
+              <v-btn rounded outlined class="agenda-toolbar-button" :color="themePrimaryColor" v-bind="attrs" v-on="on" @click="goToday">Hoy</v-btn>
+            </template>
+            <span>Ir al día de hoy</span>
+          </v-tooltip>
+          <v-tooltip bottom>
+            <template v-slot:activator="{ on, attrs }">
+              <v-btn rounded outlined class="agenda-toolbar-button" :color="themePrimaryColor" :loading="findingSlot" :disabled="!selectedDoctorId || agendaLoading || findingSlot || (selectedDoctor && selectedDoctor.active === 0)" v-bind="attrs" v-on="on" @click="findNextAvailable">Próximo libre</v-btn>
+            </template>
+            <span>Abrir una cita en el próximo horario disponible</span>
+          </v-tooltip>
+          <v-tooltip v-if="hasPermission('px.tab.monitoring')" bottom>
+            <template v-slot:activator="{ on, attrs }">
+              <v-btn rounded depressed class="agenda-toolbar-button agenda-toolbar-follow-up" v-bind="attrs" v-on="on" @click="followUpDialog = true">Seguimientos</v-btn>
+            </template>
+            <span>Consultar seguimientos pendientes</span>
+          </v-tooltip>
+          <v-tooltip bottom>
+            <template v-slot:activator="{ on, attrs }">
+              <v-btn rounded depressed class="agenda-toolbar-button" :color="themePrimaryColor" :disabled="!selectedDoctorId || agendaLoading || !!agendaError || (selectedDoctor && selectedDoctor.active === 0)" v-bind="attrs" v-on="on" @click="openManualAppointment()"><span class="text-white">Nueva cita</span></v-btn>
+            </template>
+            <span>Crear una cita y elegir su horario</span>
+          </v-tooltip>
         </div>
       </div>
 
@@ -24,10 +46,15 @@
         <v-select v-if="doctors.length || agendaLoading || agendaError" v-model="selectedDoctorId" :items="doctors" item-text="display_name" item-value="id_doctor_professional_profile" label="Agenda del doctor" no-data-text="No hay doctores con perfil activo" :readonly="doctors.length === 1" :disabled="agendaLoading" outlined dense :color="themePrimaryColor" @change="changeCalendarDoctor"></v-select>
         <div class="flex flex-wrap items-center gap-3 mb-3">
           <strong v-if="selectedDoctor" class="text-gray-700">{{ selectedDoctor.display_name }}</strong>
-          <button v-if="canConfigureAgenda" type="button" class="text-primary-900 font-semibold" @click="agendaConfigDialog = true">Configurar agenda</button>
+          <v-btn v-if="canConfigureAgenda" outlined rounded class="agenda-toolbar-button agenda-config-button" :color="themePrimaryColor" @click="agendaConfigDialog = true"><v-icon small left>mdi-cog-outline</v-icon>Configurar agenda</v-btn>
         </div>
         <p v-if="agendaLoading" role="status">Cargando disponibilidad del doctor…</p>
+        <p v-if="agendaNotice" role="status">{{ agendaNotice }}</p>
         <p v-if="agendaError" role="alert" class="text-red-700">{{ agendaError }} <button type="button" @click="doctors.length ? changeCalendarDoctor() : init()">Reintentar</button></p>
+        <v-btn-toggle v-model="viewMode" mandatory aria-label="Vista de agenda" class="agenda-view-toggle mb-3">
+          <v-btn value="day" small>Día</v-btn><v-btn value="week" small>Semana</v-btn><v-btn value="list" small>Lista</v-btn>
+        </v-btn-toggle>
+        <p class="text-sm text-gray-600">Zona del consultorio: {{ appointmentConfig.timezone }}</p>
         <div class="flex flex-wrap gap-2">
           <span
             v-for="item in statusLegend"
@@ -55,22 +82,24 @@
         </div>
       </section>
 
-      <div v-else-if="!agendaLoading && !agendaError && (!selectedDoctorId || !appointmentConfig.enabled || appointmentConfig.businessEnabled === false)" class="m-6 p-5 border border-gray-200 bg-gray-50 text-gray-600">
+      <div v-else-if="!agendaLoading && !agendaError && !selectedDoctorId" class="m-6 p-5 border border-gray-200 bg-gray-50 text-gray-600">
         {{ !selectedDoctorId ? 'Selecciona un doctor para consultar su disponibilidad.' : 'Esta agenda no esta disponible. Revisa su configuracion y los cierres del consultorio.' }}
       </div>
 
-      <div v-else-if="!agendaLoading && !agendaError" class="p-4 overflow-x-auto" role="region" aria-label="Disponibilidad semanal" :aria-describedby="'agenda-week-description'" tabindex="0">
+      <div v-else-if="!agendaLoading && !agendaError && viewMode === 'week'" class="p-4 overflow-x-auto" role="region" aria-label="Disponibilidad semanal" :aria-describedby="'agenda-week-description'" tabindex="0">
         <p id="agenda-week-description" class="sr-only" aria-live="polite">Agenda de {{ selectedDoctor && selectedDoctor.display_name }}. Semana del {{ formatDisplayDate(weekDates[0]) }} al {{ formatDisplayDate(weekDates[6]) }}. Cada horario indica su día, hora y estado.</p>
+        <p v-if="weekTimeMarker" class="agenda-clock-note"><span class="agenda-clock-dot" aria-hidden="true"></span>Hora de referencia: {{ clinicNow.time }} · {{ formatDisplayDate(clinicNow.date) }} <span>(hora del consultorio)</span></p>
         <div class="agenda-grid min-w-agenda">
           <div class="sticky left-0 z-10 bg-white border-b border-r border-gray-200 py-3 px-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Hora</div>
-          <div v-for="day in weekDates" :key="day" class="border-b border-gray-200 py-3 px-2 text-center">
-            <p class="m-0 text-gray-700 font-semibold">{{ dayShortName(day) }}</p>
+          <div v-for="day in weekDates" :key="day" class="agenda-day-header border-b border-gray-200 py-3 px-2 text-center" :class="{ 'agenda-day-header-today': day === clinicNow.date }" :aria-current="day === clinicNow.date ? 'date' : null">
+            <p class="agenda-day-name m-0 text-gray-700 font-semibold">{{ dayShortName(day) }} <span v-if="day === clinicNow.date" class="agenda-today-badge">Hoy</span></p>
             <p class="m-0 text-gray-500 text-xs">{{ formatDisplayDate(day) }}</p>
           </div>
 
           <template v-for="time in weekTimes">
-            <div :key="`time-${time}`" class="sticky left-0 z-10 bg-white border-r border-b border-gray-200 px-2 py-2 text-sm text-gray-500 font-semibold">
+            <div :key="`time-${time}`" class="agenda-hour-cell sticky left-0 z-10 bg-white border-r border-b border-gray-200 px-2 py-2 text-sm text-gray-500 font-semibold">
               {{ time }}
+              <span v-if="weekTimeMarker && weekTimeMarker.time === time" class="agenda-now-label" :style="{ top: weekTimeMarker.offset + '%' }" aria-hidden="true">{{ clinicNow.time }}</span>
             </div>
             <button
               v-for="day in weekDates"
@@ -88,10 +117,34 @@
               <span v-if="getSlot(day, time).historicalAppointment" class="block text-xs mt-1 text-gray-500 truncate">
                 {{ historicalLabel(getSlot(day, time).historicalAppointment) }}
               </span>
+              <span v-if="weekTimeMarker && weekTimeMarker.time === time" class="agenda-now-line" :class="{ 'agenda-now-line-today': day === clinicNow.date }" :style="{ top: weekTimeMarker.offset + '%' }" aria-hidden="true"></span>
             </button>
           </template>
         </div>
       </div>
+      <section v-if="selectedDoctorId && !agendaLoading && !agendaError" class="agenda-events" aria-label="Citas y horarios">
+        <h3>{{ viewMode === 'day' ? 'Agenda del día · ' + formatDisplayDate(selectedDate) : 'Citas e historial de la semana' }}</h3>
+        <p v-if="!appointmentConfig.enabled || appointmentConfig.businessEnabled === false || (selectedDoctor && selectedDoctor.active === 0)" role="status">Agenda cerrada o doctor inactivo. Las citas guardadas se conservan para su consulta y cierre.</p>
+        <p v-if="viewMode === 'day'" class="text-sm text-gray-600">Selecciona un horario disponible para crear una cita.</p>
+        <p v-if="!agendaEntries.length">{{ viewMode === 'day' ? 'No hay citas ni horarios disponibles para este día.' : 'No hay citas en este periodo.' }}</p>
+        <div v-for="entry in agendaEntries" :key="entry.key" class="agenda-event-row" :class="{ 'agenda-event-row-timed': viewMode !== 'week' }">
+          <div v-if="viewMode !== 'week'" class="agenda-event-time" aria-hidden="true">
+            <strong>{{ entry.slot.startTime }}</strong>
+            <span>{{ entry.slot.endTime }}</span>
+          </div>
+          <button type="button" class="agenda-event" :class="{ 'agenda-event-free': !entry.appointment && entry.slot.selectable }" :style="slotStyle(entry.slot)" :disabled="!entry.appointment && !entry.slot.selectable" @click="entry.appointment ? openAppointment(entry.appointment) : onSlotClick(entry.slot)">
+          <span v-if="viewMode !== 'week'" class="sr-only">{{ entry.slot.startTime }} a {{ entry.slot.endTime }}.</span>
+          <div class="agenda-event-heading">
+            <strong>{{ formatDisplayDate(entry.slot.date) }}<template v-if="viewMode === 'week'"> · {{ entry.slot.startTime }}–{{ entry.slot.endTime }}</template></strong>
+            <span class="agenda-event-status">{{ statusLabel(entry.slot.status) }}</span>
+          </div>
+          <span v-if="entry.appointment">{{ entry.appointment.patientName || entry.appointment.title }}</span>
+          <span v-else-if="entry.slot.selectable" class="agenda-event-create"><v-icon small color="inherit">mdi-plus-circle-outline</v-icon> Agregar cita</span>
+          <span v-else>{{ entry.slot.reason || 'Horario no disponible' }}</span>
+          <small v-if="entry.appointment && isOutsideSchedule(entry.appointment)">Fuera del horario actual</small>
+          </button>
+        </div>
+      </section>
     </div>
 
     <v-dialog v-model="followUpDialog" max-width="1100">
@@ -175,8 +228,8 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="appointmentDialog" persistent max-width="720">
-      <v-card>
+    <v-dialog v-model="appointmentDialog" persistent max-width="720" @keydown.esc="closeDialog()">
+      <v-card class="appointment-card">
         <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
           <div>
             <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">{{ editingAppointment.id ? 'Detalle de cita' : 'Nueva cita' }}</p>
@@ -188,7 +241,7 @@
         </div>
 
         <v-card-text class="pt-5">
-          <v-select v-model="editingAppointment.doctorProfileId" :items="doctors" item-text="display_name" item-value="id_doctor_professional_profile" label="Doctor que atendera *" :readonly="doctors.length === 1" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment" @change="loadDialogDoctor(true)"></v-select>
+          <v-select v-model="editingAppointment.doctorProfileId" :items="doctors.filter(d => d.active !== 0 || d.id_doctor_professional_profile === editingAppointment.doctorProfileId)" item-text="display_name" item-value="id_doctor_professional_profile" label="Doctor que atendera *" :readonly="doctors.length === 1" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment || !!pendingSave || isReadOnlyAppointment" @change="loadDialogDoctor(true)"></v-select>
           <p v-if="dialogLoading" role="status">Consultando horarios del doctor…</p>
           <p v-else-if="!dialogConfig.enabled || dialogConfig.businessEnabled === false" role="status" class="text-yellow-800">La agenda de este doctor no esta disponible. Revisa su configuracion o selecciona otro doctor.</p>
           <p v-else-if="!dialogAvailableTimes.length" role="status">No hay horarios disponibles en esta fecha. Selecciona otra fecha.</p>
@@ -202,10 +255,10 @@
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <v-text-field v-model="editingAppointment.date" type="date" label="Fecha" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment" @change="loadDialogDoctor(true)"></v-text-field>
-            <v-select v-model="editingAppointment.startTime" :disabled="dialogLoading || savingAppointment" :items="dialogAvailableTimes" item-text="label" item-value="value" label="Hora" outlined dense :color="themePrimaryColor" @change="refreshDialogEndTime"></v-select>
-            <v-text-field :value="editingAppointment.endTime" label="Fin" outlined dense readonly :color="themePrimaryColor" :disabled="savingAppointment"></v-text-field>
-            <v-select v-model="editingAppointment.status" :items="appointmentStatusOptions" item-text="text" item-value="value" label="Estado" outlined dense :color="themePrimaryColor" @change="syncBlocksAvailability" :disabled="savingAppointment"></v-select>
+            <v-text-field v-model="editingAppointment.date" type="date" label="Fecha" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment || !!pendingSave || isReadOnlyAppointment" @change="loadDialogDoctor(true)"></v-text-field>
+            <v-select v-model="editingAppointment.startTime" :disabled="dialogLoading || savingAppointment || !!pendingSave || isReadOnlyAppointment" :items="dialogAvailableTimes" item-text="label" item-value="value" label="Hora" outlined dense :color="themePrimaryColor" @change="refreshDialogEndTime"></v-select>
+            <v-text-field :value="editingAppointment.endTime" label="Fin" outlined dense readonly :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
+            <v-select v-model="editingAppointment.status" :items="editingAppointment.status === 'rescheduled' ? appointmentStatusOptions.concat([{value:'rescheduled',text:'Reprogramada'}]) : appointmentStatusOptions" item-text="text" item-value="value" label="Estado" outlined dense :color="themePrimaryColor" @change="syncBlocksAvailability" :disabled="savingAppointment || !!pendingSave || !!(originalAppointment && originalAppointment.status === 'rescheduled')"></v-select>
           </div>
 
           <v-autocomplete
@@ -216,6 +269,7 @@
             item-text="name"
             item-value="id"
             label="Paciente registrado (opcional)"
+            :readonly="!!editingAppointment.id"
             :no-data-text="patientSearchNoDataText"
             no-filter
             clearable
@@ -226,7 +280,7 @@
             @update:search-input="onPatientSearchInput"
             @change="syncPatientName"
             @click:clear="clearSelectedPatient"
-           :disabled="savingAppointment">
+           :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment">
             <template #item="{ item }">
               <v-list-item-content>
                 <v-list-item-title>{{ item.name }}</v-list-item-title>
@@ -238,7 +292,8 @@
             </template>
           </v-autocomplete>
 
-          <v-text-field v-model="editingAppointment.patientName" label="Nombre del paciente" hint="Usa este campo si es paciente nuevo o no tiene expediente." persistent-hint outlined dense :color="themePrimaryColor" :disabled="savingAppointment"></v-text-field>
+          <v-text-field v-model="editingAppointment.patientName" label="Nombre del paciente" hint="Usa este campo si es paciente nuevo o no tiene expediente." persistent-hint outlined dense :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
+          <v-select v-model="phoneCountry" :items="contactCountries" label="Pais del telefono" outlined dense :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-select>
           <div class="appointment-contact-row">
             <div class="appointment-contact-control">
               <v-text-field
@@ -251,7 +306,7 @@
                 class="appointment-contact-field"
                 hide-details
                 @blur="normalizeAppointmentContactPhone"
-               :disabled="savingAppointment"></v-text-field>
+               :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
               <v-tooltip bottom>
                 <template #activator="{ on, attrs }">
                   <span
@@ -261,7 +316,7 @@
                   >
                     <button
                       type="button"
-                      class="appointment-whatsapp-button"
+                      class="appointment-whatsapp-button" aria-label="Vista previa de contacto por WhatsApp"
                       :class="{ disabled: !canOpenAppointmentWhatsApp }"
                       :disabled="!canOpenAppointmentWhatsApp"
                       @click="openAppointmentWhatsApp"
@@ -278,21 +333,42 @@
               <span>{{ contactPhoneCharacterCount }} / 40</span>
             </div>
           </div>
-          <v-text-field v-model="editingAppointment.title" label="Motivo o titulo" outlined dense :color="themePrimaryColor" :disabled="savingAppointment"></v-text-field>
-          <v-textarea v-model="editingAppointment.description" label="Descripcion" outlined dense :color="themePrimaryColor" rows="3" :disabled="savingAppointment"></v-textarea>
-          <v-textarea v-if="editingAppointment.status === 'cancelled'" v-model="editingAppointment.cancellationReason" label="Motivo de cancelacion" outlined dense :color="themePrimaryColor" rows="2" :disabled="savingAppointment"></v-textarea>
+          <v-text-field v-model="editingAppointment.title" label="Motivo o titulo" outlined dense :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
+          <v-textarea v-model="editingAppointment.description" label="Descripcion" outlined dense :color="themePrimaryColor" rows="3" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-textarea>
+          <v-textarea v-if="editingAppointment.status === 'cancelled'" v-model="editingAppointment.cancellationReason" label="Motivo de cancelacion" outlined dense :color="themePrimaryColor" rows="2" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-textarea>
 
-          <p v-if="dialogError" class="text-red-600 font-semibold">{{ dialogError }}</p>
+          <p v-if="dialogError" role="alert" class="text-red-600 font-semibold">{{ dialogError }}</p>
+          <p v-if="editingAppointment.status === 'rescheduled'" role="status">Reprogramacion: la cita original y su sustitucion se guardaran juntas.</p>
+          <div v-if="pendingSave" role="status"><p>Hay una operacion sin resultado confirmado. Reintenta para recuperar su resultado antes de cambiar los datos.</p></div>
+          <div v-if="conflictAppointment" role="alert"><p>Version vigente: {{ statusLabel(conflictAppointment.status) }} · {{ conflictAppointment.date }} {{ conflictAppointment.startTime }}–{{ conflictAppointment.endTime }}. Tu captura sigue abierta.</p><v-btn small @click="useCurrentAppointment">Descartar captura y usar version vigente</v-btn></div>
+          <div v-if="editingAppointment.id" class="agenda-detail-tools">
+            <v-btn v-if="editingAppointment.status !== 'rescheduled'" small outlined class="appointment-status-action" :style="statusActionStyle('rescheduled')" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment" @click="startReschedule">Reprogramar</v-btn>
+            <v-btn v-for="state in ['confirmed','completed','no_show']" :key="state" small outlined class="appointment-status-action" :class="{ 'appointment-status-current': editingAppointment.status === state }" :style="statusActionStyle(state)" :aria-label="statusLabel(state) + (editingAppointment.status === state ? ', estado seleccionado' : '')" :disabled="savingAppointment || !!pendingSave || editingAppointment.status === 'rescheduled'" @click="quickStatus(state)"><v-icon v-if="editingAppointment.status === state" small left>mdi-check-circle-outline</v-icon>{{ statusLabel(state) }}</v-btn>
+            <v-btn v-if="editingAppointment.rescheduledFromAppointmentId" small text @click="openLinkedAppointment(editingAppointment.rescheduledFromAppointmentId)">Ver cita original</v-btn>
+            <v-btn v-if="editingAppointment.rescheduledToAppointmentId" small text @click="openLinkedAppointment(editingAppointment.rescheduledToAppointmentId)">Ver cita destino</v-btn>
+          </div>
+          <details v-if="editingAppointment.id" @toggle="$event.target.open && loadAudit()">
+            <summary>Historial de cambios</summary><p v-if="auditLoading" role="status">Cargando cambios…</p><p v-if="auditError" role="alert">{{ auditError }}</p>
+            <p v-if="!auditLoading && !auditItems.length">Sin cambios registrados desde la activacion del historial.</p>
+            <p v-for="entry in auditItems" :key="entry.id">Revision {{ entry.revision }} · {{ entry.actorName || 'Usuario del consultorio' }} · {{ entry.createdAt }}<br>{{ auditSummary(entry) }}</p>
+            <v-btn v-if="auditNext" small @click="loadAudit(true)">Ver cambios anteriores</v-btn>
+          </details>
         </v-card-text>
 
         <v-card-actions class="appointment-dialog-actions px-6 pb-5 justify-end">
           <da-button-secondary @click.native="closeDialog()" :label="'Cerrar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-secondary>
-          <da-button-900 v-if="editingAppointment.id" @click.native="cancelAppointment()" :label="'Cancelar cita'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-900>
-          <da-button-primary :disabled="dialogLoading || savingAppointment" @click.native="saveAppointment()" :label="savingAppointment ? 'Guardando…' : 'Guardar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-primary>
+          <da-button-900 v-if="editingAppointment.id && !(originalAppointment && originalAppointment.status === 'rescheduled')" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment" @click.native="cancelAppointment()" :label="'Cancelar cita'" :style="statusActionStyle('cancelled')" rxl swpr class="appointment-dialog-action appointment-status-action py-1 px-4 font-light"></da-button-900>
+          <da-button-primary v-if="!(originalAppointment && originalAppointment.status === 'rescheduled')" :disabled="dialogLoading || savingAppointment" @click.native="saveAppointment()" :label="savingAppointment ? 'Guardando…' : pendingSave ? 'Reintentar operacion' : 'Guardar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-primary>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="leaveDialog" persistent max-width="480">
+      <v-card><v-card-title>Cambios sin guardar</v-card-title><v-card-text>{{ pendingSave ? 'El resultado de la operacion no esta confirmado. Reintenta antes de salir para evitar iniciar otra reserva.' : 'Tu captura se perdera si la descartas.' }}</v-card-text><v-card-actions class="agenda-detail-tools"><v-btn @click="keepEditing">Seguir editando</v-btn><v-btn color="error" @click="discardDraft">Descartar y salir</v-btn></v-card-actions></v-card>
+    </v-dialog>
+    <v-dialog v-model="contactPreview" max-width="480">
+      <v-card><v-card-title>Revisar destinatario</v-card-title><v-card-text>Se abrira WhatsApp para {{ contactTarget }}. Revisa el numero antes de continuar.</v-card-text><v-card-actions><v-btn @click="contactPreview = false">Volver</v-btn><v-btn :href="contactUrl" target="_blank" rel="noopener noreferrer" @click="contactPreview = false">Abrir WhatsApp</v-btn></v-card-actions></v-card>
+    </v-dialog>
     <v-dialog v-model="completedEditConfirmDialog" max-width="520">
       <v-card class="completed-confirm-card">
         <div class="completed-confirm-header">
@@ -326,6 +402,7 @@
 </template>
  
 <script>
+import { newAgendaRequestId, clinicClock, appointmentPhone } from '../../domain/appointments/agendaInteraction'
 import { mapActions, mapGetters } from 'vuex';
 import VuexMixin from '../../mixins/VuexMixin';
 import { getSettingsSections } from '../../security/settingsAccess';
@@ -357,7 +434,6 @@ import {
 import {
   buildAppointmentWhatsAppMessage,
   buildWhatsAppUrl,
-  normalizePhoneForWhatsApp,
   openWhatsAppUrl
 } from '../../utils/whatsapp';
 
@@ -369,7 +445,6 @@ const PATIENT_SEARCH_CACHE_MAX_KEYS = 30;
 
 const normalizePatientSearchText = (value) => String(value || '').trim().replace(/\s+/g, ' ');
 const normalizeAppointmentContactPhoneValue = (value) => String(value || '').trim();
-const hasWhatsAppPhone = (value) => normalizePhoneForWhatsApp(value).length >= 7;
 
 const getPatientDisplayName = (patient = {}) => {
   const fullName = `${patient.name || patient.firstName || ''} ${patient.surname || ''}`.trim();
@@ -401,7 +476,15 @@ export default {
   mixins: [VuexMixin],
   data: function() {
     return {
-      selectedDate: toIsoDate(new Date()),
+      selectedDate: clinicClock('America/Mexico_City').date,
+      agendaClockAt: Date.now(),
+      viewMode: window.matchMedia('(max-width: 600px)').matches ? 'day' : 'week',
+      draftBaseline: '', leaveDialog: false, pendingNavigation: null, removeAgendaGuard: null,
+      appointmentRequestId: '', pendingSave: null, conflictAppointment: null,
+      phoneCountry: 'MX', contactPreview: false, contactUrl: '', contactTarget: '',
+      contactCountries: [{ value: 'MX', text: 'Mexico (+52)' }, { value: 'US', text: 'EE. UU. / Canada (+1)' }, { value: 'INT', text: 'Otro pais (numero con +)' }],
+      auditItems: [], auditLoading: false, auditError: '', auditNext: null,
+      findingSlot: false, slotRequest: 0, agendaNotice: '',
       doctors: [], selectedDoctorId: '', agendaLoading: false, agendaError: '', agendaRequest: 0,
       dialogConfig: getAppointmentConfig(), dialogAppointments: [], dialogLoading: false, dialogRequest: 0,
       savingAppointment: false, agendaConfigDialog: false,
@@ -434,17 +517,37 @@ export default {
         { status: APPOINTMENT_STATUSES.RESCHEDULED, label: 'Reprogramada' },
         { status: APPOINTMENT_STATUSES.NO_SHOW, label: 'No asistio' }
       ],
-      appointmentStatusOptions: APPOINTMENT_STATUS_OPTIONS
+      appointmentStatusOptions: APPOINTMENT_STATUS_OPTIONS.filter(item => item.value !== APPOINTMENT_STATUSES.RESCHEDULED)
     }
   },
   created() {
     this.init()
   },
+  mounted() {
+    this.removeAgendaGuard = this.$router.beforeEach((to, from, next) => {
+      if(this.savingAppointment) return next(false)
+      if(!this.appointmentDialog || !this.draftDirty) return next()
+      this.pendingNavigation = next; this.leaveDialog = true
+    })
+    window.addEventListener('beforeunload', this.guardUnload)
+    window.addEventListener('focus', this.refreshAgendaClock)
+    document.addEventListener('visibilitychange', this.refreshAgendaClock)
+  },
   beforeDestroy() {
+    this.agendaRequest++; this.dialogRequest++; this.slotRequest++
+    if(this.removeAgendaGuard) this.removeAgendaGuard()
+    window.removeEventListener('beforeunload', this.guardUnload)
+    window.removeEventListener('focus', this.refreshAgendaClock)
+    document.removeEventListener('visibilitychange', this.refreshAgendaClock)
     this.cancelPatientSearch()
     this.clearPatientSearchTimer()
   },
   computed: {
+    agendaAccessKey() {
+      const auth = this.$store && this.$store.state.CORE && this.$store.state.CORE.AUTH || {}
+      const user = this.authUser || {}
+      return JSON.stringify([auth.accessRevision, user.id_login, user.id_business, user.id_session, auth.authenticated, auth.permissions])
+    },
     ...mapGetters(moduleTypes.MONITORING, {
       allMonitorings: fnTypes.getAllTracing
     }),
@@ -454,6 +557,35 @@ export default {
       role: fnTypes.getRole
     }),
 
+    draftDirty() { return !!this.pendingSave || (this.appointmentDialog && this.draftBaseline !== JSON.stringify(this.editingAppointment)) },
+    clinicNow() { return clinicClock(this.appointmentConfig.timezone, new Date(this.agendaClockAt)) },
+    weekTimeMarker() {
+      if(!this.weekDates.includes(this.clinicNow.date)) return null
+      const minutes = value => { const [hour, minute] = value.split(':').map(Number); return hour * 60 + minute }
+      const now = minutes(this.clinicNow.time)
+      const duration = Number(this.appointmentConfig.defaultAppointmentDuration) || 30
+      for(let index = 0; index < this.weekTimes.length; index++) {
+        const time = this.weekTimes[index], start = minutes(time)
+        // The next row may begin earlier; never stretch a marker across a midday closure.
+        const end = Math.min(start + duration, this.weekTimes[index + 1] ? minutes(this.weekTimes[index + 1]) : 1440)
+        if(now >= start && now < end) return { time, offset: (now - start) / (end - start) * 100 }
+      }
+      return null
+    },
+    visibleAppointments() {
+      return [...this.appointments].filter(a => this.viewMode !== 'day' || a.date === this.selectedDate)
+        .sort((a,b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
+    },
+    agendaEntries() {
+      const entries = this.visibleAppointments.map(appointment => ({ key: `appointment-${appointment.id}`, appointment, slot: appointment }))
+      if(this.viewMode === 'day') {
+        const slots = this.weekSlots[this.selectedDate] || []
+        slots.filter(slot => !slot.appointment).forEach(slot => entries.push({ key: `slot-${slot.date}-${slot.startTime}`, appointment: null, slot }))
+      }
+      return entries.sort((a, b) => (a.slot.date + a.slot.startTime).localeCompare(b.slot.date + b.slot.startTime) || Number(!a.appointment) - Number(!b.appointment))
+    },
+    phonePreview() { return appointmentPhone(this.editingAppointment.contactPhone, this.phoneCountry) },
+    isReadOnlyAppointment() { return !!this.originalAppointment && this.originalAppointment.status === APPOINTMENT_STATUSES.RESCHEDULED },
     selectedDoctor() { return this.doctors.find(d => d.id_doctor_professional_profile === this.selectedDoctorId); },
     canConfigureAgenda() { return this.hasPermission('admin.config') || this.doctors.some(d => d.id_login === (this.authUser || {}).id_login); },
     canCompleteOwnProfile() { return getSettingsSections(this.role, this.hasPermission).some(section => section.key === 'doctor-identity'); },
@@ -481,6 +613,7 @@ export default {
           }
         })
       })
+      this.appointments.forEach(a => { if(!times.includes(a.startTime)) times.push(a.startTime) })
       return times.sort()
     },
 
@@ -585,9 +718,11 @@ export default {
       const slots = generateDaySlots(this.editingAppointment.date, this.dialogConfig, appointments)
       const currentTime = this.editingAppointment.startTime
       const options = slots
-        .filter((slot) => slot.selectable || slot.startTime === currentTime)
-        .map((slot) => ({ value: slot.startTime, label: `${slot.startTime} - ${slot.endTime}` }))
+        .map(slot => ({ ...slot, endTime: addMinutesToTime(slot.startTime, this.dialogDuration()) }))
+        .filter(slot => slot.startTime === currentTime || (slot.selectable && validateAppointmentSlot({ ...this.editingAppointment, startTime: slot.startTime, endTime: slot.endTime }, this.dialogConfig, appointments).valid))
+        .map(slot => ({ value: slot.startTime, label: `${slot.startTime} - ${slot.endTime}` }))
 
+      if(currentTime && !options.some(option => option.value === currentTime)) options.unshift({ value: currentTime, label: currentTime + ' - ' + this.editingAppointment.endTime + ' (cita guardada)' })
       return options
     },
 
@@ -600,7 +735,7 @@ export default {
     },
 
     canOpenAppointmentWhatsApp: function() {
-      return hasWhatsAppPhone(this.editingAppointment ? this.editingAppointment.contactPhone : '')
+      return this.phonePreview.valid
     },
 
     contactPhoneCharacterCount: function() {
@@ -618,7 +753,96 @@ export default {
     }
   },
   methods: {
+    refreshAgendaClock() { this.agendaClockAt = Date.now() },
     formatDisplayDate,
+    guardUnload(event) { if(this.draftDirty || this.savingAppointment) { event.preventDefault(); event.returnValue = '' } },
+    keepEditing() { this.leaveDialog = false; if(this.pendingNavigation) this.pendingNavigation(false); this.pendingNavigation = null },
+    discardDraft() { const next = this.pendingNavigation; this.pendingNavigation = null; this.leaveDialog = false; this.closeDialog(true); if(next) next() },
+    goToday() { this.refreshAgendaClock(); this.selectedDate = clinicClock(this.appointmentConfig.timezone).date },
+    async findNextAvailable() {
+      if(this.findingSlot || !this.selectedDoctorId) return
+      const request = ++this.slotRequest, doctor = this.selectedDoctorId, selected = this.selectedDate, access = this.agendaAccessKey
+      const config = this.appointmentConfig, now = clinicClock(config.timezone)
+      const start = selected > now.date ? selected : now.date
+      this.findingSlot = true; this.agendaNotice = ''
+      try {
+        const result = await DAAppointmentService.list({ doctor_profile_id: doctor, date_from: start, date_to: addDays(start, 29) })
+        if(request !== this.slotRequest || access !== this.agendaAccessKey || doctor !== this.selectedDoctorId || selected !== this.selectedDate) return
+        if(!result.success) throw new Error(result.message || 'No se pudo consultar el proximo espacio.')
+        for(let offset = 0; offset < 30; offset++) {
+          const day = addDays(start, offset)
+          const slot = generateDaySlots(day, config, result.data).find(s => s.selectable && (day > now.date || s.startTime > now.time))
+          if(slot) { this.selectedDate = day; this.onSlotClick(slot); return }
+        }
+        this.agendaNotice = 'No hay espacios libres en los 30 dias a partir de la fecha consultada. Revisa horarios y bloqueos.'
+      } catch(e) { if(request === this.slotRequest) this.agendaNotice = e.message }
+      finally { if(request === this.slotRequest) this.findingSlot = false }
+    },
+    statusLabel(status) { return APPOINTMENT_STATUS_LABELS[status] || status },
+    auditSummary(entry) {
+      const changes = typeof entry.changes === 'string' ? JSON.parse(entry.changes) : entry.changes || {}
+      const labels = { status:'Estado',date:'Fecha',startTime:'Inicio',endTime:'Fin',doctorProfileId:'Doctor',title:'Motivo',description:'Notas',contactPhone:'Telefono',cancellationReason:'Motivo de cancelacion',patientName:'Nombre',rescheduledFromAppointmentId:'Vinculo con cita original',rescheduledToAppointmentId:'Vinculo con cita destino' }
+      if(entry.revision === 1) return entry.operation === 'reschedule' ? 'Cita creada por reprogramacion.' : 'Cita creada.'
+      return Object.keys(changes).filter(key => labels[key]).map(key => {
+        const change = changes[key]
+        if(['date','startTime','endTime','status'].includes(key)) {
+          const format = value => key === 'status' ? this.statusLabel(value) : value || 'Sin dato'
+          return labels[key] + ': ' + format(change.from) + ' → ' + format(change.to)
+        }
+        return labels[key] + ' actualizado'
+      }).join(' · ')
+    },
+    isOutsideSchedule(a) { return !validateAppointmentSlot(a, this.appointmentConfig, []).valid || this.appointmentConfig.doctorActive === false },
+    async loadAudit(append = false) {
+      const id = this.editingAppointment.id, request = this.dialogRequest, access = this.agendaAccessKey
+      if(!id) return
+      this.auditLoading = true; this.auditError = ''
+      try {
+        const r = await DAAppointmentService.audit(id, append ? this.auditNext : null)
+        if(access !== this.agendaAccessKey || id !== this.editingAppointment.id || request !== this.dialogRequest) return
+        if(!r.success) throw new Error(r.message || 'No se pudo cargar el historial.')
+        this.auditItems = append ? this.auditItems.concat(r.data.items) : r.data.items; this.auditNext = r.data.nextBefore
+      } catch(e) { if(id === this.editingAppointment.id) this.auditError = e.message }
+      finally { if(id === this.editingAppointment.id) this.auditLoading = false }
+    },
+    async openLinkedAppointment(id) {
+      if(this.draftDirty) { this.dialogError = 'Guarda o descarta los cambios antes de abrir otra cita.'; return }
+      const access = this.agendaAccessKey, request = this.dialogRequest
+      const r = await DAAppointmentService.get(id)
+      if(access !== this.agendaAccessKey || request !== this.dialogRequest || !this.appointmentDialog) return
+      if(!r.success) { this.dialogError = r.message; return }
+      const a = r.data
+      if(a) this.openAppointment(a)
+    },
+    useCurrentAppointment() { if(this.conflictAppointment) this.openAppointment(this.conflictAppointment) },
+    async quickStatus(status) { if(this.savingAppointment || this.pendingSave) return; this.editingAppointment.status = status; await this.saveAppointment() },
+    startReschedule() { if(this.savingAppointment || this.pendingSave) return; this.editingAppointment.status = APPOINTMENT_STATUSES.RESCHEDULED; this.dialogError = 'Selecciona el nuevo doctor, fecha u hora y guarda la reprogramacion.' },
+    async submitAppointment(operation) {
+      if(this.savingAppointment) return
+      const access = this.agendaAccessKey
+      if(!this.pendingSave) this.pendingSave = { operation, appointment: JSON.parse(JSON.stringify(this.editingAppointment)), requestId: this.appointmentRequestId }
+      this.savingAppointment = true; this.dialogError = ''
+      let saved = false
+      try {
+        const sent = this.pendingSave
+        const r = sent.operation === 'reschedule' ? await DAAppointmentService.reschedule(sent.appointment, sent.requestId)
+          : await DAAppointmentService.save(sent.appointment, { requestId: sent.requestId })
+        if(access !== this.agendaAccessKey) return
+        if(!r || !r.success) {
+          this.conflictAppointment = r && r.data && r.data.appointment || null
+          if(r && r.status >= 400 && r.status < 500) { this.pendingSave = null; this.appointmentRequestId = newAgendaRequestId() }
+          this.dialogError = r && r.message || 'No se confirmo el resultado. Reintenta la misma operacion.'
+          return
+        }
+        saved = true; this.pendingSave = null
+      } catch(e) { this.dialogError = 'No se confirmo el resultado. Tu captura se conservo; reintenta la misma operacion.' }
+      finally { this.savingAppointment = false }
+      if(saved) {
+        this.closeDialog(true)
+        const refreshed = await this.reloadAppointments()
+        if(!refreshed) this.agendaError = 'La cita se guardo. No se pudo actualizar esta vista; pulsa Reintentar.'
+      }
+    },
     ...mapActions(moduleTypes.MONITORING, [
       fnTypes.getAllTracing
     ]),
@@ -724,6 +948,7 @@ export default {
     },
 
     fetchPatientSearch: async function(query, requestId) {
+      const access = this.agendaAccessKey
       if(requestId !== this.patientSearchRequestId) {
         return
       }
@@ -743,7 +968,7 @@ export default {
           limit: PATIENT_SEARCH_LIMIT
         }, requestConfig)
 
-        if(requestId !== this.patientSearchRequestId) {
+        if(access !== this.agendaAccessKey || requestId !== this.patientSearchRequestId) {
           return
         }
 
@@ -788,26 +1013,46 @@ export default {
     },
 
     init: async function() {
+      const access = this.agendaAccessKey
       this.agendaLoading = true; this.agendaError = ''
       try {
       const response = await DAAppointmentService.doctors()
+      if(access !== this.agendaAccessKey) return
       if(!response.success) { this.agendaError = response.message || 'No se pudieron cargar los doctores.'; return }
       this.doctors = response.data || []
       const own = this.doctors.find(d => d.id_login === (this.authUser || {}).id_login)
       this.selectedDoctorId = own ? own.id_doctor_professional_profile : this.doctors.length === 1 ? this.doctors[0].id_doctor_professional_profile : ''
-      if(this.selectedDoctorId) await this.changeCalendarDoctor()
+      if(this.selectedDoctorId) { await this.changeCalendarDoctor(); this.goToday() }
+      if(access !== this.agendaAccessKey) return
       await this.onSearch()
+      if(access !== this.agendaAccessKey) return
+      await this.openPulseAppointment()
       } catch(error) { this.agendaError = 'No se pudieron cargar los doctores. Reintenta.' }
       finally { this.agendaLoading = false }
     },
 
+    async openPulseAppointment() {
+      const access = this.agendaAccessKey
+      const q = this.$route.query || {};
+      if(q.returnKey !== 'pulse' || !q.recordId || !/^\d{4}-\d{2}-\d{2}$/.test(q.date || '')) return;
+      this.selectedDate = q.date;
+      const response = await DAAppointmentService.list({date_from:q.date,date_to:q.date,...(q.doctorProfileId?{doctor_profile_id:q.doctorProfileId}:{})});
+      if(access !== this.agendaAccessKey || this.$route.query.recordId !== q.recordId || this.$route.query.returnKey !== 'pulse') return;
+      if(!response.success) { this.agendaError = response.message || 'No se pudo consultar la cita solicitada.'; return; }
+      const record = (response.data || []).find(a => String(a.id) === q.recordId);
+      if(!record) { this.agendaError = 'La cita solicitada ya no está disponible. Vuelve al Pulso y actualiza la lista.'; return; }
+      if(record.doctorProfileId && this.doctors.some(d=>d.id_doctor_professional_profile===record.doctorProfileId)) { this.selectedDoctorId = record.doctorProfileId; await this.changeCalendarDoctor(); }
+      if(access !== this.agendaAccessKey) return;
+      this.openAppointment(record);
+    },
     async changeCalendarDoctor() {
-      if(!this.selectedDoctorId) return
-      const request = ++this.agendaRequest
+      this.refreshAgendaClock()
+      const request = ++this.agendaRequest, access = this.agendaAccessKey
+      if(!this.selectedDoctorId) { this.appointments = []; this.agendaLoading = false; return }
       this.agendaLoading = true; this.agendaError = ''; this.appointments = []; this.appointmentConfig = getAppointmentConfig()
       try {
         const [config, appointments] = await Promise.all([DAAppointmentService.getConfig(this.selectedDoctorId), DAAppointmentService.list({doctor_profile_id:this.selectedDoctorId,date_from:this.weekDates[0],date_to:this.weekDates[6]})])
-        if(request !== this.agendaRequest) return
+        if(access !== this.agendaAccessKey || request !== this.agendaRequest) return
         if(!config.success || !appointments.success) throw new Error(config.message || appointments.message || 'No se pudo cargar esta agenda.')
         if(config.data.doctorProfileId !== this.selectedDoctorId) throw new Error('La agenda recibida no corresponde al doctor seleccionado.')
         this.appointmentConfig = normalizeAppointmentConfig(config.data); this.appointments = appointments.data || []
@@ -822,13 +1067,13 @@ export default {
     },
 
     async loadDialogDoctor(clearTime = false) {
-      const request = ++this.dialogRequest
+      const request = ++this.dialogRequest, access = this.agendaAccessKey
       if(clearTime) { this.editingAppointment.startTime = ''; this.editingAppointment.endTime = '' }
       this.dialogLoading = true; this.dialogError = ''; this.dialogConfig = getAppointmentConfig(); this.dialogAppointments = []
       try {
         const id = this.editingAppointment.doctorProfileId
         const [config, appointments] = await Promise.all([DAAppointmentService.getConfig(id), DAAppointmentService.list({doctor_profile_id:id,date_from:this.editingAppointment.date,date_to:this.editingAppointment.date})])
-        if(request !== this.dialogRequest) return
+        if(access !== this.agendaAccessKey || request !== this.dialogRequest) return
         if(!config.success || !appointments.success) throw new Error(config.message || appointments.message || 'No se pudo consultar disponibilidad.')
         if(config.data.doctorProfileId !== id) throw new Error('La agenda recibida no corresponde al doctor seleccionado.')
         this.dialogConfig = normalizeAppointmentConfig(config.data); this.dialogAppointments = appointments.data || []
@@ -837,11 +1082,13 @@ export default {
     },
 
     onSearch: async function() {
-      await this.getAllTracing()
+      if(this.hasPermission('px.tab.monitoring')) await this.getAllTracing()
     },
 
     loadAppointmentConfig: async function() {
+      const access = this.agendaAccessKey
       const response = await DAAppointmentService.getConfig(this.selectedDoctorId)
+      if(access !== this.agendaAccessKey) return
       if(response && response.success && response.data) {
         this.appointmentConfig = normalizeAppointmentConfig(response.data)
         saveAppointmentConfig(this.appointmentConfig)
@@ -849,23 +1096,20 @@ export default {
     },
 
     reloadAppointments: async function() {
-      const response = await DAAppointmentService.list({
-        doctor_profile_id: this.selectedDoctorId,
-        date_from: this.weekDates[0],
-        date_to: this.weekDates[this.weekDates.length - 1]
-      })
-
-      if(response && response.success) {
-        this.appointments = response.data || []
-      }
-      else {
-        this.appointments = []
-        this.agendaError = response && response.message || 'No se pudieron cargar las citas.'
-      }
+      const request = ++this.agendaRequest, doctor = this.selectedDoctorId, date = this.selectedDate, access = this.agendaAccessKey
+      if(!doctor) return false
+      try {
+        const response = await DAAppointmentService.list({ doctor_profile_id: doctor, date_from: this.weekDates[0], date_to: this.weekDates[6] })
+        if(access !== this.agendaAccessKey || request !== this.agendaRequest || doctor !== this.selectedDoctorId || date !== this.selectedDate) return true
+        if(!response || !response.success) throw new Error(response && response.message || 'No se pudieron cargar las citas.')
+        this.appointments = response.data || []; this.agendaError = ''; return true
+      } catch(error) { if(request === this.agendaRequest) this.agendaError = error.message; return false }
     },
 
     getSlot: function(day, time) {
       const foundSlot = (this.weekSlots[day] || []).find((slot) => slot.startTime === time)
+      const event = this.appointments.find(a => a.date === day && a.startTime === time && appointmentBlocksAvailability(a.status))
+      if(event && !foundSlot) return { date:day,startTime:time,endTime:event.endTime,status:event.status,appointment:event,selectable:false }
       return foundSlot || {
         date: day,
         startTime: time,
@@ -900,9 +1144,11 @@ export default {
     },
 
     openManualAppointment: function() {
+      if(this.selectedDoctor && this.selectedDoctor.active === 0) return
+      const now = clinicClock(this.appointmentConfig.timezone)
       const firstSlot = this.weekDates
-        .filter(date => date >= this.selectedDate)
-        .map((date) => generateDaySlots(date, this.appointmentConfig, this.appointments).find((slot) => slot.selectable))
+        .filter(date => date >= this.selectedDate && date >= now.date)
+        .map((date) => generateDaySlots(date, this.appointmentConfig, this.appointments).find((slot) => slot.selectable && (date > now.date || slot.startTime >= now.time)))
         .find((slot) => slot)
 
       this.openAppointment({
@@ -930,15 +1176,21 @@ export default {
       this.completedEditPendingAction = ''
       this.completedEditConfirmDialog = false
       this.resetPatientSearchState()
-      this.refreshDialogEndTime()
+      this.appointmentRequestId = newAgendaRequestId(); this.pendingSave = null; this.conflictAppointment = null
+      const phone = String(this.editingAppointment.contactPhone || '')
+      this.phoneCountry = phone.startsWith('+') && !phone.startsWith('+52') ? 'INT' : 'MX'
+      this.auditItems = []; this.auditError = ''; this.auditNext = null
+      this.draftBaseline = JSON.stringify(this.editingAppointment)
       this.appointmentDialog = true
       this.dialogConfig = this.appointmentConfig
       this.dialogAppointments = this.appointments
       this.loadDialogDoctor()
     },
 
-    closeDialog: function() {
+    closeDialog: function(force = false) {
       if(this.savingAppointment) return
+      if(!force && this.draftDirty) { this.leaveDialog = true; return }
+      this.pendingSave = null; this.conflictAppointment = null
       this.dialogRequest++
       this.appointmentDialog = false
       this.dialogError = ''
@@ -964,7 +1216,7 @@ export default {
       return this.editingAppointment.id
         && this.originalAppointment
         && this.editingAppointment.status === APPOINTMENT_STATUSES.RESCHEDULED
-        && this.hasAppointmentTimeChanged()
+
     },
 
     shouldConfirmCompletedAppointmentEdit: function() {
@@ -990,55 +1242,11 @@ export default {
       await this.saveAppointment()
     },
 
-    saveRescheduledAppointment: async function() {
-      const appointmentsToValidate = this.dialogAppointments.filter((appointment) => appointment.id !== this.editingAppointment.id)
-      const newAppointment = Object.assign({}, this.editingAppointment, {
-        id: undefined,
-        status: APPOINTMENT_STATUSES.PENDING,
-        date: toIsoDate(this.editingAppointment.date),
-        blocksAvailability: appointmentBlocksAvailability(APPOINTMENT_STATUSES.PENDING),
-        rescheduledFromAppointmentId: this.editingAppointment.id
-      })
-
-      newAppointment.contactPhone = normalizeAppointmentContactPhoneValue(newAppointment.contactPhone)
-      if(!newAppointment.patientId && !newAppointment.contactPhone) {
-        this.dialogError = 'Captura el telefono de contacto para crear la cita reagendada.'
-        return
-      }
-
-      const validation = validateAppointmentSlot(newAppointment, this.dialogConfig, appointmentsToValidate)
-
-      if(!validation.valid) {
-        this.dialogError = validation.message
-        return
-      }
-
-      const createResponse = await DAAppointmentService.save(newAppointment)
-      if(!createResponse || !createResponse.success) {
-        this.dialogError = createResponse && createResponse.message ? createResponse.message : 'No se pudo crear la nueva cita reagendada.'
-        return
-      }
-
-      const created = Array.isArray(createResponse.data) ? createResponse.data[0] : createResponse.data
-      const oldAppointment = Object.assign({}, this.originalAppointment, {
-        status: APPOINTMENT_STATUSES.RESCHEDULED,
-        blocksAvailability: false,
-        rescheduledToAppointmentId: created && created.id ? created.id : ''
-      })
-      const updateResponse = await DAAppointmentService.save(oldAppointment)
-
-      if(!updateResponse || !updateResponse.success) {
-        this.dialogError = updateResponse && updateResponse.message ? updateResponse.message : 'La nueva cita se creo, pero no se pudo marcar la anterior como reagendada.'
-        await this.reloadAppointments()
-        return
-      }
-
-      await this.reloadAppointments()
-      this.closeDialog()
-    },
+    saveRescheduledAppointment: async function() { return this.submitAppointment('reschedule') },
 
     saveAppointment: async function() {
       if(this.dialogLoading || this.savingAppointment) return
+      if(this.pendingSave) return this.submitAppointment(this.pendingSave.operation)
       if(!this.editingAppointment.doctorProfileId) { this.dialogError = 'Selecciona el doctor que atendera.'; return }
       if(!this.editingAppointment.date || !this.editingAppointment.startTime) {
         this.dialogError = 'Selecciona fecha y hora.'
@@ -1050,6 +1258,9 @@ export default {
         return
       }
 
+      const changedPhone = !this.originalAppointment || this.editingAppointment.contactPhone !== this.originalAppointment.contactPhone
+      if(changedPhone && this.editingAppointment.contactPhone && !this.phonePreview.valid) { this.dialogError = this.phonePreview.message; return }
+      if(changedPhone && this.phonePreview.valid) this.editingAppointment.contactPhone = this.phonePreview.e164
       this.normalizeAppointmentContactPhone()
       if(this.manualContactPhoneRequired && !this.editingAppointment.contactPhone) {
         this.dialogError = 'Captura el telefono de contacto para esta cita.'
@@ -1069,51 +1280,41 @@ export default {
 
       const appointmentsToValidate = this.dialogAppointments.filter((appointment) => appointment.id !== this.editingAppointment.id)
       const validation = validateAppointmentSlot(this.editingAppointment, this.dialogConfig, appointmentsToValidate)
-      if(!validation.valid && appointmentBlocksAvailability(this.editingAppointment.status)) {
+      const retainsBooking = this.originalAppointment && appointmentBlocksAvailability(this.originalAppointment.status)
+        && !this.hasAppointmentTimeChanged() && this.originalAppointment.doctorProfileId === this.editingAppointment.doctorProfileId
+      if(!retainsBooking && !validation.valid && appointmentBlocksAvailability(this.editingAppointment.status)) {
         this.dialogError = validation.message
         return
       }
 
-      const normalizedPatientId = this.editingAppointment.patientId || null
-      const normalizedFollowUpId = this.editingAppointment.source === 'follow_up'
-        ? this.editingAppointment.followUpId
-        : null
-
-      this.savingAppointment = true
-      let response
-      try { response = await DAAppointmentService.save(Object.assign({}, this.editingAppointment, {
-        patientId: normalizedPatientId,
-        followUpId: normalizedFollowUpId,
-        contactPhone: this.editingAppointment.contactPhone || null,
-        date: toIsoDate(this.editingAppointment.date),
-        blocksAvailability: appointmentBlocksAvailability(this.editingAppointment.status)
-      })) } catch(error) { this.dialogError = 'No se pudo guardar. Tu captura se conservo; reintenta.'; return }
-      finally { this.savingAppointment = false }
-
-      if(!response || !response.success) {
-        this.dialogError = response && response.message ? response.message : 'No se pudo guardar la cita.'
-        return
-      }
-
-      await this.reloadAppointments()
-      this.closeDialog()
+      this.editingAppointment.patientId = this.editingAppointment.patientId || null
+      this.editingAppointment.followUpId = this.editingAppointment.followUpId || null
+      await this.submitAppointment('save')
     },
 
     cancelAppointment: async function() {
+      if(this.savingAppointment || this.pendingSave) return
       if(this.shouldConfirmCompletedAppointmentEdit()) {
         this.completedEditPendingAction = 'cancel'
         this.completedEditConfirmDialog = true
         return
       }
 
+      this.editingAppointment = { ...this.originalAppointment, cancellationReason: this.editingAppointment.cancellationReason, status: APPOINTMENT_STATUSES.CANCELLED }
       this.editingAppointment.status = APPOINTMENT_STATUSES.CANCELLED
       this.editingAppointment.blocksAvailability = false
       await this.saveAppointment()
     },
 
+    dialogDuration() {
+      const minutes = value => Number(value.slice(0,2)) * 60 + Number(value.slice(3,5))
+      const previous = this.originalAppointment
+      return previous ? minutes(previous.endTime) - minutes(previous.startTime) : this.dialogConfig.defaultAppointmentDuration || 30
+    },
+
     refreshDialogEndTime: function() {
       if(this.editingAppointment.startTime) {
-        this.editingAppointment.endTime = addMinutesToTime(this.editingAppointment.startTime, this.dialogConfig.defaultAppointmentDuration || 30)
+        this.editingAppointment.endTime = addMinutesToTime(this.editingAppointment.startTime, this.dialogDuration())
       }
     },
 
@@ -1152,15 +1353,14 @@ export default {
         time: this.editingAppointment.startTime
       })
       const url = buildWhatsAppUrl({
-        phone: this.editingAppointment.contactPhone,
+        phone: this.phonePreview.e164,
         text: message
       })
-      openWhatsAppUrl(url)
+      this.contactTarget = this.phonePreview.e164; this.contactUrl = url; this.contactPreview = true
     },
 
     moveWeek: function(days) {
       this.selectedDate = addDays(this.selectedDate, days)
-      this.reloadAppointments()
     },
 
     dayShortName: function(date) {
@@ -1212,6 +1412,10 @@ export default {
       const colors = APPOINTMENT_STATUS_COLORS[slot.status] || APPOINTMENT_STATUS_COLORS[APPOINTMENT_STATUSES.BLOCKED]
       return `background:${colors.bg};color:${colors.text};border-color:${colors.border};`
     },
+    statusActionStyle(status) {
+      const colors = APPOINTMENT_STATUS_COLORS[status]
+      return { '--status-bg': colors.bg, '--status-text': colors.text, '--status-border': colors.border }
+    },
 
     legendStyle: function(status) {
       const colors = APPOINTMENT_STATUS_COLORS[status]
@@ -1261,6 +1465,18 @@ export default {
     }
   },
   watch: {
+    viewMode() { this.refreshAgendaClock() },
+    agendaAccessKey: function() {
+      this.agendaRequest++; this.dialogRequest++; this.slotRequest++
+      this.appointments = []; this.dialogAppointments = []; this.auditItems = []; this.doctors = []
+      this.appointmentDialog = false; this.agendaConfigDialog = false; this.leaveDialog = false
+      this.followUpDialog = false; this.contactPreview = false; this.contactTarget = ''; this.contactUrl = ''
+      this.editingAppointment = {}; this.originalAppointment = null; this.conflictAppointment = null; this.pendingSave = null
+      this.patientSearchCache = {}; this.resetPatientSearchState()
+      this.agendaLoading = false; this.dialogLoading = false; this.findingSlot = false
+      this.agendaError = 'La sesion o sus permisos cambiaron. Recarga la agenda.'
+      if(this.pendingNavigation) { const next = this.pendingNavigation; this.pendingNavigation = null; next() }
+    },
     selectedDate: function() {
       this.changeCalendarDoctor()
     },
@@ -1274,6 +1490,55 @@ export default {
 </script>
 
 <style scoped>
+.agenda-day-name { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.agenda-day-header-today { background: #edf9f7; box-shadow: inset 0 -3px 0 #80bfb8; }
+.agenda-day-header-today .agenda-day-name { color: #115e59; }
+.agenda-today-badge { padding: 2px 6px; border-radius: 999px; background: #d4eeea; color: #115e59; font-size: 10px; line-height: 1.4; font-weight: 700; }
+html[data-theme="clinical-night"] .agenda-day-header-today { background: #193735; box-shadow: inset 0 -3px 0 #548e88; }
+html[data-theme="clinical-night"] .agenda-day-header-today .agenda-day-name { color: #b7e5df; }
+html[data-theme="clinical-night"] .agenda-day-header-today > p:last-child { color: #a8c8c4; }
+html[data-theme="clinical-night"] .agenda-today-badge { background: #2c534f; color: #c6eee7; }
+.agenda-config-button.v-btn { background: var(--color-primary-50, #effbfe); border-width: 1px; }
+.agenda-clock-note { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; color: #9f2346; font-size: .8rem; font-weight: 600; }
+.agenda-clock-note > span:last-child { font-weight: 400; }
+.agenda-clock-dot { width: 7px; height: 7px; border-radius: 50%; background: #be345a; }
+.agenda-now-line { position: absolute; left: 0; right: -1px; z-index: 2; border-top: 2px solid rgba(190, 52, 90, .5); pointer-events: none; }
+.agenda-now-line-today { border-color: #be345a; }
+.agenda-now-line-today::before { content: ''; position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #be345a; top: -4px; left: -3px; }
+.agenda-now-label { position: absolute; right: 4px; transform: translateY(-50%); z-index: 3; padding: 1px 5px; border-radius: 4px; background: #be345a; color: #fff; font-size: 11px; line-height: 18px; pointer-events: none; }
+.agenda-event-row { display: grid; min-width: 0; }
+.agenda-event-row-timed { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: stretch; }
+.agenda-event-time { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 3px; padding: 10px 12px 10px 0; border-right: 2px solid var(--color-primary-200, #b8edf7); font-variant-numeric: tabular-nums; color: var(--color-text, #25364d); }
+.agenda-event-time strong { font-size: .95rem; }
+.agenda-event-time span { font-size: .8rem; color: var(--color-text-muted, #64748b); }
+html[data-theme="clinical-night"] .agenda-clock-note { color: #f7a9c0; }
+@media(max-width:600px) { .agenda-event-row-timed { grid-template-columns: 54px minmax(0, 1fr); gap: 8px; } .agenda-event-time { padding-right: 8px; } .agenda-event-time strong { font-size: .85rem; } }
+.appointment-status-action { background-color: var(--status-bg) !important; color: var(--status-text) !important; border: 1px solid var(--status-border) !important; border-radius: 8px; text-transform: none; letter-spacing: normal; font-weight: 600; }
+.appointment-status-action.appointment-status-current { border-color: var(--status-text) !important; box-shadow: inset 0 0 0 1px var(--status-text); }
+.appointment-status-action:focus-visible { outline: 2px solid var(--status-text); outline-offset: 3px; }
+.appointment-status-action:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.agenda-view-toggle.v-btn-toggle { border: 1px solid var(--color-primary-200, #b8edf7); border-radius: 8px; overflow: hidden; }
+.agenda-view-toggle.v-btn-toggle > .v-btn { background: var(--color-primary-50, #effbfe); color: var(--color-primary-900, #086783); border-color: var(--color-primary-200, #b8edf7) !important; text-transform: none; letter-spacing: normal; font-weight: 600; opacity: 1; }
+.agenda-view-toggle.v-btn-toggle > .v-btn.v-btn--active { background: var(--color-primary-100, #dff6fa); box-shadow: inset 0 -3px 0 var(--color-primary-700, #0e7490); }
+.agenda-event-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.agenda-event-status { border: 1px solid currentColor; border-radius: 999px; padding: 2px 9px; font-size: .75rem; font-weight: 600; }
+.agenda-event-create { display: inline-flex; align-items: center; gap: 6px; font-size: .875rem; }
+.agenda-event.agenda-event-free { border-style: dashed; }
+.agenda-event:disabled { cursor: not-allowed; }
+.agenda-event:not(:disabled):hover { box-shadow: 0 2px 8px #25364d14; }
+.agenda-toolbar-button.v-btn { min-height: 36px; padding: 0 16px; font-size: .875rem; font-weight: 600; letter-spacing: normal; text-transform: none; }
+.agenda-toolbar-follow-up.v-btn { background-color: var(--color-primary-900, #086783) !important; color: #fff; }
+.agenda-toolbar-button:focus-visible { outline: 2px solid var(--color-primary-900, #086783); outline-offset: 3px; }
+.agenda-events { padding: 20px; display: grid; gap: 10px; }
+.agenda-event { padding: 14px; border: 1px solid #cbd5e1; border-left-width: 4px; border-radius: 8px; display: grid; gap: 8px; text-align: left; overflow-wrap: anywhere; background: #fff; transition: box-shadow .15s ease; }
+.agenda-event:focus-visible { outline: 3px solid #0e7490; outline-offset: 2px; }
+.agenda-event small { color: #9a3412; }
+.agenda-detail-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.appointment-card { max-height: 90vh; display: flex; flex-direction: column; }
+.appointment-card > div { flex-shrink: 0; }
+.appointment-card > .v-card__text { min-height: 0; overflow-y: auto; flex: 1 1 auto; }
+.appointment-card .appointment-dialog-actions { flex: 0 0 auto; background: white; }
+
 .agenda-setup-state { display: flex; align-items: flex-start; gap: 14px; margin: 24px; padding: 20px; border: 1px solid var(--color-primary-200, #b8edf7); border-radius: 12px; color: var(--color-text, #25364d); background: var(--color-primary-50, #effbfe); }
 .agenda-setup-state > .v-icon { color: var(--color-primary-700, #0e7490); flex-shrink: 0; }
 .agenda-setup-state h3 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 700; }
@@ -1543,6 +1808,7 @@ export default {
 }
 
 .agenda-slot {
+  position: relative;
   min-height: 68px;
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }

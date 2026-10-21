@@ -35,7 +35,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="item in monitoringRows" :key="monitoringKey(item)">
+                  <tr v-for="item in monitoringRows" :key="monitoringKey(item)" :data-pulse-record="item.id_tracing">
                     <td>
                       <div class="monitoring-date-cell">
                         <span class="monitoring-date-icon"><v-icon size="18">mdi-calendar-check-outline</v-icon></span>
@@ -79,7 +79,7 @@
             </div>
 
             <div class="monitoring-mobile-list">
-              <article v-for="item in monitoringRows" :key="`mobile-${monitoringKey(item)}`" class="monitoring-mobile-card">
+              <article v-for="item in monitoringRows" :key="`mobile-${monitoringKey(item)}`" :data-pulse-record="item.id_tracing" class="monitoring-mobile-card">
                 <div class="monitoring-mobile-head">
                   <span class="monitoring-date-icon"><v-icon size="18">mdi-calendar-check-outline</v-icon></span>
                   <div>
@@ -589,6 +589,7 @@
 </template>
 
 <script>
+import { newAgendaRequestId, clinicClock } from '../../../domain/appointments/agendaInteraction';
 import { mapActions, mapGetters } from 'vuex';
 import { uuid } from 'vue-uuid';
 import VuexMixin from '../../../mixins/VuexMixin';
@@ -646,6 +647,7 @@ export default {
             dateNow: '',
             ida: '',
             selectedMonitoring: {}, cancelRevision: null, cancellationReason: '', cancellationError: '',
+            followUpAgendaRequests: {},
             correctionReason: '', correctionError: '', monitoringRevisions: [], revisionsLoading: false,
             revisionsError: '', revisionsLoaded: false,
             newTracingId: '', savedNewMonitoring: null, newMonitoringError: '', newMonitoringSubmitted: false, isSavingMonitoring: false, scheduleNewAppointment: false,
@@ -967,7 +969,7 @@ export default {
         try {
           const responses = await Promise.all([
             DAAppointmentService.patientHistory(patientId, { limit: this.appointmentHistoryLimit, offset: this.appointmentHistoryOffset }),
-            reset ? DAAppointmentService.patientHistory(patientId, { upcoming_from: toIsoDate(new Date()), upcoming_time: new Date().toTimeString().slice(0, 5), limit: 1, offset: 0 }) : Promise.resolve(null)
+            reset ? DAAppointmentService.patientHistory(patientId, { upcoming_from: clinicClock(this.appointmentConfig.timezone).date, upcoming_time: clinicClock(this.appointmentConfig.timezone).time, limit: 1, offset: 0 }) : Promise.resolve(null)
           ])
           if (request !== this.appointmentHistoryRequest || !this.canViewAppointmentHistory || this.px.person.id_person !== patientId) return
           const response = responses[0]
@@ -1142,6 +1144,11 @@ export default {
         this.isLoading = true
         await this.ActionWrapp(moduleTypes.MONITORING, fnTypes.getTracing, this.px.person.id_person)
         this.citas = this.getMonitorings
+        const query = this.$route.query || {}
+        if(query.returnKey === 'pulse' && query.recordId) this.$nextTick(() => {
+          const el = [...this.$el.querySelectorAll('[data-pulse-record]')].find(e => e.getAttribute('data-pulse-record') === query.recordId && e.getClientRects().length && e.offsetHeight)
+          if(el) { el.style.outline = '3px solid #52749f'; el.scrollIntoView({block:'center'}); const button = el.querySelector('button'); if(button) button.focus({preventScroll:true}); }
+        })
         this.isLoading = false
       },
 
@@ -1324,6 +1331,10 @@ export default {
         await this.reloadAppointmentData(this.isEdit ? this.objCita.quote_date_after : this.objCita3.quote_date_after)
       },
 
+      agendaRequestFor(key) {
+        if(!this.followUpAgendaRequests[key]) this.$set(this.followUpAgendaRequests,key,newAgendaRequestId())
+        return this.followUpAgendaRequests[key]
+      },
       createFollowUpAppointment: async function(treatmentAfter, followUpId) {
         if (!this.canManageAppointments) return false
         if(!this.selectedAppointmentTime || this.objCita3.quote_date_after === '00-00-0000') {
@@ -1352,7 +1363,7 @@ export default {
           description: this.objCita3.note || '',
           source: 'follow_up',
           blocksAvailability: appointmentBlocksAvailability(APPOINTMENT_STATUSES.PENDING)
-        }, { syncFollowUp: true })
+        }, { syncFollowUp: true, requestId: this.agendaRequestFor('new:' + normalizedFollowUpId) })
 
         if(response && response.success) {
           await this.reloadAppointmentData(this.objCita3.quote_date_after)
@@ -1404,7 +1415,8 @@ export default {
 
         const response = await DAAppointmentService.save(appointment, {
           syncFollowUp: true,
-          explicitNewFollowUp: this.editCreatesNewAppointment
+          explicitNewFollowUp: this.editCreatesNewAppointment,
+          requestId: this.agendaRequestFor('edit:' + this.idtracing + ':' + (existingAppointment ? existingAppointment.id + ':' + existingAppointment.revision : 'new'))
         })
 
         if(response && response.success) {

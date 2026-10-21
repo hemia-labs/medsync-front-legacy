@@ -1,3 +1,4 @@
+import { notifyPulseWrite } from '../../domain/pulse/pulseWrites';
 import axiosHelper from "./axios.helper";
 import context from "./axios.config";
 import httpstatus from "../../utils/common/httpstatus";
@@ -41,6 +42,7 @@ const request = async (method, url, payload, requestConfig = {}) => {
         }
 
         if(!isCurrentAuthorization(authContext, store)) throw authorizationChangedError();
+        notifyPulseWrite(store,method,endpoint,result);
         return buildResponse(result)
     } catch (error) {
         return buildErrorResponse(error)

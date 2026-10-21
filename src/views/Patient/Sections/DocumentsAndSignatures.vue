@@ -16,15 +16,17 @@
       </button>
     </section>
 
-    <section class="document-filters" v-if="documents.length > 0 || documentPagination">
+    <section class="document-filters" v-if="documents.length > 0 || documentPagination" aria-label="Filtrar documentos por estado">
       <button
         v-for="filter in documentFilters"
         :key="filter.value"
         type="button"
         class="filter-chip"
-        :class="{ active: documentFilter === filter.value }"
+        :class="['filter-' + filter.value, { active: documentFilter === filter.value }]"
+        :aria-pressed="documentFilter === filter.value"
         @click="changeDocumentFilter(filter.value)"
       >
+        <span class="filter-indicator" aria-hidden="true">{{ documentFilter === filter.value ? '✓' : '●' }}</span>
         {{ filter.label }}
       </button>
     </section>
@@ -1506,11 +1508,14 @@ export default {
 }
 
 .filter-chip {
-  border: 1px solid var(--color-primary-200, #b8edf7);
-  background: var(--color-surface, #fff);
-  color: var(--color-primary-900, #006077);
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  border: 1px solid var(--state-border);
+  background: var(--state-bg);
+  color: var(--state-text);
   border-radius: 999px;
-  min-height: 2rem;
+  min-height: 2.5rem;
   padding: .38rem .9rem;
   font-weight: 800;
   box-shadow: 0 1px 3px rgba(15, 23, 42, .05);
@@ -1518,16 +1523,20 @@ export default {
 }
 
 .filter-chip:hover {
-  border-color: var(--color-primary-300, #7dddec);
-  background: var(--color-primary-50, #effbfe);
+  border-color: var(--state-text);
   box-shadow: 0 7px 16px rgba(15, 23, 42, .10);
   transform: translateY(-1px);
 }
 
 .filter-chip.active {
-  background: var(--color-primary-100, #e0f7fc);
-  box-shadow: 0 8px 18px rgba(27, 166, 201, .16);
+  background: var(--state-text);
+  border-color: var(--state-text);
+  color: var(--state-on-active, #fff);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, .12);
 }
+
+.filter-indicator { width: 1em; text-align: center; font-size: .8em; }
+.filter-chip:focus-visible { outline: 3px solid var(--state-text); outline-offset: 3px; }
 
 .document-card {
   display: grid;
@@ -1658,9 +1667,19 @@ export default {
   line-height: 1.1;
 }
 
-.status-FIRMADO { border-color: rgba(34, 197, 94, .45); background: rgba(34, 197, 94, .12); color: #047857; }
-.status-CANCELADO,
-.status-NO_FIRMADO_POR_NEGATIVA { border-color: rgba(248, 113, 113, .45); background: rgba(248, 113, 113, .12); color: #b42318; }
+.filter-chip, .status-chip { --state-bg: #f0fdfa; --state-text: #115e59; --state-border: #99ded6; }
+.filter-PENDING, .status-BORRADOR, .status-PENDIENTE_FIRMA { --state-bg: #fff3cd; --state-text: #8a5a00; --state-border: #ffd972; }
+.filter-SIGNED, .status-FIRMADO { --state-bg: #cdeed6; --state-text: #0f5132; --state-border: #7ccb91; }
+.filter-REFUSAL, .status-NO_FIRMADO_POR_NEGATIVA { --state-bg: #fce7f3; --state-text: #9d174d; --state-border: #f9a8d4; }
+.filter-CANCELLED, .status-CANCELADO, .status-REVOCADO { --state-bg: #fde2e2; --state-text: #b42318; --state-border: #f8b4b4; }
+.status-REEMPLAZADO { --state-bg: #efe3ff; --state-text: #6d28d9; --state-border: #c4a5fd; }
+.status-chip { border-color: var(--state-border); background: var(--state-bg); color: var(--state-text); }
+html[data-theme="clinical-night"] .filter-chip, html[data-theme="clinical-night"] .status-chip { --state-bg: #183a39; --state-text: #99e4d9; --state-border: #427d77; --state-on-active: #0f172a; }
+html[data-theme="clinical-night"] .filter-PENDING, html[data-theme="clinical-night"] .status-BORRADOR, html[data-theme="clinical-night"] .status-PENDIENTE_FIRMA { --state-bg: #3b301a; --state-text: #fcd779; --state-border: #8a6c29; }
+html[data-theme="clinical-night"] .filter-SIGNED, html[data-theme="clinical-night"] .status-FIRMADO { --state-bg: #193b2b; --state-text: #9fe3b3; --state-border: #427c58; }
+html[data-theme="clinical-night"] .filter-REFUSAL, html[data-theme="clinical-night"] .status-NO_FIRMADO_POR_NEGATIVA { --state-bg: #412139; --state-text: #f9b8dc; --state-border: #965074; }
+html[data-theme="clinical-night"] .filter-CANCELLED, html[data-theme="clinical-night"] .status-CANCELADO, html[data-theme="clinical-night"] .status-REVOCADO { --state-bg: #442523; --state-text: #ffb8b2; --state-border: #9c514b; }
+html[data-theme="clinical-night"] .status-REEMPLAZADO { --state-bg: #33264a; --state-text: #d5bcff; --state-border: #8063ac; }
 
 .dialog-header {
   display: flex;

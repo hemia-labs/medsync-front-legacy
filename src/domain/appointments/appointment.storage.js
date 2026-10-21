@@ -26,7 +26,7 @@ export const APPOINTMENT_STATUS_LABELS = {
 };
 
 export const APPOINTMENT_STATUS_COLORS = {
-  [APPOINTMENT_STATUSES.AVAILABLE]: { bg: '#DFF7E8', text: '#146C43', border: '#8AD6A6' },
+  [APPOINTMENT_STATUSES.AVAILABLE]: { bg: '#F0FDFA', text: '#115E59', border: '#5EEAD4' },
   [APPOINTMENT_STATUSES.BLOCKED]: { bg: '#EEF0F2', text: '#5D6670', border: '#D5D9DE' },
   [APPOINTMENT_STATUSES.OUTSIDE_WORKING_HOURS]: { bg: '#F3F4F6', text: '#6B7280', border: '#E5E7EB' },
   [APPOINTMENT_STATUSES.PENDING]: { bg: '#FFF3CD', text: '#8A5A00', border: '#FFD972' },
@@ -34,7 +34,7 @@ export const APPOINTMENT_STATUS_COLORS = {
   [APPOINTMENT_STATUSES.CANCELLED]: { bg: '#FDE2E2', text: '#B42318', border: '#F8B4B4' },
   [APPOINTMENT_STATUSES.COMPLETED]: { bg: '#CDEED6', text: '#0F5132', border: '#7CCB91' },
   [APPOINTMENT_STATUSES.RESCHEDULED]: { bg: '#EFE3FF', text: '#6D28D9', border: '#C4A5FD' },
-  [APPOINTMENT_STATUSES.NO_SHOW]: { bg: '#FFE8CC', text: '#9A3412', border: '#FDBA74' }
+  [APPOINTMENT_STATUSES.NO_SHOW]: { bg: '#FCE7F3', text: '#9D174D', border: '#F9A8D4' }
 };
 
 export const APPOINTMENT_STATUS_OPTIONS = [
