@@ -7,9 +7,9 @@
       </svg>
     </span>
     <div class="legal-update-copy">
-      <h2 id="legal-update-notice-title">{{ pendingCount > 0 ? 'Documentos legales pendientes de aceptación' : 'No pudimos revisar las actualizaciones legales' }}</h2>
-      <p v-if="pendingCount > 0" role="status"><strong>{{ pendingCount }} {{ pendingCount === 1 ? 'documento requiere' : 'documentos requieren' }} tu revisión.</strong> Puedes continuar con tu trabajo y revisarlos en Cuenta y legal.</p>
-      <p v-if="businessPending">La aceptación por el consultorio corresponde a una persona administradora. Las aceptaciones personales las realiza cada usuario.</p>
+      <h2 id="legal-update-notice-title">{{ pendingCount > 0 ? 'Revisión legal pendiente' : 'No pudimos revisar las actualizaciones legales' }}</h2>
+      <p v-if="pendingCount > 0" role="status"><strong>{{ pendingCount }} {{ pendingCount === 1 ? 'documento por revisar' : 'documentos por revisar' }}.</strong> Puedes continuar trabajando.</p>
+      <details v-if="pendingCount > 0"><summary>Sobre la aceptación</summary><p>Revisa los documentos en Cuenta y legal antes de aceptarlos.</p><p v-if="businessPending">La aceptación por el consultorio corresponde a una persona administradora. Las aceptaciones personales las realiza cada usuario.</p></details>
       <p v-if="error" role="alert">{{ error }}</p>
     </div>
     <div class="legal-update-actions">
@@ -85,7 +85,7 @@ export default {
 }
 .legal-update-icon { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: #fef3c7; color: #92400e; }
 .legal-update-icon svg { width: 25px; height: 25px; }
-.legal-update-copy { min-width: 0; }
+.legal-update-copy { min-width: 0; }.legal-update-copy summary{font-size:13px;cursor:pointer;min-height:32px;padding-top:6px}.legal-update-copy summary:focus-visible{outline:3px solid #b45309;outline-offset:3px}
 .legal-update-copy h2 { font-size: 16px; font-weight: 750; line-height: 1.4; margin: 0 0 5px; color: inherit; }
 .legal-update-copy p { font-size: 14px; line-height: 1.55; margin: 5px 0 0; color: inherit; }
 .legal-update-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
@@ -99,7 +99,7 @@ export default {
   .legal-update-actions { grid-column: 2; align-items: flex-start; }
 }
 @media (max-width: 600px) {
-  .legal-update-notice { gap: 12px; margin: 12px 12px 18px; padding: 16px 14px; }
+  .legal-update-notice { gap: 8px; margin: 10px 12px; padding: 10px 12px; }
   .legal-update-icon { width: 36px; height: 36px; border-radius: 10px; }
   .legal-update-icon svg { width: 22px; height: 22px; }
   .legal-update-actions { grid-column: 1 / -1; align-items: stretch; }

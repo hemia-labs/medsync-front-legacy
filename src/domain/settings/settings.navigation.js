@@ -1,5 +1,12 @@
 const pendingConfirmations = new WeakMap();
 
+// Opening/closing contextual help keeps the same editor and its unsaved draft.
+export function isGuideOnlyNavigation(to, from) {
+    if(!to || !from || to.path !== '/admin' || from.path !== to.path || to.hash !== from.hash) return false;
+    const editorQuery = route => Object.keys(route.query || {}).filter(key => !['guide','resume','goal'].includes(key)).sort().map(key => [key,route.query[key]]);
+    return JSON.stringify(editorQuery(to)) === JSON.stringify(editorQuery(from));
+}
+
 export async function confirmSettingsDiscard(view, { title = 'Tienes cambios sin guardar', text = 'Puedes seguir editando o descartar los cambios antes de salir.' } = {}) {
     if(pendingConfirmations.has(view)) return pendingConfirmations.get(view);
     const swal = view && view.$swal;
@@ -36,7 +43,7 @@ export function registerSettingsNavigationGuard(view, { hasChanges = () => false
         }
     };
     const removeRouteGuard = view.$router.beforeEach(async (to, from, next) => {
-        if(disposed || cleanSessionLogin(view, to)) return next();
+        if(disposed || cleanSessionLogin(view, to) || isGuideOnlyNavigation(to, from)) return next();
         if(isSaving()) return next(false);
         if(!hasChanges()) return next();
         const discard = await confirmSettingsDiscard(view);

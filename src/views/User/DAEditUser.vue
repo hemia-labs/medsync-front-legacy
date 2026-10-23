@@ -1,6 +1,8 @@
 <template>
   <section class="staff-editor-card">
-    <div class="staff-editor-header">
+    <preparation-guide v-if="$route.query.goal !== 'authorizations' || isDoctorLike" branch="users" stage="edit" :subject="id" :personal-scope="id === (authUser || {}).id_login" :dirty="hasPendingChanges()" :busy="isSaving || isLoading" :verify-editor="$route.query.goal === 'authorizations' ? verifyGuideAuthorizations : undefined" @focus-control="focusGuideControl" />
+    <p v-else-if="!isLoading && $route.query.goal === 'authorizations'" role="status" class="mb-4 p-4 rounded-lg border border-blue-200 bg-blue-50 text-blue-900">Este usuario no tiene un puesto profesional. Vuelve al listado y selecciona al doctor que quieras autorizar.</p>
+    <div ref="guideControls" class="staff-editor-header">
       <div>
         <p class="staff-editor-eyebrow">Editar usuario</p>
         <h2>Actualizar personal</h2>
@@ -90,7 +92,7 @@
       </template>
 
       <div class="staff-editor-actions">
-        <button type="button" class="staff-save-button" :disabled="isSaving || isLoading || !!loadError || loadedUserId !== id" @click="onSave">
+        <button ref="guideSave" type="button" class="staff-save-button" :disabled="isSaving || isLoading || !!loadError || loadedUserId !== id" @click="onSave">
           <v-icon size="18">mdi-content-save-outline</v-icon>
           <span>{{ isSaving ? 'Guardando...' : 'Guardar cambios' }}</span>
         </button>
@@ -104,6 +106,10 @@
 </template>
 
 <script>
+import { DAUserService } from '../../services/context/core-proccess-context';
+import PreparationGuide from '../configuration/components/PreparationGuide.vue';
+import { focusControl } from '../../domain/onboarding/focusControl';
+import { authorizationContext, isCurrentAuthorization } from '../../security/authorizationContext';
 import { mapGetters, mapActions } from 'vuex';
 import DAUserModel from '../../models/user/DAUserModel';
 import { validationMixin } from 'vuelidate';
@@ -118,6 +124,7 @@ import { confirmSettingsDiscard, registerSettingsNavigationGuard } from '../../d
 export default {
     mixins: [validationMixin],
     components: {
+        PreparationGuide,
         'da-professional-profile': DAProfessionalProfile
     },
     props: {
@@ -129,6 +136,7 @@ export default {
     data: function() {
         return {
             user: new DAUserModel(),
+            disposed:false, pendingContact:null,
             showPWD: false,
             isSaving: false,
             isLoading: false,
@@ -164,7 +172,7 @@ export default {
     mounted() {
         this.navigationCleanup = registerSettingsNavigationGuard(this, { hasChanges: () => this.hasPendingChanges(), isSaving: () => this.isWorking() });
     },
-    beforeDestroy() {
+    beforeDestroy() { this.disposed=true;
         this.loadRequest++;
         if(this.navigationCleanup) this.navigationCleanup();
     },
@@ -173,6 +181,7 @@ export default {
         validationErrors() {
             return ['name', 'phone', 'email', 'id_rol'].flatMap(field => this.fieldErrors(field).map(message => ({ field, message })));
         },
+        ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser }),
         ...mapGetters(moduleTypes.ROLE, {
             roles: fnTypes.getRoles,
         }),
@@ -194,6 +203,14 @@ export default {
         }
     },
     methods: {
+        async verifyGuideAuthorizations(){
+            const response=await DAUserService.getProfessionalProfile(this.id);
+            if(!response || !response.success)throw new Error('No se pudo consultar el perfil');
+            const saved=response.data;
+            if(!saved || !saved.id_doctor_professional_profile)return 'Este doctor aún no tiene un perfil guardado. Debe completar sus datos desde su cuenta.';
+            return {ready:Number(saved.can_issue_prescriptions)===1 && Number(saved.can_sign_documents)===1,detail:`Autorizaciones guardadas para este doctor: emisión de recetas ${Number(saved.can_issue_prescriptions)===1?'autorizada':'pendiente'}; firma de documentos ${Number(saved.can_sign_documents)===1?'autorizada':'pendiente'}. La identidad y firma del profesional se revisan por separado.`};
+        },
+        focusGuideControl(id, reveal){const profile=this.$refs.professionalProfile;focusControl(['issuer','signer'].includes(id) ? profile && profile.$refs[id==='issuer'?'guideIssuer':'guideSigner'] : this.$refs[{users:'name',phone:'phone',email:'email',access:'id_rol',save:'guideSave'}[id]], reveal);},
         hasPendingChanges() {
             const profile = this.$refs.professionalProfile;
             return this.dirty || Boolean(profile && profile.hasUnsavedChanges);
@@ -245,6 +262,20 @@ export default {
                 return false
             }
 
+            if(this.pendingContact){
+                const context=authorizationContext(this.$store),subject=this.id;
+                this.isSaving=true;
+                try{
+                    const response=await DAUserService.getUser(subject);
+                    if(this.disposed || subject!==this.id || !isCurrentAuthorization(context,this.$store))return false;
+                    if(!response || !response.success || !response.data || response.data.id_login!==subject)throw Error();
+                    const expected=this.pendingContact;
+                    const matches=['name','email','phone','id_rol','active'].every(key=>String(response.data[key] == null ? '' : response.data[key])===String(expected[key] == null ? '' : expected[key]));
+                    if(matches){this.baseline=JSON.stringify(expected);this.pendingContact=null;this.saveError='Contacto confirmado. Revisa las autorizaciones pendientes y usa Guardar usuario para continuar.';}
+                    else this.saveError='El contacto guardado es distinto. Conservamos tu captura; revisa el usuario antes de reemplazarlo.';
+                }catch(_){if(!this.disposed && isCurrentAuthorization(context,this.$store))this.saveError='No pudimos comprobar el guardado anterior. Reintenta la consulta; no reenviamos los cambios.';}
+                finally{if(!this.disposed && subject===this.id && isCurrentAuthorization(context,this.$store))this.isSaving=false;}return false;
+            }
             this.$v.$touch();
             if(this.$v.$anyError) {
                 this.$nextTick(() => {
@@ -257,26 +288,33 @@ export default {
                 this.isSaving = true
                 this.saveError = ''
                 const payload = JSON.parse(JSON.stringify(this.user));
+                const context=authorizationContext(this.$store),subject=this.id;
+                const current=()=>!this.disposed && this.id===subject && isCurrentAuthorization(context,this.$store);
                 try {
-                    const response = await this.update({data: payload, id: this.id})
+                    if(this.dirty)this.pendingContact=payload;
+                    const response = this.dirty ? await this.update({data: payload, id: this.id}) : {success:true}
+                    if(!current())return false;
                     if(!response || !response.success) {
-                        this.saveError = buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo actualizar el usuario. Tu captura se conserva; puedes reintentar.');
+                        if(Number(response && response.status)>=400 && Number(response.status)<500)this.pendingContact=null;
+                        this.saveError = this.pendingContact ? 'No se pudo confirmar el contacto. El siguiente intento consultará lo guardado antes de reenviar.' : buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo actualizar el usuario. Tu captura se conserva; puedes reintentar.');
                         return false;
                     }
+                    this.pendingContact=null;
                     this.baseline = JSON.stringify(payload);
                     if(!await this.saveProfessionalProfileIfNeeded()) {
                         this.saveError='Los datos de contacto se guardaron, pero las autorizaciones siguen pendientes. Revisa su mensaje y reintenta sin salir de esta pantalla.';
                         return false;
                     }
+                    if(!current())return false;
                     this.$emit('success', true);
                     return true;
                 }
                 catch(error) {
-                    this.saveError='No se pudo confirmar el guardado. Tu captura se conserva; revisa la conexión y vuelve a intentar.';
+                    if(current())this.saveError='No se pudo confirmar el guardado. Tu captura se conserva; revisa la conexión y vuelve a intentar.';
                     return false;
                 }
                 finally {
-                    this.isSaving = false
+                    if(current())this.isSaving = false
                 }
             }
         },

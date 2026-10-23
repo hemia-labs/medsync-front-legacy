@@ -376,7 +376,14 @@
               />
               <v-text-field
                 v-model.trim="createForm.adminUser.email"
-                label="Correo"
+                label="Correo de contacto *"
+                type="email"
+                autocomplete="email"
+                required
+                aria-required="true"
+                hint="Obligatorio para contactar al administrador."
+                persistent-hint
+                :error-messages="createDialog.errors.filter(message => message.startsWith('El correo del administrador'))"
                 outlined
                 dense
                 :disabled="createDialog.isSaving"
@@ -1203,7 +1210,9 @@ export default {
           errors.push('El telefono de acceso del administrador es obligatorio.');
         }
 
-        if(adminUser.email && !this.isValidEmail(adminUser.email)) {
+        if(!adminUser.email || !adminUser.email.trim()) {
+          errors.push('El correo del administrador es obligatorio como dato de contacto.');
+        } else if(adminUser.email.trim().length > 254 || !this.isValidEmail(adminUser.email)) {
           errors.push('El correo del administrador no tiene un formato valido.');
         }
 

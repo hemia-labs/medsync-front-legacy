@@ -1,13 +1,14 @@
 <template>
     <div v-if="sectionAllowed" class="w-full pb-8">
         <v-alert v-if="activeSection === 'summary' && (appearanceError || clinicalModulesError)" type="error" text role="alert">Algunos ajustes opcionales no se pudieron consultar. <button type="button" class="underline font-semibold" @click="init">Reintentar consulta</button></v-alert>
+        <preparation-guide v-if="['identity','documents'].includes(activeSection) && !documentTemplateDialog" :key="activeSection" :branch="activeSection" :stage="activeSection==='identity' && businessInfoEditing ? 'edit' : ''" :dirty="hasUnsavedChanges" :busy="settingsSaving" @focus-control="focusPreparationControl" />
         <admin-summary v-if="activeSection === 'summary'" :items="configurationSummary"></admin-summary>
 
         <roles-permissions-config
             v-if="activeSection === 'roles-permissions'" @contact-plan="$emit('contact-plan', $event)"
         ></roles-permissions-config>
 
-        <section v-if="activeSection === 'doctor-identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
+        <section ref="preparationEditor" v-if="activeSection === 'doctor-identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
             <div class="px-7 py-5 border-b border-primary-200 bg-primary-100">
                 <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Identidad del doctor</p>
                 <h2 class="m-0 text-gray-600 text-2xl font-normal">Perfil profesional</h2>
@@ -100,7 +101,7 @@
             </fieldset>
         </section>
 
-        <section v-if="activeSection === 'identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
+        <section ref="preparationEditor" v-if="activeSection === 'identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
             <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
                 <div>
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Informacion del consultorio</p>
@@ -109,7 +110,7 @@
                 </div>
                 <div class="flex flex-wrap items-center justify-start lg:justify-end gap-3">
                     <da-button-primary
-                        v-if="!businessInfoEditing"
+                        ref="guideIdentityAction" v-if="!businessInfoEditing"
                         @click.native="onStartBusinessInfoEdit()"
                         :label="'Editar datos'" :disabled="businessInfoLoading || !!businessInfoError || !businessInfoOriginal"
                         rxl
@@ -126,7 +127,7 @@
                     </button>
                     <da-button-primary
                         v-if="businessInfoEditing"
-                        @click.native="onSaveBusinessInfo()"
+                        ref="guideIdentityAction" @click.native="onSaveBusinessInfo()"
                         :label="businessInfoSaving ? 'Guardando...' : 'Guardar cambios'"
                         :disabled="businessInfoSaving"
                         rxl
@@ -257,8 +258,9 @@
         </section>
 
         <account-legal-documents v-if="activeSection === 'account-legal'" />
+        <change-password v-if="activeSection === 'change-password'" :key="authUser && authUser.id_login" />
 
-        <section v-if="activeSection === 'documents'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
+        <section ref="preparationEditor" v-if="activeSection === 'documents'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
             <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
                 <div>
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Documentos y consentimientos</p>
@@ -266,7 +268,7 @@
                     <p class="m-0 mt-2 text-gray-500 text-sm">Centraliza consentimientos, datos sensibles, atención general y formatos personalizados del consultorio.</p>
                 </div>
                 <div class="flex flex-wrap justify-start lg:justify-end gap-2">
-                    <da-button-primary @click.native="openDocumentTemplateDialog()" :label="'+ Crear formato'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+                    <da-button-primary ref="guideDocumentsAction" @click.native="openDocumentTemplateDialog()" :label="'+ Crear formato'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
                 </div>
             </div>
 
@@ -423,7 +425,7 @@
             </div>
         </section>
 
-        <professional-agenda-config v-if="activeSection === 'agenda'" :theme-color="themePrimaryColor" @saved="onGetAppointmentConfig" />
+        <professional-agenda-config v-if="activeSection === 'agenda'" :initial-doctor-id="typeof $route.query.doctor === 'string' ? $route.query.doctor : ''" :theme-color="themePrimaryColor" @saved="onGetAppointmentConfig" />
     <v-dialog v-if="activeSection === 'agenda'" v-model="dayDialog" persistent max-width="680">
             <v-card>
                 <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
@@ -509,6 +511,7 @@
             <v-card>
                 <div class="px-6 py-5 border-b border-gray-200 bg-primary-100">
                     <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Formato clínico</p>
+                    <preparation-guide v-if="documentTemplateDialog" branch="documents" stage="edit" :action-label="documentTemplateSaveLabel" :subject="documentTemplateForm.id_document_template || 'new'" :dirty="documentTemplateDirty" :busy="documentTemplateSaving" @focus-control="focusPreparationControl" />
                     <h3 id="document-template-title" class="m-0 mt-1 text-gray-700 text-xl font-semibold">{{ documentTemplateForm.id_document_template ? 'Editar plantilla' : 'Crear plantilla' }}</h3>
                     <p class="m-0 mt-2 text-gray-500 text-sm">Los cambios solo aplicarán a documentos nuevos. Los documentos ya firmados no cambian.</p>
                 </div>
@@ -527,7 +530,7 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <v-text-field ref="documentTemplateName" v-model="documentTemplateForm.name" :disabled="documentTemplateSaving" :error-messages="documentTemplateErrors.name" label="Nombre del formato *" dense outlined :color="themePrimaryColor"></v-text-field>
-                        <v-select v-model="documentTemplateForm.template_type" :disabled="documentTemplateSaving" :items="documentTemplateTypeOptions" item-text="label" item-value="value" label="Tipo de documento" dense outlined :color="themePrimaryColor"></v-select>
+                        <v-select ref="guideDocumentType" v-model="documentTemplateForm.template_type" :disabled="documentTemplateSaving" :items="documentTemplateTypeOptions" item-text="label" item-value="value" label="Tipo de documento" dense outlined :color="themePrimaryColor"></v-select>
                         <v-select
                             v-model="documentTemplateForm.document_license_tier" :disabled="documentTemplateSaving"
                             :items="documentLicenseTierOptionsForPlan"
@@ -549,11 +552,11 @@
 
                     <div class="border border-gray-200 bg-gray-50 p-4 mb-4">
                         <p class="m-0 mb-2 text-primary-900 text-xs font-bold tracking-widest uppercase">Estado de la plantilla</p>
-                        <v-checkbox v-model="documentTemplateForm.is_active" :disabled="documentTemplateSaving" label="Plantilla activa" :color="themePrimaryColor" hide-details></v-checkbox>
+                        <v-checkbox ref="guideDocumentActive" v-model="documentTemplateForm.is_active" :disabled="documentTemplateSaving" label="Plantilla activa" :color="themePrimaryColor" hide-details></v-checkbox>
                         <p class="m-0 mt-2 text-gray-500 text-xs">Una plantilla activa puede usarse para crear documentos nuevos.</p>
                     </div>
 
-                    <div class="border border-gray-200 bg-gray-50 p-4 mb-4">
+                    <div ref="guideDocumentSignatures" class="border border-gray-200 bg-gray-50 p-4 mb-4">
                         <p class="m-0 mb-2 text-primary-900 text-xs font-bold tracking-widest uppercase">Firmas requeridas</p>
                         <p class="m-0 mb-3 text-gray-500 text-sm">Selecciona quién debe firmar este documento. Cuando se genere, el sistema pedirá las firmas marcadas aquí.</p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -712,7 +715,8 @@
                 </v-card-text>
                 <v-card-actions class="px-6 pb-5 justify-end gap-3">
                     <da-button-secondary :disabled="documentTemplateSaving" @click.native="onCancelDocumentTemplate()" :label="'Cancelar'" rxl swpr class="py-1 px-4 font-light"></da-button-secondary>
-                    <da-button-primary @click.native="saveDocumentTemplate()" :disabled="documentTemplateSaving" :label="documentTemplateSaving ? 'Guardando...' : documentTemplateSaveLabel" rxl swpr class="py-1 px-4 font-light"></da-button-primary>
+                    <p v-if="$route.query.guide === '1'" role="note">Revisa contenido, firmas requeridas y Plantilla activa. Guardar crea una versión; todavía no hay un documento firmado por un paciente.</p>
+                    <da-button-primary ref="guideDocumentSave" @click.native="saveDocumentTemplate()" :disabled="documentTemplateSaving" :label="documentTemplateSaving ? 'Guardando...' : documentTemplateSaveLabel" rxl swpr class="py-1 px-4 font-light"></da-button-primary>
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -763,9 +767,12 @@
 </template>
 
 <script>
+import PreparationGuide from './components/PreparationGuide.vue';
+import { focusControl } from '../../domain/onboarding/focusControl';
 import { mapActions, mapGetters } from 'vuex';
 import ProfessionalAgendaConfig from './components/ProfessionalAgendaConfig.vue';
 import AccountLegalDocuments from './components/AccountLegalDocuments.vue';
+import ChangePassword from './components/ChangePassword.vue';
 import { getSettingsSections } from '../../security/settingsAccess';
 import VuexMixin from '../../mixins/VuexMixin';
 import moduleTypes from '../../store/modules/common/module-types';
@@ -803,7 +810,9 @@ import {
 export default {
     mixins:[VuexMixin],
     components: {
+        PreparationGuide,
         AccountLegalDocuments,
+        ChangePassword,
         ProfessionalAgendaConfig,
         PrescriptionConfig,
         AdminSummary,
@@ -862,6 +871,7 @@ export default {
                 plan: ''
             },
             businessInfoOriginal: null,
+            pendingBusinessSave:null, pendingDocumentSave:null,
             businessInfoEditing: false,
             businessInfoSaving: false,
             businessInfoLoading: false,
@@ -1316,6 +1326,26 @@ export default {
         }
     },
     methods: {
+        async reconcileBusinessSave(context) {
+            const response=await DABusinessService.getCurrent();
+            if(this.disposed || !isCurrentAuthorization(context,this.$store))return;
+            if(!response || !response.success)throw Error();
+            const expected=this.pendingBusinessSave;
+            if(Object.keys(expected).every(key=>String(response.data[key] || '').trim()===String(expected[key] || '').trim())){
+                this.businessInfoOriginal=this.cloneBusinessInfo({...this.businessInfoOriginal,...response.data});this.pendingBusinessSave=null;this.businessSaveError='Guardado comprobado. Los cambios posteriores permanecen en la pantalla.';
+            }else this.businessSaveError='No coincide con lo enviado. Conservamos tu captura; revisa los datos guardados antes de reemplazarlos. No enviamos otro guardado.';
+        },
+        async reconcileDocumentSave(context) {
+            const response=await DADocumentService.getTemplates();
+            if(this.disposed || !isCurrentAuthorization(context,this.$store))return;
+            if(!response || !response.success)throw Error();
+            const expected=this.pendingDocumentSave;
+            const matches=(response.data || []).filter(row=>(!expected.id_document_template || row.id_document_template===expected.id_document_template) && ['name','template_type','content_html','description'].every(key=>String(row[key] || '')===String(expected[key] || '')) && ['is_active','requires_patient_signature','requires_tutor_signature','requires_doctor_signature','requires_witness1_signature','requires_witness2_signature'].every(key=>Boolean(Number(row[key]))===Boolean(expected[key])));
+            this.documentTemplates=response.data || [];
+            if(matches.length===1){this.documentTemplateForm.id_document_template=matches[0].id_document_template;this.pendingDocumentSave=null;this.documentTemplateSaveError='Encontramos el formato guardado. Revisa el listado antes de crear otra versión.';}
+            else this.documentTemplateSaveError='No pudimos identificar una única versión guardada. Conservamos tu captura y no enviamos otro guardado. Revisa el listado antes de continuar.';
+        },
+        focusPreparationControl(id, reveal) { const refs=this.activeSection==='identity' ? (this.businessInfoEditing ? {identity:'business_name',phone:'business_phone',address:'business_address',save:'guideIdentityAction'} : {identity:'guideIdentityAction',save:'guideIdentityAction'}) : this.documentTemplateDialog ? {documents:'documentTemplateName',type:'guideDocumentType',content:'documentContentInput',signatures:'guideDocumentSignatures',active:'guideDocumentActive',save:'guideDocumentSave'} : {documents:'guideDocumentsAction'};focusControl(this.$refs[refs[id]], reveal); },
         ...mapActions(moduleTypes.CONFIGURATION, [
             fnTypes.saveConfiguration,
             fnTypes.editConfiguration,
@@ -1521,6 +1551,7 @@ export default {
         },
 
         openDocumentTemplateDialog: function(template) {
+            if(this.pendingDocumentSave){this.documentTemplateDialog=true;this.documentTemplateSaveError='Primero comprueba el guardado anterior. Conservamos la captura de ese formato para evitar crear una versión duplicada.';return}
             if(template) {
                 const contentHtml = template.content_html || ''
                 this.documentTemplateForm = {
@@ -1560,6 +1591,8 @@ export default {
 
         saveDocumentTemplate: async function() {
             if(this.documentTemplateSaving) return
+            const context=authorizationContext(this.$store)
+            if(this.pendingDocumentSave){this.documentTemplateSaving=true;try{await this.reconcileDocumentSave(context)}catch(_){if(isCurrentAuthorization(context,this.$store))this.documentTemplateSaveError='No pudimos comprobar el guardado anterior. Reintenta la consulta.'}finally{if(!this.disposed && isCurrentAuthorization(context,this.$store))this.documentTemplateSaving=false}return}
             this.documentTemplateErrors = {}
             this.documentTemplateSaveError = ''
             const name = String(this.documentTemplateForm.name || '').trim()
@@ -1585,17 +1618,21 @@ export default {
             }
             this.documentTemplateSaving = true
             try {
+                this.pendingDocumentSave=payload
                 const response = await DADocumentService.saveTemplate(payload)
+                if(this.disposed || !isCurrentAuthorization(context,this.$store))return
                 if(response && response.success) {
+                    this.pendingDocumentSave=null
                     this.documentTemplates = response.data || []
                     this.documentTemplateDialog = false
                     this.toastFunction('success', payload.id_document_template ? 'Nueva versión guardada.' : 'Plantilla creada.')
                     return
                 }
+                if(Number(response && response.status)<500)this.pendingDocumentSave=null
                 this.documentTemplateErrors = (response && response.data && response.data.fieldErrors) || {}
-                this.documentTemplateSaveError = buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo guardar la plantilla. Conservamos tu captura; revisa los datos e intenta de nuevo.')
-            } catch(_) { this.documentTemplateSaveError = 'No se pudo guardar la plantilla. Conservamos tu captura; revisa la conexión e intenta de nuevo.' }
-            finally { this.documentTemplateSaving = false }
+                this.documentTemplateSaveError = this.pendingDocumentSave ? 'No se pudo confirmar el guardado. El siguiente intento comprobará la lista sin crear otra versión.' : buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo guardar la plantilla. Conservamos tu captura; revisa los datos e intenta de nuevo.')
+            } catch(_) { if(!this.disposed && isCurrentAuthorization(context,this.$store))this.documentTemplateSaveError = 'No se pudo confirmar el guardado. Tu captura se conserva; el siguiente intento comprobará la lista sin crear otra versión.' }
+            finally { if(!this.disposed && isCurrentAuthorization(context,this.$store))this.documentTemplateSaving = false }
         },
 
         appendDocumentVariable: function(variable) {
@@ -1874,6 +1911,8 @@ export default {
                 return
             }
 
+            const context=authorizationContext(this.$store)
+            if(this.pendingBusinessSave){this.businessInfoSaving=true;try{await this.reconcileBusinessSave(context)}catch(_){if(isCurrentAuthorization(context,this.$store))this.businessSaveError='No pudimos comprobar el guardado anterior. Reintenta la consulta.'}finally{if(!this.disposed && isCurrentAuthorization(context,this.$store))this.businessInfoSaving=false}return}
             const validation = validateBusinessProfile(this.getBusinessInfoPayload())
             this.businessFieldErrors = validation.fieldErrors
             this.businessSaveError = ''
@@ -1884,8 +1923,11 @@ export default {
 
             this.businessInfoSaving = true
             try {
+                this.pendingBusinessSave=validation.data
                 const response = await DABusinessService.updateCurrent(validation.data)
+                if(this.disposed || !isCurrentAuthorization(context,this.$store))return
                 if(response && response.success) {
+                    this.pendingBusinessSave=null
                     this.businessInfo = { ...this.businessInfo, ...validation.data, ...(response.data || {}) }
                     this.businessInfoOriginal = this.cloneBusinessInfo()
                     this.businessInfoEditing = false
@@ -1893,12 +1935,13 @@ export default {
                     return
                 }
 
+                if(Number(response && response.status)<500)this.pendingBusinessSave=null
                 this.businessFieldErrors = response && response.data && response.data.fieldErrors || {}
-                this.businessSaveError = response && response.message ? response.message : 'No se pudo guardar el consultorio. Conservamos tu captura; revisa los datos e intenta de nuevo.'
+                this.businessSaveError = this.pendingBusinessSave ? 'No se pudo confirmar el guardado. El siguiente intento comprobará los datos guardados sin reenviar.' : response && response.message ? response.message : 'No se pudo guardar el consultorio. Conservamos tu captura; revisa los datos e intenta de nuevo.'
                 this.focusInvalid(Object.keys(this.businessFieldErrors).map(field => 'business_' + field))
-            } catch(_) { this.businessSaveError = 'No se pudo guardar el consultorio. Conservamos tu captura; revisa la conexión e intenta de nuevo.' }
+            } catch(_) { if(!this.disposed && isCurrentAuthorization(context,this.$store))this.businessSaveError = 'No se pudo confirmar el guardado. Tu captura se conserva; el siguiente intento comprobará los datos guardados.' }
             finally {
-                this.businessInfoSaving = false
+                if(!this.disposed && isCurrentAuthorization(context,this.$store))this.businessInfoSaving = false
             }
         },
 
@@ -2356,6 +2399,7 @@ export default {
         onProfessionalProfileSaved: async function() {
             this.toastFunction('success','Perfil profesional guardado.')
             await this.onGetProfessionalProfileStatus()
+            if(this.$store.state.CORE.ONBOARDING.guide === 'active') await this.$store.dispatch('CORE/ONBOARDING/refresh',{force:true})
         },
 
         onSaveAppointmentConfig: async function() {

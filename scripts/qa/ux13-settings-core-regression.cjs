@@ -44,9 +44,9 @@ const businessService={async getCurrent(){businessReads++;return businessRespons
 const documentService={async getTemplates(){return documentReadResponse;},async saveTemplate(){documentSaves++;return documentSaveResponse;}};
 const sfc=compiler.parseComponent(read('src/views/configuration/index.vue'));
 assert.deepEqual(compiler.compile(sfc.template.content).errors,[],'Real settings template compiles');
-const sandbox={component:null,document:dom.window.document,window:dom.window,URL,console,Promise,
+const sandbox={component:null,PreparationGuide:{},document:dom.window.document,window:dom.window,URL,console,Promise,
     mapActions:()=>({}),mapGetters:()=>({}),moduleTypes,fnTypes,VuexMixin:{},getSettingsSections,
-    AccountLegalDocuments:{},ProfessionalAgendaConfig:{},PrescriptionConfig:{},AdminSummary:{},ClinicalHistoryTemplateConfig:{},RolesPermissionsConfig:{},DAProfessionalProfile:{},
+    ChangePassword:{},AccountLegalDocuments:{},ProfessionalAgendaConfig:{},PrescriptionConfig:{},AdminSummary:{},ClinicalHistoryTemplateConfig:{},RolesPermissionsConfig:{},DAProfessionalProfile:{},
     ...theme,...navigation,...authorization,...availability,validateBusinessProfile,sanitizeHtmlForDocumentSnapshot,
     DABusinessService:businessService,DADocumentService:documentService,DAAppointmentService:{},DAPrescriptionService:{},DAUserService:{},
     buildLicenseLimitMessage:(_response,message)=>message,setStoredLoginLogo:()=>{},resizeImage:()=>{throw Error('Unexpected image read');},
@@ -100,7 +100,7 @@ const savedBusiness={id_business:'tenant-a',name:'Consultorio QA',phone:'0012345
         let focused=0;view.$refs.business_name={focus(){focused++;}};
         view.businessInfo.name=' ';view.businessInfo.phone='ABC';const before=businessSaves;await view.onSaveBusinessInfo();assert.equal(businessSaves,before);assert.ok(view.businessFieldErrors.name);assert.ok(view.businessFieldErrors.phone);assert.equal(focused,1);
         view.businessInfo.name='  Cambio QA  ';view.businessInfo.phone='+52 (55) 1234-5678';view.businessInfo.address='  Dirección QA  ';
-        businessSaveResponse={success:false,message:'Revisa el teléfono.',data:{fieldErrors:{phone:'Dato rechazado por servidor.'}}};
+        businessSaveResponse={success:false,status:400,message:'Revisa el teléfono.',data:{fieldErrors:{phone:'Dato rechazado por servidor.'}}};
         await view.onSaveBusinessInfo();assert.equal(view.businessInfo.name,'  Cambio QA  ');assert.equal(view.businessInfoEditing,true);assert.equal(view.businessFieldErrors.phone,'Dato rechazado por servidor.');assert.match(view.businessSaveError,/teléfono/);
         const gate=deferred();businessSaveResponse=gate.promise;const pending=view.onSaveBusinessInfo();await view.onSaveBusinessInfo();assert.equal(businessSaves,before+2);
         assert.equal(lastBusinessPayload.name,'Cambio QA');assert.equal(lastBusinessPayload.phone,'5512345678');assert.equal(lastBusinessPayload.address,'Dirección QA');
@@ -124,7 +124,7 @@ const savedBusiness={id_business:'tenant-a',name:'Consultorio QA',phone:'0012345
         const view=settings({activeSection:'documents'});view.openDocumentTemplateDialog();view.documentTemplateForm.name='Formato QA';view.documentTemplateForm.content_text='Contenido QA';
         await view.onCancelDocumentTemplate();assert.equal(view.documentTemplateDialog,true);
         const gate=deferred();documentSaveResponse=gate.promise;const before=documentSaves;const pending=view.saveDocumentTemplate();await view.saveDocumentTemplate();await view.onCancelDocumentTemplate();assert.equal(documentSaves,before+1);assert.equal(view.documentTemplateDialog,true);
-        gate.resolve({success:false,message:'Fallo de servicio.',data:{fieldErrors:{name:'Nombre rechazado.'}}});await pending;assert.equal(view.documentTemplateSaving,false);assert.equal(view.documentTemplateForm.content_text,'Contenido QA');assert.equal(view.documentTemplateDialog,true);assert.equal(view.documentTemplateErrors.name,'Nombre rechazado.');assert.match(view.documentTemplateSaveError,/Fallo/);
+        gate.resolve({success:false,status:400,message:'Fallo de servicio.',data:{fieldErrors:{name:'Nombre rechazado.'}}});await pending;assert.equal(view.documentTemplateSaving,false);assert.equal(view.documentTemplateForm.content_text,'Contenido QA');assert.equal(view.documentTemplateDialog,true);assert.equal(view.documentTemplateErrors.name,'Nombre rechazado.');assert.match(view.documentTemplateSaveError,/Fallo/);
         view.$swal.fire=async()=>({isConfirmed:true});await view.onCancelDocumentTemplate();assert.equal(view.documentTemplateDialog,false);
     });
     await check('clinical modules read failure does not invent defaults and retry establishes a known baseline',async()=>{

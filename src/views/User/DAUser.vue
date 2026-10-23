@@ -1,6 +1,7 @@
 <template>
   <section class="staff-page" :class="{'staff-compact': isCompactLayout}">
-    <div class="staff-shell">
+    <preparation-guide v-if="!isNew && !isEdit" branch="users" :busy="isUsersLoading" :control-labels="ownAuthorizationReview ? {users:'Revisar mis autorizaciones'} : {}" @focus-control="focusGuideControl" />
+    <div ref="guideControls" class="staff-shell">
       <section v-if="!isNew && !isEdit" class="staff-hero">
         <div class="staff-hero-copy">
           <p class="staff-eyebrow">Personal y usuarios</p>
@@ -11,6 +12,7 @@
         </div>
 
         <div class="staff-actions">
+          <button v-if="ownAuthorizationReview" ref="guideOwnAuthorization" type="button" class="staff-primary-action" @click="onEvent(ACTIONS.EDIT, ownUser.id_login)">Revisar mis autorizaciones</button>
           <button type="button" class="staff-icon-button" aria-label="Actualizar usuarios" :disabled="isUsersLoading || !!deactivatingId" @click="init">
             <v-icon size="20">mdi-refresh</v-icon>
           </button>
@@ -68,7 +70,7 @@
         </div>
 
         <div class="staff-toolbar">
-          <v-text-field
+          <v-text-field ref="guideSearch"
             v-model.trim="searchTerm"
             aria-label="Buscar usuarios"
             placeholder="Buscar por nombre, correo, telefono o puesto"
@@ -263,6 +265,8 @@
 </template>
 
 <script>
+import PreparationGuide from '../configuration/components/PreparationGuide.vue';
+import { focusControl } from '../../domain/onboarding/focusControl';
 import { mapActions, mapGetters } from 'vuex';
 import VuexMixin from '../../mixins/VuexMixin';
 import moduleTypes from '../../store/modules/common/module-types';
@@ -291,6 +295,7 @@ export default {
         }
     },
     components: {
+        PreparationGuide,
         'da-add-user': () => import('./DAAddUser.vue'),
         'da-edit-user': () => import('./DAEditUser.vue'),
     },
@@ -300,6 +305,9 @@ export default {
     mounted() { this.startResponsiveLayout(); },
     beforeDestroy() { this.listRequest++; this.stopResponsiveLayout(); },
     computed: {
+        ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser }),
+        ownUser() { return this.safeUsers.find(user => user.id_login === (this.authUser || {}).id_login); },
+        ownAuthorizationReview() { return this.$route.query.goal === 'authorizations' && !this.isUsersLoading && !this.usersServiceError && !!this.ownUser; },
         ...mapGetters(moduleTypes.USER, {
             users: fnTypes.getUsers,
             hasErrorInService: fnTypes.hasErrorInService
@@ -364,6 +372,7 @@ export default {
         selectedUserName() { return this.userName(this.safeUsers.find(user => user.id_login === this.currentID) || {}); }
     },
     methods: {
+        focusGuideControl(id, reveal){focusControl(this.$refs.guideOwnAuthorization || this.$refs.guideSearch, reveal);},
         updateCompactLayout(width) {
             const measuredWidth = Number(width)
             if(Number.isFinite(measuredWidth) && measuredWidth > 0) this.isCompactLayout = measuredWidth <= 864
