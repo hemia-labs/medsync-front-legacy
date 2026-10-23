@@ -67,6 +67,7 @@
       <div class="tenant-content">
         <legal-update-notice />
         <pulse-return />
+        <onboarding-coordinator />
         <slot></slot>
       </div>
     </main>
@@ -95,6 +96,7 @@
 
 <script>
 import PulseReturn from '../../views/Pulse/PulseReturn.vue';
+import OnboardingCoordinator from '../../views/configuration/components/OnboardingCoordinator.vue';
 import { canAccessPulse } from '../../security/pulseAccess';
 import { canAccessSettings } from '../../security/settingsAccess';
 import { mapActions, mapGetters } from 'vuex';
@@ -126,7 +128,7 @@ export default {
         }
     },
     components: {
-      LegalUpdateNotice, PulseReturn,
+      LegalUpdateNotice, PulseReturn, OnboardingCoordinator,
       'da-re-login': ReLogin,
       'tenant-navigation-rail': TenantNavigationRail
     },

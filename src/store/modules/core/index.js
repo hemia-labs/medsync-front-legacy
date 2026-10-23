@@ -1,4 +1,5 @@
 import PULSE from '../pulse';
+import ONBOARDING from '../onboarding';
 import AUTH         from "../auth/index"
 import USER         from "../user/index"
 import CATALOGS     from "../catalogs/index"
@@ -26,6 +27,7 @@ export default {
     modules: {
         AUTH,
         PULSE,
+        ONBOARDING,
         USER,
         CATALOGS,
         HOME,

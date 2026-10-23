@@ -39,7 +39,7 @@ const deferred = () => { let resolve; return { promise: new Promise(done => { re
     const service = { getProfessionalProfile: async () => readResult, saveProfessionalProfile: (_id, payload) => { saveCalls++; lastPayload = payload; assert.notEqual(payload, profile.form, 'The request owns a snapshot, not the mutable form'); return saveResult; } };
     const sfc = compiler.parseComponent(read('src/views/User/components/DAProfessionalProfile.vue'));
     assert.deepEqual(compiler.compile(sfc.template.content).errors, []);
-    const context = { component: null, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, getSettingsSections: () => [], DAUserService: service,
+    const context = { component: null, PreparationGuide:{}, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, getSettingsSections: () => [], DAUserService: service,
         buildLicenseLimitMessage: (_response, fallback) => fallback, confirmSettingsDiscard: async () => false,
         registerSettingsNavigationGuard: () => { guardCalls++; return () => cleanupCalls++; } };
     vm.runInNewContext(sfc.script.content.replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component ='), context);
@@ -57,7 +57,7 @@ const deferred = () => { let resolve; return { promise: new Promise(done => { re
     save.resolve({ success: true, data: { id_doctor_professional_profile: 'qa-profile', professional_name: 'Nombre enviado', can_issue_prescriptions: 0, can_sign_documents: 0, is_active: 1 } });
     await inFlight; assert.equal(profile.form.professional_name, 'Edición posterior'); assert.equal(profile.hasUnsavedChanges, true); assert.equal(profile.saving, false);
     profile.discardChanges(); assert.equal(profile.form.professional_name, 'Nombre enviado'); assert.equal(profile.hasUnsavedChanges, false);
-    profile.form.professional_name = 'Pendiente por fallo'; saveResult = { success: false, message: 'No se pudo guardar.' };
+    profile.form.professional_name = 'Pendiente por fallo'; saveResult = { success: false, status:400, message: 'No se pudo guardar.' };
     await profile.save(); assert.equal(profile.form.professional_name, 'Pendiente por fallo'); assert.equal(profile.hasUnsavedChanges, true); assert.match(profile.saveError, /No se pudo guardar/);
     let focusedPhone = 0; profile.$refs.professionalPhone = { focus() { focusedPhone++; } };
     for(const invalidPhone of ['abc123', '123456789', '1234567890123456', '5512345678 ext 2', 5512345678]) {
@@ -75,7 +75,7 @@ const deferred = () => { let resolve; return { promise: new Promise(done => { re
         assert.equal(profile.form.professional_phone, normalized); assert.equal(profile.professionalPhoneError, '');
     }
     profile.form.professional_phone = '5512345678';
-    saveResult = { success: false, message: 'Revisa el teléfono profesional.', data: { fieldErrors: { professional_phone: 'Teléfono rechazado por la API.' } } };
+    saveResult = { success: false, status:400, message: 'Revisa el teléfono profesional.', data: { fieldErrors: { professional_phone: 'Teléfono rechazado por la API.' } } };
     await profile.save(); assert.equal(profile.professionalPhoneError, 'Teléfono rechazado por la API.'); assert.equal(profile.form.professional_phone, '5512345678');
     profile.adminControlsOnly = true; profile.form.professional_phone = 'dato histórico';
     await profile.save(); assert.deepEqual(Object.keys(lastPayload).sort(), ['can_issue_prescriptions', 'can_sign_documents', 'is_active'], 'Authorization-only edits omit hidden identity, phone and signature');

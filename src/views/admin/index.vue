@@ -68,13 +68,17 @@ export default {
         },
         goToSection: async function(section) {
             this.mobileSection = section
-            if(section === this.activeSection) {
+            if(section === this.activeSection && this.$route.query.guide !== '1') {
                 return false
             }
+            const query = section === this.activeSection ? { ...this.$route.query } : { section, ...(this.returnToAppointments ? { returnTo: '/px/dates' } : {}) }
+            delete query.guide
+            delete query.resume
+            delete query.goal
             try {
                 await this.$router.push({
                     path: '/admin',
-                    query: { section, ...(this.returnToAppointments ? { returnTo: '/px/dates' } : {}) }
+                    query
                 })
                 await this.$nextTick()
                 if(typeof window !== 'undefined') window.scrollTo(0, 0)

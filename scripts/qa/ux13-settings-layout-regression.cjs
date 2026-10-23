@@ -134,7 +134,7 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  frame.isTenantRestrictedMode=false;methods.navigateToItem.call(frame,{path:'/admin'});assert.equal(visits[0],'/admin');
  assert.equal(methods.canShowNavigationItem.call({role:'doctor',hasPermission:()=>false},{settingsAccess:true}),true,'A doctor retains access to their own identity');
  assert.equal(methods.canShowNavigationItem.call({role:'assistant',hasPermission:()=>false},{settingsAccess:true}),true,'Assistants can reach their own legal documents');
- assert.deepEqual(settings.getSettingsSections('assistant',()=>false).map(section=>section.key),['account-legal'],'Legal access does not grant administrative settings');
+ assert.deepEqual(settings.getSettingsSections('assistant',()=>false).map(section=>section.key),['account-legal','change-password'],'Personal account access does not grant administrative settings');
 
  // Apply the actual style blocks in their real order, including Vue scoped
  // selector rewriting. This catches a later fixed footer overriding settings.
@@ -155,7 +155,7 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  // Compile the component through the same Vue scoped-style compiler used by
  // vue-loader. Resolve known viewport queries explicitly because jsdom does
  // not apply them. Real rendered cards must be visible when the table is not.
- const staff=load('src/views/User/DAUser.vue',{window,ACTIONS:{EDIT:'EDIT',DELETE:'DELETE'}});
+ const staff=load('src/views/User/DAUser.vue',{window,ACTIONS:{EDIT:'EDIT',DELETE:'DELETE'},PreparationGuide:{render:h=>h('span')}});
  const staffScope='data-v-ux13-staff';
  const staffSheet=document.createElement('style');document.head.appendChild(staffSheet);
  function setStaffViewport(width){
@@ -175,7 +175,7 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  }
  const people=[{id_login:'SYNTHETIC_A',name:'Synthetic A',desc_rol:'Doctor',active:1},{id_login:'SYNTHETIC_B',name:'Synthetic B',desc_rol:'Asistente',active:1}];
  function mountStaff(){
-  const component=new Vue({...staff.options,render:staff.render,staticRenderFns:staff.staticRenderFns,_scopeId:staffScope,vuetify:new Vuetify(),
+  const component=new Vue({...staff.options,router:new VueRouter({mode:'abstract',routes:[]}),render:staff.render,staticRenderFns:staff.staticRenderFns,_scopeId:staffScope,vuetify:new Vuetify(),
    beforeCreate(){this.ActionWrapp=async()=>({success:true});},
    data(){return {...staff.options.data(),users:people.slice()};}
   });

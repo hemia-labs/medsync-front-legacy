@@ -12,7 +12,7 @@
     <div v-if="showActions" class="flex flex-wrap justify-start py-5 md:px-0 lg:px-5 gap-5">
         <da-button-gray         :label="'Deshacer'" @click.native="undo" rmd class="py-1 md:px-1 lg:px-5 font-light"></da-button-gray>
         <da-button-secondary    :label="'Limpiar'" @click.native="clear" rmd class="py-1 md:px-1 lg:px-5 font-light"></da-button-secondary>
-        <da-button-primary      :label="'Aplicar'"  @click.native="save" rmd class="py-1 md:px-1 lg:px-5 font-light"></da-button-primary>
+        <da-button-primary ref="applyButton" :label="'Aplicar'" @click.native="save" rmd class="py-1 md:px-1 lg:px-5 font-light"></da-button-primary>
     </div>
 
 </div>

@@ -1,6 +1,7 @@
 <template>
   <section class="staff-editor-card">
-    <div class="staff-editor-header">
+    <preparation-guide branch="users" stage="create" :dirty="dirty" :busy="saving" @focus-control="focusGuideControl" />
+    <div ref="guideControls" class="staff-editor-header">
       <div>
         <p class="staff-editor-eyebrow">Nuevo usuario</p>
         <h2>Agregar personal</h2>
@@ -100,7 +101,7 @@
       </section>
 
       <div class="staff-editor-actions">
-        <button type="button" class="staff-save-button" :disabled="saving" @click="onSave">
+        <button ref="guideSave" type="button" class="staff-save-button" :disabled="saving" @click="onSave">
           <v-icon size="18">mdi-content-save-outline</v-icon>
           <span>Guardar usuario</span>
         </button>
@@ -114,6 +115,8 @@
 </template>
 
 <script>
+import PreparationGuide from '../configuration/components/PreparationGuide.vue';
+import { focusControl } from '../../domain/onboarding/focusControl';
 import { mapGetters, mapActions } from 'vuex';
 import DAUserModel from '../../models/user/DAUserModel';
 import { validationMixin } from 'vuelidate';
@@ -122,14 +125,18 @@ import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import { emailPattern, phonePattern } from '../../utils/common/regex'
 import { buildLicenseLimitMessage } from '../../utils/licenseLimitMessage';
+import { authorizationContext, isCurrentAuthorization } from '../../security/authorizationContext';
+import { DAUserService } from '../../services/context/core-proccess-context';
 import { DABusinessService } from '../../services/context/core-proccess-context';
 import { confirmSettingsDiscard, registerSettingsNavigationGuard } from '../../domain/settings/settings.navigation';
 
 export default {
+    components:{PreparationGuide},
     mixins: [validationMixin],
     data: function() {
         return {
             user: new DAUserModel(),
+            disposed:false, uncertainUser:null,
             showPWD: false,
             licenseSummary: null,
             licenseLoading: false,
@@ -167,7 +174,7 @@ export default {
     mounted() {
         this.navigationCleanup=registerSettingsNavigationGuard(this, { hasChanges: () => this.dirty, isSaving: () => this.saving });
     },
-    beforeDestroy() { if(this.navigationCleanup) this.navigationCleanup(); },
+    beforeDestroy() { this.disposed=true; if(this.navigationCleanup) this.navigationCleanup(); },
     computed: {
         dirty() { return !!this.baseline && this.baseline !== JSON.stringify(this.user); },
         validationErrors() {
@@ -253,6 +260,7 @@ export default {
         }
     },
     methods: {
+        focusGuideControl(id, reveal){focusControl(this.$refs[{users:'name',phone:'phone',email:'email',access:'id_rol',password:'password',save:'guideSave'}[id]], reveal);},
         async requestClose() {
             if(this.saving) return false;
             if(this.dirty && !await confirmSettingsDiscard(this)) return false;
@@ -295,6 +303,16 @@ export default {
         },
         onSave: async function() {
             if(this.saving)return;
+            const context=authorizationContext(this.$store);
+            const current=()=>!this.disposed && isCurrentAuthorization(context,this.$store);
+            if(this.uncertainUser){
+                this.saving=true;
+                try{const response=await DAUserService.getUsers();if(!current())return false;if(!response || !response.success)throw Error();
+                    const matches=(response.data || []).filter(user=>user.email===this.uncertainUser.email || user.phone===this.uncertainUser.phone);
+                    this.saveError=matches.length ? 'Hay un usuario con ese contacto en el listado. Revisa sus datos y accesos antes de continuar; no creamos otro usuario.' : 'No aparece todavía en el listado. Conservamos tu captura; comprueba el resultado con el administrador antes de repetir el alta.';
+                }catch(_){if(current())this.saveError='No pudimos comprobar el alta anterior. Reintenta la consulta; no se enviará otro usuario.';}
+                finally{if(current())this.saving=false;}return false;
+            }
             this.$v.$touch();
             if(this.$v.$anyError) {this.$nextTick(()=>{if(this.$refs.validationSummary)this.$refs.validationSummary.focus()});return;}
             if(!this.$v.$anyError) {
@@ -302,16 +320,20 @@ export default {
                 try {
                 this.saveError='';
                 const payload=JSON.parse(JSON.stringify(this.user));
+                this.uncertainUser={email:payload.email,phone:payload.phone};
                 const response=await this.save(payload)
+                if(!current())return false;
                 if(response && response.success) {
+                    this.uncertainUser=null;
                     this.baseline=JSON.stringify(payload);
                     this.$emit('success', true);
                     return true;
                 }
-                this.saveError=buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo crear el usuario. Tu captura se conserva; puedes reintentar.');
+                if(Number(response && response.status)<500)this.uncertainUser=null;
+                this.saveError=this.uncertainUser ? 'No se pudo confirmar el alta. El siguiente intento consultará el listado sin crear otro usuario.' : buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo crear el usuario. Tu captura se conserva; puedes reintentar.');
                 return false;
-                } catch(_) { this.saveError='No se pudo confirmar el guardado. Tu captura se conserva; revisa la conexión antes de reintentar.'; return false;
-                } finally {this.saving=false;}
+                } catch(_) { if(current())this.saveError='No se pudo confirmar el guardado. Tu captura se conserva; revisa la conexión antes de reintentar.'; return false;
+                } finally {if(current())this.saving=false;}
             }
         },
         toastFunction: function(type,text){

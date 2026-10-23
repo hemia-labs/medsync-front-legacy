@@ -1,6 +1,7 @@
 <template>
   <section class="clinical-template-config bg-white bg-opacity-95 border border-primary-200 shadow-xl" :aria-busy="String(isLoading || isSaving)">
-    <div class="section-header">
+    <preparation-guide branch="clinical-history-template" :control-labels="{customize:usesSystemTemplate && canManageTemplate && !isCustomTemplateLocked ? 'Personalizar plantilla' : 'Plantilla actual',save:canEditTemplate ? 'Guardar nueva versión' : 'Plantilla actual'}" :dirty="hasPendingCapture" :busy="isLoading || isSaving" @focus-control="focusGuideControl" />
+    <div ref="guideControls" class="section-header">
       <div class="header-copy">
         <p class="eyebrow">Configuración clínica</p>
         <h2>Plantilla de historia clínica</h2>
@@ -20,7 +21,7 @@
           Recargar
         </button>
         <button
-          v-if="usesSystemTemplate && canManageTemplate && !isCustomTemplateLocked"
+          ref="guideCustomize" v-if="usesSystemTemplate && canManageTemplate && !isCustomTemplateLocked"
           class="btn-primary"
           type="button"
           :disabled="isSaving || isLoading || !!loadError"
@@ -30,7 +31,7 @@
           Personalizar plantilla
         </button>
         <button
-          v-if="canEditTemplate"
+          ref="guideSave" v-if="canEditTemplate"
           class="btn-primary cta"
           type="button"
           :disabled="isSaving || isLoading"
@@ -49,7 +50,7 @@
     <p v-if="loadError" role="alert" class="notice-card">{{ loadError }} <button type="button" :disabled="isLoading || isSaving" @click="reloadTemplate">Reintentar</button></p>
 
     <template v-else>
-      <section class="template-status compact-summary">
+      <section ref="guideSummary" class="template-status compact-summary">
         <div class="summary-primary">
           <span>Plantilla actual</span>
           <strong>{{ templateName }}</strong>
@@ -493,6 +494,9 @@
 </template>
 
 <script>
+import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
+import PreparationGuide from './PreparationGuide.vue';
+import { focusControl } from '../../../domain/onboarding/focusControl';
 import { mapGetters } from 'vuex';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
@@ -516,6 +520,7 @@ const FIELD_TYPES = [
 const clone = (value) => JSON.parse(JSON.stringify(value || {}));
 
 export default {
+  components:{PreparationGuide},
   directives: { dialogName },
   props: {
     themeColor: {
@@ -525,6 +530,7 @@ export default {
   },
   data() {
     return {
+      disposed:false, pendingWrite:null,
       isLoading: false,
       isSaving: false,
       loadError: '', loadRequest: 0, sectionPositionError: '', dialogBaseline: '', dialogActivator: null,
@@ -631,7 +637,7 @@ export default {
     this.loadTemplate();
     this.removeNavigationGuard = registerSettingsNavigationGuard(this, {hasChanges: () => this.hasPendingCapture, isSaving: () => this.isSaving});
   },
-  beforeDestroy() { this.loadRequest++; if(this.removeNavigationGuard) this.removeNavigationGuard(); },
+  beforeDestroy() { this.disposed=true;this.loadRequest++; if(this.removeNavigationGuard) this.removeNavigationGuard(); },
   watch: {
     sectionDialog(value) { if(!value) this.restoreDialogFocus(); },
     fieldDialog(value) { if(!value) this.restoreDialogFocus(); },
@@ -640,6 +646,20 @@ export default {
     fullPreviewDialog(value) { if(!value) this.restoreDialogFocus(); }
   },
   methods: {
+    async reconcileWrite(){
+      if(!this.pendingWrite)return false;
+      const context=authorizationContext(this.$store),intent=this.pendingWrite;
+      const response=await DAClinicalHistoryTemplateService.getCurrent();
+      if(this.disposed || !isCurrentAuthorization(context,this.$store))return true;
+      if(!response || !response.success || !response.data || !response.data.template)throw Error();
+      const current=response.data.template;
+      const matches=intent.kind==='create' ? response.data.source==='BUSINESS' : JSON.stringify(this.normalizeSchema(current.schema_json))===intent.schema;
+      if(matches){this.currentTemplate=current;this.templateSource=response.data.source;this.initialSchemaText=JSON.stringify(this.normalizeSchema(current.schema_json));this.pendingWrite=null;this.$emit('saved','Guardado comprobado. Conservamos los cambios locales posteriores.');}
+      else if(current.id_clinical_history_template===intent.id && current.version_number===intent.version){this.pendingWrite=null;this.$emit('error','La lectura conserva la versión anterior. Revisa tu captura antes de volver a guardar.');}
+      else this.$emit('error','La versión guardada es distinta. Conservamos tu captura; revisa los cambios antes de reemplazarla.');
+      return true;
+    },
+    focusGuideControl(id, reveal){focusControl(this.$refs[id==='customize' && this.$refs.guideCustomize ? 'guideCustomize' : id==='save' && this.$refs.guideSave ? 'guideSave' : 'guideSummary'], reveal);},
     countLabel(count, singular, plural) { return `${count} ${Number(count) === 1 ? singular : plural}`; },
     currentDialogForm() { return this.sectionDialog ? this.sectionForm : this.fieldDialog ? this.fieldForm : this.customFieldDialog ? this.customFieldForm : null; },
     rememberDialogFocus() { this.dialogActivator = typeof document !== 'undefined' ? document.activeElement : null; },
@@ -653,12 +673,13 @@ export default {
       return this.loadTemplate();
     },
     async loadTemplate() {
-      const request = ++this.loadRequest;
+      const request = ++this.loadRequest,context=authorizationContext(this.$store);
+      const current=()=>!this.disposed && request===this.loadRequest && isCurrentAuthorization(context,this.$store);
       this.isLoading = true;
       this.loadError = '';
       try {
       const response = await DAClinicalHistoryTemplateService.getCurrent();
-      if(request !== this.loadRequest) return false;
+      if(!current())return false;
       if(response && response.success && response.data && response.data.template) {
         this.currentTemplate = response.data.template;
         this.templateSource = response.data.source || '';
@@ -673,32 +694,39 @@ export default {
       this.$emit('error', this.loadError);
       return false;
       } catch (_) {
-        if(request === this.loadRequest) { this.loadError = 'No se pudo cargar la plantilla. Revisa tu conexión y reintenta.'; this.$emit('error', this.loadError); }
+        if(current()) { this.loadError = 'No se pudo cargar la plantilla. Revisa tu conexión y reintenta.'; this.$emit('error', this.loadError); }
         return false;
-      } finally { if(request === this.loadRequest) this.isLoading = false; }
+      } finally { if(current()) this.isLoading = false; }
     },
     async createBusinessTemplate() {
       if(this.isSaving || this.isLoading || this.loadError || !this.canManageTemplate || this.isCustomTemplateLocked) return false;
       this.isSaving = true;
+      const context=authorizationContext(this.$store);
+      const current=()=>!this.disposed && isCurrentAuthorization(context,this.$store);
       try {
+      if(await this.reconcileWrite())return false;
+      this.pendingWrite={kind:'create',id:this.currentTemplate.id_clinical_history_template,version:this.currentTemplate.version_number};
       const response = await DAClinicalHistoryTemplateService.createBusinessTemplate({
         name: 'Historia clínica del consultorio',
         description: 'Plantilla del consultorio.'
       });
 
+      if(!current())return false;
       if(response && response.success) {
+        this.pendingWrite=null;
         this.$emit('saved', 'Plantilla del consultorio creada correctamente.');
         await this.loadTemplate();
         return;
       }
 
-      this.$emit('error', buildLicenseLimitMessage(response, this.cleanBackendMessage(response && response.message)));
+      if(Number(response && response.status)<500)this.pendingWrite=null;
+      this.$emit('error', this.pendingWrite ? 'No se pudo confirmar el guardado. El siguiente intento comprobará la plantilla sin crear otra versión.' : buildLicenseLimitMessage(response, this.cleanBackendMessage(response && response.message)));
       return false;
-      } catch (_) { this.$emit('error', 'No se pudo confirmar la creación. Recarga la plantilla para comprobar su estado antes de reintentar.'); return false; }
-      finally { this.isSaving = false; }
+      } catch (_) { if(current())this.$emit('error', 'No se pudo confirmar la creación. Recarga la plantilla para comprobar su estado antes de reintentar.'); return false; }
+      finally { if(current())this.isSaving = false; }
     },
     async saveNewVersion() {
-      if(this.isSaving || this.isLoading || !this.canEditTemplate) {
+      if(this.isSaving || this.isLoading || this.loadError || !this.canEditTemplate) {
         return;
       }
 
@@ -709,14 +737,20 @@ export default {
       }
 
       this.isSaving = true;
+      const context=authorizationContext(this.$store);
+      const current=()=>!this.disposed && isCurrentAuthorization(context,this.$store);
       try {
+      if(await this.reconcileWrite())return false;
       const submittedSchema = clone(this.schema);
+      this.pendingWrite={kind:'version',id:this.currentTemplate.id_clinical_history_template,version:this.currentTemplate.version_number,schema:JSON.stringify(submittedSchema)};
       const response = await DAClinicalHistoryTemplateService.createVersion(
         this.currentTemplate.id_clinical_history_template,
         { schema_json: submittedSchema }
       );
 
+      if(!current())return false;
       if(response && response.success) {
+        this.pendingWrite=null;
         const laterChanges = JSON.stringify(this.schema) !== JSON.stringify(submittedSchema) ? clone(this.schema) : null;
         this.$emit('saved', 'Nueva versión guardada correctamente.');
         await this.loadTemplate();
@@ -724,10 +758,11 @@ export default {
         return true;
       }
 
-      this.$emit('error', buildLicenseLimitMessage(response, this.cleanBackendMessage(response && response.message)));
+      if(Number(response && response.status)<500)this.pendingWrite=null;
+      this.$emit('error', this.pendingWrite ? 'No se pudo confirmar el guardado. El siguiente intento comprobará la plantilla sin crear otra versión.' : buildLicenseLimitMessage(response, this.cleanBackendMessage(response && response.message)));
       return false;
-      } catch (_) { this.$emit('error', 'No se pudo confirmar la nueva versión. Recarga la plantilla para comprobar su estado antes de reintentar.'); return false; }
-      finally { this.isSaving = false; }
+      } catch (_) { if(current())this.$emit('error', 'No se pudo confirmar la nueva versión. Recarga la plantilla para comprobar su estado antes de reintentar.'); return false; }
+      finally { if(current())this.isSaving = false; }
     },
     normalizeSchema(rawSchema) {
       const schema = clone(rawSchema);

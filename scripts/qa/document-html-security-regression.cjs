@@ -82,8 +82,8 @@ function loadComponent(file, extra = {}) {
   const sfc = compiler.parseComponent(read(file));
   assert.deepEqual(compiler.compile(sfc.template.content).errors, [], `${file}: template compiles`);
   const context = { module: { exports: {} }, mapGetters: () => ({}), mapActions: () => ({}), VuexMixin: {}, moduleTypes: {}, fnTypes: {},
-    DocumentSignatureOptionsDialog: {}, ListPageNav: {}, dialogName: {}, fieldError: {}, localToday: () => '2026-10-14',
-    ProfessionalAgendaConfig: {}, PrescriptionConfig: {}, AdminSummary: {}, ClinicalHistoryTemplateConfig: {}, AccountLegalDocuments: {},
+    PreparationGuide: {}, DocumentSignatureOptionsDialog: {}, ListPageNav: {}, dialogName: {}, fieldError: {}, localToday: () => '2026-10-14',
+    ProfessionalAgendaConfig: {}, PrescriptionConfig: {}, AdminSummary: {}, ClinicalHistoryTemplateConfig: {}, AccountLegalDocuments: {}, ChangePassword: {},
     RolesPermissionsConfig: {}, DAProfessionalProfile: {}, ...helpers, ...extra };
   vm.runInNewContext(stripImports(sfc.script.content).replace('export default', 'module.exports ='), context, { filename: file });
   return context.module.exports;

@@ -8,10 +8,11 @@
     <v-btn v-if="canManage" small outlined rounded :color="color" :disabled="disabled || submitting" @click="open">Cambiar zona del consultorio</v-btn>
     <p v-else class="clinic-timezone-detail">El administrador puede cambiarla.</p>
 
-    <v-dialog v-model="dialog" persistent scrollable max-width="620" :retain-focus="true">
+    <v-dialog v-model="dialog" persistent scrollable max-width="620" :retain-focus="true" @keydown.esc.stop.prevent="!submitting && (dialog = false)">
       <v-card class="clinic-timezone-dialog">
         <v-card-title class="clinic-timezone-title">Hora del consultorio</v-card-title>
         <v-card-text>
+          <slot name="guide"></slot>
           <p class="clinic-timezone-intro">Elige dónde está tu consultorio. Usaremos su hora local en todas tus agendas.</p>
           <template v-if="!advanced">
             <v-autocomplete v-model="state" :search-input.sync="stateSearch" :disabled="submitting" :items="states" item-text="label" item-value="value" label="Estado del consultorio" placeholder="Busca y elige tu estado" clearable outlined dense :color="color" :filter="searchLocation" no-data-text="No encontramos ese estado." :menu-props="{ maxHeight: 280, offsetY: true }" @change="selectState"></v-autocomplete>
@@ -58,7 +59,7 @@ export default {
     saveZone: { type: Function, required: true },
     color: { type: String, default: '#087F8C' }
   },
-  data: () => ({ dialog: false, clockTimer: null, submitting: false, saveError: '', state: '', stateSearch: '', municipality: '', municipalitySearch: '', candidate: '', zoneSearch: '', detected: '', advanced: false, selectionSource: 'location', states: MEXICO_STATES, zones: MEXICO_TIME_ZONES, referenceDate: new Date() }),
+  data: () => ({ dialog: false, clockTimer: null, disposed:false, applySequence:0, submitting: false, saveError: '', state: '', stateSearch: '', municipality: '', municipalitySearch: '', candidate: '', zoneSearch: '', detected: '', advanced: false, selectionSource: 'location', states: MEXICO_STATES, zones: MEXICO_TIME_ZONES, referenceDate: new Date() }),
   computed: {
     currentLabel() { return timezoneLabel(this.value); },
     currentPreview() { return timezonePreview(this.value, this.referenceDate); },
@@ -88,11 +89,13 @@ export default {
     canManage(value) { if (!value) this.dialog = false; },
     disabled(value) { if (value && !this.submitting) this.dialog = false; },
     dialog(value) {
+      this.$emit('dialog',value);
+      if(!value){this.applySequence++;this.submitting=false;}
       if(this.clockTimer !== null) clearInterval(this.clockTimer);
       this.clockTimer = value ? setInterval(() => { this.referenceDate = new Date(); }, 30000) : null;
     }
   },
-  beforeDestroy() { if(this.clockTimer !== null) clearInterval(this.clockTimer); },
+  beforeDestroy() {this.disposed=true;this.applySequence++; if(this.clockTimer !== null) clearInterval(this.clockTimer); },
   methods: {
     open() {
       if (!this.canManage || this.disabled || this.submitting) return;
@@ -119,9 +122,10 @@ export default {
     async apply() {
       if (!this.canManage || this.disabled || this.submitting || !this.preview) return;
       this.submitting = true; this.saveError = '';
-      try { await this.saveZone(this.candidate); this.dialog = false; }
-      catch (error) { this.saveError = error.message || 'No se pudo guardar la zona horaria. Reintenta.'; }
-      finally { this.submitting = false; }
+      const sequence=++this.applySequence;
+      try { await this.saveZone(this.candidate); if(!this.disposed && sequence===this.applySequence)this.dialog = false; }
+      catch (error) { if(!this.disposed && sequence===this.applySequence)this.saveError = error.message || 'No se pudo guardar la zona horaria. Reintenta.'; }
+      finally { if(!this.disposed && sequence===this.applySequence)this.submitting = false; }
     }
   }
 };

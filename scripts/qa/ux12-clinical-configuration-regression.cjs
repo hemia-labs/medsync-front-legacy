@@ -13,7 +13,7 @@ function source(file) {return fs.readFileSync(path.join(root,file),'utf8');}
 function component(file, bindings={}) {
     const sfc=compiler.parseComponent(source(file));
     assert.deepEqual(compiler.compile(sfc.template.content).errors,[],file+' compiles');
-    const sandbox={component:null, mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},...bindings};
+    const sandbox={...require('./agenda-test-helpers.cjs'),ClinicTimeZoneField:{},component:null,PreparationGuide:{},authorizationContext:()=>({}),isCurrentAuthorization:()=>true, mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},...bindings};
     vm.runInNewContext(sfc.script.content.replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default','component ='),sandbox);
     return {options:sandbox.component,template:sfc.template.content};
 }
@@ -51,7 +51,7 @@ assert.match(previewHtml,/Domicilio QA visible/);assert.match(previewHtml,/QA_BA
 console.log('PASS UX12 print/preview: false flags, saved snapshot priority, legacy defaults, header/background modes, opacity boundaries, address and draft restriction.');
 
 (async()=>{
-    let saveCalls=0, response={success:false,message:'No se pudo guardar.'};
+    let saveCalls=0, response={success:false,status:400,message:'No se pudo guardar.'};
     const recipe=component('src/views/configuration/components/PrescriptionConfig.vue',{buildPrescriptionPreviewHtml:preview,isTenantAdministrator:role=>role==='admin',DAPrescriptionService:{saveConfig:async()=>{saveCalls++;return response;}}});
     const recipeView=view(recipe.options,{selectedDoctorId:'qa-doctor',loading:false,hasPermission:()=>true,authUser:{id_login:'qa-actor'},role:'admin'});
     let focused=0;recipeView.$refs.validationSummary={focus(){focused++;}};
@@ -91,7 +91,7 @@ console.log('PASS UX12 print/preview: false flags, saved snapshot priority, lega
     agendaView.editingBlock={repeats:true,allDay:true,dayOfWeek:1};assert.equal(agendaView.applyBlock(),true);
     console.log('PASS UX12 agenda: allowed options only, nonoverlapping range insertion, no-gap explanation, required real calendar date and weekly blocks.');
 
-    let reads=0, versions=0, allowDiscard=false, guardRegistered=0, guardRemoved=0, versionResponse={success:false,message:'Fallo simulado.'};
+    let reads=0, versions=0, allowDiscard=false, guardRegistered=0, guardRemoved=0, versionResponse={success:false,status:400,message:'Fallo simulado.'};
     const serverSchema={sections:Array.from({length:3},(_,index)=>({key:'custom_'+index,label:'Sección '+index,order:index+1,enabled:true,system:false,fields:Array.from({length:8},(_,field)=>({key:'custom_field_'+field,label:'Campo '+field,type:'text',required:false,enabled:true,system:false}))}))};
     const templateResponse=()=>({success:true,data:{source:'BUSINESS',template:{id_clinical_history_template:'qa-template',schema_json:clone(serverSchema),name:'QA',version_number:1,is_active:true}}});
     let readResponse=templateResponse();
@@ -121,7 +121,7 @@ console.log('PASS UX12 print/preview: false flags, saved snapshot priority, lega
     readResponse={success:false,message:'Fallo de lectura'};const local=JSON.stringify(clinicalView.schema);await clinicalView.loadTemplate();assert.equal(JSON.stringify(clinicalView.schema),local);assert.ok(clinicalView.loadError);assert.equal(clinicalView.canEditTemplate,false);assert.equal(clinicalView.isLoading,false);
     readResponse=templateResponse();await clinicalView.loadTemplate();
     clinicalView.schema.sections[0].description='Pendiente';await clinicalView.saveNewVersion();assert.equal(versions,1);assert.equal(clinicalView.isSaving,false);assert.equal(clinicalView.hasUnsavedChanges,true);
-    const versionGate=deferred();versionResponse=versionGate.promise;const saveVersion=clinicalView.saveNewVersion();await clinicalView.saveNewVersion();assert.equal(versions,2);
+    const versionGate=deferred();versionResponse=versionGate.promise;const saveVersion=clinicalView.saveNewVersion();await new Promise(resolve=>setImmediate(resolve));await clinicalView.saveNewVersion();assert.equal(versions,2);
     clinicalView.schema.sections[0].description='Edición posterior al envío';versionGate.resolve({success:true});await saveVersion;assert.equal(clinicalView.schema.sections[0].description,'Edición posterior al envío');assert.equal(clinicalView.hasUnsavedChanges,true);
     clinical.options.mounted.call(clinicalView);assert.equal(guardRegistered,1);clinical.options.beforeDestroy.call(clinicalView);assert.equal(guardRemoved,1);
     assert.equal((clinical.template.match(/v-dialog-name=/g)||[]).length,5);assert.equal((clinical.template.match(/aria-label="Cerrar /g)||[]).length,5);
