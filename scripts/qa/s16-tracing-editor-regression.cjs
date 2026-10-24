@@ -8,7 +8,7 @@ const vm = require('node:vm');
   const script = source.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component =');
   const pending = [];
   const context = { component: null, VuexMixin: {}, mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {},
-    DASweetConfirm: {}, DELETE: '', DAMonitorPlanModel: class {}, getAppointmentConfig: () => ({}), getAppointments: () => [],
+    DASweetConfirm: {}, FollowUpAppointment: {}, DELETE: '', DAMonitorPlanModel: class {}, getAppointmentConfig: () => ({}), getAppointments: () => [],
     formatFecha: value => value.split('-').reverse().join('-'), revertFormatFecha: value => value,
     toIsoDate: value => value || '', DAMonitoringService: { revisions: () => new Promise(resolve => pending.push(resolve)) }
   };

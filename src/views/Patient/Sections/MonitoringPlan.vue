@@ -30,7 +30,7 @@
                     <th>Fecha del seguimiento</th>
                     <th>Tratamiento realizado</th>
                     <th>Próximo procedimiento o indicación</th>
-                    <th>Fecha sugerida de próxima atención</th>
+                    <th>Próxima atención</th>
                     <th class="monitoring-table-action">Acciones</th>
                   </tr>
                 </thead>
@@ -57,6 +57,8 @@
                       </span>
                     </td>
                     <td>
+                      <follow-up-appointment :record="item" />
+                      <small v-if="item.linked_appointment_id">Fecha sugerida original: </small>
                       <span :class="['monitoring-next-date', hasNextAppointmentDate(item.quote_date_after) ? 'has-date' : 'is-empty']">
                         {{ displayMonitoringDate(item.quote_date_after, 'Sin fecha sugerida') }}
                       </span>
@@ -98,8 +100,8 @@
                     <dd>{{ displayMonitoringText(item.treatment_after, 'Sin tratamiento definido') }}</dd>
                   </div>
                   <div>
-                    <dt>Fecha sugerida de próxima atención</dt>
-                    <dd>{{ displayMonitoringDate(item.quote_date_after, 'Sin fecha sugerida') }}</dd>
+                    <dt>Próxima atención</dt>
+                    <dd class="monitoring-linked-care"><follow-up-appointment :record="item" /><span v-if="item.linked_appointment_id">Fecha sugerida original: </span>{{ displayMonitoringDate(item.quote_date_after, 'Sin fecha sugerida') }}</dd>
                   </div>
                 </dl>
 
@@ -386,6 +388,7 @@
 
           <p>Capturado por: {{ selectedMonitoring.author_name || selectedMonitoring.created_by || 'Autor no registrado' }} · Revisión {{ selectedMonitoring.revision || 1 }}</p>
           <p v-if="selectedMonitoring.status === 'cancelled'" role="status">Anulado: {{ selectedMonitoring.cancellation_reason }}</p>
+          <follow-up-appointment :record="selectedMonitoring" />
 
           <v-text-field
             v-model="objCita2.quote_date_now"
@@ -589,6 +592,7 @@
 </template>
 
 <script>
+import FollowUpAppointment from './FollowUpAppointment.vue';
 import { newAgendaRequestId, clinicClock } from '../../../domain/appointments/agendaInteraction';
 import { mapActions, mapGetters } from 'vuex';
 import { uuid } from 'vue-uuid';
@@ -703,6 +707,7 @@ export default {
        
     },
     components: {
+      FollowUpAppointment,
         'da-sweet-confirm': DASweetConfirm
     },
   created() {
@@ -760,7 +765,7 @@ export default {
         this.objCita3.quote_date_after,
         this.appointmentConfig,
         this.appointments
-      ).filter((slot) => slot.selectable)
+      ).filter((slot) => slot.selectable).sort((a, b) => a.startTime.localeCompare(b.startTime))
     },
 
     availableEditAppointmentSlots: function() {
@@ -781,7 +786,7 @@ export default {
         this.objCita.quote_date_after,
         this.appointmentConfig,
         appointments
-      ).filter((slot) => slot.selectable)
+      ).filter((slot) => slot.selectable).sort((a, b) => a.startTime.localeCompare(b.startTime))
     }
   },
   watch: {
@@ -2442,7 +2447,7 @@ export default {
     margin: 0;
   }
 
-  .monitoring-mobile-meta div {
+  .monitoring-mobile-meta > div {
     min-width: 0;
     padding: 0.75rem;
     border: 1px solid #e8eef2;
@@ -2466,6 +2471,12 @@ export default {
     font-weight: 800;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .monitoring-mobile-meta dd.monitoring-linked-care {
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .monitoring-mobile-note {
