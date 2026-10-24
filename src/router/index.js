@@ -11,6 +11,10 @@ import legal from './routes/legal';
 import business from './routes/business';
 import prescription from './routes/prescription';
 import publicSignature from './routes/public-signature';
+import licensingDemo from './routes/licensing-demo';
+import { isPendingActivation } from '../utils/registration';
+import Registration from '../services/core/auth/DARegistrationService';
+import { activationDestination } from '../utils/activationDestination';
 import { getSessionPermissions, hasAnyPermission, hasPermission } from '../security/permissions';
 import { canAccessSettings } from '../security/settingsAccess';
 import store from '../store';
@@ -47,6 +51,7 @@ function isD2SuperAdminSession() {
 }
 
 function getDefaultAuthenticatedRoute() {
+    if(isPendingAccountSession()) return { name: 'accountActivation' };
     if(isD2AuthMode()) {
         return isD2SuperAdminSession() ? { name: 'superAdminDashboard' } : { name: 'home' };
     }
@@ -56,6 +61,11 @@ function getDefaultAuthenticatedRoute() {
 
 function getLegacyTenantOperationalState() {
     return Vue.prototype.$session ? Vue.prototype.$session.get('tenantOperational') : null;
+}
+
+function isPendingAccountSession() {
+    if(isD2AuthMode()) return !isD2SuperAdminSession() && isPendingActivation(getD2TenantOperationalState(), store.getters[`${AUTH_NAMESPACE}/getBusiness`]);
+    return !isLegacySuperAdminSession() && isPendingActivation(getLegacyTenantOperationalState());
 }
 
 function getD2TenantOperationalState() {
@@ -105,6 +115,7 @@ const routes = [
         ...error,
         ...legal,
         ...publicSignature,
+        ...licensingDemo,
         ...business,
         ...prescription,
         { path: "*", component: () => import('@/views/error/404.vue') }
@@ -140,7 +151,7 @@ const router = new VueRouter({
   }
 
   async function d2BeforeEach(to, next, requiredAuth) {
-    const shouldHydrate = requiredAuth || to.name === 'login';
+    const shouldHydrate = requiredAuth || ['login', 'register'].includes(to.name);
     const hasSession = shouldHydrate ? await ensureD2SessionHydrated() : isD2Authorized();
 
     if (requiredAuth && to.name !== 'login' && !hasSession){
@@ -148,7 +159,7 @@ const router = new VueRouter({
         return;
     }
 
-    if(to.name === 'login' && hasSession){
+    if(['login', 'register'].includes(to.name) && hasSession){
         next(getDefaultAuthenticatedRoute())
         return;
     }
@@ -156,6 +167,15 @@ const router = new VueRouter({
     if(!requiredAuth) {
         next();
         return;
+    }
+
+    // Pending accounts cannot mount the clinical layout, including read-only routes.
+    if(isPendingAccountSession() && to.name !== 'accountActivation') {
+        next({ name: 'accountActivation' }); return;
+    }
+    const welcomePending = Boolean((store.getters[`${AUTH_NAMESPACE}/getBusiness`] || {}).registrationWelcomePending);
+    if(to.name === 'accountActivation' && !isPendingAccountSession() && !welcomePending) {
+        next(getDefaultAuthenticatedRoute()); return;
     }
 
     if(['dashboard', 'home'].includes(to.name) && isD2SuperAdminSession()){
@@ -166,6 +186,17 @@ const router = new VueRouter({
     if(isD2TenantRestrictedSession() && !isD2SuperAdminSession() && !canRouteInTenantRestrictedMode(to)) {
         next({ name: 'tenantRestricted' })
         return;
+    }
+
+    if(welcomePending && !isPendingAccountSession() && !isD2SuperAdminSession()
+        && !isD2TenantRestrictedSession() && ['home', 'dashboard'].includes(to.name)) {
+        let destination;
+        try { destination = activationDestination(await Registration.activation()); }
+        catch (_) { destination = null; }
+        if(!isD2Authorized()) { next({name:'auth'}); return; }
+        if(!destination || destination.name !== to.name) {
+            next(destination || {name:'accountActivation'}); return;
+        }
     }
 
     if(to.matched.some(r=>r.meta.pulseAccess) && !canAccessPulse(store.state.CORE.AUTH.permissions,store.state.CORE.AUTH.role)) { next({name:'home'});return; }
@@ -224,7 +255,7 @@ const router = new VueRouter({
           return;
       }
 
-    if(to.name === 'login' && isLegacyAuthorized()){
+    if(['login', 'register'].includes(to.name) && isLegacyAuthorized()){
         next(getDefaultAuthenticatedRoute())
         return;
     }
@@ -232,6 +263,13 @@ const router = new VueRouter({
     if(requiredAuth && ['dashboard', 'home'].includes(to.name) && isLegacySuperAdminSession()){
         next({ name: 'superAdminDashboard' })
         return;
+    }
+
+    if(requiredAuth && isPendingAccountSession() && to.name !== 'accountActivation') {
+        next({ name: 'accountActivation' }); return;
+    }
+    if(requiredAuth && to.name === 'accountActivation' && !isPendingAccountSession()) {
+        next(getDefaultAuthenticatedRoute()); return;
     }
 
     if(requiredAuth && isLegacyTenantRestrictedSession() && !isLegacySuperAdminSession() && !canRouteInTenantRestrictedMode(to)) {

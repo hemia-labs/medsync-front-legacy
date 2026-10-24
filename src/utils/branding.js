@@ -9,12 +9,12 @@ export const getStoredLoginLogo = () => {
 };
 
 export const setStoredLoginLogo = (logo) => {
-    if (!logo) {
-        return;
-    }
-
     try {
-        window.localStorage.setItem(DEFAULT_LOGIN_LOGO_KEY, logo);
+        if (logo) {
+            window.localStorage.setItem(DEFAULT_LOGIN_LOGO_KEY, logo);
+        } else {
+            window.localStorage.removeItem(DEFAULT_LOGIN_LOGO_KEY);
+        }
     } catch (error) {
         // Storage can be unavailable in private contexts.
     }

@@ -42,7 +42,11 @@ assert.equal(staffValidation.user.phone.phonePattern('5512345678'),true);
 assert.equal(staffValidation.user.email.emailPattern('correo incorrecto'),false);
 assert.equal(staffValidation.user.email.emailPattern('qa@example.test'),true);
 let response = {success:true,data:{business:{planName:'Profesional'},license:{professionals:{used:1,limit:1},staffUsers:{used:1,limit:3}}}};
-const staff = methods(staffComponent,['fieldErrors','formatLicenseUsage','loadLicenseSummary','onSave'],{DABusinessService:{getLicenseUsage:async () => {if(response instanceof Error)throw response;return response;}}});
+const staff = methods(staffComponent,['fieldErrors','formatLicenseUsage','loadLicenseSummary','onSave'],{
+    // This fixture only submits an invalid form; session behavior is covered by S18.
+    authorizationContext:()=>({}), isCurrentAuthorization:()=>true,
+    DABusinessService:{getLicenseUsage:async () => {if(response instanceof Error)throw response;return response;}}
+});
 assert.equal(staff.formatLicenseUsage(undefined),'No disponible');
 assert.equal(staff.formatLicenseUsage({}),'No disponible');
 assert.equal(staff.formatLicenseUsage({used:1,limit:1}),'1 de 1');

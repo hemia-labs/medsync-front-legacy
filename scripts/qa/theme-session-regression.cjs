@@ -15,6 +15,13 @@ const load = (file, bindings = {}, component = false) => {
   vm.runInNewContext(source, context, { filename: file });
   return context.module.exports;
 };
+const named = (file, names) => {
+  const context = { module: { exports: {} } };
+  vm.runInNewContext(read(file).replace(/^import[^\n]*\n/gm, '').replace(/export /g, '') + '\nmodule.exports = {' + names.join(',') + '};', context);
+  return context.module.exports;
+};
+const registration = named('src/utils/registration.js', ['isPendingActivation']);
+const authorization = named('src/security/authorizationContext.js', ['authorizationFingerprint']);
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const variables = new Map();
@@ -41,7 +48,7 @@ const service = {
   saveTheme: () => { saveCalls += 1; return saveReply; },
   getThemeList: () => listReply
 };
-const actions = load('src/store/modules/configuration/actions.js', { DAConfigService: service, DAHasErrorModel: ErrorModel, types, ...theme });
+const actions = load('src/store/modules/configuration/actions.js', { DAConfigService: service, DAHasErrorModel: ErrorModel, types, ...theme, ...authorization });
 const authHydration = deferred();
 const authPayload = (tenant = 'A', authenticated = true) => ({ authenticated,
   user: authenticated ? { id_login: 'fixture', id_session: 's', id_business: tenant } : null,
@@ -59,12 +66,12 @@ const CORE = { namespaced: true, state: () => ({ currentAction: null }), modules
   }
 } };
 const store = load('src/store/index.js', { Vue, Vuex, CORE });
-const appDefinition = load('src/App.vue', { ...theme, mapActions: Vuex.mapActions,
+const appDefinition = load('src/App.vue', { ...theme, ...registration, mapActions: Vuex.mapActions,
   fnTypes: { getToken: 'getToken' }, moduleTypes: { AUTH: 'CORE/AUTH', CONFIGURATION: 'CORE/CONFIGURATION' }, window, document }, true);
 const app = new Vue({ ...appDefinition, store });
 const dispatch = (action, payload) => store.dispatch('CORE/CONFIGURATION/' + action, payload);
 const components = Object.fromEntries(['ProfessionalAgendaConfig', 'PrescriptionConfig', 'AdminSummary',
-  'ClinicalHistoryTemplateConfig', 'RolesPermissionsConfig', 'DAProfessionalProfile'].map(name => [name, {}]));
+  'ClinicalHistoryTemplateConfig', 'RolesPermissionsConfig', 'DAProfessionalProfile', 'PreparationGuide', 'AccountLegalDocuments', 'ChangePassword'].map(name => [name, {}]));
 const config = load('src/views/configuration/index.vue', { ...components, ...theme,
   mapActions: () => ({}), mapGetters: () => ({}), VuexMixin: {}, moduleTypes: {}, fnTypes: {} }, true);
 const configView = new Vue({ store, data: () => ({ selectedThemeCode: theme.DEFAULT_THEME.code }),

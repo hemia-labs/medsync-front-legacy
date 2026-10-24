@@ -1078,7 +1078,7 @@ export default {
         },
 
         businessPlanLabel: function() {
-            return ({ basic: 'Individual', pro: 'Profesional', enterprise: 'Clínica' })[String(this.businessInfo.plan || '').toLowerCase()] || 'Sin plan identificado'
+            return ({ basic: 'Individual', pro: 'Profesional', professional: 'Profesional', enterprise: 'Clínica' })[String(this.businessInfo.plan || '').toLowerCase()] || 'Sin plan identificado'
         },
 
         businessStatusLabel: function() {
