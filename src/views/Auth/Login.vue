@@ -6,7 +6,7 @@
       <div class="auth-card" :class="{ 'auth-card--recovery': !isLoginView }">
         <div class="auth-brand">
           <div class="auth-logo-lockup">
-            <img :src="bgLogotype" alt="MedSync" class="auth-brand-logo">
+            <img :src="bgLogotype" alt="MedSync" class="auth-brand-logo" @error="useDefaultLoginLogo">
             <div class="auth-brand-text">
               <span class="auth-brand-label">Portal clínico</span>
               <span class="auth-brand-subline">Operado con MedSync</span>
@@ -121,6 +121,9 @@
 
           <p class="auth-security-copy">
             Tus credenciales son personales. Cierra sesión al terminar en equipos compartidos.
+          </p>
+          <p v-if="registrationAvailable" class="registration-entry">
+            ¿Aún no tienes cuenta? <router-link :to="{ name: 'register' }">Crear cuenta</router-link>
           </p>
         </v-form>
 
@@ -414,6 +417,7 @@ import { DAConfigService } from '../../services/context/core-proccess-context';
 import { validationMixin } from 'vuelidate';
 import { required, helpers, maxLength } from 'vuelidate/lib/validators';
 import { getLoginImageData, getStoredLoginLogo, setStoredLoginLogo } from '../../utils/branding';
+import defaultLoginLogo from '@/assets/login/med-sync-logo.png';
 import {
   clearRememberedIdentifier,
   getRememberedIdentifier,
@@ -421,6 +425,8 @@ import {
   setRememberedIdentifier
 } from '../../utils/authRememberedIdentifier';
 import { isD2AuthMode } from '../../services/config/authTransport.config';
+import Registration from '../../services/core/auth/DARegistrationService';
+import { usableRegistrationContext, isPendingActivation } from '../../utils/registration';
 
 const phonePattern = helpers.regex('numeric', /^(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/);
 
@@ -429,6 +435,7 @@ export default {
   data: function() {
     return {
       otp: '',
+      registrationAvailable: false,
       newPwd: '',
       newPwdRepet: '',
       ErrorPwdRepeatM: '',
@@ -467,7 +474,7 @@ export default {
       resendCooldownTimer: null,
       auth: new DAAuthModel(),
       rememberIdentifier: false,
-      bgLogotype: getStoredLoginLogo() || require('@/assets/login/Logo.svg'),
+      bgLogotype: getStoredLoginLogo() || defaultLoginLogo,
       ui: {
         phoneLabel: 'Tel\u00e9fono',
         passwordLabel: 'Contrase\u00f1a',
@@ -485,6 +492,7 @@ export default {
     };
   },
   created() {
+    this.loadRegistrationAvailability();
     this.loadRememberedIdentifier();
     this.loadLoginImage();
   },
@@ -651,6 +659,12 @@ export default {
     }
   },
   methods: {
+    async loadRegistrationAvailability() {
+      try {
+        const context = await Registration.context();
+        if (!this._isDestroyed) this.registrationAvailable = usableRegistrationContext(context);
+      } catch { this.registrationAvailable = false; }
+    },
     ...mapActions(moduleTypes.AUTH, [
       fnTypes.login, fnTypes.sendOtp, fnTypes.validateOtp, fnTypes.updatePwd
     ]),
@@ -718,14 +732,22 @@ export default {
     loadLoginImage: async function() {
       try {
         const response = await DAConfigService.getLoginImage();
+        if (!response || !response.success) return;
         const logo = getLoginImageData(response);
         if (logo) {
           this.bgLogotype = logo;
           setStoredLoginLogo(logo);
+        } else {
+          this.useDefaultLoginLogo();
         }
       } catch (error) {
-        this.bgLogotype = this.bgLogotype || require('@/assets/login/Logo.svg');
+        this.bgLogotype = this.bgLogotype || defaultLoginLogo;
       }
+    },
+
+    useDefaultLoginLogo: function() {
+      this.bgLogotype = defaultLoginLogo;
+      setStoredLoginLogo(null);
     },
 
     setRecoveryStatus: function(type, title, message) {
@@ -936,13 +958,14 @@ export default {
 
       await this.login(this.auth);
       if (this.isAuthorized) {
-        await this.loadLoginImage();
+        if (!isPendingActivation(this.tenantOperational)) await this.loadLoginImage();
         this.$router.push(this.getPostLoginRoute());
       }
       this.isLoading = false;
     },
 
     getPostLoginRoute: function() {
+      if (this.role !== 'super_admin' && isPendingActivation(this.tenantOperational)) return '/activar-cuenta';
       if (isD2AuthMode()) {
         if (this.role !== 'super_admin' && this.tenantOperational && this.tenantOperational.allowed === false && this.tenantOperational.code === 'TENANT_NOT_OPERATIONAL') {
           return '/tenant-restricted';
@@ -959,6 +982,7 @@ export default {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         const tenantOperational = this.$session ? this.$session.get('tenantOperational') : null;
+        if (payload && payload.rol !== 'super_admin' && isPendingActivation(tenantOperational)) return '/activar-cuenta';
         if (payload && payload.rol !== 'super_admin' && tenantOperational && tenantOperational.allowed === false && tenantOperational.code === 'TENANT_NOT_OPERATIONAL') {
           return '/tenant-restricted';
         }
@@ -1083,6 +1107,9 @@ export default {
 </script>
 
 <style scoped>
+.registration-entry{margin:16px 0 0;text-align:center;font-size:14px;color:#526970}
+.registration-entry a{color:#13655e;font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:8px 0}
+.registration-entry a:focus-visible{outline:3px solid #258e86;outline-offset:3px}
 .medsync-auth-screen {
   min-height: 100vh;
   width: 100%;

@@ -18,6 +18,7 @@ import { mapActions } from 'vuex';
 import fnTypes from './store/modules/common/fn-types';
 import moduleTypes from './store/modules/common/module-types';
 import { getThemeContext, syncThemeContext, themeState } from './plugins/theme';
+import { isPendingActivation } from './utils/registration';
 export default {
   name: 'App',
   data: () => ({ lastAccessCheck: 0, authBootstrapped: false }),
@@ -49,6 +50,7 @@ export default {
     loadTheme: async function({ allowAnonymous = false, force = false } = {}) {
       const auth = this.$store.state.CORE.AUTH;
       syncThemeContext(getThemeContext(auth));
+      if(isPendingActivation(auth.tenantOperational, auth.business)) return;
       if(!auth.authenticated && !allowAnonymous) return;
       return this.$store.dispatch(moduleTypes.CONFIGURATION + '/getTheme', { allowAnonymous, force });
     }

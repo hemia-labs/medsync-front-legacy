@@ -1,5 +1,11 @@
 <template>
     <section>
+        <activation-welcome />
+        <aside v-if="licenseDemoAvailable" class="mb-5 p-5 rounded-xl border border-primary-200 bg-white">
+            <p class="m-0 font-semibold text-primary-900">Plan Profesional · Vista de prueba</p>
+            <p class="mt-2 text-sm text-gray-600">Revisa el recorrido de activación sin cobros ni cambios en tu licencia.</p>
+            <router-link to="/activar-cuenta/demo" class="inline-block mt-2 underline text-primary-900">Probar activación de Profesional</router-link>
+        </aside>
         <preparation-checklist show-completed />
         <div class="bg-white bg-opacity-95 border border-primary-200 shadow-xl rounded-xl">
         <div class="px-7 py-5 border-b border-primary-200 bg-primary-100">
@@ -27,8 +33,13 @@
 
 <script>
 import PreparationChecklist from './PreparationChecklist.vue';
+import ActivationWelcome from './ActivationWelcome.vue';
 export default {
-    components: { PreparationChecklist },
+    components: { PreparationChecklist, ActivationWelcome },
+    computed: { licenseDemoAvailable() {
+        const business = this.$store.getters['CORE/AUTH/getBusiness'] || {};
+        return process.env.NODE_ENV === 'development' && !business.registrationActivationConfirmed;
+    } },
     props: {
         items: {
             type: Array,
