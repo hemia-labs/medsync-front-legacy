@@ -20,7 +20,7 @@ const iso = value => {
 };
 const context = {
   ...require('./agenda-test-helpers.cjs'), component: null, VuexMixin: {}, mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {},
-  DASweetConfirm: {}, DELETE: '', DAMonitorPlanModel: class { constructor() { this.quote_date_after = ''; this.note = ''; } },
+  DASweetConfirm: {}, FollowUpAppointment: {}, DELETE: '', DAMonitorPlanModel: class { constructor() { this.quote_date_after = ''; this.note = ''; } },
   uuid: { v4: () => '12345678-1234-4123-8123-123456789012' },
   APPOINTMENT_STATUSES: statuses, APPOINTMENT_STATUS_COLORS: {}, APPOINTMENT_STATUS_LABELS: {},
   getAppointmentConfig: () => ({}), getAppointments: () => [], normalizeAppointmentConfig: value => value, saveAppointmentConfig: () => {},
