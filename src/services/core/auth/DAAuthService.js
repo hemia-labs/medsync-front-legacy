@@ -1,4 +1,4 @@
-import { DAC_AUTH_LOGIN, DAC_AUTH_CLOSE, DAC_AUTH_SENDOTP, DAC_AUTH_VALIDATEOTP, DAC_AUTH_UPDATEPWD, DAC_AUTH_REFRESH_TOKEN } from '../../common/apiurl';
+import { DAC_AUTH_LOGIN, DAC_AUTH_CLOSE, DAC_AUTH_SENDOTP, DAC_AUTH_VALIDATEOTP, DAC_AUTH_UPDATEPWD, DAC_AUTH_CHANGE_PASSWORD_SEND_CODE, DAC_AUTH_CHANGE_PASSWORD_CONFIRM, DAC_AUTH_REFRESH_TOKEN } from '../../common/apiurl';
 import { DACore } from '../../config/axios.context'
 import { isD2AuthMode } from '../../config/authTransport.config';
 import DACsrfService from './DACsrfService';
@@ -82,6 +82,14 @@ export default {
      */
     async updatePwd(data) {
         return DACore.put(DAC_AUTH_UPDATEPWD, data);
+    },
+
+    async sendPasswordChangeCode(data) {
+        return DACore.post(DAC_AUTH_CHANGE_PASSWORD_SEND_CODE, data);
+    },
+
+    async confirmPasswordChange(data) {
+        return DACore.post(DAC_AUTH_CHANGE_PASSWORD_CONFIRM, data);
     },
     /**
      * Función que permite realizar el refrescado del token de sesión
