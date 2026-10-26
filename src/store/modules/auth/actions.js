@@ -1,8 +1,6 @@
 import Vue from 'vue';
 import decode from 'jwt-decode';
 import { DAAuthService } from '../../../services/context/core-proccess-context';
-import { toSHA256 } from '../../../libs/crypto';
-import { getTimestamp } from '../../../libs/time';
 import DAAuthModel from '../../../models/auth/DAAuthModel';
 import types from '../common/mutation-types';
 import DAHasErrorModel from '../../../models/error/DAHasErrorModel';
@@ -62,9 +60,6 @@ const actions = {
             let authModel = new DAAuthModel()
             authModel.param = param
             authModel.pwd = pwd
-            authModel.secretkey = process.env.VUE_APP_SECRET_KEY
-            authModel.timestamp = getTimestamp()
-            authModel.signature = toSHA256(authModel.secretkey+authModel.timestamp);
             authModel.refresh = refresh
 
             let response = await DAAuthService.login(authModel);

@@ -66,9 +66,9 @@ function safeOrigin(value) {
   }
 }
 
-function validateApiUrl(mode) {
+function validateApiUrl(mode, suppliedEnv = null) {
   const normalizedMode = String(mode || 'production').trim().toLowerCase();
-  const env = loadEffectiveEnv(normalizedMode);
+  const env = suppliedEnv || loadEffectiveEnv(normalizedMode);
   const apiUrl = env.VUE_APP_CORE_URL_API || '';
   const productionLike = PRODUCTION_LIKE_MODES.indexOf(normalizedMode) >= 0;
 
@@ -110,6 +110,13 @@ function validateApiUrl(mode) {
       apiOrigin: safeOrigin(apiUrl),
       error: 'VUE_APP_CORE_URL_API must be an absolute https:// URL for production-like builds.'
     };
+  }
+
+  const requiredAuth = { VUE_APP_AUTH_COOKIE_MODE: 'd2', VUE_APP_BROWSER_AUTH_TRANSPORT: 'cookie', VUE_APP_CSRF_ENABLED: 'true' };
+  const invalid = Object.keys(requiredAuth).filter(key => String(env[key] || '').trim().toLowerCase() !== requiredAuth[key]);
+  if (invalid.length) {
+    return { ok: false, mode: normalizedMode, productionLike, apiOrigin: safeOrigin(apiUrl),
+      error: 'Production/staging requires D2 cookie authentication and CSRF. Check: ' + invalid.join(', ') };
   }
 
   return {

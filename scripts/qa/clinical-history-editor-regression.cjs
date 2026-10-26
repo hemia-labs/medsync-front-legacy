@@ -123,7 +123,7 @@ const vm = require('node:vm');
     const parentContext = { parent: null, VuexMixin: {}, mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {}, fnTypes: {},
         DAHistoryHeader: {}, DAAlergyAlert: {}, AllergyEditor: {}, PatientAdministrativeForm: {}, DASweetConfirm: {}, DocumentsAndSignatures: {}, DELETE: {} };
     vm.runInNewContext(parentScript, parentContext);
-    const parent = { ...parentContext.parent.data(), allowedTabs: [{ component: 'da-medical-history' }, { component: 'da-patient-prescriptions' }] };
+    const parent = { $nextTick: async () => {}, ...parentContext.parent.data(), allowedTabs: [{ component: 'da-medical-history' }, { component: 'da-patient-prescriptions' }] };
     Object.entries(parentContext.parent.methods).forEach(([key, method]) => { parent[key] = method.bind(parent); });
     parent.ensureValidTab();
     parent.registerSectionGuard(async () => false);

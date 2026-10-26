@@ -1,13 +1,16 @@
 <template>
   <div class="min-h-full app-background tenant-layout" :class="{ 'tenant-settings-layout': $route.path === '/admin', 'tenant-pulse-layout': $route.name === 'business-pulse' }">
-    <header class="tenant-header">
+    <header class="tenant-header" :inert="isMobileNavigationOpen ? '' : null">
       <nav class="tenant-header-nav">
         <div class="tenant-header-left">
           <v-btn
             class="tenant-mobile-menu-button"
+            ref="mobileMenuButton"
             icon
             color="primary"
             aria-label="Abrir navegacion principal"
+            :aria-expanded="String(isMobileNavigationOpen)"
+            aria-controls="tenant-mobile-navigation"
             @click="isMobileNavigationOpen = true"
           >
             <v-icon>mdi-menu</v-icon>
@@ -42,6 +45,12 @@
     />
 
     <v-navigation-drawer
+      ref="mobileDrawer"
+      id="tenant-mobile-navigation"
+      role="dialog"
+      aria-label="Navegación principal"
+      :aria-modal="isMobileNavigationOpen ? 'true' : null"
+      tabindex="-1"
       v-model="isMobileNavigationOpen"
       fixed
       temporary
@@ -62,7 +71,7 @@
       />
     </v-navigation-drawer>
 
-    <main class="tenant-main-shell">
+    <main class="tenant-main-shell" :inert="isMobileNavigationOpen ? '' : null">
       <da-re-login :show="isRelogin" v-on:auth="isRelogin = false"></da-re-login>
       <div class="tenant-content">
         <legal-update-notice />
@@ -72,7 +81,7 @@
       </div>
     </main>
 
-    <footer class="tenant-footer">
+    <footer class="tenant-footer" :inert="isMobileNavigationOpen ? '' : null">
       <div class="tenant-footer-brand">
         <strong>MedSync.mx</strong>
         <span class="tenant-footer-copy">&copy; {{ currentYear }} Todos los derechos reservados</span>
@@ -95,6 +104,7 @@
 </template>
 
 <script>
+import { containNavigationFocus } from '../../utils/mobileNavigationFocus';
 import PulseReturn from '../../views/Pulse/PulseReturn.vue';
 import OnboardingCoordinator from '../../views/configuration/components/OnboardingCoordinator.vue';
 import { canAccessPulse } from '../../security/pulseAccess';
@@ -140,6 +150,7 @@ export default {
       window.addEventListener('resize', this.closeMobileNavigationOnDesktop)
     },
     beforeDestroy() {
+      if(this.releaseMobileFocus) this.releaseMobileFocus();
       window.removeEventListener('resize', this.closeMobileNavigationOnDesktop)
     },
     computed: {
@@ -392,6 +403,18 @@ export default {
         }
     },
     watch: {
+      isMobileNavigationOpen: function(open) {
+          if(this.releaseMobileFocus) { this.releaseMobileFocus(); this.releaseMobileFocus = null; }
+          this.$nextTick(() => {
+              if(open && this.isMobileNavigationOpen && !this._isDestroyed) {
+                  this.releaseMobileFocus = containNavigationFocus(this.$refs.mobileDrawer.$el,
+                      () => { this.isMobileNavigationOpen = false; });
+              } else if(!open && !this.isMobileNavigationOpen && !this._isDestroyed) {
+                  const trigger = this.$refs.mobileMenuButton && this.$refs.mobileMenuButton.$el;
+                  if(trigger && trigger.isConnected && trigger.getClientRects().length) trigger.focus();
+              }
+          });
+      },
       currentRoute: function() {
           this.isMobileNavigationOpen = false;
       },
@@ -710,12 +733,12 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
   }
 
   .tenant-main-shell {
-    padding-bottom: 3.5rem;
+    padding-bottom: 7.5rem;
   }
 
   .tenant-footer {
     align-items: center;
-    flex-direction: row;
+    flex-direction: column;
     justify-content: space-between;
     gap: 0.45rem;
     min-height: 2.65rem;
@@ -738,11 +761,11 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
 
   .tenant-footer-links {
     flex: 1 1 auto;
-    justify-content: flex-end;
-    flex-wrap: nowrap;
+    justify-content: center;
+    flex-wrap: wrap;
     gap: 0.25rem;
     min-width: 0;
-    overflow-x: auto;
+    overflow-x: visible;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }

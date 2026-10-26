@@ -25,6 +25,8 @@ assert.equal(scope.allowedTabs.some(tab => tab.component === 'da-patient-documen
 permissions = ['px.all', 'px.new', 'clinical_history.view', 'clinical_history.edit_draft', 'px.tab.history'];
 assert.equal(scope.canViewClinical, false, 'UI cannot turn redacted administrative response into clinical data');
 scope.px.access.clinical = true;
+assert.equal(scope.canViewClinical, false, 'Sensitive permission is required even if an older API reports clinical access');
+permissions.push('clinical_history.view_sensitive');
 assert.equal(scope.canViewClinical, true);
 assert.equal(scope.canEditAllergies, true);
 assert.equal(scope.allowedTabs.some(tab => tab.component === 'da-medical-history'), true);

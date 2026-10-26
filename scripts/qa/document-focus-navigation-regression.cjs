@@ -20,7 +20,7 @@ const bind = (options, props) => {
     return view;
 };
 (async () => {
-    const parent = bind(parentOptions, { activePatientId: 'qa-patient', hasPermission: () => true });
+    const parent = bind(parentOptions, { activePatientId: 'qa-patient', hasPermission: () => true, $nextTick: async () => {} });
     parent.allowedTabs = parent.configuration;
     parent.confirmSectionLeave = async () => true;
     const target = { id_patient_document: 'qa-document', document_type: 'SENSITIVE_DATA_CONSENT', open: true };

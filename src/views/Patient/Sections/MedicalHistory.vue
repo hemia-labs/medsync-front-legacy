@@ -1,5 +1,10 @@
 <template>
   <div class="clinical-history-page" :aria-busy="String(isLoading)">
+    <section v-if="!canReadHistory || historyForbidden" class="clinical-panel warning-panel" role="alert">
+      <strong>No tienes permiso para consultar la historia clínica.</strong>
+      <span>Solicita al administrador los permisos de consulta de historia y datos sensibles.</span>
+    </section>
+    <template v-else>
     <section v-if="isLoading" class="clinical-panel" role="status">Cargando historia clínica, formato y responsables…</section>
     <section v-else-if="loadError && !clinicalHistory" class="clinical-panel warning-panel" role="alert">
       <strong>No se pudo cargar la historia clínica.</strong>
@@ -889,6 +894,7 @@
         </div>
       </div>
     </v-dialog>
+    </template>
   </div>
 </template>
 
@@ -1043,6 +1049,7 @@ export default {
       loadRequest: 0,
       versionsLoading: false,
       loadError: false,
+      historyForbidden: false,
       versionsLoadError: false,
       showFinalizeDialog: false,
       showVersionsPanel: false,
@@ -1055,6 +1062,7 @@ export default {
     };
   },
   computed: {
+    canReadHistory() { return this.hasPermission('clinical_history.view') && this.hasPermission('clinical_history.view_sensitive'); },
     canReviewAllergies() { return this.hasPermission('clinical_history.edit_draft'); },
     canViewCurrentTemplate() { return this.hasPermission('clinical_history_template.view'); },
     allergyStateLabel() { return allergyLabels[this.form.allergies_medications.allergy_status] || (this.isDraft ? 'Alergias sin revisar' : 'Registro de alergias de esta versión'); },
@@ -1078,7 +1086,7 @@ export default {
     canEditForm() {
       return Boolean(this.clinicalHistory && this.isDraft && this.canEditDraftPermission && !this.isBusy && !this.isLoading);
     },
-    contextReady() { return this.historyLoaded && !this.isLoading && !this.loadError && !this.contextError && (!this.templateLoadError || Boolean(this.historyTemplateSchema)); },
+    contextReady() { return this.canReadHistory && !this.historyForbidden && this.historyLoaded && !this.isLoading && !this.loadError && !this.contextError && (!this.templateLoadError || Boolean(this.historyTemplateSchema)); },
     dirty() { return Boolean(this.isDraft && this.savedSnapshot && this.savedSnapshot !== editorSnapshot(this.form, this.doctorResponsibleUserId)); },
     validationErrors() { return this.showValidation ? this.validateTextLengths().errors : []; },
     allowedPreparationSections() { return getSettingsSections(this.currentUserRole, this.hasPermission).map(section => section.key); },
@@ -1100,7 +1108,7 @@ export default {
       );
     },
     canViewVersions() {
-      return this.hasPermission('clinical_history.view');
+      return this.canReadHistory;
     },
     canPrintClinicalHistory() {
       return this.hasPermission('clinical_history.print') || this.hasPermission('clinical_history.view');
@@ -1533,6 +1541,7 @@ export default {
     }
   },
   watch: {
+    canReadHistory(allowed) { if(!allowed) this.denyHistoryAccess(); },
     'px.allergy': function(record) {
       if(!this.isDraft || !record) return;
       this.$set(this.form, 'allergies_medications', allergySnapshot(this.form.allergies_medications, record));
@@ -1569,8 +1578,19 @@ export default {
     if(this.leaveResolver) this.leaveResolver(false);
   },
   methods: {
+    denyHistoryAccess() {
+      this.historyForbidden = true;
+      this.clinicalHistory = null;
+      this.clinicalHistoryVersions = [];
+      this.form = emptySnapshot();
+      this.savedSnapshot = '';
+      this.historyLoaded = false;
+      this.loadError = false;
+    },
     async loadInitialData() {
       if(!this.patientId || this.isBusy) return;
+      if(!this.canReadHistory) { this.denyHistoryAccess(); this.isLoading = false; return; }
+      this.historyForbidden = false;
       const request = ++this.loadRequest;
       const patientId = this.patientId;
       const preserveDraft = this.dirty;
@@ -1647,9 +1667,11 @@ export default {
     },
     async loadClinicalHistory(request = this.loadRequest, patientId = this.patientId, preserveDraft = this.dirty) {
       this.loadError = false;
+      if(!this.canReadHistory) { this.denyHistoryAccess(); return; }
       try {
         const response = await DAClinicalHistoryService.getByPatient(patientId);
-        if(request !== this.loadRequest) return;
+        if(request !== this.loadRequest || this.historyForbidden) return;
+        if(response && response.status === 403) { this.denyHistoryAccess(); return; }
         if(!response || !response.success || !response.data) throw new Error('History load failed');
         this.historyLoaded = true;
         if(!preserveDraft) {
@@ -1658,7 +1680,10 @@ export default {
           else this.form = this.buildLegacySnapshot();
         }
       } catch (error) {
-        if(request === this.loadRequest) this.loadError = true;
+        if(request === this.loadRequest) {
+          if(error.response && error.response.status === 403) this.denyHistoryAccess();
+          else this.loadError = true;
+        }
       }
     },
     async loadClinicalHistoryVersions(request = this.loadRequest, patientId = this.patientId) {
@@ -1670,14 +1695,18 @@ export default {
       this.versionsLoadError = false;
       try {
         const response = await DAClinicalHistoryService.getVersionsByPatient(patientId);
-        if(request !== this.loadRequest) return;
+        if(request !== this.loadRequest || this.historyForbidden) return;
+        if(response && response.status === 403) { this.denyHistoryAccess(); return; }
         if(response && response.success && response.data) {
           this.clinicalHistoryVersions = response.data.versions || [];
           return;
         }
         this.versionsLoadError = true;
       } catch (error) {
-        if(request === this.loadRequest) this.versionsLoadError = true;
+        if(request === this.loadRequest) {
+          if(error.response && error.response.status === 403) this.denyHistoryAccess();
+          else this.versionsLoadError = true;
+        }
       } finally {
         if(request === this.loadRequest) this.versionsLoading = false;
       }
