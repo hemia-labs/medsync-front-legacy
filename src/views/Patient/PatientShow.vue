@@ -297,6 +297,7 @@ export default {
         try {
             if(!await this.confirmSectionLeave()) {
                 this.tabNavigationRevision++
+                await this.syncTabUrl()
                 return false
             }
             if(!this.allowedTabs.some(item => item.component === component)) {
@@ -307,6 +308,9 @@ export default {
             if(this.tab === 'da-patient-documents') this.documentFocusRequest = null
             this.tab = component
             this.tabAccessNotice = ''
+            // Remove the old section's navigation guard before updating the URL.
+            await this.$nextTick()
+            await this.syncTabUrl()
             return true
         } finally { this.tabNavigationPending = false }
     },
@@ -323,6 +327,17 @@ export default {
         if(current && request && current.requestId === request.requestId && current.id_person === request.id_person) {
             this.documentFocusRequest = null
         }
+    },
+    async syncTabUrl() {
+        if(!this.$route || !this.$router || !this.tab) return
+        const keys = { 'da-medical-history': 'medical-history', 'da-patient-documents': 'documents',
+            'da-patient-treatment': 'treatment', 'da-medical-monitoring': 'monitoring',
+            'da-patient-prescriptions': 'prescriptions', 'da-odontogram': 'odontogram' }
+        const tab = keys[this.tab] || this.tab
+        if(this.$route.query.tab === tab) return
+        const hash = this.componentFromTabQuery((this.$route.hash || '').slice(1)) ? '' : this.$route.hash
+        try { await this.$router.replace({ path: this.$route.path, query: { ...this.$route.query, tab }, hash }) }
+        catch(error) { if(error.name !== 'NavigationDuplicated') throw error }
     },
     componentFromTabQuery: function(tab) {
         const tabs = {
@@ -362,6 +377,8 @@ export default {
             }
         }
         this.ensureValidTab()
+        await this.$nextTick()
+        await this.syncTabUrl()
     },
     ensureValidTab: function() {
         if(!this.allowedTabs || this.allowedTabs.length === 0) {
@@ -377,7 +394,7 @@ export default {
   },
   computed: {
         canManagePatient() { return this.hasPermission('px.new') },
-        canViewClinical() { return this.hasPermission('clinical_history.view') && Boolean(this.px && this.px.access && this.px.access.clinical) },
+        canViewClinical() { return this.hasPermission('clinical_history.view') && this.hasPermission('clinical_history.view_sensitive') && Boolean(this.px && this.px.access && this.px.access.clinical) },
         canCaptureIntake() { return !this.isArchived && this.hasPermission('clinical_history.intake') },
         canEditClinical() { return !this.isArchived && this.canViewClinical && this.hasPermission('clinical_history.edit_draft') },
         canEditAllergies() { return !this.isArchived && this.canViewClinical && this.hasPermission('clinical_history.edit_draft') },
@@ -427,8 +444,12 @@ export default {
         '$route.hash': function() {
             if(this.patientReady) this.applyRequestedTab()
         },
-        allowedTabs: function() {
+        allowedTabs: async function() {
+            // Initial loads must preserve the deep link until patient/access data arrives.
+            if(!this.patientReady) return
             this.ensureValidTab()
+            await this.$nextTick()
+            await this.syncTabUrl()
         }
     }
 

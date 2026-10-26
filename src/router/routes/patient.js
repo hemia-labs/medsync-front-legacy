@@ -31,7 +31,7 @@ export default [
     {
         path:'/px/treatmentplan',
         name:'PlanTratamiento',
-        component: () => import('../../views/Patient/Sections/TreatmentPlan.vue'),
+        redirect: '/px/all',
         meta: {title: 'Plan de Tratamiento - MedSync',  requireAuth: true, layout: 'admin', permission: 'px.tab.treatment'},
 
     },
@@ -45,28 +45,28 @@ export default [
     {
         path:'/px/monitoringplan',
         name:'PlanSeguimiento',
-        component: () => import('../../views/Patient/Sections/MonitoringPlan.vue'),
+        redirect: '/px/all',
         meta: {title: 'Plan de Seguimiento - MedSync',  requireAuth: true, layout: 'admin', permission: 'px.tab.monitoring'},
 
     },
     {
         path:'/px/odontogram',
         name:'Odontograma',
-        component: () => import('../../views/Patient/Sections/Odontogram.vue'),
+        redirect: '/px/all',
         meta: {title: 'Odontograma - MedSync',  requireAuth: true, layout: 'admin', permission: 'px.tab.odontogram'},
 
     },
     {
         path:'/px/photoManager',
         name:'Fotos',
-        component: () => import('../../views/Patient/Sections/PhotoManager.vue'),
+        redirect: '/px/all',
         meta: {title: 'Administrador de Foto - MedSync',  requireAuth: true, layout: 'admin', permission: 'px.tab.photos'},
 
     },
     {
         path:'/px/radiographyManager',
         name:'Radiografias',
-        component: () => import('../../views/Patient/Sections/RadioManager.vue'),
+        redirect: '/px/all',
         meta: {title: 'Gestor de Radiografias - MedSync',  requireAuth: true, layout: 'admin', permission: 'px.radiography'},
 
     }

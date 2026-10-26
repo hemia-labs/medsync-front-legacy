@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname, '../..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
-const context = { component: null, VuexMixin: {}, moduleTypes: {}, fnTypes: {} };
+const context = { component: null, VuexMixin: {}, moduleTypes: {}, fnTypes: {}, fieldError: {} };
 for(const file of ['src/domain/patient/administrative.validation.js', 'src/domain/clinical-history/vitalSigns.validation.js']) vm.runInNewContext(read(file).replace(/export const /g, 'var '), context);
 const today = new Date(2026, 9, 16, 12);
 const valid = { name: 'Paciente ficticio', firstSurname: 'QA', birthDate: '2000-10-17', mobilePhone: '(55) 1234-5678', localPhone: '', postalCode: '01234' };

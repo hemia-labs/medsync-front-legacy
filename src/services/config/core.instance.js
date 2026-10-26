@@ -16,6 +16,7 @@ const buildResponse = (result) => {
 
 const buildErrorResponse = (error) => ({
     ...(error.response && error.response.data ? error.response.data : {}),
+    status: error.response ? error.response.status : 0,
     success: false,
     message: error.response && error.response.data && error.response.data.message
         ? error.response.data.message

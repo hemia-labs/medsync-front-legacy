@@ -178,7 +178,7 @@ assertIncludesAll(
     'D2 router covers reload and new tab protected routes',
     d2BeforeEachSource,
     [
-        'const shouldHydrate = requiredAuth || to.name === \'login\'',
+        "const shouldHydrate = requiredAuth || ['login', 'register'].includes(to.name)",
         'const hasSession = shouldHydrate ? await ensureD2SessionHydrated() : isD2Authorized()'
     ],
     'Protected route navigation hydrates from backend when runtime starts empty.'
