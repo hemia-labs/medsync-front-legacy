@@ -2,13 +2,7 @@
   <div v-if="cards.length" class="home-insights">
     <section v-for="card in cards" :key="card.key" class="insight-card" :aria-labelledby="'home-insight-' + card.key">
       <div class="insight-symbol" aria-hidden="true">
-        <svg v-if="card.key === 'pulse'" viewBox="0 0 64 64" fill="none">
-          <circle cx="32" cy="32" r="24" stroke="currentColor" stroke-opacity=".2" />
-          <ellipse cx="32" cy="32" rx="25" ry="12" transform="rotate(-35 32 32)" stroke="currentColor" stroke-width="1.5" />
-          <ellipse cx="32" cy="32" rx="25" ry="12" transform="rotate(35 32 32)" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" />
-          <circle cx="32" cy="32" r="6" fill="currentColor" />
-          <circle cx="51" cy="17" r="3" fill="currentColor" />
-        </svg>
+        <v-icon v-if="card.key === 'pulse'" class="insight-pulse-icon" color="currentColor">mdi-creation</v-icon>
         <svg v-else viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 12v40h42" stroke-opacity=".4" />
           <path d="M22 43V32m12 11V26m12 17V18" stroke-width="5" />
@@ -18,6 +12,7 @@
       <p class="insight-eyebrow">{{ card.eyebrow }}</p>
       <h2 :id="'home-insight-' + card.key">{{ card.title }}</h2>
       <p class="insight-description">{{ card.description }}</p>
+      <p v-if="card.key === 'pulse' && pulseStatus" class="insight-status" :class="'insight-status-' + pulseStatus.tone" role="status">{{ pulseStatus.text }}</p>
       <router-link class="insight-link" :to="{ name: card.route }">{{ card.action }} <span aria-hidden="true">→</span></router-link>
     </section>
   </div>
@@ -25,12 +20,31 @@
 
 <script>
 import { canAccessPulse } from '../../../security/pulseAccess';
+import pulseService from '../../../services/core/business/DABusinessPulseService';
 import { tenantNavigationItems } from '../../../core/navigation/tenantNavigation';
 
 const analysisPermissions = tenantNavigationItems.find(item => item.key === 'dashboard').permissionsAny;
 
 export default {
   name: 'HomeInsights',
+  data: () => ({ pulseStatus: null }),
+  mounted() { this.loadPulseStatus(); },
+  methods: {
+    // Reuses the cached business snapshot (refresh=0); a failure only hides the status line.
+    async loadPulseStatus() {
+      if (!this.cards.some(card => card.key === 'pulse')) return;
+      const business = (this.$store.state.CORE.AUTH.business || {}).id_business;
+      try {
+        const response = await pulseService.snapshot(false);
+        const data = response && response.success && response.data;
+        if (!data || !data.context || String(data.context.businessId) !== String(business) || !Array.isArray(data.incidents)) return;
+        const pending = data.incidents.reduce((n, i) => n + (i.count || 0), 0), priority = data.incidents.filter(i => i.severity === 'priority').reduce((n, i) => n + i.count, 0);
+        if (priority) this.pulseStatus = { tone: 'priority', text: priority + (priority === 1 ? ' pendiente que atender primero' : ' pendientes que atender primero') + ' · ' + pending + ' en total' };
+        else if (pending) this.pulseStatus = { tone: 'attention', text: pending + (pending === 1 ? ' pendiente por retomar' : ' pendientes por retomar') };
+        else if (data.quality && data.quality.evaluated === 3 && data.operational.category === 'clear') this.pulseStatus = { tone: 'clear', text: 'Todo al día en lo revisado' };
+      } catch (_) { this.pulseStatus = null; }
+    }
+  },
   computed: {
     cards() {
       const auth = this.$store.state.CORE.AUTH;
@@ -75,4 +89,10 @@ export default {
   .home-insights { grid-template-columns: minmax(0, 1fr); }
   .insight-card { padding: 20px; }
 }
+.insight-pulse-icon { font-size: 34px !important; color: inherit !important; }
+.insight-status { margin: -6px 0 14px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.5; background: #eef2f8; color: #34475f; }
+.insight-status-priority { background: #fbe9dc; color: #8a4a1c; }
+.insight-status-attention { background: #fff3dc; color: #7a5310; }
+.insight-status-clear { background: #e5f5ee; color: #1d6b55; }
+.theme--dark .insight-status, html[data-theme="clinical-night"] .insight-status { background: #24344c; color: #c6d3e5; }
 </style>
