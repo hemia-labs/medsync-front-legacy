@@ -19,7 +19,7 @@
           </select>
         </div>
 
-        <div class="hero-visual" aria-hidden="true">
+        <div class="hero-visual" :class="homeSeason !== 'normal' ? ['hero-visual--seasonal', 'hero-visual--' + homeSeason] : []" aria-hidden="true">
           <owned-home-lottie
             :key="heroLottiePath"
             :path="heroLottiePath"
@@ -27,6 +27,7 @@
             :height="190"
             :speed="1"
           />
+          <home-seasonal-decoration v-if="homeSeason !== 'normal'" :season="homeSeason" :period="dayPeriod" />
         </div>
       </header>
 
@@ -348,6 +349,8 @@
 <script>
 import HomeInsights from './components/HomeInsights.vue';
 import OwnedHomeLottie from './components/OwnedHomeLottie.vue';
+import HomeSeasonalDecoration from './components/HomeSeasonalDecoration.vue';
+import { getHomeSeason } from '../../utils/homeSeason';
 import { mapGetters } from 'vuex';
 import decode from 'jwt-decode';
 import VuexMixin from '../../mixins/VuexMixin';
@@ -377,7 +380,7 @@ const EMPTY_CONTINUITY_SECTION = {
 
 export default {
     name: 'Home',
-    components: { PreparationChecklist, HomeInsights, OwnedHomeLottie },
+    components: { PreparationChecklist, HomeInsights, OwnedHomeLottie, HomeSeasonalDecoration },
     mixins: [VuexMixin],
     data: function() {
         return {
@@ -483,6 +486,9 @@ export default {
       greetingTitle: function() {
         const name = this.displayUserName
         return name ? `${this.greetingPrefix}, ${name}` : this.greetingPrefix
+      },
+      homeSeason: function() {
+        return getHomeSeason(this.currentDateTime)
       },
       dayPeriod: function() {
         const hour = this.currentDateTime.getHours()
@@ -987,6 +993,18 @@ export default {
   border: 1px solid rgba(15, 118, 110, 0.08);
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.66);
+}
+
+.hero-visual--seasonal {
+  position: relative;
+}
+
+.hero-visual--day-of-dead {
+  border-color: rgba(194, 104, 23, 0.24);
+}
+
+.hero-visual--christmas {
+  border-color: rgba(48, 117, 82, 0.3);
 }
 
 .search-command {
