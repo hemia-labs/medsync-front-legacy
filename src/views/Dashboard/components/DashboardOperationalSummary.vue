@@ -356,7 +356,7 @@ export default {
         {
           key: 'noShow',
           group: 'appointmentHealth',
-          label: 'No asistio',
+          label: 'No asistió',
           value: this.formatPercent(this.appointmentHealth.noShowRate),
           helper: `${this.formatNumber(this.appointmentHealth.noShow)} citas del periodo`,
           interpretation: 'Al subir, se pierde tiempo de sillon y conviene reforzar confirmaciones.',
@@ -435,7 +435,7 @@ export default {
         pending_confirmation: 'Pendientes de confirmar',
         rescheduled: 'Reprogramadas',
         completed: 'Completadas',
-        no_show: 'No asistio'
+        no_show: 'No asistió'
       };
       return labels[status] || status || 'Sin estado';
     },

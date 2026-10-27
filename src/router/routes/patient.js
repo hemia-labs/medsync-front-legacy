@@ -39,7 +39,7 @@ export default [
         path:'/px/dates',
         name:'Citas',
         component: () => import('../../views/dates/dates.vue'),
-        meta: {title: 'Proximas Citas - MedSync',  requireAuth: true, layout: 'admin', headertitle: 'Citas', permission: 'px.dates'},
+        meta: {title: 'Próximas citas - MedSync',  requireAuth: true, layout: 'admin', headertitle: 'Citas', permission: 'px.dates'},
 
     },
     {

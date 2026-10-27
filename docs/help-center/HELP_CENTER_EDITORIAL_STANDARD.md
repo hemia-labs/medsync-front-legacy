@@ -6,6 +6,8 @@ Fecha: 2026-10-26. Estado: criterio adoptado para la estructura local; redacció
 
 Actualización posterior autorizada: [primer artículo modelo](README.md) redactado como borrador local. La restricción de solo títulos de la entrega inicial sigue vigente para las otras 32 guías y las 23 preguntas. Los criterios editoriales se mantienen; los artículos redactados pueden tener enlaces reales desde el índice y mostrar su estado de revisión.
 
+Actualización 2026-10-27 ([diseño y búsqueda](README.md)): se agrega un buscador local y las preguntas frecuentes se muestran en acordeón de un solo nivel. En el cuerpo de guías y respuestas, los nombres visibles de botones, campos y pantallas se escriben entre «…» para mostrarlos como etiqueta de interfaz; no usar esas marcas en títulos ni resúmenes.
+
 ## Fuentes leídas y decisiones
 
 Estas son recomendaciones editoriales, salvo los criterios WCAG identificados por separado. No constituyen una norma universal ni investigación con usuarios de MedSync.

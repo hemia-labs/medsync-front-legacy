@@ -3,7 +3,7 @@
     <div class="bg-white border border-primary-200 shadow-xl">
       <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-6 py-5 border-b border-primary-200 bg-primary-100">
         <div>
-          <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Agenda clinica</p>
+          <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Agenda clínica</p>
           <h2 class="m-0 text-gray-700 text-2xl font-normal">Gestion de citas</h2>
           <p class="m-0 mt-2 text-gray-500 text-sm">Consulta citas, disponibilidad e historial.</p>
         </div>
@@ -83,7 +83,7 @@
       </section>
 
       <div v-else-if="!agendaLoading && !agendaError && !selectedDoctorId" class="m-6 p-5 border border-gray-200 bg-gray-50 text-gray-600">
-        {{ !selectedDoctorId ? 'Selecciona un doctor para consultar su disponibilidad.' : 'Esta agenda no esta disponible. Revisa su configuracion y los cierres del consultorio.' }}
+        {{ !selectedDoctorId ? 'Selecciona un doctor para consultar su disponibilidad.' : 'Esta agenda no está disponible. Revisa su configuración y los cierres del consultorio.' }}
       </div>
 
       <div v-else-if="!agendaLoading && !agendaError && viewMode === 'week'" class="p-4 overflow-x-auto" role="region" aria-label="Disponibilidad semanal" :aria-describedby="'agenda-week-description'" tabindex="0">
@@ -153,7 +153,7 @@
           <div>
             <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Seguimiento</p>
             <h3 class="m-0 mt-1 text-gray-700 text-xl font-semibold">Pacientes por seguimiento</h3>
-            <p class="m-0 mt-1 text-gray-500 text-sm">Lista de apoyo para contactar pacientes con proxima cita registrada en seguimiento.</p>
+            <p class="m-0 mt-1 text-gray-500 text-sm">Lista de apoyo para contactar pacientes con próxima cita registrada en seguimiento.</p>
           </div>
           <v-btn icon aria-label="Cerrar pacientes por seguimiento" @click="followUpDialog = false">
             <v-icon color="#9CA3AF">mdi-close</v-icon>
@@ -164,7 +164,7 @@
             <v-text-field
               v-model="followUpSearch"
               append-icon="mdi-magnify"
-              label="Termino de busqueda"
+              label="Término de búsqueda"
               outlined
               dense
               hide-details
@@ -180,7 +180,7 @@
                     <th>Nombre</th>
                     <th>Prox. Cita</th>
                     <th>Prox. Tratamiento</th>
-                    <th>Telefono</th>
+                    <th>Teléfono</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -241,16 +241,16 @@
         </div>
 
         <v-card-text class="pt-5">
-          <v-select v-model="editingAppointment.doctorProfileId" :items="doctors.filter(d => d.active !== 0 || d.id_doctor_professional_profile === editingAppointment.doctorProfileId)" item-text="display_name" item-value="id_doctor_professional_profile" label="Doctor que atendera *" :readonly="doctors.length === 1" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment || !!pendingSave || isReadOnlyAppointment" @change="loadDialogDoctor(true)"></v-select>
+          <v-select v-model="editingAppointment.doctorProfileId" :items="doctors.filter(d => d.active !== 0 || d.id_doctor_professional_profile === editingAppointment.doctorProfileId)" item-text="display_name" item-value="id_doctor_professional_profile" label="Doctor que atenderá *" :readonly="doctors.length === 1" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment || !!pendingSave || isReadOnlyAppointment" @change="loadDialogDoctor(true)"></v-select>
           <p v-if="dialogLoading" role="status">Consultando horarios del doctor…</p>
-          <p v-else-if="!dialogConfig.enabled || dialogConfig.businessEnabled === false" role="status" class="text-yellow-800">La agenda de este doctor no esta disponible. Revisa su configuracion o selecciona otro doctor.</p>
+          <p v-else-if="!dialogConfig.enabled || dialogConfig.businessEnabled === false" role="status" class="text-yellow-800">La agenda de este doctor no está disponible. Revisa su configuración o selecciona otro doctor.</p>
           <p v-else-if="!dialogAvailableTimes.length" role="status">No hay horarios disponibles en esta fecha. Selecciona otra fecha.</p>
           <p v-if="originalAppointment && originalAppointment.doctorProfileId !== editingAppointment.doctorProfileId" class="text-yellow-800">Cambiaste el doctor de esta cita. Revisa su nuevo horario antes de guardar.</p>
           <div v-if="isEditingCompletedAppointment" class="completed-appointment-alert">
             <v-icon size="22">mdi-alert-circle-outline</v-icon>
             <div>
               <strong>Cita completada</strong>
-              <p>Los cambios a esta cita pueden alterar el historial clinico y operativo del paciente. Revisa antes de guardar.</p>
+              <p>Los cambios a esta cita pueden alterar el historial clínico y operativo del paciente. Revisa antes de guardar.</p>
             </div>
           </div>
 
@@ -293,12 +293,12 @@
           </v-autocomplete>
 
           <v-text-field v-model="editingAppointment.patientName" label="Nombre del paciente" hint="Usa este campo si es paciente nuevo o no tiene expediente." persistent-hint outlined dense :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
-          <v-select v-model="phoneCountry" :items="contactCountries" label="Pais del telefono" outlined dense :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-select>
+          <v-select v-model="phoneCountry" :items="contactCountries" label="País del teléfono" outlined dense :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-select>
           <div class="appointment-contact-row">
             <div class="appointment-contact-control">
               <v-text-field
                 v-model="editingAppointment.contactPhone"
-                label="Telefono de contacto / WhatsApp"
+                label="Teléfono de contacto / WhatsApp"
                 outlined
                 dense
                 maxlength="40"
@@ -329,18 +329,18 @@
               </v-tooltip>
             </div>
             <div class="appointment-contact-meta">
-              <span>Se usara solo para confirmar o contactar esta cita.</span>
+              <span>Se usará solo para confirmar o contactar esta cita.</span>
               <span>{{ contactPhoneCharacterCount }} / 40</span>
             </div>
           </div>
-          <v-text-field v-model="editingAppointment.title" label="Motivo o titulo" outlined dense :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
-          <v-textarea v-model="editingAppointment.description" label="Descripcion" outlined dense :color="themePrimaryColor" rows="3" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-textarea>
-          <v-textarea v-if="editingAppointment.status === 'cancelled'" v-model="editingAppointment.cancellationReason" label="Motivo de cancelacion" outlined dense :color="themePrimaryColor" rows="2" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-textarea>
+          <v-text-field v-model="editingAppointment.title" label="Motivo o título" outlined dense :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
+          <v-textarea v-model="editingAppointment.description" label="Descripción" outlined dense :color="themePrimaryColor" rows="3" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-textarea>
+          <v-textarea v-if="editingAppointment.status === 'cancelled'" v-model="editingAppointment.cancellationReason" label="Motivo de cancelación" outlined dense :color="themePrimaryColor" rows="2" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-textarea>
 
           <p v-if="dialogError" role="alert" class="text-red-600 font-semibold">{{ dialogError }}</p>
-          <p v-if="editingAppointment.status === 'rescheduled'" role="status">Reprogramacion: la cita original y su sustitucion se guardaran juntas.</p>
-          <div v-if="pendingSave" role="status"><p>Hay una operacion sin resultado confirmado. Reintenta para recuperar su resultado antes de cambiar los datos.</p></div>
-          <div v-if="conflictAppointment" role="alert"><p>Version vigente: {{ statusLabel(conflictAppointment.status) }} · {{ conflictAppointment.date }} {{ conflictAppointment.startTime }}–{{ conflictAppointment.endTime }}. Tu captura sigue abierta.</p><v-btn small @click="useCurrentAppointment">Descartar captura y usar version vigente</v-btn></div>
+          <p v-if="editingAppointment.status === 'rescheduled'" role="status">Reprogramación: la cita original y su sustitución se guardarán juntas.</p>
+          <div v-if="pendingSave" role="status"><p>Hay una operación sin resultado confirmado. Reintenta para recuperar su resultado antes de cambiar los datos.</p></div>
+          <div v-if="conflictAppointment" role="alert"><p>Versión vigente: {{ statusLabel(conflictAppointment.status) }} · {{ conflictAppointment.date }} {{ conflictAppointment.startTime }}–{{ conflictAppointment.endTime }}. Tu captura sigue abierta.</p><v-btn small @click="useCurrentAppointment">Descartar captura y usar versión vigente</v-btn></div>
           <div v-if="editingAppointment.id" class="agenda-detail-tools">
             <v-btn v-if="editingAppointment.status !== 'rescheduled'" small outlined class="appointment-status-action" :style="statusActionStyle('rescheduled')" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment" @click="startReschedule">Reprogramar</v-btn>
             <v-btn v-for="state in ['confirmed','completed','no_show']" :key="state" small outlined class="appointment-status-action" :class="{ 'appointment-status-current': editingAppointment.status === state }" :style="statusActionStyle(state)" :aria-label="statusLabel(state) + (editingAppointment.status === state ? ', estado seleccionado' : '')" :disabled="savingAppointment || !!pendingSave || editingAppointment.status === 'rescheduled'" @click="quickStatus(state)"><v-icon v-if="editingAppointment.status === state" small left>mdi-check-circle-outline</v-icon>{{ statusLabel(state) }}</v-btn>
@@ -349,8 +349,8 @@
           </div>
           <details v-if="editingAppointment.id" @toggle="$event.target.open && loadAudit()">
             <summary>Historial de cambios</summary><p v-if="auditLoading" role="status">Cargando cambios…</p><p v-if="auditError" role="alert">{{ auditError }}</p>
-            <p v-if="!auditLoading && !auditItems.length">Sin cambios registrados desde la activacion del historial.</p>
-            <p v-for="entry in auditItems" :key="entry.id">Revision {{ entry.revision }} · {{ entry.actorName || 'Usuario del consultorio' }} · {{ entry.createdAt }}<br>{{ auditSummary(entry) }}</p>
+            <p v-if="!auditLoading && !auditItems.length">Sin cambios registrados desde la activación del historial.</p>
+            <p v-for="entry in auditItems" :key="entry.id">Revisión {{ entry.revision }} · {{ entry.actorName || 'Usuario del consultorio' }} · {{ entry.createdAt }}<br>{{ auditSummary(entry) }}</p>
             <v-btn v-if="auditNext" small @click="loadAudit(true)">Ver cambios anteriores</v-btn>
           </details>
         </v-card-text>
@@ -358,16 +358,16 @@
         <v-card-actions class="appointment-dialog-actions px-6 pb-5 justify-end">
           <da-button-secondary @click.native="closeDialog()" :label="'Cerrar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-secondary>
           <da-button-900 v-if="editingAppointment.id && !(originalAppointment && originalAppointment.status === 'rescheduled')" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment" @click.native="cancelAppointment()" :label="'Cancelar cita'" :style="statusActionStyle('cancelled')" rxl swpr class="appointment-dialog-action appointment-status-action py-1 px-4 font-light"></da-button-900>
-          <da-button-primary v-if="!(originalAppointment && originalAppointment.status === 'rescheduled')" :disabled="dialogLoading || savingAppointment" @click.native="saveAppointment()" :label="savingAppointment ? 'Guardando…' : pendingSave ? 'Reintentar operacion' : 'Guardar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-primary>
+          <da-button-primary v-if="!(originalAppointment && originalAppointment.status === 'rescheduled')" :disabled="dialogLoading || savingAppointment" @click.native="saveAppointment()" :label="savingAppointment ? 'Guardando…' : pendingSave ? 'Reintentar operación' : 'Guardar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-primary>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="leaveDialog" persistent max-width="480">
-      <v-card><v-card-title>Cambios sin guardar</v-card-title><v-card-text>{{ pendingSave ? 'El resultado de la operacion no esta confirmado. Reintenta antes de salir para evitar iniciar otra reserva.' : 'Tu captura se perdera si la descartas.' }}</v-card-text><v-card-actions class="agenda-detail-tools"><v-btn @click="keepEditing">Seguir editando</v-btn><v-btn color="error" @click="discardDraft">Descartar y salir</v-btn></v-card-actions></v-card>
+      <v-card><v-card-title>Cambios sin guardar</v-card-title><v-card-text>{{ pendingSave ? 'El resultado de la operación no está confirmado. Reintenta antes de salir para evitar iniciar otra reserva.' : 'Tu captura se perderá si la descartas.' }}</v-card-text><v-card-actions class="agenda-detail-tools"><v-btn @click="keepEditing">Seguir editando</v-btn><v-btn color="error" @click="discardDraft">Descartar y salir</v-btn></v-card-actions></v-card>
     </v-dialog>
     <v-dialog v-model="contactPreview" max-width="480">
-      <v-card><v-card-title>Revisar destinatario</v-card-title><v-card-text>Se abrira WhatsApp para {{ contactTarget }}. Revisa el numero antes de continuar.</v-card-text><v-card-actions><v-btn @click="contactPreview = false">Volver</v-btn><v-btn :href="contactUrl" target="_blank" rel="noopener noreferrer" @click="contactPreview = false">Abrir WhatsApp</v-btn></v-card-actions></v-card>
+      <v-card><v-card-title>Revisar destinatario</v-card-title><v-card-text>Se abrirá WhatsApp para {{ contactTarget }}. Revisa el número antes de continuar.</v-card-text><v-card-actions><v-btn @click="contactPreview = false">Volver</v-btn><v-btn :href="contactUrl" target="_blank" rel="noopener noreferrer" @click="contactPreview = false">Abrir WhatsApp</v-btn></v-card-actions></v-card>
     </v-dialog>
     <v-dialog v-model="completedEditConfirmDialog" max-width="520">
       <v-card class="completed-confirm-card">
@@ -380,7 +380,7 @@
         </div>
         <div class="completed-confirm-body">
           <p>
-            Modificar una cita completada puede cambiar el historial de atencion del paciente.
+            Modificar una cita completada puede cambiar el historial de atención del paciente.
             Continua solo si estas corrigiendo un dato capturado por error.
           </p>
         </div>
@@ -396,7 +396,7 @@
     </v-dialog>
 
     <v-dialog v-model="agendaConfigDialog" persistent max-width="1050" :fullscreen="$vuetify.breakpoint.xsOnly">
-      <v-card class="agenda-config-card"><div class="p-3 text-right"><v-btn text @click="closeAgendaConfig">Cerrar configuracion</v-btn></div><professional-agenda-config v-if="agendaConfigDialog" ref="agendaEditor" class="agenda-config-editor" :initial-doctor-id="selectedDoctorId" :theme-color="themePrimaryColor" @saved="changeCalendarDoctor" @close="agendaConfigDialog = false" /></v-card>
+      <v-card class="agenda-config-card"><div class="p-3 text-right"><v-btn text @click="closeAgendaConfig">Cerrar configuración</v-btn></div><professional-agenda-config v-if="agendaConfigDialog" ref="agendaEditor" class="agenda-config-editor" :initial-doctor-id="selectedDoctorId" :theme-color="themePrimaryColor" @saved="changeCalendarDoctor" @close="agendaConfigDialog = false" /></v-card>
     </v-dialog>
   </div>
 </template>
@@ -455,7 +455,7 @@ const mapPatientSearchOption = (patient = {}) => {
   const telephone = patient.telephone || patient.phone || patient.mobilePhone || '';
   const localTelephone = patient.localTelephone || patient.local_telephone || '';
   const code = patient.code || patient.folio || '';
-  const meta = [code ? `Codigo ${code}` : '', telephone || localTelephone, patient.age ? `${patient.age} años` : '']
+  const meta = [code ? `Código ${code}` : '', telephone || localTelephone, patient.age ? `${patient.age} años` : '']
     .filter((item) => item)
     .join(' | ');
 
@@ -482,7 +482,7 @@ export default {
       draftBaseline: '', leaveDialog: false, pendingNavigation: null, removeAgendaGuard: null,
       appointmentRequestId: '', pendingSave: null, conflictAppointment: null,
       phoneCountry: 'MX', contactPreview: false, contactUrl: '', contactTarget: '',
-      contactCountries: [{ value: 'MX', text: 'Mexico (+52)' }, { value: 'US', text: 'EE. UU. / Canada (+1)' }, { value: 'INT', text: 'Otro pais (numero con +)' }],
+      contactCountries: [{ value: 'MX', text: 'México (+52)' }, { value: 'US', text: 'EE. UU. / Canadá (+1)' }, { value: 'INT', text: 'Otro país (número con +)' }],
       auditItems: [], auditLoading: false, auditError: '', auditNext: null,
       findingSlot: false, slotRequest: 0, agendaNotice: '',
       doctors: [], selectedDoctorId: '', agendaLoading: false, agendaError: '', agendaRequest: 0,
@@ -515,7 +515,7 @@ export default {
         { status: APPOINTMENT_STATUSES.COMPLETED, label: 'Completada' },
         { status: APPOINTMENT_STATUSES.CANCELLED, label: 'Cancelada' },
         { status: APPOINTMENT_STATUSES.RESCHEDULED, label: 'Reprogramada' },
-        { status: APPOINTMENT_STATUSES.NO_SHOW, label: 'No asistio' }
+        { status: APPOINTMENT_STATUSES.NO_SHOW, label: 'No asistió' }
       ],
       appointmentStatusOptions: APPOINTMENT_STATUS_OPTIONS.filter(item => item.value !== APPOINTMENT_STATUSES.RESCHEDULED)
     }
@@ -745,7 +745,7 @@ export default {
     appointmentWhatsAppTooltip: function() {
       return this.canOpenAppointmentWhatsApp
         ? 'Contactar por WhatsApp'
-        : 'Captura un telefono de contacto valido'
+        : 'Captura un teléfono de contacto válido'
     },
 
     themePrimaryColor: function() {
@@ -768,21 +768,21 @@ export default {
       try {
         const result = await DAAppointmentService.list({ doctor_profile_id: doctor, date_from: start, date_to: addDays(start, 29) })
         if(request !== this.slotRequest || access !== this.agendaAccessKey || doctor !== this.selectedDoctorId || selected !== this.selectedDate) return
-        if(!result.success) throw new Error(result.message || 'No se pudo consultar el proximo espacio.')
+        if(!result.success) throw new Error(result.message || 'No se pudo consultar el próximo espacio.')
         for(let offset = 0; offset < 30; offset++) {
           const day = addDays(start, offset)
           const slot = generateDaySlots(day, config, result.data).find(s => s.selectable && (day > now.date || s.startTime > now.time))
           if(slot) { this.selectedDate = day; this.onSlotClick(slot); return }
         }
-        this.agendaNotice = 'No hay espacios libres en los 30 dias a partir de la fecha consultada. Revisa horarios y bloqueos.'
+        this.agendaNotice = 'No hay espacios libres en los 30 días a partir de la fecha consultada. Revisa horarios y bloqueos.'
       } catch(e) { if(request === this.slotRequest) this.agendaNotice = e.message }
       finally { if(request === this.slotRequest) this.findingSlot = false }
     },
     statusLabel(status) { return APPOINTMENT_STATUS_LABELS[status] || status },
     auditSummary(entry) {
       const changes = typeof entry.changes === 'string' ? JSON.parse(entry.changes) : entry.changes || {}
-      const labels = { status:'Estado',date:'Fecha',startTime:'Inicio',endTime:'Fin',doctorProfileId:'Doctor',title:'Motivo',description:'Notas',contactPhone:'Telefono',cancellationReason:'Motivo de cancelacion',patientName:'Nombre',rescheduledFromAppointmentId:'Vinculo con cita original',rescheduledToAppointmentId:'Vinculo con cita destino' }
-      if(entry.revision === 1) return entry.operation === 'reschedule' ? 'Cita creada por reprogramacion.' : 'Cita creada.'
+      const labels = { status:'Estado',date:'Fecha',startTime:'Inicio',endTime:'Fin',doctorProfileId:'Doctor',title:'Motivo',description:'Notas',contactPhone:'Teléfono',cancellationReason:'Motivo de cancelación',patientName:'Nombre',rescheduledFromAppointmentId:'Vinculo con cita original',rescheduledToAppointmentId:'Vinculo con cita destino' }
+      if(entry.revision === 1) return entry.operation === 'reschedule' ? 'Cita creada por reprogramación.' : 'Cita creada.'
       return Object.keys(changes).filter(key => labels[key]).map(key => {
         const change = changes[key]
         if(['date','startTime','endTime','status'].includes(key)) {
@@ -816,7 +816,7 @@ export default {
     },
     useCurrentAppointment() { if(this.conflictAppointment) this.openAppointment(this.conflictAppointment) },
     async quickStatus(status) { if(this.savingAppointment || this.pendingSave) return; this.editingAppointment.status = status; await this.saveAppointment() },
-    startReschedule() { if(this.savingAppointment || this.pendingSave) return; this.editingAppointment.status = APPOINTMENT_STATUSES.RESCHEDULED; this.dialogError = 'Selecciona el nuevo doctor, fecha u hora y guarda la reprogramacion.' },
+    startReschedule() { if(this.savingAppointment || this.pendingSave) return; this.editingAppointment.status = APPOINTMENT_STATUSES.RESCHEDULED; this.dialogError = 'Selecciona el nuevo doctor, fecha u hora y guarda la reprogramación.' },
     async submitAppointment(operation) {
       if(this.savingAppointment) return
       const access = this.agendaAccessKey
@@ -831,16 +831,16 @@ export default {
         if(!r || !r.success) {
           this.conflictAppointment = r && r.data && r.data.appointment || null
           if(r && r.status >= 400 && r.status < 500) { this.pendingSave = null; this.appointmentRequestId = newAgendaRequestId() }
-          this.dialogError = r && r.message || 'No se confirmo el resultado. Reintenta la misma operacion.'
+          this.dialogError = r && r.message || 'No se confirmó el resultado. Reintenta la misma operación.'
           return
         }
         saved = true; this.pendingSave = null
-      } catch(e) { this.dialogError = 'No se confirmo el resultado. Tu captura se conservo; reintenta la misma operacion.' }
+      } catch(e) { this.dialogError = 'No se confirmó el resultado. Tu captura se conservó; reintenta la misma operación.' }
       finally { this.savingAppointment = false }
       if(saved) {
         this.closeDialog(true)
         const refreshed = await this.reloadAppointments()
-        if(!refreshed) this.agendaError = 'La cita se guardo. No se pudo actualizar esta vista; pulsa Reintentar.'
+        if(!refreshed) this.agendaError = 'La cita se guardó. No se pudo actualizar esta vista; pulsa Reintentar.'
       }
     },
     ...mapActions(moduleTypes.MONITORING, [
@@ -1247,7 +1247,7 @@ export default {
     saveAppointment: async function() {
       if(this.dialogLoading || this.savingAppointment) return
       if(this.pendingSave) return this.submitAppointment(this.pendingSave.operation)
-      if(!this.editingAppointment.doctorProfileId) { this.dialogError = 'Selecciona el doctor que atendera.'; return }
+      if(!this.editingAppointment.doctorProfileId) { this.dialogError = 'Selecciona el doctor que atenderá.'; return }
       if(!this.editingAppointment.date || !this.editingAppointment.startTime) {
         this.dialogError = 'Selecciona fecha y hora.'
         return
@@ -1263,7 +1263,7 @@ export default {
       if(changedPhone && this.phonePreview.valid) this.editingAppointment.contactPhone = this.phonePreview.e164
       this.normalizeAppointmentContactPhone()
       if(this.manualContactPhoneRequired && !this.editingAppointment.contactPhone) {
-        this.dialogError = 'Captura el telefono de contacto para esta cita.'
+        this.dialogError = 'Captura el teléfono de contacto para esta cita.'
         return
       }
 
@@ -1343,7 +1343,7 @@ export default {
       this.normalizeAppointmentContactPhone()
 
       if(!this.canOpenAppointmentWhatsApp) {
-        this.dialogError = 'Captura un telefono valido para contactar por WhatsApp.'
+        this.dialogError = 'Captura un teléfono válido para contactar por WhatsApp.'
         return
       }
 
@@ -1402,7 +1402,7 @@ export default {
         [APPOINTMENT_STATUSES.CANCELLED]: 'Historial: cancelada',
         [APPOINTMENT_STATUSES.RESCHEDULED]: 'Historial: reprogramada',
         [APPOINTMENT_STATUSES.COMPLETED]: 'Historial: completada',
-        [APPOINTMENT_STATUSES.NO_SHOW]: 'Historial: no asistio'
+        [APPOINTMENT_STATUSES.NO_SHOW]: 'Historial: no asistió'
       }
 
       return labels[appointment.status] || 'Historial'
@@ -1474,7 +1474,7 @@ export default {
       this.editingAppointment = {}; this.originalAppointment = null; this.conflictAppointment = null; this.pendingSave = null
       this.patientSearchCache = {}; this.resetPatientSearchState()
       this.agendaLoading = false; this.dialogLoading = false; this.findingSlot = false
-      this.agendaError = 'La sesion o sus permisos cambiaron. Recarga la agenda.'
+      this.agendaError = 'La sesión o sus permisos cambiaron. Recarga la agenda.'
       if(this.pendingNavigation) { const next = this.pendingNavigation; this.pendingNavigation = null; next() }
     },
     selectedDate: function() {

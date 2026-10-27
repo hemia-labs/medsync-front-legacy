@@ -114,7 +114,7 @@ export const tenantNavigationItems = [
   },
   {
     key: 'settings',
-    label: 'Configuracion',
+    label: 'Configuración',
     icon: 'mdi-cog-outline',
     routeName: 'admin',
     path: '/admin',

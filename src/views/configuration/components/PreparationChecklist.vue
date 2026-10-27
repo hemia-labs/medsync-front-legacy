@@ -154,7 +154,8 @@ export default {
         if(!response || !response.success || !response.data || !Array.isArray(response.data.steps)) throw new Error();
         const allowed=new Set(getSettingsSections(this.role,this.hasPermission).map(item=>item.key));
         this.status={...response.data,steps:response.data.steps.map(step=>({...step,action:step.action && allowed.has(String(step.action.path).split('section=')[1]) ? step.action:null}))};
-        if(this.status.pending){this.completionDismissed=false;try{localStorage.removeItem(this.completionKey);}catch(_){/* Readiness still comes from the server. */}}
+        // Pending steps always show the checklist; a dismissed completion message stays dismissed, so a
+        // momentary pending (an agenda being edited, a template being versioned) cannot bring it back.
       } catch(_) { if(!this.disposed && request===this.request && key===this.sessionKey) {this.status=null;this.error='No pudimos revisar los pasos de preparación. Pulsa Actualizar preparación para reintentar.';} }
       finally {if(!this.disposed && request===this.request && key===this.sessionKey)this.loading=false;}
     }

@@ -29,4 +29,10 @@ No se declara validación autenticada, con lector de pantalla ni revisión clín
 
 ## Respuestas FAQ (2026-10-27)
 
-Las respuestas viven en `src/domain/help/helpAnswers.js`, vinculadas por ID al catálogo. Cada pregunta es un h4 bajo el tema h3; el texto se muestra completo y el enlace conduce a la guía existente. No se duplican tutoriales. Se mantiene el límite a desarrollo. El arnés comprueba cada respuesta y navega a las 23 guías relacionadas mediante teclado, con retorno al historial, en los tres tamaños de pantalla.
+Las respuestas viven en `src/domain/help/helpAnswers.js`, vinculadas por ID al catálogo. Cada pregunta usa un control nativo `summary` dentro de `details`, bajo el tema h3; los títulos permanecen visibles y las respuestas se despliegan individualmente. El enlace conduce a la guía existente. No se duplican tutoriales. Se mantiene el límite a desarrollo. El arnés comprueba cada respuesta y navega a las 23 guías relacionadas mediante teclado, con retorno al historial, en los tres tamaños de pantalla.
+
+## Correcciones de navegación y lectura (2026-10-27)
+
+El buscador local consulta títulos y contenido, tolera acentos y ofrece sinónimos comunes. Los resultados abren la guía o la pregunta correspondiente. Las guías incorporan resúmenes, ubicación en el sistema, requisitos previos, etiquetas de interfaz destacadas, notas y preguntas relacionadas. Los temas siguen visibles sin niveles de acordeones. Se corrigen acentos en pantallas relacionadas para mantener consistencia con la ayuda.
+
+La preparación conserva el descarte del aviso de finalización aunque aparezca temporalmente un pendiente; los pendientes reales siguen mostrándose. Su regresión usa servicios simulados y no escribe en la base de datos.

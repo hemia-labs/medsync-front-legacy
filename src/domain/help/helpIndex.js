@@ -5,13 +5,13 @@ export const helpSections = [
 ];
 
 export const helpTopics = [
-  { id: 'empezar', title: 'Empezar a usar MedSync', order: 10 },
-  { id: 'agenda', title: 'Organizar la agenda', order: 20 },
-  { id: 'pacientes', title: 'Registrar y encontrar pacientes', order: 30 },
-  { id: 'atencion', title: 'Registrar la atención', order: 40 },
-  { id: 'documentos', title: 'Trabajar con recetas y documentos', order: 50 },
-  { id: 'equipo', title: 'Preparar el consultorio y el equipo', order: 60 },
-  { id: 'acceso', title: 'Resolver problemas de acceso', order: 70 }
+  { id: 'empezar', title: 'Empezar a usar MedSync', order: 10, icon: 'mdi-rocket-launch-outline' },
+  { id: 'agenda', title: 'Organizar la agenda', order: 20, icon: 'mdi-calendar-clock' },
+  { id: 'pacientes', title: 'Registrar y encontrar pacientes', order: 30, icon: 'mdi-account-search-outline' },
+  { id: 'atencion', title: 'Registrar la atención', order: 40, icon: 'mdi-stethoscope' },
+  { id: 'documentos', title: 'Trabajar con recetas y documentos', order: 50, icon: 'mdi-file-document-edit-outline' },
+  { id: 'equipo', title: 'Preparar el consultorio y el equipo', order: 60, icon: 'mdi-account-group-outline' },
+  { id: 'acceso', title: 'Resolver problemas de acceso', order: 70, icon: 'mdi-lock-reset' }
 ];
 
 export const helpFlows = {
