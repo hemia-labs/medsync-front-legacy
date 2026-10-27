@@ -20,7 +20,8 @@ const sources = { admin: sfc('src/core/layouts/admin.vue'), rail: sfc('src/core/
 sources.help.styles = require('@vue/component-compiler-utils').compileStyle({ source: sources.help.styles,
   filename: 'HelpCenter.vue', id: 'data-v-help-qa', scoped: true }).code;
 const dataCode = read('src/domain/help/helpIndex.js').replace(/export /g, '') + '\n'
-  + read('src/domain/help/helpArticles.js').replace(/export /g, '') + '\nreturn {helpSections,helpTopics,helpEntries,helpFlows,helpArticles};';
+  + read('src/domain/help/helpArticles.js').replace(/export /g, '') + '\n'
+  + read('src/domain/help/helpAnswers.js').replace(/export /g, '') + '\nreturn {helpSections,helpTopics,helpEntries,helpFlows,helpArticles,helpAnswers};';
 const navigationCode = read('src/core/navigation/tenantNavigation.js').replace(/export /g, '') + '\nreturn {tenantNavigationItems,sortTenantNavigationItems,TENANT_NAVIGATION_TYPES,TENANT_NAVIGATION_GROUPS};';
 const routeCode = read('src/router/routes/help.js').replace('export default', 'return');
 const data = new Function(dataCode)();
@@ -33,7 +34,7 @@ function checkIndex() {
   assert.equal(new Set(entries.map(e => e.id)).size, entries.length);
   assert.equal(new Set(entries.map(e => e.title)).size, entries.length);
   for (const entry of entries) {
-    assert.equal(entry.editorialStatus, data.helpArticles[entry.id] ? 'draft' : 'title-only');
+    assert.equal(entry.editorialStatus, data.helpArticles[entry.id] || data.helpAnswers[entry.id] ? 'draft' : 'title-only');
     assert.ok(topics.some(t => t.id === entry.topic));
     assert.ok(flows[entry.flow]);
     assert.ok(!['body', 'answer', 'content', 'steps', 'html'].some(key => key in entry));
@@ -44,6 +45,8 @@ function checkIndex() {
     for (const id of entry.prerequisites || []) assert.ok(entries.some(other => other.id === id && other.type === 'guide'));
   }
   for (const flow of Object.values(flows)) assert.ok(fs.existsSync(path.join(root, flow.source)), flow.source);
+  assert.deepEqual(Object.keys(data.helpAnswers).sort(), entries.filter(entry => entry.type === 'question').map(entry => entry.id).sort());
+  for (const paragraphs of Object.values(data.helpAnswers)) assert.ok(paragraphs.length && paragraphs.every(text => typeof text === 'string' && text.trim()));
   assert.deepEqual(Object.keys(data.helpArticles).sort(), entries.filter(entry => entry.type === 'guide').map(entry => entry.id).sort(), 'All 33 authorized guides are drafted');
   for (const [id, article] of Object.entries(data.helpArticles)) {
     assert.ok(entries.some(entry => entry.id === id && entry.type === 'guide'));
@@ -165,6 +168,22 @@ async function mount(browser, width, role) {
       await page.locator('.help-back').focus(); await page.keyboard.press('Enter');
       await page.waitForFunction(() => document.activeElement.id === 'preguntas');
       await page.screenshot({ path: out + '/questions-' + width + '.png', fullPage: true });
+      await page.screenshot({ path: out + '/questions-viewport-' + width + '.png', fullPage: false });
+      for (const entry of data.helpEntries.filter(entry => entry.type === 'question')) {
+        const answer = page.locator('[data-help-id="' + entry.id + '"]');
+        assert.equal(await answer.locator('h4').textContent(), entry.title);
+        assert.deepEqual(await answer.locator('p').allTextContents(), data.helpAnswers[entry.id]);
+        await answer.locator('a').focus();
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.activeElement.id === 'help-article-title');
+        assert.equal(await page.locator('#help-article-title').textContent(), data.helpEntries.find(item => item.id === entry.relatedArticle).title);
+        await page.evaluate(() => window.helpRouter.back());
+        await page.waitForFunction(() => !!document.querySelector('.help-answer'));
+      }
+      await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'clinical-night'));
+      assert.equal(await page.locator('.help-answer p').first().evaluate(el => getComputedStyle(el).color), 'rgb(203, 213, 225)');
+      await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
       await page.locator('.help-back').scrollIntoViewIfNeeded();
       assert.equal(await page.locator('.help-back').evaluate(el => el.getBoundingClientRect().bottom <= document.querySelector('.tenant-footer').getBoundingClientRect().top), true, 'Last link above fixed footer');
       // Same anchor can be revisited after scrolling; browser history and unknown hashes stay usable.
@@ -219,7 +238,8 @@ async function mount(browser, width, role) {
       await page.evaluate(async () => { await window.helpRouter.push('/ayuda?seccion=guia&articulo=no-existe'); });
       assert.equal(await page.locator('.help-article').count(), 0);
       await page.evaluate(async () => { await window.helpRouter.push('/ayuda?seccion=preguntas&articulo=revisar-preparacion'); });
-      assert.equal(await page.locator('.help-entry-list a, .help-article').count(), 0, 'FAQ stays titles only');
+      assert.equal(await page.locator('.help-article').count(), 0, 'Guide query cannot open inside FAQ');
+      assert.equal(await page.locator('.help-answer').count(), 23);
       await page.evaluate(async () => { await window.helpRouter.push('/ayuda?seccion=guia&articulo=revisar-preparacion'); });
       await page.waitForFunction(() => document.activeElement.id === 'help-article-title');
       await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'clinical-night'));
@@ -227,7 +247,7 @@ async function mount(browser, width, role) {
       await page.screenshot({ path: out + '/night-' + width + '.png', fullPage: false });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
       assert.deepEqual(errors, []);
-      results.push({ width, role, result: 'PASS', checks: 'menu, section, 14 anchors, focus, headings, 33 authorized articles, FAQ titles only, article links/back/history, invalid article fallback, reflow, night' });
+      results.push({ width, role, result: 'PASS', checks: 'menu, section, 14 anchors, focus, headings, 33 authorized articles, 23 FAQ answers and related guides, article links/back/history, invalid article fallback, reflow, night' });
       await page.close();
     }
     // Existing development server: anonymous help request must reach login, with all API traffic blocked.

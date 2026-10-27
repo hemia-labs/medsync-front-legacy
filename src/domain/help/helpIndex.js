@@ -46,7 +46,7 @@ const guide = (id, topic, order, title, flow, intent = 'tarea', prerequisites = 
 });
 const question = (id, topic, order, title, flow, relatedArticle, intent = 'problema') => ({
   id, section: 'preguntas', topic, order, title, flow, relatedArticle, intent,
-  type: 'question', editorialStatus: 'title-only', validationStatus: 'proposed'
+  type: 'question', editorialStatus: 'draft', validationStatus: 'proposed'
 });
 
 export const helpEntries = [

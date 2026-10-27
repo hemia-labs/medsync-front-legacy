@@ -1,6 +1,6 @@
 # Centro de ayuda: estándar editorial
 
-Estado vigente: las 33 guías tienen [contenido en borrador](README.md). Las 23 preguntas siguen sin respuestas. Las notas siguientes registran cortes anteriores.
+Estado vigente: 33 guías y 23 respuestas FAQ en borrador. Las preguntas siguen propuestas por validar; no hay métricas de frecuencia. Las notas siguientes registran etapas anteriores.
 
 Fecha: 2026-10-26. Estado: criterio adoptado para la estructura local; redacción pendiente.
 

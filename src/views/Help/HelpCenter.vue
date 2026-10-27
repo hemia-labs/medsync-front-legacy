@@ -53,7 +53,12 @@
           <h3 :id="topicAnchor(topic)" tabindex="-1">{{ topic.title }}</h3>
           <ul class="help-entry-list">
             <li v-for="entry in entriesFor(topic)" :key="entry.id" :data-help-id="entry.id">
-              <router-link v-if="articles[entry.id]" :to="{ name: 'helpCenter', query: { seccion: 'guia', articulo: entry.id } }">{{ entry.title }}</router-link>
+              <section v-if="answers[entry.id]" class="help-answer" :aria-labelledby="'pregunta-' + entry.id">
+                <h4 :id="'pregunta-' + entry.id">{{ entry.title }}</h4>
+                <p v-for="paragraph in answers[entry.id]" :key="paragraph">{{ paragraph }}</p>
+                <router-link :to="{ name: 'helpCenter', query: { seccion: 'guia', articulo: entry.relatedArticle } }">Ver guía: {{ relatedTitle(entry) }}</router-link>
+              </section>
+              <router-link v-else-if="articles[entry.id]" :to="{ name: 'helpCenter', query: { seccion: 'guia', articulo: entry.id } }">{{ entry.title }}</router-link>
               <span v-else>{{ entry.title }}</span>
             </li>
           </ul>
@@ -67,10 +72,11 @@
 <script>
 import { helpSections, helpTopics, helpEntries } from '../../domain/help/helpIndex';
 import { helpArticles } from '../../domain/help/helpArticles';
+import { helpAnswers } from '../../domain/help/helpAnswers';
 
 export default {
   name: 'HelpCenter',
-  data: () => ({ sections: helpSections, topics: helpTopics, articles: helpArticles }),
+  data: () => ({ sections: helpSections, topics: helpTopics, articles: helpArticles, answers: helpAnswers }),
   computed: {
     activeSection() {
       return this.sections.find(section => section.id === this.$route.query.seccion) || this.sections[0];
@@ -89,6 +95,7 @@ export default {
     if (this.$route.hash || this.activeArticle) this.$nextTick(this.focusDestination);
   },
   methods: {
+    relatedTitle(entry) { return helpEntries.find(item => item.id === entry.relatedArticle).title; },
     entriesFor(topic) {
       return helpEntries.filter(entry => entry.section === this.activeSection.id && entry.topic === topic.id)
         .sort((left, right) => left.order - right.order);
@@ -132,6 +139,9 @@ export default {
 .help-center h3 { font-size: 1.1rem; font-weight: 700; line-height: 1.5; margin: 0 0 8px; color: #12313a; }
 .help-topic-card { padding: 24px; margin-bottom: 16px; border-radius: 16px; border-color: #dbe5ea; }
 .help-entry-list { padding-left: 20px; margin: 0; color: #334155; }
+.help-answer { padding: 8px 0 20px; }
+.help-answer h4 { font-size: 1.05rem; line-height: 1.5; margin-bottom: 12px; color: inherit; }
+.help-answer p { line-height: 1.75; margin-bottom: 12px; }
 .help-entry-list li { padding: 8px 0 8px 4px; line-height: 1.6; overflow-wrap: anywhere; }
 .help-entry-list a { display: inline-flex; align-items: center; min-height: 44px; color: #0f766e; text-decoration: underline; text-underline-offset: 3px; }
 .help-article { min-width: 0; }
