@@ -12,6 +12,7 @@ import business from './routes/business';
 import prescription from './routes/prescription';
 import publicSignature from './routes/public-signature';
 import licensingDemo from './routes/licensing-demo';
+import help from './routes/help';
 import { isPendingActivation } from '../utils/registration';
 import Registration from '../services/core/auth/DARegistrationService';
 import { activationDestination } from '../utils/activationDestination';
@@ -116,6 +117,7 @@ const routes = [
         ...legal,
         ...publicSignature,
         ...licensingDemo,
+        ...help,
         ...business,
         ...prescription,
         { path: "*", component: () => import('@/views/error/404.vue') }

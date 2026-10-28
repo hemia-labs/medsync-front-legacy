@@ -19,7 +19,7 @@
       <article class="patient-create-section">
         <div class="section-heading">
           <p>Datos personales</p>
-          <span>Informacion minima para crear el expediente.</span>
+          <span>Información mínima para crear el expediente.</span>
         </div>
         <div class="patient-create-grid">
           <v-text-field v-field-error="{ id: 'patient-name', invalid: Boolean(fieldError('name').length), required: true }" ref="name" v-model.trim="form.name" label="Nombre *" required outlined dense :error-messages="fieldError('name')" @blur="touchField('name')"></v-text-field>
@@ -34,19 +34,19 @@
       <article class="patient-create-section">
         <div class="section-heading">
           <p>Datos opcionales</p>
-          <span>Estos datos ayudan a identificar al paciente, pero no son historia clinica.</span>
+          <span>Estos datos ayudan a identificar al paciente, pero no son historia clínica.</span>
         </div>
         <div class="patient-create-grid">
           <v-text-field v-field-error="{ id: 'patient-localPhone', invalid: Boolean(fieldError('localPhone').length), required: false }" ref="localPhone" v-model.trim="form.localPhone" label="Teléfono local, opcional" type="tel" inputmode="tel" hint="10 dígitos." outlined dense :error-messages="fieldError('localPhone')" @blur="touchField('localPhone')"></v-text-field>
-          <v-text-field v-model.trim="form.occupation" label="Ocupacion, opcional" outlined dense></v-text-field>
+          <v-text-field v-model.trim="form.occupation" label="Ocupación, opcional" outlined dense></v-text-field>
           <v-text-field v-model.trim="form.rfc" label="RFC, opcional" outlined dense></v-text-field>
         </div>
       </article>
 
       <article class="patient-create-section">
         <div class="section-heading">
-          <p>Direccion</p>
-          <span>La direccion es opcional en el alta; puede completarse despues.</span>
+          <p>Dirección</p>
+          <span>La dirección es opcional en el alta; puede completarse después.</span>
         </div>
         <div class="patient-create-grid">
           <v-text-field v-model.trim="form.streetAddress" label="Calle / domicilio" outlined dense></v-text-field>

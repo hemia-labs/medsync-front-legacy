@@ -114,7 +114,7 @@ export const tenantNavigationItems = [
   },
   {
     key: 'settings',
-    label: 'Configuracion',
+    label: 'Configuración',
     icon: 'mdi-cog-outline',
     routeName: 'admin',
     path: '/admin',
@@ -146,6 +146,16 @@ export const tenantNavigationItems = [
     upgradeTo: null
   }
 ];
+
+// Reuse the development-only preview convention; no runtime flag or production entry.
+if (process.env.NODE_ENV === 'development') {
+  tenantNavigationItems.push({
+    key: 'help', label: 'Centro de ayuda', icon: 'mdi-help-circle-outline',
+    routeName: 'helpCenter', path: '/ayuda', permission: null,
+    type: TENANT_NAVIGATION_TYPES.SECTION, group: TENANT_NAVIGATION_GROUPS.MANAGEMENT,
+    order: 70, activeRouteNames: ['helpCenter'], activePathPrefixes: ['/ayuda']
+  });
+}
 
 export function sortTenantNavigationItems(items) {
   return [...items].sort((left, right) => Number(left.order || 0) - Number(right.order || 0));

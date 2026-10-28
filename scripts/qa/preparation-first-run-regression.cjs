@@ -119,6 +119,11 @@ const state = (options, extras) => {
     assert.equal(visible(), false, 'Refreshing a configured clinic does not flash the card');
     refresh.resolve({ success: true, data: { pending: 1, completed: 0, steps: [{ id: 'pending', ready: false }] } }); await refreshing;
     assert.equal(visible(), true, 'Actual pending configuration is shown after confirmation');
+    const settled = deferred(); response = () => settled.promise;
+    const resettling = card.load();
+    settled.resolve({ success: true, data: { pending: 0, completed: 1, steps: [{ id: 'pending', ready: true }] } }); await resettling;
+    assert.equal(visible(), false, 'A dismissed completion stays hidden after a temporary pending step is resolved');
+    assert.equal(card.completionDismissed, true);
     card.status = null; card.loading = true; card.showCompleted = true;
     assert.equal(visible(), true, 'Settings retains its explicit loading feedback');
     card.showCompleted = false; card.loading = false; card.error = 'Error de consulta';

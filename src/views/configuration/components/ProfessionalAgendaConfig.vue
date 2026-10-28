@@ -8,9 +8,9 @@
     </div>
     <header class="agenda-header border-b border-primary-200 bg-primary-100">
       <div>
-        <p class="agenda-eyebrow">Agenda clinica</p>
-        <h2 class="m-0 text-2xl font-normal text-gray-700">Configuracion de citas</h2>
-        <p class="m-0 mt-2 text-sm text-gray-500">Horarios, duracion de citas y bloqueos de disponibilidad.</p>
+        <p class="agenda-eyebrow">Agenda clínica</p>
+        <h2 class="m-0 text-2xl font-normal text-gray-700">Configuración de citas</h2>
+        <p class="m-0 mt-2 text-sm text-gray-500">Horarios, duración de citas y bloqueos de disponibilidad.</p>
       </div>
       <div v-if="selected && loaded" class="agenda-header-actions">
         <v-switch ref="guideActivation" v-model="form.enabled" inset hide-details :label="isBusiness ? 'Consultorio disponible' : 'Agenda activa'" :disabled="saving" :color="themeColor" class="m-0" :class="guideClass('activation')"></v-switch>
@@ -22,11 +22,11 @@
         <v-select ref="guideDoctor" :class="guideClass('doctor')" :key="selected + '-' + selectorRevision" :value="isBusiness ? null : selected" :items="options" item-text="label" item-value="id" label="Doctor" outlined dense hide-details :disabled="loading || saving || timezoneSaving" :color="themeColor" @change="choose"></v-select>
         <div class="text-sm text-gray-600">
           <p class="m-0">{{ !selected ? 'Selecciona el doctor cuya agenda quieres configurar.' : isBusiness ? 'Cierres generales que aplican a todos los doctores.' : 'Estos cambios aplican solo a ' + doctorName + '.' }}</p>
-          <p v-if="loaded && !isBusiness" class="m-0 mt-1 text-gray-500">Los cierres del consultorio tambien se respetan.</p>
+          <p v-if="loaded && !isBusiness" class="m-0 mt-1 text-gray-500">Los cierres del consultorio también se respetan.</p>
           <v-btn v-if="canManageAllDoctors && !isBusiness" small text :color="themeColor" :disabled="loading || saving || timezoneSaving" @click="choose('business')">Cierres del consultorio</v-btn>
         </div>
       </div>
-      <p v-if="loading" role="status" class="mt-4 text-gray-600">Cargando configuracion…</p>
+      <p v-if="loading" role="status" class="mt-4 text-gray-600">Cargando configuración…</p>
       <div v-if="!loading && !error && !options.some(option => option.id !== 'business')" role="status" class="agenda-notice">
         <p>{{ canManageAllDoctors ? 'Todavía no hay doctores con perfil activo. Revisa sus perfiles en Personal y usuarios; no necesitas una agenda propia para prepararlos.' : 'No tienes un perfil profesional activo con una agenda propia. Completa y guarda tu perfil profesional; después configura tus horarios de atención.' }} Los cierres generales no sustituyen la agenda del doctor.</p>
         <p v-if="canCompleteOwnProfile">Si tú atenderás las citas, empieza por guardar tu perfil profesional. Después podrás preparar tus horarios; la firma puede esperar.</p>
@@ -37,7 +37,7 @@
       <div v-if="error" role="alert" class="agenda-notice agenda-notice-error">
         {{ error }} <button v-if="!loading && !saving && !timezoneSaving" type="button" class="agenda-link" @click="retryCurrent">{{ saveOutcome === 'uncertain' ? 'Comprobar guardado' : saveOutcome === 'conflict' ? 'Revisar versión guardada' : 'Reintentar' }}</button>
       </div>
-      <v-btn v-if="error && loaded" small text :disabled="saving || timezoneSaving" @click="reloadCurrentConfig">Descartar cambios y recargar version vigente</v-btn>
+      <v-btn v-if="error && loaded" small text :disabled="saving || timezoneSaving" @click="reloadCurrentConfig">Descartar cambios y recargar versión vigente</v-btn>
       <p v-if="message" role="status" class="agenda-notice agenda-notice-success">{{ message }}</p>
       <template v-if="selected && loaded">
         <div class="agenda-summary" :class="{ 'agenda-summary-business': isBusiness }">
@@ -57,18 +57,18 @@
                 <p class="agenda-eyebrow">General</p>
                 <h3 class="agenda-title">Reglas base</h3>
                 <p class="agenda-description">{{ isBusiness ? 'Define la zona horaria y disponibilidad general del consultorio.' : 'Define como se generan los espacios disponibles.' }}</p>
-                <v-select v-if="!isBusiness" ref="guideDuration" :class="guideClass('duration')" v-model="form.defaultAppointmentDuration" :items="durationOptions" item-text="label" item-value="value" label="Duracion habitual" outlined dense :disabled="saving" :color="themeColor" class="mt-5"></v-select>
+                <v-select v-if="!isBusiness" ref="guideDuration" :class="guideClass('duration')" v-model="form.defaultAppointmentDuration" :items="durationOptions" item-text="label" item-value="value" label="Duración habitual" outlined dense :disabled="saving" :color="themeColor" class="mt-5"></v-select>
                 <div ref="guideTimezone" tabindex="-1" :class="guideClass('timezone')">
                   <ClinicTimeZoneField :value="form.timezone" :save-zone="persistTimezone" :can-manage="canManageAllDoctors" :disabled="saving || loading" :color="themeColor" @dialog="zoneDialog = $event">
                     <template #guide><OnboardingGuide v-if="guideActive" :editor="editorSnapshot" :doctor-name="doctorName" inside-modal modal-title="Confirma la hora" modal-text="Guardar actualiza la zona de todas las agendas. Los horarios se guardan aparte al volver al formulario." /></template>
                   </ClinicTimeZoneField>
                 </div>
-                <p class="agenda-note">{{ isBusiness ? 'Los horarios de atencion se configuran en la agenda de cada doctor. Los cierres generales aplican a todos.' : 'Las citas creadas desde seguimiento inician como pendientes de confirmar.' }}</p>
+                <p class="agenda-note">{{ isBusiness ? 'Los horarios de atención se configuran en la agenda de cada doctor. Los cierres generales aplican a todos.' : 'Las citas creadas desde seguimiento inician como pendientes de confirmar.' }}</p>
               </article>
               <article v-if="!isBusiness" ref="guideHours" tabindex="-1" class="agenda-panel" :class="guideClass('hours')">
                 <p class="agenda-eyebrow">Semana</p>
                 <h3 class="agenda-title">Horarios semanales</h3>
-                <p class="agenda-description mb-4">Edita un dia solo cuando necesites cambiar sus rangos.</p>
+                <p class="agenda-description mb-4">Edita un día solo cuando necesites cambiar sus rangos.</p>
                 <div class="agenda-days">
                   <div v-for="day in form.workingDays" :key="day.dayOfWeek" class="agenda-day">
                     <div class="min-w-0">
@@ -77,7 +77,7 @@
                         <span class="agenda-badge" :class="day.enabled ? 'agenda-badge-active' : 'agenda-badge-inactive'">{{ day.enabled ? 'Activo' : 'Inactivo' }}</span>
                       </div>
                       <div class="flex flex-wrap gap-2 mt-2">
-                        <span v-if="!day.enabled || !day.timeRanges.length" class="text-sm text-gray-500">Sin atencion</span>
+                        <span v-if="!day.enabled || !day.timeRanges.length" class="text-sm text-gray-500">Sin atención</span>
                         <span v-for="(range, i) in day.enabled ? day.timeRanges : []" :key="i" class="agenda-range-chip">{{ range.startTime }} - {{ range.endTime }}</span>
                       </div>
                     </div>
@@ -93,16 +93,16 @@
           <v-tab-item>
             <article ref="guideClosures" tabindex="-1" class="agenda-panel" :class="guideClass('closures')">
               <div class="agenda-panel-header">
-                <div><p class="agenda-eyebrow">{{ isBusiness ? 'Cierres generales' : 'Bloqueos del doctor' }}</p><h3 class="agenda-title">Dias y horarios no disponibles</h3><p class="agenda-description">Agrega vacaciones, cursos o actividades internas.</p></div>
+                <div><p class="agenda-eyebrow">{{ isBusiness ? 'Cierres generales' : 'Bloqueos del doctor' }}</p><h3 class="agenda-title">Días y horarios no disponibles</h3><p class="agenda-description">Agrega vacaciones, cursos o actividades internas.</p></div>
                 <div class="flex flex-wrap gap-2">
-                  <v-btn small rounded outlined :color="themeColor" :disabled="saving" @click="openBlockDialog(true, -1, $event)">+ Bloquear dia</v-btn>
+                  <v-btn small rounded outlined :color="themeColor" :disabled="saving" @click="openBlockDialog(true, -1, $event)">+ Bloquear día</v-btn>
                   <v-btn small rounded depressed :color="themeColor" dark :disabled="saving" @click="openBlockDialog(false, -1, $event)">+ Bloquear horario</v-btn>
                 </div>
               </div>
-              <div v-if="!blocks.length" class="agenda-empty"><v-icon :color="themeColor" class="mb-2">mdi-calendar-check-outline</v-icon><h4 class="m-0 font-semibold text-gray-700">No tienes bloqueos configurados</h4><p class="agenda-description">Agrega dias festivos, vacaciones u horarios no disponibles.</p></div>
+              <div v-if="!blocks.length" class="agenda-empty"><v-icon :color="themeColor" class="mb-2">mdi-calendar-check-outline</v-icon><h4 class="m-0 font-semibold text-gray-700">No tienes bloqueos configurados</h4><p class="agenda-description">Agrega días festivos, vacaciones u horarios no disponibles.</p></div>
               <div v-else class="agenda-blocks">
                 <div v-for="(block, i) in blocks" :key="i" class="agenda-block">
-                  <div class="min-w-0"><p class="m-0 font-semibold text-gray-700">{{ block.repeats ? dayName(block.dayOfWeek) : displayDate(block.date) }}</p><p class="agenda-description">{{ block.allDay ? 'Dia completo' : block.startTime + ' - ' + block.endTime }}{{ block.repeats ? ' · Repite semanalmente' : '' }}</p><p class="m-0 mt-2 text-sm text-gray-600">{{ block.reason || 'Sin motivo' }}</p></div>
+                  <div class="min-w-0"><p class="m-0 font-semibold text-gray-700">{{ block.repeats ? dayName(block.dayOfWeek) : displayDate(block.date) }}</p><p class="agenda-description">{{ block.allDay ? 'Día completo' : block.startTime + ' - ' + block.endTime }}{{ block.repeats ? ' · Repite semanalmente' : '' }}</p><p class="m-0 mt-2 text-sm text-gray-600">{{ block.reason || 'Sin motivo' }}</p></div>
                   <div class="flex"><v-btn icon small :color="themeColor" :disabled="saving" :aria-label="'Editar bloqueo ' + (i + 1)" @click="openBlockDialog(block.allDay, i, $event)"><v-icon>mdi-pencil-outline</v-icon></v-btn><v-btn icon small color="#A6001E" :disabled="saving" :aria-label="'Quitar bloqueo ' + (i + 1)" @click="blocks.splice(i, 1)"><v-icon>mdi-delete-outline</v-icon></v-btn></div>
                 </div>
               </div>
@@ -110,14 +110,14 @@
           </v-tab-item>
           <v-tab-item v-if="!isBusiness">
             <article class="agenda-panel">
-              <div class="agenda-panel-header"><div><p class="agenda-eyebrow">Vista previa</p><h3 class="agenda-title">Disponibilidad generada</h3><p class="agenda-description">Revisa esta configuracion antes de guardar. No incluye citas ya reservadas.</p></div><v-text-field v-model="previewDate" type="date" label="Fecha de vista previa" outlined dense hide-details :color="themeColor" class="agenda-preview-date"></v-text-field></div>
-              <p v-if="!form.enabled || form.businessEnabled === false" class="agenda-note">{{ !form.enabled ? 'La agenda de este doctor esta inactiva.' : 'El consultorio no esta disponible.' }} Activa la configuracion correspondiente para generar horarios.</p>
-              <div v-else-if="previewBlocked" class="agenda-notice agenda-notice-error">Este dia esta bloqueado completo.</div>
+              <div class="agenda-panel-header"><div><p class="agenda-eyebrow">Vista previa</p><h3 class="agenda-title">Disponibilidad generada</h3><p class="agenda-description">Revisa esta configuración antes de guardar. No incluye citas ya reservadas.</p></div><v-text-field v-model="previewDate" type="date" label="Fecha de vista previa" outlined dense hide-details :color="themeColor" class="agenda-preview-date"></v-text-field></div>
+              <p v-if="!form.enabled || form.businessEnabled === false" class="agenda-note">{{ !form.enabled ? 'La agenda de este doctor está inactiva.' : 'El consultorio no está disponible.' }} Activa la configuración correspondiente para generar horarios.</p>
+              <div v-else-if="previewBlocked" class="agenda-notice agenda-notice-error">Este día está bloqueado completo.</div>
               <div class="agenda-preview-grid">
-                <div class="agenda-note"><p class="agenda-eyebrow">Horario laboral</p><h4 class="m-0 mt-2 font-semibold text-gray-700">{{ previewDayName }}</h4><div class="flex flex-wrap gap-2 mt-3"><span v-if="!previewRanges.length" class="text-sm text-gray-500">Dia sin atencion</span><span v-for="(range, i) in previewRanges" :key="i" class="agenda-range-chip">{{ range.startTime }} - {{ range.endTime }}</span></div></div>
+                <div class="agenda-note"><p class="agenda-eyebrow">Horario laboral</p><h4 class="m-0 mt-2 font-semibold text-gray-700">{{ previewDayName }}</h4><div class="flex flex-wrap gap-2 mt-3"><span v-if="!previewRanges.length" class="text-sm text-gray-500">Día sin atención</span><span v-for="(range, i) in previewRanges" :key="i" class="agenda-range-chip">{{ range.startTime }} - {{ range.endTime }}</span></div></div>
                 <div class="agenda-note"><p class="agenda-eyebrow">Horarios disponibles</p><div class="flex flex-wrap gap-2 mt-3"><span v-if="!previewSlots.length" class="text-sm text-gray-500">No hay horarios disponibles para esta fecha.</span><span v-for="slot in previewSlots" :key="slot.startTime" class="agenda-slot">{{ slot.startTime }}</span></div></div>
               </div>
-              <div class="agenda-note mt-4"><p class="agenda-eyebrow">Bloqueos aplicados</p><div class="flex flex-wrap gap-2 mt-3"><span v-if="!previewHourBlocks.length && !previewBlocked" class="text-sm text-gray-500">Sin bloqueos para esta fecha.</span><span v-if="previewBlocked" class="text-sm text-gray-600">Dia completo</span><span v-for="(block, i) in previewHourBlocks" :key="i" class="agenda-range-chip">{{ block.startTime }} - {{ block.endTime }} {{ block.reason }}</span></div></div>
+              <div class="agenda-note mt-4"><p class="agenda-eyebrow">Bloqueos aplicados</p><div class="flex flex-wrap gap-2 mt-3"><span v-if="!previewHourBlocks.length && !previewBlocked" class="text-sm text-gray-500">Sin bloqueos para esta fecha.</span><span v-if="previewBlocked" class="text-sm text-gray-600">Día completo</span><span v-for="(block, i) in previewHourBlocks" :key="i" class="agenda-range-chip">{{ block.startTime }} - {{ block.endTime }} {{ block.reason }}</span></div></div>
             </article>
           </v-tab-item>
         </v-tabs-items>
@@ -126,20 +126,20 @@
     </div>
     <v-dialog v-model="dayDialog" persistent max-width="620" @keydown.esc.stop.prevent="dayDialog = false">
       <v-card class="agenda-dialog"><OnboardingGuide v-if="guideActive" :editor="editorSnapshot" :doctor-name="doctorName" inside-modal />
-        <div class="agenda-dialog-header"><div><p class="agenda-eyebrow">{{ doctorName }} · Horario semanal</p><h3 class="agenda-title">Editar {{ dayName(editingDay.dayOfWeek) }}</h3></div><v-btn icon aria-label="Cerrar edicion de horario" @click="dayDialog = false"><v-icon>mdi-close</v-icon></v-btn></div>
-        <v-card-text class="pt-5"><v-switch v-model="editingDay.enabled" inset :color="themeColor" label="Dia laboral"></v-switch>
+        <div class="agenda-dialog-header"><div><p class="agenda-eyebrow">{{ doctorName }} · Horario semanal</p><h3 class="agenda-title">Editar {{ dayName(editingDay.dayOfWeek) }}</h3></div><v-btn icon aria-label="Cerrar edición de horario" @click="dayDialog = false"><v-icon>mdi-close</v-icon></v-btn></div>
+        <v-card-text class="pt-5"><v-switch v-model="editingDay.enabled" inset :color="themeColor" label="Día laboral"></v-switch>
           <template v-if="editingDay.enabled"><div v-for="(range, i) in editingDay.timeRanges" :key="i" class="agenda-range mb-3"><v-text-field v-model="range.startTime" type="time" :label="'Inicio ' + (i + 1)" outlined dense hide-details :color="themeColor"></v-text-field><v-text-field v-model="range.endTime" type="time" :label="'Fin ' + (i + 1)" outlined dense hide-details :color="themeColor"></v-text-field><v-btn icon color="#A6001E" :aria-label="'Quitar rango ' + (i + 1)" @click="editingDay.timeRanges.splice(i, 1)"><v-icon>mdi-delete-outline</v-icon></v-btn></div><v-btn small rounded outlined :color="themeColor" @click="addEditingRange">+ Agregar rango</v-btn></template>
-          <p v-else class="text-gray-500">Este dia no generara horarios disponibles.</p><p v-if="editingDayError" role="alert" class="text-red-700 mt-3">{{ editingDayError }}</p><p class="text-sm text-gray-500 mt-4">Los cambios se guardan al pulsar Guardar cambios en la agenda.</p>
+          <p v-else class="text-gray-500">Este día no generará horarios disponibles.</p><p v-if="editingDayError" role="alert" class="text-red-700 mt-3">{{ editingDayError }}</p><p class="text-sm text-gray-500 mt-4">Los cambios se guardan al pulsar Guardar cambios en la agenda.</p>
         </v-card-text>
         <v-card-actions class="agenda-dialog-actions"><v-btn rounded outlined :color="themeColor" @click="dayDialog = false">Cancelar</v-btn><v-btn rounded depressed :color="themeColor" dark @click="applyDay">Aplicar horario</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="copyDialog" persistent max-width="500" @keydown.esc.stop.prevent="copyDialog = false">
-      <v-card class="agenda-dialog"><OnboardingGuide v-if="guideActive" :editor="editorSnapshot" :doctor-name="doctorName" inside-modal modal-title="Copia y después guarda" modal-text="Selecciona los días y pulsa Copiar horario. Después, Guardar cambios en la agenda conserva la copia." /><div class="agenda-dialog-header"><div><p class="agenda-eyebrow">{{ doctorName }} · Copiar horario</p><h3 class="agenda-title">Copiar {{ dayName(copySourceDay.dayOfWeek) }}</h3></div><v-btn icon aria-label="Cerrar copia de horario" @click="copyDialog = false"><v-icon>mdi-close</v-icon></v-btn></div><v-card-text class="pt-5"><p>Selecciona los dias que recibiran estos rangos. Reemplazara sus horarios actuales dentro de esta agenda.</p><div class="flex flex-wrap gap-2 mb-3"><span v-for="(range, i) in copySourceDay.timeRanges" :key="i" class="agenda-range-chip">{{ range.startTime }} - {{ range.endTime }}</span></div><v-checkbox v-for="day in copyTargetOptions" :key="day.value" v-model="copyTargetDays" :value="day.value" :label="day.label" :color="themeColor" hide-details></v-checkbox><p class="text-sm text-gray-500 mt-4">Despues pulsa Guardar cambios en la agenda.</p></v-card-text><v-card-actions class="agenda-dialog-actions"><v-btn rounded outlined :color="themeColor" @click="copyDialog = false">Cancelar</v-btn><v-btn rounded depressed :color="themeColor" dark :disabled="!copyTargetDays.length" @click="applyCopy">Copiar horario</v-btn></v-card-actions></v-card>
+      <v-card class="agenda-dialog"><OnboardingGuide v-if="guideActive" :editor="editorSnapshot" :doctor-name="doctorName" inside-modal modal-title="Copia y después guarda" modal-text="Selecciona los días y pulsa Copiar horario. Después, Guardar cambios en la agenda conserva la copia." /><div class="agenda-dialog-header"><div><p class="agenda-eyebrow">{{ doctorName }} · Copiar horario</p><h3 class="agenda-title">Copiar {{ dayName(copySourceDay.dayOfWeek) }}</h3></div><v-btn icon aria-label="Cerrar copia de horario" @click="copyDialog = false"><v-icon>mdi-close</v-icon></v-btn></div><v-card-text class="pt-5"><p>Selecciona los días que recibirán estos rangos. Reemplazará sus horarios actuales dentro de esta agenda.</p><div class="flex flex-wrap gap-2 mb-3"><span v-for="(range, i) in copySourceDay.timeRanges" :key="i" class="agenda-range-chip">{{ range.startTime }} - {{ range.endTime }}</span></div><v-checkbox v-for="day in copyTargetOptions" :key="day.value" v-model="copyTargetDays" :value="day.value" :label="day.label" :color="themeColor" hide-details></v-checkbox><p class="text-sm text-gray-500 mt-4">Después pulsa Guardar cambios en la agenda.</p></v-card-text><v-card-actions class="agenda-dialog-actions"><v-btn rounded outlined :color="themeColor" @click="copyDialog = false">Cancelar</v-btn><v-btn rounded depressed :color="themeColor" dark :disabled="!copyTargetDays.length" @click="applyCopy">Copiar horario</v-btn></v-card-actions></v-card>
     </v-dialog>
     <v-dialog v-model="blockDialog" persistent max-width="600" @keydown.esc.stop.prevent="blockDialog = false">
       <v-card class="agenda-dialog"><OnboardingGuide v-if="guideActive" :editor="editorSnapshot" :doctor-name="doctorName" inside-modal modal-text="Pulsa Aplicar bloqueo al terminar. Después, Guardar cambios en la agenda conserva el bloqueo." />
-        <div class="agenda-dialog-header"><div><p class="agenda-eyebrow">{{ doctorName }}</p><h3 class="agenda-title">{{ editingBlockIndex === -1 ? 'Agregar' : 'Editar' }} bloqueo</h3></div><v-btn icon aria-label="Cerrar edicion de bloqueo" @click="blockDialog = false"><v-icon>mdi-close</v-icon></v-btn></div>
+        <div class="agenda-dialog-header"><div><p class="agenda-eyebrow">{{ doctorName }}</p><h3 class="agenda-title">{{ editingBlockIndex === -1 ? 'Agregar' : 'Editar' }} bloqueo</h3></div><v-btn icon aria-label="Cerrar edición de bloqueo" @click="blockDialog = false"><v-icon>mdi-close</v-icon></v-btn></div>
         <v-card-text class="pt-5">
           <div class="agenda-block-form">
             <v-checkbox v-model="editingBlock.repeats" label="Repetir cada semana" :color="themeColor" hide-details></v-checkbox>
@@ -216,8 +216,8 @@ export default {
       const days = this.form.workingDays.filter(day => day.enabled);
       const blocks = {label:'Bloqueos',value:this.blocks.length,detail:this.isBusiness ? 'generales del consultorio' : 'de esta agenda'};
       return this.isBusiness ? [{label:'Alcance',value:'Todos',detail:'los doctores del consultorio'},blocks] : [
-        {label:'Dias activos',value:days.length,detail:'de 7 dias configurados'},
-        {label:'Duracion',value:`${this.form.defaultAppointmentDuration} min`,detail:'por cita'},
+        {label:'Días activos',value:days.length,detail:'de 7 días configurados'},
+        {label:'Duración',value:`${this.form.defaultAppointmentDuration} min`,detail:'por cita'},
         {label:'Rangos',value:days.reduce((total,day)=>total+day.timeRanges.length,0),detail:'horarios semanales'},blocks
       ];
     },
@@ -243,7 +243,7 @@ export default {
       if(isGuideOnlyNavigation(to,from)) return next();
       if(this.saving || this.timezoneSaving) return next(false);
       if(!this.dirty && !this.pendingCapture && !this.pendingSave && !this.pendingTimezone) return next();
-      const result = await this.$swal.fire({title:'Cambios sin guardar',text:'Los cambios de agenda aun no se han guardado.',showCancelButton:true,confirmButtonText:'Descartar y salir',cancelButtonText:'Seguir editando',customClass:{confirmButton:'medsync-alert-danger'}});
+      const result = await this.$swal.fire({title:'Cambios sin guardar',text:'Los cambios de agenda aún no se han guardado.',showCancelButton:true,confirmButtonText:'Descartar y salir',cancelButtonText:'Seguir editando',customClass:{confirmButton:'medsync-alert-danger'}});
       next(result.isConfirmed ? undefined : false);
     });
   },
@@ -301,7 +301,7 @@ export default {
     },
     async reloadCurrentConfig() {
       const request=this.request,key=this.editorContextKey,subject=this.selected;
-      const answer = await this.$swal.fire({ title:'Recargar version vigente',text:'Se descartaran los cambios sin guardar de este formulario.',showCancelButton:true,confirmButtonText:'Descartar y recargar',cancelButtonText:'Seguir editando' });
+      const answer = await this.$swal.fire({ title:'Recargar versión vigente',text:'Se descartarán los cambios sin guardar de este formulario.',showCancelButton:true,confirmButtonText:'Descartar y recargar',cancelButtonText:'Seguir editando' });
       if(answer.isConfirmed && this.currentRequest(request,key,subject)) await this.load();
     },
     async save() {
@@ -413,7 +413,7 @@ export default {
       this.editingDayError='';
     },
     validateRanges(ranges) {
-      if(!ranges.length) return 'Agrega al menos un rango para este dia laboral.';
+      if(!ranges.length) return 'Agrega al menos un rango para este día laboral.';
       const ordered = [...ranges].sort((a,b)=>timeToMinutes(a.startTime)-timeToMinutes(b.startTime));
       for(let i=0;i<ordered.length;i++) {
         const range=ordered[i];
@@ -452,7 +452,7 @@ export default {
       this.blockError='';
       this.blockAttempted=true;
       if(!this.editingBlock.repeats && !this.validBlockDate(this.editingBlock.date)) this.blockError='Selecciona una fecha válida para el bloqueo.';
-      else if(this.editingBlock.repeats && !this.weekDays.some(day=>day.value===this.editingBlock.dayOfWeek)) this.blockError='Selecciona el dia de la semana.';
+      else if(this.editingBlock.repeats && !this.weekDays.some(day=>day.value===this.editingBlock.dayOfWeek)) this.blockError='Selecciona el día de la semana.';
       else if(!this.editingBlock.allDay) this.blockError=this.validateRanges([this.editingBlock]);
       if(this.blockError) return false;
       const block={...this.editingBlock,id:this.editingBlock.id || createId('block'),repeatType:this.editingBlock.repeats ? 'weekly' : 'none',date:this.editingBlock.repeats ? '' : this.editingBlock.date,dayOfWeek:this.editingBlock.repeats ? this.editingBlock.dayOfWeek : null};

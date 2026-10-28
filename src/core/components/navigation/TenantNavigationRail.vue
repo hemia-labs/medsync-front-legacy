@@ -33,7 +33,7 @@
       </div>
 
       <nav class="navigation-sections" aria-label="Secciones del sistema">
-        <p class="navigation-caption">Operacion</p>
+        <p class="navigation-caption">Operación</p>
         <button
           v-for="item in operationItems"
           :key="item.key"
@@ -50,7 +50,7 @@
         </button>
 
         <template v-if="clinicalItems.length">
-          <p class="navigation-caption">Clinico</p>
+          <p class="navigation-caption">Clínico</p>
           <button
             v-for="item in clinicalItems"
             :key="item.key"
@@ -68,7 +68,7 @@
         </template>
 
         <template v-if="managementItems.length">
-          <p class="navigation-caption">Gestion</p>
+          <p class="navigation-caption">Gestión</p>
           <button
             v-for="item in managementItems"
             :key="item.key"

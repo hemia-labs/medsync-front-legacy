@@ -372,7 +372,7 @@
         <prescription-config
             v-if="activeSection === 'prescriptions'"
             :theme-color="themePrimaryColor"
-            @saved="toastFunction('success','Configuracion de recetas guardada.')"
+            @saved="toastFunction('success','Configuración de recetas guardada.')"
             @error="toastFunction('error',$event)"
         ></prescription-config>
 

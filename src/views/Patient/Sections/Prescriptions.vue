@@ -24,7 +24,7 @@
             <div v-else-if="loadError" class="p-8 text-center" role="alert"><p>{{ loadError }}</p><button class="rx-action rx-action--ghost" @click="load">Reintentar</button></div>
             <div v-else-if="items.length === 0" class="bg-white border border-gray-200 shadow-md p-8 text-center">
                 <h3 class="m-0 text-gray-700 text-lg font-semibold">Sin recetas registradas</h3>
-                <p class="m-0 mt-2 text-gray-500">Las recetas creadas para este paciente apareceran aqui.</p>
+                <p class="m-0 mt-2 text-gray-500">Las recetas creadas para este paciente aparecerán aquí.</p>
                 <button v-if="canCreate" class="rx-action rx-action--primary mt-4" @click="openNew">Nueva receta</button>
             </div>
 
@@ -43,7 +43,7 @@
                                 <span v-if="item.issued_at"> | Emitida: {{ formatDateTime(item.issued_at) }}</span>
                             </p>
                             <p class="m-0 mt-1 text-gray-600 text-sm truncate">Medicamentos: {{ item.medications || 'Sin medicamentos capturados' }}</p>
-                            <p v-if="item.cancellation_reason" class="m-0 mt-1 text-red-600 text-sm">Motivo de cancelacion: {{ item.cancellation_reason }}</p>
+                            <p v-if="item.cancellation_reason" class="m-0 mt-1 text-red-600 text-sm">Motivo de cancelación: {{ item.cancellation_reason }}</p>
                         </div>
                         <div class="prescription-actions">
                             <button type="button" class="rx-action rx-action--ghost" title="Ver receta" @click="preview(item)">
@@ -129,7 +129,7 @@
                             <p v-if="item.indications" class="m-0 mt-1 text-sm text-gray-600">{{ item.indications }}</p>
                         </div>
                         <p v-if="previewData.notes" class="m-0 mt-4 text-sm text-gray-600"><strong>Notas:</strong> {{ previewData.notes }}</p>
-                        <p v-if="previewData.cancellation_reason" class="m-0 mt-4 text-sm text-red-600"><strong>Motivo de cancelacion:</strong> {{ previewData.cancellation_reason }}</p>
+                        <p v-if="previewData.cancellation_reason" class="m-0 mt-4 text-sm text-red-600"><strong>Motivo de cancelación:</strong> {{ previewData.cancellation_reason }}</p>
                         <p v-if="previewData.cancelled_at" class="m-0 mt-1 text-sm text-red-700"><strong>Fecha de cancelación:</strong> {{ formatDateTime(previewData.cancelled_at) }}</p>
                     </div>
                 </v-card-text>
@@ -338,7 +338,7 @@ export default {
         async deleteDraft(item) {
             const confirm = await this.$swal({
                 title: 'Eliminar borrador',
-                text: 'Esta accion elimina un borrador que aun no ha sido emitido.',
+                text: 'Esta acción elimina un borrador que aún no ha sido emitido.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Eliminar',
@@ -368,14 +368,14 @@ export default {
             const result = await this.$swal({
                 title: 'Cancelar receta',
                 input: 'textarea',
-                inputLabel: 'Motivo de cancelacion',
+                inputLabel: 'Motivo de cancelación',
                 inputPlaceholder: 'Describe el motivo...',
                 inputAttributes: { maxlength: 500 },
                 showCancelButton: true,
                 confirmButtonText: 'Cancelar receta',
                 cancelButtonText: 'Cerrar',
                 customClass: { confirmButton: 'medsync-alert-danger' },
-                inputValidator: (value) => !value ? 'Captura el motivo de cancelacion.' : undefined
+                inputValidator: (value) => !value ? 'Captura el motivo de cancelación.' : undefined
             });
 
             if(!result.value) {

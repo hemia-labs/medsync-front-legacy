@@ -4,7 +4,7 @@
       <section class="patients-hero">
         <div class="patients-hero-copy">
           <p class="patients-eyebrow">Pacientes</p>
-          <h1>Directorio clinico</h1>
+          <h1>Directorio clínico</h1>
           <p>
             Consulta el listado general, filtra por datos clave y abre el expediente sin salir del flujo diario.
           </p>
@@ -43,7 +43,7 @@
           <span class="summary-icon"><v-icon size="22">mdi-briefcase-outline</v-icon></span>
           <div>
             <strong>{{ patientsWithOccupation }}</strong>
-            <small>Con ocupacion registrada</small>
+            <small>Con ocupación registrada</small>
           </div>
         </article>
       </section>
@@ -51,7 +51,7 @@
       <section class="patients-panel">
         <div class="patients-panel-header">
           <div>
-            <p class="patients-eyebrow">Busqueda</p>
+            <p class="patients-eyebrow">Búsqueda</p>
             <h2>Todos los pacientes</h2>
           </div>
 
@@ -118,7 +118,7 @@
 
         <div v-else-if="!isPatientsLoading && totalPatients === 0" class="patients-state">
           <v-icon size="34">mdi-account-search-outline</v-icon>
-          <strong>Aun no hay pacientes registrados.</strong>
+          <strong>Aún no hay pacientes registrados.</strong>
           <p>Cuando agregues pacientes, apareceran en este directorio.</p>
           <router-link v-if="canCreatePatient" class="patients-primary-action compact" :to="'/px/new'">
             <v-icon size="18">mdi-account-plus-outline</v-icon>
@@ -129,7 +129,7 @@
         <div v-else-if="!isPatientsLoading && filteredPatients.length === 0" class="patients-state">
           <v-icon size="34">mdi-text-search</v-icon>
           <strong>No encontramos coincidencias.</strong>
-          <p>Prueba con otro nombre, telefono, ocupacion o folio.</p>
+          <p>Prueba con otro nombre, teléfono, ocupación o folio.</p>
         </div>
 
         <div v-else class="patients-table-card">
@@ -139,9 +139,9 @@
                 <tr>
                   <th>Paciente</th>
                   <th>Contacto</th>
-                  <th>Ocupacion</th>
+                  <th>Ocupación</th>
                   <th>Edad</th>
-                  <th class="patients-table-action">Accion</th>
+                  <th class="patients-table-action">Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,7 +204,7 @@
                   <dd>{{ patientContact(patient) }}</dd>
                 </div>
                 <div>
-                  <dt>Ocupacion</dt>
+                  <dt>Ocupación</dt>
                   <dd>{{ patientOccupation(patient) }}</dd>
                 </div>
                 <div>
@@ -416,11 +416,11 @@ export default {
           || patient.phone
           || patient.mobilePhone
           || patient.local_telephone
-          || 'Sin telefono'
+          || 'Sin teléfono'
       },
 
       patientOccupation: function(patient) {
-        return patient.ocupation || patient.occupation || 'Sin ocupacion'
+        return patient.ocupation || patient.occupation || 'Sin ocupación'
       },
 
       patientAge: function(patient) {

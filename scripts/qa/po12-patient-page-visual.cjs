@@ -43,7 +43,7 @@ const patients = Array.from({ length: 8 }, (_, index) => ({ id_person: 'syntheti
         const measurements = [];
         for (const [label, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
             await page.setViewportSize({ width, height });
-            await page.getByRole('heading', { name: 'Directorio clinico' }).waitFor();
+            await page.getByRole('heading', { name: 'Directorio clínico' }).waitFor();
             await page.waitForFunction(() => document.querySelectorAll('.patients-table tbody tr').length === 8);
             const sizes = await page.evaluate(() => ({ viewport: innerWidth, content: document.documentElement.scrollWidth,
                 tableVisible: getComputedStyle(document.querySelector('.patients-table-wrap')).display !== 'none',
