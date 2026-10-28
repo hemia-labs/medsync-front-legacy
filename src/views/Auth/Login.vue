@@ -730,6 +730,14 @@ export default {
     },
 
     loadLoginImage: async function() {
+      // Without a session this endpoint returns the default business branding,
+      // not the tenant logo saved from Settings or the authenticated layout.
+      const storedLogo = getStoredLoginLogo();
+      if (storedLogo) {
+        this.bgLogotype = storedLogo;
+        return;
+      }
+
       try {
         const response = await DAConfigService.getLoginImage();
         if (!response || !response.success) return;
