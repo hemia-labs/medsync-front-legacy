@@ -52,6 +52,7 @@ const buildD2Config = async (method, baseConfig = {}) => {
 
     if(isCsrfEnabled() && isMutatingMethod(method)) {
         config.headers = mergeHeaders(config.headers, await DACsrfService.getCsrfHeader());
+        config.csrfContext = DACsrfService.getRequestContext();
     }
 
     if(!hasHeaders(config.headers)) {

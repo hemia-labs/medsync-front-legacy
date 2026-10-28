@@ -154,7 +154,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
   assert.equal(sessionCalls, currentCalls, 'CSRF and plan denials do not refresh authorization');
 
   const closeRequests = [];
-  const csrfService = { getCsrfHeader: async () => ({ 'X-CSRF-Token': 'csrf-fixture' }), clearCsrfToken: () => {} };
+  const csrfService = { getCsrfHeader: async () => ({ 'X-CSRF-Token': 'csrf-fixture' }), getRequestContext: () => ({}), clearCsrfToken: () => {} };
   const realHelper = load('src/services/config/axios.helper.js', { Vue, DACsrfService: csrfService,
     getSafeAuthClientConfigSummary: () => ({}), isCsrfEnabled: () => true, isD2AuthMode: () => d2 });
   const closeCore = load('src/services/config/core.instance.js', { store, ...rights, axiosHelper: realHelper,
@@ -326,7 +326,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     } }) };
     const actualCsrf = load('src/services/core/auth/DACsrfService.js', {
       axios: fakeAxios, context: { APP_CORE_URL: 'http://qa.invalid' }, DAC_AUTH_CSRF: '/api/auth/csrf',
-      isD2AuthMode: () => true, isCsrfEnabled: () => true
+      isD2AuthMode: () => true, isCsrfEnabled: () => true, store, ...rights
     });
     const actualSession = load('src/services/core/auth/DASessionService.js', {
       Vue, axios: fakeAxios, context: { APP_CORE_URL: 'http://qa.invalid' }, DAC_AUTH_SESSION: '/api/auth/session', isD2AuthMode: () => true

@@ -4,18 +4,20 @@ import { isCsrfEnabled } from '../../config/authTransport.config';
 import DACsrfService from './DACsrfService';
 import store from '../../../store';
 import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
+import axiosHelper from '../../config/axios.helper';
+import { canRecoverCsrf, recoverCsrfRequest, readableCsrfError } from '../../config/csrfRecovery';
 
 // Registration uses plain DTOs, unlike the legacy API envelope. Never persist
 // its body or retry a write whose outcome is unknown in this transport layer.
 const client = axios.create({ baseURL: context.APP_CORE_URL, withCredentials: true, timeout: 20000 });
+client.interceptors.response.use(undefined, error => canRecoverCsrf(error)
+  ? recoverCsrfRequest(error, config => client.request(config)) : Promise.reject(readableCsrfError(error)));
 async function request(method, url, data, headers = {}, authenticated = false, renewed = false) {
   const owner = authorizationContext(store);
   try {
-    if (method !== 'get') {
-      const csrf = await DACsrfService.getCsrfHeader({ force: true });
-      headers = { ...headers, ...csrf };
-    }
-    const response = await client.request({ method, url: `api/${url}`, data, headers });
+    const config = await axiosHelper.buildRequestConfig(method, { headers });
+    if (!isCurrentAuthorization(owner, store)) throw { code: 'AUTH_CONTEXT_CHANGED' };
+    const response = await client.request({ ...config, method, url: `api/${url}`, data });
     if (!isCurrentAuthorization(owner, store)) throw { code: 'AUTH_CONTEXT_CHANGED' };
     return response.data;
   } catch (error) {
@@ -28,9 +30,9 @@ async function request(method, url, data, headers = {}, authenticated = false, r
       }
     }
     throw {
-      code: error.code === 'AUTH_CONTEXT_CHANGED' ? error.code : (response && response.data && response.data.code) || 'NETWORK_ERROR',
+      code: error.code === 'AUTH_CONTEXT_CHANGED' ? error.code : (response && response.data && (response.data.code || response.data.data && response.data.data.code)) || 'NETWORK_ERROR',
       status: response && response.status,
-      retryAfterSeconds: Math.max(0, Number(response && (response.data.retryAfterSeconds || response.headers['retry-after'])) || 0)
+      retryAfterSeconds: Math.max(0, Number(response && (response.data.retryAfterSeconds || response.headers && response.headers['retry-after'])) || 0)
     };
   }
 }

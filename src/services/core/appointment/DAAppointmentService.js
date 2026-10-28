@@ -9,6 +9,8 @@ import {
 import { DACore } from '../../config/axios.context';
 
 export default {
+    linkPatient(id, payload) { return DACore.post(DAC_APPOINTMENT_SAVE.replace(/\/save$/, '/' + encodeURIComponent(id) + '/link-patient'), payload); },
+    followUps(patientId) { return DACore.get(DAC_APPOINTMENT_SAVE.replace(/\/save$/, patientId ? '/patient/' + encodeURIComponent(patientId) + '/follow-ups' : '/follow-ups')); },
     async doctors() {
         return DACore.get(DAC_APPOINTMENT_CONFIG_GET.replace(/\/config$/, '/doctors'));
     },
@@ -79,12 +81,19 @@ export default {
     async audit(id, before) {
         return DACore.get(DAC_APPOINTMENT_SAVE.replace(/\/save$/, '/' + encodeURIComponent(id) + '/audit') + (before ? '?before=' + encodeURIComponent(before) : ''));
     },
+    async cancellationImpact(id, revision) {
+        return DACore.get(DAC_APPOINTMENT_SAVE.replace(/\/save$/, '/' + encodeURIComponent(id) + '/cancellation-impact') + '?revision=' + encodeURIComponent(revision));
+    },
     async configImpact(config) {
         return DACore.post(DAC_APPOINTMENT_CONFIG_GET + '/impact', { config });
     },
-    async delete(idAppointment, revision) {
+    async delete(idAppointment, revision, options = {}) {
         try {
-            return DACore.delete(DAC_APPOINTMENT_DELETE, { id_appointment: idAppointment, revision });
+            return DACore.delete(DAC_APPOINTMENT_DELETE, { id_appointment: idAppointment, revision,
+                cancellationReason: options.cancellationReason,
+                ...(options.cancellationImpactToken ? { cancellationImpactToken: options.cancellationImpactToken } : {}),
+                ...(options.cancellationReasonCode ? { cancellationReasonCode: options.cancellationReasonCode } : {}),
+                ...(options.requestId ? { request_id: options.requestId } : {}) });
         } catch (error) {
             return error.response.data;
         }

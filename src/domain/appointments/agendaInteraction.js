@@ -25,3 +25,19 @@ export function appointmentPhone(value, country = 'MX') {
   // Existing international numbers must keep their explicit prefix; never assume +52 for them.
   return { valid: !!e164, e164, message: e164 ? '' : 'Revisa el pais y el numero. Para otro pais escribe + y su codigo.' };
 }
+
+export function isPastAppointment(appointment, now) {
+  return !!(appointment && appointment.date && appointment.startTime && now)
+    && (appointment.date < now.date || (appointment.date === now.date && appointment.startTime < now.time));
+}
+
+export function pastCreationKey(appointment, zone) {
+  if (!appointment || appointment.id) return '';
+  return JSON.stringify([appointment.doctorProfileId, appointment.date, appointment.startTime, appointment.endTime, zone]);
+}
+
+export function patientSearchQueries(value) {
+  const query = String(value || '').trim().replace(/\s+/g, ' ');
+  const phone = query.replace(/[()\s-]/g, '');
+  return /^\+52\d{10}$/.test(phone) ? [phone, phone.slice(3)] : [query];
+}
