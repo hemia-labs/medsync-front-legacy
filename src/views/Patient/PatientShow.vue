@@ -1,7 +1,10 @@
 <template>
   <div class="patient-record-page px-4 py-5 mt-16">
     <div class="patient-record-breadcrumb">
-        <button type="button" class="patient-record-back" @click="$router.push('/px/all')">
+        <button v-if="canReturnToAgenda" type="button" class="patient-record-back" @click="returnToAgenda">
+            <v-icon small>mdi-arrow-left</v-icon><span>Volver a la agenda</span>
+        </button>
+        <button v-else type="button" class="patient-record-back" @click="$router.push('/px/all')">
             <v-icon small>mdi-arrow-left</v-icon>
             <span>Pacientes</span>
         </button>
@@ -138,6 +141,7 @@ import DASweetConfirm from '../../core/components/form/dialog/components/DASweet
 import DocumentsAndSignatures from './Sections/DocumentsAndSignatures.vue';
 import { DELETE } from '../../utils/lottieicon';
 import { buildProfilePhotoPayload } from '../../domain/photo/photo.builder';
+import { peekAgendaReturn } from '../../domain/appointments/agendaNavigation';
 
 
 export default {
@@ -202,6 +206,11 @@ export default {
       this.init()
   },
   methods: {
+    async returnToAgenda() {
+        if(!this.canReturnToAgenda) return
+        if(this.isEdit || this.isEditProfile) { this.tabAccessNotice = 'Guarda o cancela la edición del paciente antes de volver a la agenda.'; return }
+        if(await this.confirmSectionLeave() && this.canReturnToAgenda) await this.$router.push({ name: 'Citas' })
+    },
     async requestArchive() {
         if(!this.canManagePatient || this.isArchived || this.archivePending) return
         if(await this.confirmSectionLeave()) this.isDelete = true
@@ -393,6 +402,9 @@ export default {
     },
   },
   computed: {
+    canReturnToAgenda() {
+        return this.hasPermission('px.dates') && !!peekAgendaReturn(this.$store, this.id)
+    },
         canManagePatient() { return this.hasPermission('px.new') },
         canViewClinical() { return this.hasPermission('clinical_history.view') && this.hasPermission('clinical_history.view_sensitive') && Boolean(this.px && this.px.access && this.px.access.clinical) },
         canCaptureIntake() { return !this.isArchived && this.hasPermission('clinical_history.intake') },

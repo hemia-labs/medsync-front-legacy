@@ -8,16 +8,16 @@
           <p class="m-0 mt-2 text-gray-500 text-sm">Consulta citas, disponibilidad e historial.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <v-btn icon aria-label="Consultar semana anterior" @click="moveWeek(-7)">
+          <v-btn icon :disabled="agendaInitializing" :aria-label="viewMode === 'day' ? 'Consultar día anterior' : 'Consultar semana anterior'" @click="movePeriod(-1)">
             <v-icon color="#6B7280">mdi-chevron-left</v-icon>
           </v-btn>
-          <v-text-field v-model="selectedDate" type="date" label="Fecha" dense outlined hide-details :color="themePrimaryColor" class="w-44"></v-text-field>
-          <v-btn icon aria-label="Consultar semana siguiente" @click="moveWeek(7)">
+          <v-text-field v-model="selectedDate" type="date" label="Fecha" :disabled="agendaInitializing" dense outlined hide-details :color="themePrimaryColor" class="w-44"></v-text-field>
+          <v-btn icon :disabled="agendaInitializing" :aria-label="viewMode === 'day' ? 'Consultar día siguiente' : 'Consultar semana siguiente'" @click="movePeriod(1)">
             <v-icon color="#6B7280">mdi-chevron-right</v-icon>
           </v-btn>
           <v-tooltip bottom>
             <template v-slot:activator="{ on, attrs }">
-              <v-btn rounded outlined class="agenda-toolbar-button" :color="themePrimaryColor" v-bind="attrs" v-on="on" @click="goToday">Hoy</v-btn>
+              <v-btn rounded outlined class="agenda-toolbar-button" :disabled="agendaInitializing" :color="themePrimaryColor" v-bind="attrs" v-on="on" @click="goToday">Hoy</v-btn>
             </template>
             <span>Ir al día de hoy</span>
           </v-tooltip>
@@ -106,7 +106,7 @@
               :key="`${day}-${time}`"
               type="button"
               class="agenda-slot border-b border-r text-left p-2 focus:outline-none"
-              :class="{ 'cursor-pointer': getSlot(day, time).selectable || getSlot(day, time).appointment, 'cursor-not-allowed': !getSlot(day, time).selectable && !getSlot(day, time).appointment }"
+              :class="{ 'agenda-slot-past': isPastFreeSlot(getSlot(day, time)), 'cursor-pointer': getSlot(day, time).selectable || getSlot(day, time).appointment, 'cursor-not-allowed': !getSlot(day, time).selectable && !getSlot(day, time).appointment }"
               :style="slotStyle(getSlot(day, time))"
               :aria-label="slotAccessibleName(day, getSlot(day, time))"
               :aria-disabled="String(!getSlot(day, time).selectable && !getSlot(day, time).appointment)"
@@ -114,6 +114,7 @@
             >
               <span class="block text-xs font-bold truncate">{{ slotTitle(getSlot(day, time)) }}</span>
               <span class="block text-xs truncate mt-1">{{ slotSubtitle(getSlot(day, time)) }}</span>
+              <span v-if="isPastFreeSlot(getSlot(day, time))" class="agenda-past-label">Horario pasado</span>
               <span v-if="getSlot(day, time).historicalAppointment" class="block text-xs mt-1 text-gray-500 truncate">
                 {{ historicalLabel(getSlot(day, time).historicalAppointment) }}
               </span>
@@ -132,15 +133,19 @@
             <strong>{{ entry.slot.startTime }}</strong>
             <span>{{ entry.slot.endTime }}</span>
           </div>
-          <button type="button" class="agenda-event" :class="{ 'agenda-event-free': !entry.appointment && entry.slot.selectable }" :style="slotStyle(entry.slot)" :disabled="!entry.appointment && !entry.slot.selectable" @click="entry.appointment ? openAppointment(entry.appointment) : onSlotClick(entry.slot)">
+          <button type="button" class="agenda-event" :class="{ 'agenda-slot-past': isPastFreeSlot(entry.slot), 'agenda-event-free': !entry.appointment && entry.slot.selectable }" :style="slotStyle(entry.slot)" :disabled="!entry.appointment && !entry.slot.selectable" :aria-label="slotAccessibleName(entry.slot.date, entry.slot)" @click="entry.appointment ? openAppointment(entry.appointment) : onSlotClick(entry.slot)">
           <span v-if="viewMode !== 'week'" class="sr-only">{{ entry.slot.startTime }} a {{ entry.slot.endTime }}.</span>
           <div class="agenda-event-heading">
             <strong>{{ formatDisplayDate(entry.slot.date) }}<template v-if="viewMode === 'week'"> · {{ entry.slot.startTime }}–{{ entry.slot.endTime }}</template></strong>
             <span class="agenda-event-status">{{ statusLabel(entry.slot.status) }}</span>
           </div>
           <span v-if="entry.appointment">{{ entry.appointment.patientName || entry.appointment.title }}</span>
-          <span v-else-if="entry.slot.selectable" class="agenda-event-create"><v-icon small color="inherit">mdi-plus-circle-outline</v-icon> Agregar cita</span>
-          <span v-else>{{ entry.slot.reason || 'Horario no disponible' }}</span>
+          <small v-if="entry.appointment">{{ entry.appointment.title || 'Sin motivo registrado' }}</small>
+          <template v-else>
+            <span v-if="isPastFreeSlot(entry.slot)" class="agenda-past-label">Horario pasado</span>
+            <span v-if="entry.slot.selectable" class="agenda-event-create"><v-icon small color="inherit">mdi-plus-circle-outline</v-icon> Agregar cita</span>
+            <span v-else>{{ entry.slot.reason || 'Horario no disponible' }}</span>
+          </template>
           <small v-if="entry.appointment && isOutsideSchedule(entry.appointment)">Fuera del horario actual</small>
           </button>
         </div>
@@ -188,12 +193,19 @@
                   <tr v-for="(patient, index) in filteredFollowUps" :key="followUpKey(patient, index)">
                     <td>
                       <span class="follow-up-name">{{ patient.name || 'Paciente' }}</span>
+                      <div class="follow-up-mobile-meta">
+                        <span>{{ formatDisplayDate(patient.quote_date_after) || '-' }}</span>
+                        <span>{{ Number(patient.open_count) > 1 ? 'Varias reservas: revisar agenda' : Number(patient.open_count) === 1 ? 'Con reserva' : 'Sin reserva' }}</span>
+                        <span>{{ patient.treatment_after || '-' }}</span>
+                        <span>{{ patient.telephone || '-' }}</span>
+                      </div>
                     </td>
-                    <td>{{ patient.quote_date_after || '-' }}</td>
+                    <td>{{ formatDisplayDate(patient.quote_date_after) || '-' }}<small class="block">{{ Number(patient.open_count) > 1 ? 'Varias reservas: revisar agenda' : Number(patient.open_count) === 1 ? 'Con reserva' : 'Sin reserva' }}</small></td>
                     <td>{{ patient.treatment_after || '-' }}</td>
                     <td>{{ patient.telephone || '-' }}</td>
                     <td>
                       <div class="follow-up-actions">
+                        <button type="button" class="follow-up-record-button" :disabled="Number(patient.open_count) > 1" @click="scheduleFollowUp(patient)">{{ Number(patient.open_count) === 1 ? 'Ver cita' : 'Agendar' }}</button>
                         <button
                           v-if="canOpenFollowUpRecord(patient)"
                           type="button"
@@ -219,6 +231,8 @@
               </table>
             </div>
 
+            <p v-if="followUpError" role="alert">{{ followUpError }}</p>
+            <p v-if="followUpLoading" role="status">Consultando seguimientos…</p>
             <div v-if="!filteredFollowUps.length" class="follow-up-empty">
               <v-icon size="26">mdi-account-search-outline</v-icon>
               <p>No se encontraron pacientes por seguimiento.</p>
@@ -230,7 +244,7 @@
 
     <v-dialog v-model="appointmentDialog" persistent max-width="720" @keydown.esc="closeDialog()">
       <v-card class="appointment-card">
-        <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
+        <div class="appointment-dialog-header flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
           <div>
             <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">{{ editingAppointment.id ? 'Detalle de cita' : 'Nueva cita' }}</p>
             <h3 class="m-0 mt-1 text-gray-700 text-xl font-semibold">{{ dialogTitle }}</h3>
@@ -240,7 +254,18 @@
           </v-btn>
         </div>
 
-        <v-card-text class="pt-5">
+        <div v-if="editingAppointment.id || canOpenAppointmentRecord || canCreatePatient" class="appointment-context-actions" aria-label="Acciones de la cita">
+          <v-btn v-if="canLinkPatient" small outlined :disabled="savingAppointment || !!pendingSave" @click="linkCandidate = null; linkDialog = true">Vincular paciente</v-btn>
+          <v-btn v-if="canCreatePatient" small outlined :disabled="savingAppointment || !!pendingSave" @click="createPatientDialog = true">Registrar paciente</v-btn>
+          <v-btn v-if="canOpenAppointmentRecord" small outlined :disabled="savingAppointment || !!pendingSave" @click="openAppointmentRecord">Abrir expediente</v-btn>
+          <template v-if="editingAppointment.id">
+            <v-btn v-if="editingAppointment.status !== 'rescheduled'" small outlined class="appointment-status-action" :style="statusActionStyle('rescheduled')" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment" @click="startReschedule">Reprogramar</v-btn>
+            <v-btn v-for="state in ['confirmed','completed','no_show']" :key="state" small outlined class="appointment-status-action" :class="{ 'appointment-status-current': editingAppointment.status === state }" :style="statusActionStyle(state)" :aria-label="statusLabel(state) + (editingAppointment.status === state ? ', estado seleccionado' : '')" :disabled="savingAppointment || !!pendingSave || editingAppointment.status === 'rescheduled' || !!temporalErrorFor(state)" @click="quickStatus(state)"><v-icon v-if="editingAppointment.status === state" small left>mdi-check-circle-outline</v-icon>{{ statusLabel(state) }}</v-btn>
+            <v-btn v-if="editingAppointment.rescheduledFromAppointmentId" small text @click="openLinkedAppointment(editingAppointment.rescheduledFromAppointmentId)">Ver cita original</v-btn>
+            <v-btn v-if="editingAppointment.rescheduledToAppointmentId" small text @click="openLinkedAppointment(editingAppointment.rescheduledToAppointmentId)">Ver cita destino</v-btn>
+          </template>
+        </div>
+        <v-card-text ref="appointmentBody" class="pt-5">
           <v-select v-model="editingAppointment.doctorProfileId" :items="doctors.filter(d => d.active !== 0 || d.id_doctor_professional_profile === editingAppointment.doctorProfileId)" item-text="display_name" item-value="id_doctor_professional_profile" label="Doctor que atenderá *" :readonly="doctors.length === 1" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment || !!pendingSave || isReadOnlyAppointment" @change="loadDialogDoctor(true)"></v-select>
           <p v-if="dialogLoading" role="status">Consultando horarios del doctor…</p>
           <p v-else-if="!dialogConfig.enabled || dialogConfig.businessEnabled === false" role="status" class="text-yellow-800">La agenda de este doctor no está disponible. Revisa su configuración o selecciona otro doctor.</p>
@@ -258,7 +283,7 @@
             <v-text-field v-model="editingAppointment.date" type="date" label="Fecha" outlined dense :color="themePrimaryColor" :disabled="dialogLoading || savingAppointment || !!pendingSave || isReadOnlyAppointment" @change="loadDialogDoctor(true)"></v-text-field>
             <v-select v-model="editingAppointment.startTime" :disabled="dialogLoading || savingAppointment || !!pendingSave || isReadOnlyAppointment" :items="dialogAvailableTimes" item-text="label" item-value="value" label="Hora" outlined dense :color="themePrimaryColor" @change="refreshDialogEndTime"></v-select>
             <v-text-field :value="editingAppointment.endTime" label="Fin" outlined dense readonly :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
-            <v-select v-model="editingAppointment.status" :items="editingAppointment.status === 'rescheduled' ? appointmentStatusOptions.concat([{value:'rescheduled',text:'Reprogramada'}]) : appointmentStatusOptions" item-text="text" item-value="value" label="Estado" outlined dense :color="themePrimaryColor" @change="syncBlocksAvailability" :disabled="savingAppointment || !!pendingSave || !!(originalAppointment && originalAppointment.status === 'rescheduled')"></v-select>
+            <v-select v-model="editingAppointment.status" :items="availableStatusOptions" item-text="text" item-value="value" label="Estado" outlined dense :color="themePrimaryColor" @change="syncBlocksAvailability" :disabled="savingAppointment || !!pendingSave || !!(originalAppointment && originalAppointment.status === 'rescheduled')"></v-select>
           </div>
 
           <v-autocomplete
@@ -269,10 +294,10 @@
             item-text="name"
             item-value="id"
             label="Paciente registrado (opcional)"
-            :readonly="!!editingAppointment.id"
+            :readonly="!!editingAppointment.id || !canOpenPatientRecords"
             :no-data-text="patientSearchNoDataText"
             no-filter
-            clearable
+            :clearable="!editingAppointment.id"
             outlined
             dense
             :color="themePrimaryColor"
@@ -288,11 +313,22 @@
               </v-list-item-content>
             </template>
             <template #selection="{ item }">
-              <span>{{ item.name }}</span>
+              <span class="appointment-patient-selection">{{ linkedPatientName || item.name }}</span>
             </template>
           </v-autocomplete>
 
-          <v-text-field v-model="editingAppointment.patientName" label="Nombre del paciente" hint="Usa este campo si es paciente nuevo o no tiene expediente." persistent-hint outlined dense :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
+          <v-text-field v-if="!editingAppointment.patientId" v-model="editingAppointment.patientName" label="Nombre del paciente" hint="Usa este campo si aún no tiene expediente." persistent-hint outlined dense :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
+          <template v-else>
+            <v-text-field :value="linkedPatientName || editingAppointment.patientName" :label="linkedPatientName ? 'Nombre del expediente' : 'Nombre guardado en la cita'" readonly outlined dense :loading="patientIdentityLoading"></v-text-field>
+            <p v-if="originalAppointment && linkedPatientName && originalAppointment.patientName && linkedPatientName !== originalAppointment.patientName" class="text-sm">Nombre guardado en esta cita: {{ originalAppointment.patientName }}. Se conserva como dato histórico.</p>
+            <p v-if="patientIdentityError" role="status">{{ patientIdentityError }}</p>
+            <p v-if="editingAppointment.id" class="text-sm">El paciente vinculado a esta cita no se puede quitar ni sustituir desde este campo.</p>
+          </template>
+          <template v-if="!editingAppointment.id && editingAppointment.patientId && hasPermission('px.tab.monitoring')">
+            <v-select v-model="editingAppointment.followUpId" :items="followUpItems" clearable label="Seguimiento existente (opcional)" outlined dense :disabled="savingAppointment || !!pendingSave" @change="explicitNewFollowUp = false" />
+            <p v-if="followUpChoices.some(row => Number(row.open_count) > 0)">Los seguimientos con reserva se consultan desde Seguimientos; no se crea otra cita.</p>
+            <v-checkbox v-if="selectedFollowUp && selectedFollowUp.has_history" v-model="explicitNewFollowUp" label="Agendar una nueva atención; conservar las citas históricas" :disabled="savingAppointment || !!pendingSave" />
+          </template>
           <v-select v-model="phoneCountry" :items="contactCountries" label="País del teléfono" outlined dense :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-select>
           <div class="appointment-contact-row">
             <div class="appointment-contact-control">
@@ -333,20 +369,15 @@
               <span>{{ contactPhoneCharacterCount }} / 40</span>
             </div>
           </div>
-          <v-text-field v-model="editingAppointment.title" label="Motivo o título" outlined dense :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
+          <v-text-field v-model="editingAppointment.title" label="Motivo de la cita (opcional)" placeholder="Por ejemplo: revisión o valoración" outlined dense :color="themePrimaryColor" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-text-field>
           <v-textarea v-model="editingAppointment.description" label="Descripción" outlined dense :color="themePrimaryColor" rows="3" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-textarea>
-          <v-textarea v-if="editingAppointment.status === 'cancelled'" v-model="editingAppointment.cancellationReason" label="Motivo de cancelación" outlined dense :color="themePrimaryColor" rows="2" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment"></v-textarea>
+          <p v-if="editingAppointment.status === 'cancelled' && (!originalAppointment || originalAppointment.status !== 'cancelled')">Al guardar, revisa el motivo y confirma la cancelación.</p>
+          <v-textarea v-if="originalAppointment && originalAppointment.status === 'cancelled'" :value="originalAppointment.cancellationReason || 'Sin motivo registrado en el historial'" label="Motivo de cancelación registrado" outlined dense rows="2" readonly></v-textarea>
 
           <p v-if="dialogError" role="alert" class="text-red-600 font-semibold">{{ dialogError }}</p>
           <p v-if="editingAppointment.status === 'rescheduled'" role="status">Reprogramación: la cita original y su sustitución se guardarán juntas.</p>
           <div v-if="pendingSave" role="status"><p>Hay una operación sin resultado confirmado. Reintenta para recuperar su resultado antes de cambiar los datos.</p></div>
           <div v-if="conflictAppointment" role="alert"><p>Versión vigente: {{ statusLabel(conflictAppointment.status) }} · {{ conflictAppointment.date }} {{ conflictAppointment.startTime }}–{{ conflictAppointment.endTime }}. Tu captura sigue abierta.</p><v-btn small @click="useCurrentAppointment">Descartar captura y usar versión vigente</v-btn></div>
-          <div v-if="editingAppointment.id" class="agenda-detail-tools">
-            <v-btn v-if="editingAppointment.status !== 'rescheduled'" small outlined class="appointment-status-action" :style="statusActionStyle('rescheduled')" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment" @click="startReschedule">Reprogramar</v-btn>
-            <v-btn v-for="state in ['confirmed','completed','no_show']" :key="state" small outlined class="appointment-status-action" :class="{ 'appointment-status-current': editingAppointment.status === state }" :style="statusActionStyle(state)" :aria-label="statusLabel(state) + (editingAppointment.status === state ? ', estado seleccionado' : '')" :disabled="savingAppointment || !!pendingSave || editingAppointment.status === 'rescheduled'" @click="quickStatus(state)"><v-icon v-if="editingAppointment.status === state" small left>mdi-check-circle-outline</v-icon>{{ statusLabel(state) }}</v-btn>
-            <v-btn v-if="editingAppointment.rescheduledFromAppointmentId" small text @click="openLinkedAppointment(editingAppointment.rescheduledFromAppointmentId)">Ver cita original</v-btn>
-            <v-btn v-if="editingAppointment.rescheduledToAppointmentId" small text @click="openLinkedAppointment(editingAppointment.rescheduledToAppointmentId)">Ver cita destino</v-btn>
-          </div>
           <details v-if="editingAppointment.id" @toggle="$event.target.open && loadAudit()">
             <summary>Historial de cambios</summary><p v-if="auditLoading" role="status">Cargando cambios…</p><p v-if="auditError" role="alert">{{ auditError }}</p>
             <p v-if="!auditLoading && !auditItems.length">Sin cambios registrados desde la activación del historial.</p>
@@ -356,19 +387,56 @@
         </v-card-text>
 
         <v-card-actions class="appointment-dialog-actions px-6 pb-5 justify-end">
-          <da-button-secondary @click.native="closeDialog()" :label="'Cerrar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-secondary>
-          <da-button-900 v-if="editingAppointment.id && !(originalAppointment && originalAppointment.status === 'rescheduled')" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment" @click.native="cancelAppointment()" :label="'Cancelar cita'" :style="statusActionStyle('cancelled')" rxl swpr class="appointment-dialog-action appointment-status-action py-1 px-4 font-light"></da-button-900>
-          <da-button-primary v-if="!(originalAppointment && originalAppointment.status === 'rescheduled')" :disabled="dialogLoading || savingAppointment" @click.native="saveAppointment()" :label="savingAppointment ? 'Guardando…' : pendingSave ? 'Reintentar operación' : 'Guardar'" rxl swpr class="appointment-dialog-action py-1 px-4 font-light"></da-button-primary>
+          <da-button-secondary type="button" :disabled="savingAppointment" @click.native="closeDialog()" :label="'Cerrar'" rxl swpr class="appointment-dialog-action appointment-close-action py-1 px-4 font-light"></da-button-secondary>
+          <da-button-900 type="button" v-if="editingAppointment.id && !(originalAppointment && originalAppointment.status === 'rescheduled')" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment" @click.native="cancelAppointment()" :label="'Cancelar cita'" :style="statusActionStyle('cancelled')" rxl swpr class="appointment-dialog-action appointment-cancel-action appointment-status-action py-1 px-4 font-light"></da-button-900>
+          <da-button-primary type="button" v-if="!(originalAppointment && originalAppointment.status === 'rescheduled')" :disabled="dialogLoading || savingAppointment" @click.native="saveAppointment()" :label="savingAppointment ? 'Guardando…' : pendingSave ? 'Reintentar operación' : 'Guardar'" rxl swpr class="appointment-dialog-action appointment-save-action py-1 px-4 font-light"></da-button-primary>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="linkDialog" persistent max-width="650"><agenda-link-patient v-if="linkDialog" :appointment="originalAppointment" :candidate="linkCandidate" @close="linkDialog = false" @linked="patientLinked" @conflict="conflictAppointment = $event" /></v-dialog>
+    <v-dialog v-model="createPatientDialog" persistent max-width="480">
+      <v-card class="pa-5"><h2 class="text-xl mb-3">Registrar paciente</h2><p>Conservaremos la cita en memoria al volver. Si recargas o cambia tu acceso, se perderá esta captura. Crear el paciente no guardará ni vinculará la cita automáticamente.</p>
+        <v-card-actions class="agenda-detail-tools"><v-btn class="appointment-review-action" @click="createPatientDialog = false">Seguir en la cita</v-btn><v-btn class="appointment-confirm-action" @click="createPatientFromAgenda">Continuar al registro</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="pastCreationDialog" persistent max-width="480" aria-labelledby="past-creation-title">
+      <v-card class="pa-5"><h2 id="past-creation-title" class="text-xl mb-3">Revisar horario pasado</h2>
+        <p>Este horario ya pasó. Revisa la fecha y hora antes de continuar.</p>
+        <p>{{ dialogTitle }} · {{ appointmentConfig.timezone }}</p>
+        <p>No se marcará la cita como atendida automáticamente.</p>
+        <v-card-actions class="agenda-detail-tools"><v-btn class="appointment-review-action" text @click="pastCreationDialog = false">Volver a revisar</v-btn><v-btn class="appointment-confirm-action" @click="confirmPastCreation">Continuar con este horario</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="recordLeaveDialog" persistent max-width="480" aria-labelledby="record-leave-title">
+      <v-card class="pa-5"><h2 id="record-leave-title" class="text-xl mb-3">Abrir expediente</h2>
+        <p>Tu captura se conservará al volver a la agenda en esta sesión. Si recargas la página o cambian tus permisos, se descartará. La cita todavía no se guardará.</p>
+        <v-card-actions class="agenda-detail-tools"><v-btn class="appointment-review-action" text @click="recordLeaveDialog = false">Seguir editando</v-btn><v-btn class="appointment-confirm-action" @click="navigateToPatientRecord(recordPatientId)">Conservar captura y abrir</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
     <v-dialog v-model="leaveDialog" persistent max-width="480">
       <v-card><v-card-title>Cambios sin guardar</v-card-title><v-card-text>{{ pendingSave ? 'El resultado de la operación no está confirmado. Reintenta antes de salir para evitar iniciar otra reserva.' : 'Tu captura se perderá si la descartas.' }}</v-card-text><v-card-actions class="agenda-detail-tools"><v-btn @click="keepEditing">Seguir editando</v-btn><v-btn color="error" @click="discardDraft">Descartar y salir</v-btn></v-card-actions></v-card>
     </v-dialog>
     <v-dialog v-model="contactPreview" max-width="480">
       <v-card><v-card-title>Revisar destinatario</v-card-title><v-card-text>Se abrirá WhatsApp para {{ contactTarget }}. Revisa el número antes de continuar.</v-card-text><v-card-actions><v-btn @click="contactPreview = false">Volver</v-btn><v-btn :href="contactUrl" target="_blank" rel="noopener noreferrer" @click="contactPreview = false">Abrir WhatsApp</v-btn></v-card-actions></v-card>
     </v-dialog>
+    <v-dialog v-model="cancellationDialog" max-width="560" :persistent="savingAppointment" aria-labelledby="cancellation-title">
+      <v-card class="pa-5">
+        <h2 id="cancellation-title" class="text-xl mb-3">Confirmar cancelación de cita</h2>
+        <p>Se cancelará la cita conservando su fecha, hora, doctor e historial. Si ya tienes otra fecha, vuelve y usa Reprogramar.</p>
+        <v-select v-model="cancellationCode" :items="cancellationReasons" label="Motivo de cancelación (obligatorio)" outlined dense class="mt-4" :disabled="savingAppointment" @change="cancellationError = ''" />
+        <v-textarea v-model="cancellationDetail" :label="cancellationCode === 'other' ? 'Describe el motivo (obligatorio)' : 'Detalle adicional (opcional)'" outlined dense rows="2" maxlength="900" counter :disabled="savingAppointment" @input="cancellationError = ''" />
+        <p v-if="cancellationLoading" role="status">Consultando el efecto sobre el seguimiento…</p>
+        <p v-else-if="cancellationPreview" role="status" class="mb-3">{{ cancellationMessage(cancellationPreview) }}</p>
+        <p v-if="cancellationError" role="alert" class="red--text">{{ cancellationError }}</p>
+        <div class="d-flex flex-wrap justify-end mt-4" style="gap: 12px">
+          <v-btn text :disabled="savingAppointment" @click="cancellationDialog = false">Volver a la cita</v-btn>
+          <v-btn v-if="!cancellationPreview && !cancellationLoading" outlined @click="loadCancellationImpact">Reintentar consulta</v-btn>
+          <v-btn color="error" :disabled="cancellationLoading || !cancellationPreview || savingAppointment" @click="confirmCancellation">Confirmar cancelación</v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
+
     <v-dialog v-model="completedEditConfirmDialog" max-width="520">
       <v-card class="completed-confirm-card">
         <div class="completed-confirm-header">
@@ -402,7 +470,10 @@
 </template>
  
 <script>
-import { newAgendaRequestId, clinicClock, appointmentPhone } from '../../domain/appointments/agendaInteraction'
+import { newAgendaRequestId, clinicClock, appointmentPhone, isPastAppointment, pastCreationKey, patientSearchQueries } from '../../domain/appointments/agendaInteraction'
+import AgendaLinkPatient from './AgendaLinkPatient.vue'
+import { keepAgendaReturn, peekAgendaReturn, takeAgendaReturn, clearAgendaReturn } from '../../domain/appointments/agendaNavigation'
+import { CANCELLATION_REASONS, appointmentTemporalError, cancellationImpactMessage } from '../../domain/appointments/writePolicy';
 import { mapActions, mapGetters } from 'vuex';
 import VuexMixin from '../../mixins/VuexMixin';
 import { getSettingsSections } from '../../security/settingsAccess';
@@ -447,7 +518,7 @@ const normalizePatientSearchText = (value) => String(value || '').trim().replace
 const normalizeAppointmentContactPhoneValue = (value) => String(value || '').trim();
 
 const getPatientDisplayName = (patient = {}) => {
-  const fullName = `${patient.name || patient.firstName || ''} ${patient.surname || ''}`.trim();
+  const fullName = `${patient.firstName || patient.name || ''} ${patient.surname || ''}`.trim();
   return patient.name_complete || patient.fullname || patient.fullName || fullName || 'Paciente';
 }
 
@@ -472,7 +543,7 @@ const mapPatientSearchOption = (patient = {}) => {
 }
 
 export default {
-  components: { ProfessionalAgendaConfig },
+  components: { AgendaLinkPatient, ProfessionalAgendaConfig },
   mixins: [VuexMixin],
   data: function() {
     return {
@@ -481,6 +552,9 @@ export default {
       viewMode: window.matchMedia('(max-width: 600px)').matches ? 'day' : 'week',
       draftBaseline: '', leaveDialog: false, pendingNavigation: null, removeAgendaGuard: null,
       appointmentRequestId: '', pendingSave: null, conflictAppointment: null,
+      linkDialog: false, linkCandidate: null, createPatientDialog: false,
+      followUpRows: [], followUpLoading: false, followUpError: '', followUpRequest: 0,
+      followUpChoices: [], followUpChoicesRequest: 0, explicitNewFollowUp: false,
       phoneCountry: 'MX', contactPreview: false, contactUrl: '', contactTarget: '',
       contactCountries: [{ value: 'MX', text: 'México (+52)' }, { value: 'US', text: 'EE. UU. / Canadá (+1)' }, { value: 'INT', text: 'Otro país (número con +)' }],
       auditItems: [], auditLoading: false, auditError: '', auditNext: null,
@@ -491,8 +565,13 @@ export default {
       appointmentConfig: getAppointmentConfig(),
       appointments: getAppointments(),
       appointmentDialog: false,
+      agendaInitializing: false, agendaClockTimer: null, pastCreationDialog: false, pastCreationAcknowledged: '', pastCreationPromptKey: '',
+      recordLeaveDialog: false, recordPatientId: '',
+      linkedPatientName: '', patientIdentityLoading: false, patientIdentityError: '', patientIdentityRequest: 0,
       followUpDialog: false,
       completedEditConfirmDialog: false,
+      cancellationDialog: false, cancellationCode: '', cancellationDetail: '', cancellationError: '',
+      cancellationLoading: false, cancellationPreview: null, cancellationReasons: CANCELLATION_REASONS,
       completedEditAcknowledged: false,
       completedEditPendingAction: '',
       dialogError: '',
@@ -524,6 +603,7 @@ export default {
     this.init()
   },
   mounted() {
+    this.agendaClockTimer = setInterval(this.refreshAgendaClock, 30000)
     this.removeAgendaGuard = this.$router.beforeEach((to, from, next) => {
       if(this.savingAppointment) return next(false)
       if(!this.appointmentDialog || !this.draftDirty) return next()
@@ -534,6 +614,7 @@ export default {
     document.addEventListener('visibilitychange', this.refreshAgendaClock)
   },
   beforeDestroy() {
+    clearInterval(this.agendaClockTimer); this.patientIdentityRequest++
     this.agendaRequest++; this.dialogRequest++; this.slotRequest++
     if(this.removeAgendaGuard) this.removeAgendaGuard()
     window.removeEventListener('beforeunload', this.guardUnload)
@@ -543,6 +624,16 @@ export default {
     this.clearPatientSearchTimer()
   },
   computed: {
+    canLinkPatient() { return this.canOpenPatientRecords && !!this.editingAppointment.id && !this.editingAppointment.patientId && this.editingAppointment.status !== 'rescheduled' },
+    canCreatePatient() { return this.canOpenPatientRecords && this.hasPermission('px.new') && !this.editingAppointment.patientId && this.editingAppointment.status !== 'rescheduled' },
+    selectedFollowUp() { return this.followUpChoices.find(row => row.id_tracing === this.editingAppointment.followUpId) },
+    followUpItems() { return this.followUpChoices.map(row => ({ value: row.id_tracing, text: `${row.quote_date_after || 'Sin fecha'} · ${row.treatment_after || 'Sin indicación'}`, disabled: Number(row.open_count) > 0 })) },
+    pastCreationKey() { return pastCreationKey(this.editingAppointment, this.appointmentConfig.timezone) },
+    canOpenAppointmentRecord() { return this.canOpenPatientRecords && !!this.editingAppointment.patientId },
+    availableStatusOptions() {
+      const options = this.editingAppointment.status === 'rescheduled' ? this.appointmentStatusOptions.concat([{ value: 'rescheduled', text: 'Reprogramada' }]) : this.appointmentStatusOptions
+      return options.map(item => ({ ...item, disabled: !!this.temporalErrorFor(item.value) }))
+    },
     agendaAccessKey() {
       const auth = this.$store && this.$store.state.CORE && this.$store.state.CORE.AUTH || {}
       const user = this.authUser || {}
@@ -680,7 +771,7 @@ export default {
 
     filteredFollowUps: function() {
       const query = normalizePatientSearchText(this.followUpSearch).toLowerCase()
-      const rows = this.allMonitorings || []
+      const rows = this.followUpRows || []
 
       if(!query) {
         return rows
@@ -753,6 +844,94 @@ export default {
     }
   },
   methods: {
+    async patientLinked(saved) {
+      this.linkDialog = false; this.linkCandidate = null
+      this.editingAppointment = { ...this.editingAppointment, patientId: saved.patientId, revision: saved.revision }
+      this.originalAppointment = saved; this.draftBaseline = JSON.stringify({ ...this.editingAppointment, ...saved }); this.appointmentRequestId = newAgendaRequestId()
+      await this.loadLinkedPatientName(); await this.reloadAppointments(); await this.onSearch()
+      this.agendaNotice = this.draftDirty ? 'Paciente vinculado. Los otros cambios siguen pendientes de guardar.' : 'Paciente vinculado; datos históricos conservados.'
+    },
+    async createPatientFromAgenda() {
+      if(!this.canCreatePatient || this.savingAppointment || this.pendingSave) return
+      const access = this.agendaAccessKey
+      keepAgendaReturn(this.$store, { kind: 'create-patient', doctorId: this.selectedDoctorId, date: this.selectedDate, view: this.viewMode,
+        draft: { appointment: this.editingAppointment, original: this.originalAppointment, baseline: this.draftBaseline, requestId: this.appointmentRequestId, phoneCountry: this.phoneCountry } })
+      this.createPatientDialog = false; this.appointmentDialog = false
+      try { await this.$router.push({ name: 'NewPx', query: { returnKey: 'agenda' } }) }
+      catch (_) { clearAgendaReturn(this.$store); if(access === this.agendaAccessKey) { this.appointmentDialog = true; this.dialogError = 'No se pudo abrir el registro. Tu captura sigue aquí.' } }
+    },
+    async loadFollowUpChoices() {
+      const request = ++this.followUpChoicesRequest, access = this.agendaAccessKey, patient = this.editingAppointment.patientId
+      this.followUpChoices = []
+      if(this.editingAppointment.id || !patient || !this.hasPermission('px.tab.monitoring')) return
+      try {
+        const r = await DAAppointmentService.followUps(patient)
+        if(request !== this.followUpChoicesRequest || access !== this.agendaAccessKey || patient !== this.editingAppointment.patientId) return
+        if(!r.success) throw new Error()
+        this.followUpChoices = r.data || []
+        if(this.editingAppointment.followUpId && !this.selectedFollowUp) this.dialogError = 'El seguimiento ya no está disponible. Revisa la selección antes de guardar.'
+      } catch (_) { if(request === this.followUpChoicesRequest && access === this.agendaAccessKey) this.dialogError = 'No se pudieron consultar los seguimientos. Reintenta la lectura antes de asociar uno.' }
+    },
+    async scheduleFollowUp(patient) {
+      if(!this.hasPermission('px.tab.monitoring') || this.savingAppointment || this.pendingSave) return
+      const access = this.agendaAccessKey
+      try {
+        const r = await DAAppointmentService.followUps(patient.id_person)
+        if(access !== this.agendaAccessKey) return
+        const row = r.success && r.data.find(item => item.id_tracing === patient.id_tracing)
+        if(!row) throw new Error('El seguimiento ya no está disponible. Actualiza la lista.')
+        if(Number(row.open_count) > 1) throw new Error('Hay varias citas vigentes. Revísalas en la agenda antes de crear otra.')
+        if(Number(row.open_count) === 1) {
+          const saved = await DAAppointmentService.get(row.appointment_id)
+          if(access !== this.agendaAccessKey) return
+          if(!saved.success || !saved.data) throw new Error('No se pudo abrir la reserva. Actualiza la lista.')
+          this.followUpDialog = false; this.openAppointment(saved.data); return
+        }
+        this.followUpDialog = false
+        this.openAppointment({ patientId: row.id_person, patientName: row.name, contactPhone: row.telephone || '', followUpId: row.id_tracing,
+          doctorProfileId: this.selectedDoctorId, date: row.quote_date_after || this.selectedDate, startTime: '', endTime: '', status: APPOINTMENT_STATUSES.PENDING, title: '', description: '', source: 'follow_up' })
+        this.followUpChoices = r.data; this.explicitNewFollowUp = false
+      } catch (e) { if(access === this.agendaAccessKey) { this.followUpError = e.message; this.agendaNotice = e.message } }
+    },
+    isPastFreeSlot(slot) { return !!slot && !slot.appointment && slot.selectable && isPastAppointment(slot, this.clinicNow) },
+    movePeriod(direction) { this.moveWeek(direction * (this.viewMode === 'day' ? 1 : 7)) },
+    confirmPastCreation() {
+      if(this.pastCreationPromptKey !== this.pastCreationKey) { this.pastCreationDialog = false; return }
+      this.pastCreationAcknowledged = this.pastCreationKey; this.pastCreationDialog = false
+      return this.saveAppointment()
+    },
+    async loadLinkedPatientName() {
+      const patientId = this.editingAppointment.patientId, request = ++this.patientIdentityRequest, access = this.agendaAccessKey
+      this.linkedPatientName = ''; this.patientIdentityError = ''; this.patientIdentityLoading = false
+      if(!patientId || !this.canOpenPatientRecords) return
+      this.patientIdentityLoading = true
+      try {
+        const result = await DAPxService.getById(patientId)
+        if(request !== this.patientIdentityRequest || access !== this.agendaAccessKey || patientId !== this.editingAppointment.patientId || !this.appointmentDialog) return
+        const person = result && result.data && result.data.person
+        if(!result.success || !person || person.id_person !== patientId) throw new Error()
+        this.linkedPatientName = getPatientDisplayName(person)
+      } catch(e) { if(request === this.patientIdentityRequest && access === this.agendaAccessKey) this.patientIdentityError = 'No se pudo consultar el nombre actual. Se conserva el nombre de la cita.' }
+      finally { if(request === this.patientIdentityRequest) this.patientIdentityLoading = false }
+    },
+    openAppointmentRecord() {
+      if(!this.canOpenAppointmentRecord || this.savingAppointment || this.pendingSave) return
+      this.recordPatientId = this.editingAppointment.patientId
+      if(this.draftDirty) { this.recordLeaveDialog = true; return }
+      return this.navigateToPatientRecord(this.recordPatientId)
+    },
+    async navigateToPatientRecord(patientId) {
+      if(!patientId || !this.canOpenPatientRecords || this.savingAppointment || this.pendingSave) return
+      const wasOpen = this.appointmentDialog, access = this.agendaAccessKey
+      keepAgendaReturn(this.$store, { patientId, doctorId: this.selectedDoctorId, date: this.selectedDate, view: this.viewMode,
+        draft: wasOpen ? { appointment: this.editingAppointment, original: this.originalAppointment, baseline: this.draftBaseline, requestId: this.appointmentRequestId, phoneCountry: this.phoneCountry } : null })
+      this.recordLeaveDialog = false; this.appointmentDialog = false; this.followUpDialog = false
+      try { await this.$router.push({ name: 'ShowPx', params: { id: patientId }, query: { returnKey: 'agenda' } }) }
+      catch(e) {
+        clearAgendaReturn(this.$store)
+        if(access === this.agendaAccessKey) { this.appointmentDialog = wasOpen; this.dialogError = 'No se pudo abrir el expediente. Tu captura sigue aquí.' }
+      }
+    },
     refreshAgendaClock() { this.agendaClockAt = Date.now() },
     formatDisplayDate,
     guardUnload(event) { if(this.draftDirty || this.savingAppointment) { event.preventDefault(); event.returnValue = '' } },
@@ -780,6 +959,7 @@ export default {
     },
     statusLabel(status) { return APPOINTMENT_STATUS_LABELS[status] || status },
     auditSummary(entry) {
+      if(entry.operation === 'link_patient') return 'Paciente vinculado. Se conservaron el nombre y teléfono de la cita.'
       const changes = typeof entry.changes === 'string' ? JSON.parse(entry.changes) : entry.changes || {}
       const labels = { status:'Estado',date:'Fecha',startTime:'Inicio',endTime:'Fin',doctorProfileId:'Doctor',title:'Motivo',description:'Notas',contactPhone:'Teléfono',cancellationReason:'Motivo de cancelación',patientName:'Nombre',rescheduledFromAppointmentId:'Vinculo con cita original',rescheduledToAppointmentId:'Vinculo con cita destino' }
       if(entry.revision === 1) return entry.operation === 'reschedule' ? 'Cita creada por reprogramación.' : 'Cita creada.'
@@ -815,18 +995,20 @@ export default {
       if(a) this.openAppointment(a)
     },
     useCurrentAppointment() { if(this.conflictAppointment) this.openAppointment(this.conflictAppointment) },
-    async quickStatus(status) { if(this.savingAppointment || this.pendingSave) return; this.editingAppointment.status = status; await this.saveAppointment() },
+    temporalErrorFor(status) { return appointmentTemporalError({ ...this.editingAppointment, status }, this.originalAppointment, this.clinicNow) },
+    cancellationMessage: cancellationImpactMessage,
+    async quickStatus(status) { if(this.savingAppointment || this.pendingSave) return; const error = this.temporalErrorFor(status); if(error) { this.dialogError = error; return } this.editingAppointment.status = status; await this.saveAppointment() },
     startReschedule() { if(this.savingAppointment || this.pendingSave) return; this.editingAppointment.status = APPOINTMENT_STATUSES.RESCHEDULED; this.dialogError = 'Selecciona el nuevo doctor, fecha u hora y guarda la reprogramación.' },
     async submitAppointment(operation) {
       if(this.savingAppointment) return
       const access = this.agendaAccessKey
-      if(!this.pendingSave) this.pendingSave = { operation, appointment: JSON.parse(JSON.stringify(this.editingAppointment)), requestId: this.appointmentRequestId }
+      if(!this.pendingSave) this.pendingSave = { operation, appointment: JSON.parse(JSON.stringify(this.editingAppointment)), requestId: this.appointmentRequestId, explicitNewFollowUp: this.explicitNewFollowUp }
       this.savingAppointment = true; this.dialogError = ''
       let saved = false
       try {
         const sent = this.pendingSave
         const r = sent.operation === 'reschedule' ? await DAAppointmentService.reschedule(sent.appointment, sent.requestId)
-          : await DAAppointmentService.save(sent.appointment, { requestId: sent.requestId })
+          : await DAAppointmentService.save(sent.appointment, { requestId: sent.requestId, ...(sent.explicitNewFollowUp ? { explicitNewFollowUp: true } : {}) })
         if(access !== this.agendaAccessKey) return
         if(!r || !r.success) {
           this.conflictAppointment = r && r.data && r.data.appointment || null
@@ -835,11 +1017,13 @@ export default {
           return
         }
         saved = true; this.pendingSave = null
+        if(r.cancellationImpact) this.agendaNotice = (r.cancellationImpact.changedSincePreview ? 'La cobertura cambió desde la consulta. ' : '') + cancellationImpactMessage(r.cancellationImpact)
       } catch(e) { this.dialogError = 'No se confirmó el resultado. Tu captura se conservó; reintenta la misma operación.' }
       finally { this.savingAppointment = false }
       if(saved) {
         this.closeDialog(true)
         const refreshed = await this.reloadAppointments()
+        await this.onSearch()
         if(!refreshed) this.agendaError = 'La cita se guardó. No se pudo actualizar esta vista; pulsa Reintentar.'
       }
     },
@@ -912,6 +1096,7 @@ export default {
     },
 
     onPatientSearchInput: function(value) {
+      if(this.editingAppointment.id || !this.canOpenPatientRecords || this.savingAppointment || this.pendingSave) return
       const query = normalizePatientSearchText(value)
       const selectedName = this.selectedPatientOption
         ? normalizePatientSearchText(this.selectedPatientOption.name)
@@ -963,10 +1148,8 @@ export default {
       }
 
       try {
-        const response = await DAPxService.searchFast({
-          query,
-          limit: PATIENT_SEARCH_LIMIT
-        }, requestConfig)
+        const responses = await Promise.all(patientSearchQueries(query).map(term => DAPxService.searchFast({ query: term, limit: PATIENT_SEARCH_LIMIT }, requestConfig)))
+        const response = { success: responses.every(r => r && r.success), data: [...new Map(responses.flatMap(r => r && r.data || []).map(p => [p.id_person || p.id, p])).values()] }
 
         if(access !== this.agendaAccessKey || requestId !== this.patientSearchRequestId) {
           return
@@ -1004,7 +1187,10 @@ export default {
     },
 
     clearSelectedPatient: function() {
+      if(this.editingAppointment.id || this.savingAppointment || this.pendingSave) return
       this.editingAppointment.patientId = ''
+      this.editingAppointment.followUpId = null; this.explicitNewFollowUp = false
+      this.patientIdentityRequest++; this.linkedPatientName = ''; this.patientIdentityError = ''; this.patientIdentityLoading = false
       this.patientSearchInput = ''
       this.patientSearchResults = []
       this.patientSearchError = false
@@ -1014,6 +1200,8 @@ export default {
 
     init: async function() {
       const access = this.agendaAccessKey
+      const returning = peekAgendaReturn(this.$store)
+      this.agendaInitializing = true
       this.agendaLoading = true; this.agendaError = ''
       try {
       const response = await DAAppointmentService.doctors()
@@ -1022,13 +1210,29 @@ export default {
       this.doctors = response.data || []
       const own = this.doctors.find(d => d.id_login === (this.authUser || {}).id_login)
       this.selectedDoctorId = own ? own.id_doctor_professional_profile : this.doctors.length === 1 ? this.doctors[0].id_doctor_professional_profile : ''
-      if(this.selectedDoctorId) { await this.changeCalendarDoctor(); this.goToday() }
+      if(returning) {
+        if(this.doctors.some(d => d.id_doctor_professional_profile === returning.doctorId)) this.selectedDoctorId = returning.doctorId
+        this.selectedDate = returning.date; this.viewMode = returning.view
+      }
+      if(this.selectedDoctorId) {
+        await this.changeCalendarDoctor()
+        if(!returning) { const before = this.selectedDate; this.goToday(); if(before !== this.selectedDate) await this.changeCalendarDoctor() }
+      }
       if(access !== this.agendaAccessKey) return
       await this.onSearch()
       if(access !== this.agendaAccessKey) return
-      await this.openPulseAppointment()
+      if(returning) {
+        const restored = takeAgendaReturn(this.$store)
+        if(restored && restored.draft) this.openAppointment(restored.draft.original || restored.draft.appointment, restored.draft)
+        if(restored && restored.createdPatient && this.canOpenPatientRecords) {
+          if(this.editingAppointment.id) { this.linkCandidate = restored.createdPatient; this.linkDialog = true }
+          else { this.editingAppointment.patientId = restored.createdPatient.id; this.editingAppointment.patientName = restored.createdPatient.name; await this.loadLinkedPatientName() }
+        }
+        if(restored && restored.kind === 'follow-up') await this.scheduleFollowUp({ id_person: restored.patientId, id_tracing: restored.followUpId })
+        this.agendaNotice = 'Volviste a la agenda con el doctor, la fecha y la vista que estabas consultando.'
+      } else await this.openPulseAppointment()
       } catch(error) { this.agendaError = 'No se pudieron cargar los doctores. Reintenta.' }
-      finally { this.agendaLoading = false }
+      finally { this.agendaLoading = false; this.agendaInitializing = false }
     },
 
     async openPulseAppointment() {
@@ -1082,7 +1286,13 @@ export default {
     },
 
     onSearch: async function() {
-      if(this.hasPermission('px.tab.monitoring')) await this.getAllTracing()
+      const request = ++this.followUpRequest, access = this.agendaAccessKey
+      this.followUpRows = []; this.followUpError = ''; this.followUpLoading = false
+      if(!this.hasPermission('px.tab.monitoring')) return
+      this.followUpLoading = true
+      try { const r = await DAAppointmentService.followUps(); if(request !== this.followUpRequest || access !== this.agendaAccessKey) return; if(!r.success) throw new Error(); this.followUpRows = r.data || [] }
+      catch (_) { if(request === this.followUpRequest && access === this.agendaAccessKey) this.followUpError = 'No se pudieron actualizar los seguimientos. Cierra y vuelve a abrir esta lista.' }
+      finally { if(request === this.followUpRequest) this.followUpLoading = false }
     },
 
     loadAppointmentConfig: async function() {
@@ -1135,7 +1345,7 @@ export default {
         endTime: slot.endTime,
         status: APPOINTMENT_STATUSES.PENDING,
         source: 'calendar',
-        title: 'Nueva cita',
+        title: '',
         description: '',
         patientId: '',
         patientName: '',
@@ -1157,7 +1367,7 @@ export default {
         endTime: firstSlot ? firstSlot.endTime : addMinutesToTime('08:00', this.appointmentConfig.defaultAppointmentDuration || 30),
         status: APPOINTMENT_STATUSES.PENDING,
         source: 'calendar',
-        title: 'Nueva cita',
+        title: '',
         description: '',
         patientId: '',
         patientName: '',
@@ -1165,7 +1375,10 @@ export default {
       })
     },
 
-    openAppointment: function(appointment) {
+    openAppointment: function(appointment, resume = null) {
+      this.explicitNewFollowUp = false; this.followUpChoices = []; this.linkDialog = false; this.createPatientDialog = false
+      this.pastCreationDialog = false; this.pastCreationAcknowledged = ''; this.pastCreationPromptKey = ''; this.recordLeaveDialog = false
+      this.cancellationDialog = false; this.cancellationPreview = null; this.cancellationCode = ''; this.cancellationDetail = ''; this.cancellationError = ''; this.cancellationLoading = false
       this.dialogError = ''
       this.editingAppointment = Object.assign({}, appointment, {
         doctorProfileId: appointment.doctorProfileId || this.selectedDoctorId,
@@ -1181,16 +1394,24 @@ export default {
       this.phoneCountry = phone.startsWith('+') && !phone.startsWith('+52') ? 'INT' : 'MX'
       this.auditItems = []; this.auditError = ''; this.auditNext = null
       this.draftBaseline = JSON.stringify(this.editingAppointment)
+      if(resume) { this.editingAppointment = Object.assign({}, resume.appointment); this.draftBaseline = resume.baseline; this.appointmentRequestId = resume.requestId; this.phoneCountry = resume.phoneCountry }
       this.appointmentDialog = true
+      const body = this.$refs && this.$refs.appointmentBody
+      if(body) (body.$el || body).scrollTop = 0
       this.dialogConfig = this.appointmentConfig
       this.dialogAppointments = this.appointments
       this.loadDialogDoctor()
+      this.loadLinkedPatientName()
     },
 
     closeDialog: function(force = false) {
       if(this.savingAppointment) return
       if(!force && this.draftDirty) { this.leaveDialog = true; return }
+      this.patientIdentityRequest++; this.linkedPatientName = ''; this.patientIdentityError = ''; this.patientIdentityLoading = false
+      this.followUpChoicesRequest++; this.followUpChoices = []; this.linkDialog = false; this.createPatientDialog = false
+      this.pastCreationDialog = false; this.pastCreationAcknowledged = ''; this.recordLeaveDialog = false; this.recordPatientId = ''
       this.pendingSave = null; this.conflictAppointment = null
+      this.cancellationDialog = false; this.cancellationPreview = null; this.cancellationCode = ''; this.cancellationDetail = ''; this.cancellationError = ''; this.cancellationLoading = false
       this.dialogRequest++
       this.appointmentDialog = false
       this.dialogError = ''
@@ -1244,9 +1465,13 @@ export default {
 
     saveRescheduledAppointment: async function() { return this.submitAppointment('reschedule') },
 
-    saveAppointment: async function() {
+    saveAppointment: async function(cancellationConfirmed = false) {
       if(this.dialogLoading || this.savingAppointment) return
       if(this.pendingSave) return this.submitAppointment(this.pendingSave.operation)
+      if(!this.editingAppointment.id && this.selectedFollowUp && this.selectedFollowUp.has_history && !this.explicitNewFollowUp) { this.dialogError = 'Confirma que agendarás una nueva atención y conservarás las citas históricas.'; return }
+      this.refreshAgendaClock()
+      const temporalError = this.temporalErrorFor(this.editingAppointment.status)
+      if(temporalError) { this.dialogError = temporalError; return }
       if(!this.editingAppointment.doctorProfileId) { this.dialogError = 'Selecciona el doctor que atenderá.'; return }
       if(!this.editingAppointment.date || !this.editingAppointment.startTime) {
         this.dialogError = 'Selecciona fecha y hora.'
@@ -1267,6 +1492,10 @@ export default {
         return
       }
 
+      if(!this.editingAppointment.id && isPastAppointment(this.editingAppointment, this.clinicNow) && this.pastCreationAcknowledged !== this.pastCreationKey) {
+        this.pastCreationPromptKey = this.pastCreationKey; this.pastCreationDialog = true; return
+      }
+
       if(this.shouldConfirmCompletedAppointmentEdit()) {
         this.completedEditPendingAction = 'save'
         this.completedEditConfirmDialog = true
@@ -1276,6 +1505,9 @@ export default {
       if(this.shouldCreateRescheduledAppointment()) {
         await this.saveRescheduledAppointment()
         return
+      }
+      if(this.editingAppointment.status === APPOINTMENT_STATUSES.CANCELLED && (!this.originalAppointment || this.originalAppointment.status !== APPOINTMENT_STATUSES.CANCELLED) && cancellationConfirmed !== true) {
+        await this.requestCancellation(); return
       }
 
       const appointmentsToValidate = this.dialogAppointments.filter((appointment) => appointment.id !== this.editingAppointment.id)
@@ -1300,10 +1532,36 @@ export default {
         return
       }
 
-      this.editingAppointment = { ...this.originalAppointment, cancellationReason: this.editingAppointment.cancellationReason, status: APPOINTMENT_STATUSES.CANCELLED }
-      this.editingAppointment.status = APPOINTMENT_STATUSES.CANCELLED
-      this.editingAppointment.blocksAvailability = false
-      await this.saveAppointment()
+      await this.requestCancellation()
+    },
+
+    async requestCancellation() {
+      this.cancellationCode = this.editingAppointment.cancellationReasonCode || ''
+      this.cancellationDetail = this.editingAppointment.cancellationReason || ''
+      this.cancellationError = ''; this.cancellationPreview = null; this.cancellationDialog = true
+      await this.loadCancellationImpact()
+    },
+    async loadCancellationImpact() {
+      const original = this.originalAppointment, request = this.dialogRequest, access = this.agendaAccessKey
+      if(!original) { this.cancellationPreview = { state: 'none' }; return }
+      this.cancellationLoading = true; this.cancellationError = ''
+      try {
+        const result = await DAAppointmentService.cancellationImpact(original.id, original.revision)
+        if(request !== this.dialogRequest || access !== this.agendaAccessKey || !this.cancellationDialog) return
+        if(!result || !result.success) { this.cancellationError = result && result.message || 'No se pudo consultar el impacto. Reintenta.'; return }
+        this.cancellationPreview = result.data
+      } catch(e) { if(request === this.dialogRequest && access === this.agendaAccessKey) this.cancellationError = 'No se pudo consultar el impacto. Reintenta.' }
+      finally { if(request === this.dialogRequest) this.cancellationLoading = false }
+    },
+    async confirmCancellation() {
+      if(this.savingAppointment || this.cancellationLoading || !this.cancellationPreview) return
+      if(!this.cancellationReasons.some(item => item.value === this.cancellationCode)) { this.cancellationError = 'Selecciona el motivo de cancelación.'; return }
+      if(this.cancellationCode === 'other' && !this.cancellationDetail.trim()) { this.cancellationError = 'Describe el motivo de cancelación.'; return }
+      this.editingAppointment = { ...(this.originalAppointment || this.editingAppointment), title: this.editingAppointment.title, description: this.editingAppointment.description, status: APPOINTMENT_STATUSES.CANCELLED,
+        cancellationReasonCode: this.cancellationCode, cancellationReason: this.cancellationDetail.trim(),
+        cancellationImpactToken: this.cancellationPreview.token, blocksAvailability: false }
+      this.cancellationDialog = false
+      await this.saveAppointment(true)
     },
 
     dialogDuration() {
@@ -1323,6 +1581,7 @@ export default {
     },
 
     syncPatientName: function(patientId) {
+      if(this.editingAppointment.id || this.savingAppointment || this.pendingSave) return
       const selectedId = patientId || this.editingAppointment.patientId
       if(!selectedId) {
         return
@@ -1332,6 +1591,8 @@ export default {
       if(patient) {
         this.editingAppointment.patientName = patient.name
         this.editingAppointment.contactPhone = normalizeAppointmentContactPhoneValue(patient.telephone || patient.localTelephone || this.editingAppointment.contactPhone)
+        this.editingAppointment.followUpId = null; this.explicitNewFollowUp = false
+        this.patientIdentityRequest++; this.linkedPatientName = patient.name; this.patientIdentityError = ''; this.patientIdentityLoading = false
       }
     },
 
@@ -1374,7 +1635,7 @@ export default {
       const date = `${weekday} ${formatDisplayDate(day)}`
       const status = APPOINTMENT_STATUS_LABELS[slot.status] || 'Horario'
       const detail = slot.appointment ? this.slotTitle(slot) : slot.reason
-      return [date, `${slot.startTime} a ${slot.endTime}`, status, detail].filter(Boolean).join(', ')
+      return [date, `${slot.startTime} a ${slot.endTime}`, status, this.isPastFreeSlot(slot) ? 'Horario pasado' : '', detail].filter(Boolean).join(', ')
     },
 
     slotTitle: function(slot) {
@@ -1387,7 +1648,7 @@ export default {
 
     slotSubtitle: function(slot) {
       if(slot.appointment) {
-        return slot.appointment.title || APPOINTMENT_STATUS_LABELS[slot.status]
+        return slot.appointment.title || 'Sin motivo registrado'
       }
 
       if(slot.reason) {
@@ -1452,7 +1713,7 @@ export default {
       }
 
       this.followUpDialog = false
-      this.$router.push(`/px/history/${this.followUpPatientId(patient)}`).catch(() => {})
+      return this.navigateToPatientRecord(this.followUpPatientId(patient))
     },
 
     goTo(phone,nombre,fecha){
@@ -1465,8 +1726,15 @@ export default {
     }
   },
   watch: {
+    'editingAppointment.patientId'() { this.loadFollowUpChoices() },
+    pastCreationKey() { this.pastCreationAcknowledged = ''; this.pastCreationDialog = false; this.pastCreationPromptKey = '' },
     viewMode() { this.refreshAgendaClock() },
     agendaAccessKey: function() {
+      this.followUpRequest++; this.followUpChoicesRequest++; this.followUpRows = []; this.followUpChoices = []; this.linkDialog = false; this.createPatientDialog = false; this.linkCandidate = null
+      clearAgendaReturn(this.$store)
+      this.patientIdentityRequest++; this.linkedPatientName = ''; this.patientIdentityError = ''; this.patientIdentityLoading = false
+      this.pastCreationDialog = false; this.pastCreationAcknowledged = ''; this.recordLeaveDialog = false; this.recordPatientId = ''
+      this.cancellationDialog = false; this.cancellationPreview = null; this.cancellationDetail = ''; this.cancellationCode = ''; this.cancellationError = ''; this.cancellationLoading = false
       this.agendaRequest++; this.dialogRequest++; this.slotRequest++
       this.appointments = []; this.dialogAppointments = []; this.auditItems = []; this.doctors = []
       this.appointmentDialog = false; this.agendaConfigDialog = false; this.leaveDialog = false
@@ -1478,11 +1746,12 @@ export default {
       if(this.pendingNavigation) { const next = this.pendingNavigation; this.pendingNavigation = null; next() }
     },
     selectedDate: function() {
-      this.changeCalendarDoctor()
+      if(!this.agendaInitializing) this.changeCalendarDoctor()
     },
     followUpDialog: function(value) {
       if(value) {
         this.followUpSearch = ''
+        this.onSearch()
       }
     }
   }
@@ -1534,6 +1803,28 @@ html[data-theme="clinical-night"] .agenda-clock-note { color: #f7a9c0; }
 .agenda-event:focus-visible { outline: 3px solid #0e7490; outline-offset: 2px; }
 .agenda-event small { color: #9a3412; }
 .agenda-detail-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.appointment-context-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 24px; border-bottom: 1px solid #e5e7eb; }
+.appointment-context-actions .v-btn { min-height: 36px; }
+.agenda-slot-past { background-image: repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(100,116,139,.1) 8px, rgba(100,116,139,.1) 10px) !important; }
+.agenda-past-label { display: block; font-size: 11px; font-weight: 700; margin-top: 4px; }
+.appointment-card .appointment-close-action { background: #f1f5f9 !important; color: #334155 !important; border: 1px solid #94a3b8; }
+.appointment-card .appointment-close-action:hover { background: #e2e8f0 !important; }
+.appointment-card .appointment-save-action { background: var(--color-primary-900) !important; color: white !important; }
+.v-btn.appointment-confirm-action { background: var(--color-primary-900) !important; color: white !important; }
+.appointment-dialog-actions > button { min-height: 44px; }
+.appointment-dialog-actions > button:focus-visible { outline: 3px solid var(--color-primary-700); outline-offset: 2px; }
+.appointment-dialog-actions > button:disabled { opacity: .55; cursor: not-allowed; }
+html[data-theme="clinical-night"] .appointment-card .appointment-close-action { background: #334155 !important; color: #f1f5f9 !important; border-color: #64748b; }
+html[data-theme="clinical-night"] .appointment-card .appointment-dialog-actions { background: #1e293b; }
+html[data-theme="clinical-night"] .appointment-card > .v-card__text { color: #cbd5e1; }
+html[data-theme="clinical-night"] .appointment-context-actions { border-color: #475569; }
+html[data-theme="clinical-night"] .appointment-context-actions > .v-btn:not(.appointment-status-action) { color: #e2e8f0; }
+html[data-theme="clinical-night"] .appointment-card .appointment-cancel-action { background: #4c1d2a !important; color: #fecdd3 !important; border-color: #fb7185 !important; }
+html[data-theme="clinical-night"] .appointment-patient-selection { color: #e2e8f0; }
+html[data-theme="clinical-night"] .appointment-review-action { color: #e2e8f0; }
+html[data-theme="clinical-night"] .appointment-card ::v-deep input,
+html[data-theme="clinical-night"] .appointment-card ::v-deep textarea,
+html[data-theme="clinical-night"] .appointment-card ::v-deep .v-select__selection { color: #e2e8f0 !important; }
 .appointment-card { max-height: 90vh; display: flex; flex-direction: column; }
 .appointment-card > div { flex-shrink: 0; }
 .appointment-card > .v-card__text { min-height: 0; overflow-y: auto; flex: 1 1 auto; }
@@ -1951,5 +2242,27 @@ html[data-theme="clinical-night"] .agenda-clock-note { color: #f7a9c0; }
     font-size: 0.72rem;
     padding-right: 0;
   }
+}
+.follow-up-mobile-meta { display:none; }
+html[data-theme="clinical-night"] .follow-up-header,
+html[data-theme="clinical-night"] .follow-up-table-shell,
+html[data-theme="clinical-night"] .follow-up-table td { background:#1e293b; color:#e2e8f0; border-color:#475569; }
+html[data-theme="clinical-night"] .follow-up-table th { background:#0f172a; color:#7dd3fc; border-color:#475569; }
+html[data-theme="clinical-night"] .follow-up-name { color:#e2e8f0; }
+html[data-theme="clinical-night"] .follow-up-record-button,
+html[data-theme="clinical-night"] .follow-up-contact-button { background:#334155; color:#7dd3fc; border-color:#64748b; }
+html[data-theme="clinical-night"] .follow-up-record-button:not(:disabled):hover,
+html[data-theme="clinical-night"] .follow-up-record-button:not(:disabled):focus,
+html[data-theme="clinical-night"] .follow-up-contact-button:not(:disabled):hover,
+html[data-theme="clinical-night"] .follow-up-contact-button:not(:disabled):focus { background:#0f766e; color:#fff; }
+.follow-up-record-button:disabled { opacity:.6; cursor:not-allowed; }
+@media (max-width:600px) {
+  .follow-up-mobile-meta { display:grid; gap:.3rem; margin-top:.5rem; }
+  .follow-up-table { min-width:0; table-layout:fixed; }
+  .follow-up-table th:nth-child(n+2):nth-child(-n+4),
+  .follow-up-table td:nth-child(n+2):nth-child(-n+4) { display:none; }
+  .follow-up-table th, .follow-up-table td { width:50%; padding:.6rem; overflow-wrap:anywhere; }
+  .follow-up-actions { min-width:0; }
+  .follow-up-record-button, .follow-up-contact-button { min-width:0; width:100%; min-height:44px; padding:.3rem; }
 }
 </style>

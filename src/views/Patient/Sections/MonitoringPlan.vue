@@ -64,7 +64,7 @@
                       </span>
                     </td>
                     <td>
-                      <div class="monitoring-actions">
+                      <div class="monitoring-actions"><button v-if="canManageAppointments && hasPermission('px.tab.monitoring') && item.status === 'active' && px.person && px.person.active !== 0" type="button" class="monitoring-action monitoring-action--view" @click="openAgendaForFollowUp(item)">{{ ['pending_confirmation','confirmed'].includes(item.linked_appointment_status) ? 'Ver cita' : 'Agendar' }}</button>
                         <button type="button" class="monitoring-action monitoring-action--view" @click="showModalData(item)">
                           <v-icon small>mdi-eye-outline</v-icon>
                           <span>Ver detalle</span>
@@ -109,7 +109,7 @@
                   {{ monitoringNotePreview(item) }}
                 </p>
 
-                <div class="monitoring-actions mobile">
+                <div class="monitoring-actions mobile"><button v-if="canManageAppointments && hasPermission('px.tab.monitoring') && item.status === 'active' && px.person && px.person.active !== 0" type="button" class="monitoring-action monitoring-action--view" @click="openAgendaForFollowUp(item)">{{ ['pending_confirmation','confirmed'].includes(item.linked_appointment_status) ? 'Ver cita' : 'Agendar' }}</button>
                   <button type="button" class="monitoring-action monitoring-action--view" @click="showModalData(item)">
                     <v-icon small>mdi-eye-outline</v-icon>
                     <span>Ver detalle</span>
@@ -593,6 +593,7 @@
 
 <script>
 import FollowUpAppointment from './FollowUpAppointment.vue';
+import { keepAgendaReturn, peekAgendaReturn } from '../../../domain/appointments/agendaNavigation';
 import { newAgendaRequestId, clinicClock } from '../../../domain/appointments/agendaInteraction';
 import { mapActions, mapGetters } from 'vuex';
 import { uuid } from 'vue-uuid';
@@ -820,6 +821,13 @@ export default {
     }
   },
   methods: {
+      async openAgendaForFollowUp(item) {
+        if(!(this.hasPermission('px.dates') || this.hasPermission('admin.config')) || !this.hasPermission('px.tab.monitoring') || item.status !== 'active' || !this.px.person || this.px.person.active === 0) return;
+        const pending = peekAgendaReturn(this.$store);
+        if(pending && pending.draft) { await this.$swal.fire({ icon: 'info', title: 'Tienes una captura en la agenda', text: 'Usa Volver a la agenda y termina esa captura antes de agendar otra atención.' }); return; }
+        keepAgendaReturn(this.$store, { kind: 'follow-up', patientId: this.px.person.id_person, followUpId: item.id_tracing, date: toIsoDate(item.quote_date_after) || clinicClock(this.appointmentConfig.timezone).date, view: 'day' });
+        await this.$router.push({ name: 'Citas' });
+      },
     formatFecha,
     revertFormatFecha,
     ...mapActions(moduleTypes.MONITORING, [

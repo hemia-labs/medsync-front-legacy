@@ -31,6 +31,7 @@ export default {
             return loginResponse;
         }
 
+        DACsrfService.clearCsrfToken();
         const sessionResponse = await DASessionService.bootstrapSession();
 
         return {

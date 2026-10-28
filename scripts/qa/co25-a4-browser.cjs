@@ -1,0 +1,98 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
+const {chromium}=require('@playwright/test');
+const front=path.resolve(__dirname,'../..'),workspace=path.dirname(front),out=path.join(workspace,'docs/clinical-operations/evidence/CO25');
+const read=file=>fs.readFileSync(path.join(front,file),'utf8');
+const {createFixture,createHttp}=require(path.join(workspace,'hemia-assistance-back-legacy/scripts/qa/co25-a4-fixture'));
+const sourceFiles=['src/domain/appointments/appointment.storage.js','src/domain/appointments/availability.js','src/domain/appointments/agendaInteraction.js','src/domain/appointments/writePolicy.js','src/domain/appointments/agendaNavigation.js','src/domain/patient/administrative.validation.js','src/security/authorizationContext.js','src/services/core/appointment/DAAppointmentService.js','src/services/core/px/DAPxService.js','src/views/dates/dates.vue','src/views/dates/AgendaLinkPatient.vue','src/views/Patient/PatientCreate.vue','src/views/Patient/PatientShow.vue','src/core/components/form/buttons/DAPrimaryButton.vue','src/core/components/form/buttons/DASecondaryButton.vue','src/core/components/form/buttons/DAPrimary900Button.vue','src/core/mixins/roundeable.js','src/core/mixins/elevatable.js','src/core/directives/field-error.js'];
+sourceFiles.push('src/plugins/theme.js');
+(async()=>{
+const f=await createFixture();let http,browser;const NativeDate=Date,frozen=NativeDate.parse('2030-01-01T16:00:00Z');
+global.Date=class extends NativeDate {constructor(...args){super(...(args.length?args:[frozen]));}static now(){return frozen;}};
+const checks=[],errors=[],pass=name=>{checks.push(name);console.log('PASS '+name);};
+try{
+ http=await createHttp(f);
+ await f.query("UPDATE person SET telephone='5555550012',code=CASE WHEN id_person='qa-patient' THEN 'C000001' ELSE 'C000002' END WHERE id_person IN ('qa-patient','qa-patient-2')");
+ await f.query("UPDATE tracing SET quote_date_after='2030-01-02'");
+ const sources=Object.fromEntries(sourceFiles.map(file=>[path.basename(file),read(file)]));
+ const cssFolder=path.join(workspace,'_qa/co25-a4/build/css'),cssFile=fs.readdirSync(cssFolder).filter(n=>/^app\..*\.css$/.test(n)).sort((a,b)=>fs.statSync(path.join(cssFolder,b)).mtimeMs-fs.statSync(path.join(cssFolder,a)).mtimeMs)[0];
+ http.app.get('/styles.css',(_req,res)=>res.type('css').send(read('node_modules/vuetify/dist/vuetify.min.css')+read('node_modules/@mdi/font/css/materialdesignicons.css')+fs.readFileSync(path.join(cssFolder,cssFile),'utf8')+['dates.vue','AgendaLinkPatient.vue','PatientCreate.vue','PatientShow.vue'].map(file=>sources[file].split('<style scoped>')[1].split('</style>')[0].replace(/::v-deep/g,'')).join('\n')));
+ http.app.use('/fonts',require(path.join(front,'node_modules/express')).static(path.join(front,'node_modules/@mdi/font/fonts')));
+ for(const[name,file]of[['vue','vue/dist/vue.js'],['vuetify','vuetify/dist/vuetify.js'],['router','vue-router/dist/vue-router.js'],['store','vuex/dist/vuex.js']])http.app.get('/vendor/'+name+'.js',(_req,res)=>res.type('js').send(read('node_modules/'+file)));
+ http.app.get('/api/qa-patient/:id',async(req,res)=>{const [person]=await f.query('SELECT id_person,name,surname FROM person WHERE id_business=:business AND id_person=:id',{business:f.body.id_business,id:req.params.id});res.json({status:200,data:{person}});});
+ http.app.get('/entry.js',(_req,res)=>res.type('js').send(read('scripts/qa/fixtures/co25-a4-entry.js')+'\nwindow.mountCo25A4('+JSON.stringify(sources)+');'));
+ http.app.get(/^\/px\//,(_req,res)=>res.type('html').send('<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CO25 A4 QA</title><link rel="stylesheet" href="/styles.css"><div id="app"></div>'+['vue','vuetify','router','store'].map(v=>'<script src="/vendor/'+v+'.js"></script>').join('')+'<script src="/entry.js"></script></html>'));
+ browser=await chromium.launch({channel:'msedge',headless:true});let index=0;
+ for(const[device,viewport]of[['desktop',{width:1440,height:900}],['mobile',{width:390,height:844}]])for(const theme of ['medical-blue','clinical-night']){
+   index++;const label=device+'-'+theme,page=await browser.newPage({viewport,isMobile:device==='mobile',hasTouch:device==='mobile'});
+   page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>r.request().url().startsWith(http.url)?r.continue():r.abort());await page.clock.install({time:new NativeDate(frozen)});
+   await page.goto(http.url+'/px/dates');await page.waitForFunction(()=>window.qa&&!window.qa.vm.agendaLoading&&window.qa.vm.selectedDoctorId);
+   await page.evaluate(t=>window.co25Theme(t),theme);
+   const make=async(day,phone)=>{const r=await f.dao.save({...f.body,request_id:randomUUID(),appointment:{doctorProfileId:'qa-doctor',date:'2030-01-'+String(day).padStart(2,'0'),startTime:'09:00',endTime:'09:30',patientName:'Nombre histórico '+label,contactPhone:phone,status:'confirmed',title:'Motivo QA'}});assert.equal(r.status,200,r.message);return r.data[0];};
+   const open=async a=>{await page.evaluate(async a=>{const vm=window.qa.vm;vm.selectedDate=a.date;vm.viewMode='list';await vm.changeCalendarDoctor();vm.openAppointment(a);},a);await page.waitForFunction(()=>!window.qa.vm.dialogLoading);};
+   const settle=()=>page.evaluate(async()=>{await Vue.nextTick();await Promise.all(document.getAnimations().filter(a=>a.effect.getComputedTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));});
+   let seed=await make(8+index,'+525555550012');await open(seed);
+   await page.getByLabel('Descripción',{exact:true}).fill('Borrador privado '+label);
+   await page.getByRole('button',{name:'Vincular paciente',exact:true}).click();await page.getByRole('button',{name:'Buscar pacientes',exact:true}).click();
+   await page.locator('.agenda-link-card label').filter({hasText:'Segundo Paciente'}).click();assert.equal(await page.getByRole('radio',{name:/Segundo Paciente/}).isChecked(),true);assert.equal(await page.getByRole('radio').count(),2);
+   assert.equal(await page.evaluate(()=>window.qa.vm.editingAppointment.patientId||null),null);
+   await settle();if(theme==='clinical-night')assert.equal(await page.getByRole('button',{name:'Buscar pacientes',exact:true}).evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(51, 65, 85)');await page.screenshot({path:path.join(out,'a4-link-'+label+'.png')});
+   let lostLink=index===1;
+   await page.route('**/api/appointment/*/link-patient',async r=>{if(lostLink){const response=await r.fetch();assert.equal(response.status(),200);lostLink=false;await r.abort();}else await r.continue();});
+   await page.getByRole('button',{name:'Confirmar vínculo',exact:true}).click();
+   if(index===1){await page.getByRole('button',{name:'Reintentar vínculo',exact:true}).click();}
+   await page.waitForFunction(()=>!window.qa.vm.linkDialog&&window.qa.vm.editingAppointment.patientId==='qa-patient-2');
+   assert.equal(await page.getByLabel('Descripción',{exact:true}).inputValue(),'Borrador privado '+label);
+   let row=(await f.query('SELECT id_person,contact_phone,description FROM appointment WHERE id_appointment=:id',{id:seed.id}))[0];assert.equal(row.id_person,'qa-patient-2');assert.equal(row.contact_phone,seed.contactPhone);assert.equal(row.description,null);
+   await page.getByRole('button',{name:'Cerrar',exact:true}).click();await page.getByRole('button',{name:'Descartar y salir',exact:true}).click();
+   pass(label+': explicit search/choice links one patient, preserves phone and unsaved text, retry survives lost response');
+   seed=await make(16+index,'+15555550001');await open(seed);await page.getByRole('button',{name:'Registrar paciente',exact:true}).click();await page.getByRole('button',{name:'Continuar al registro',exact:true}).click();
+   await page.getByRole('heading',{name:'Nuevo paciente',exact:true}).waitFor();
+   assert.equal(await page.getByLabel('Teléfono / celular *',{exact:true}).inputValue(),'');
+   await page.getByLabel('Nombre *',{exact:true}).fill('Nuevo '+label);await page.getByLabel('Apellido paterno *',{exact:true}).fill('Sintético');await page.getByLabel('Fecha de nacimiento *',{exact:true}).fill('2000-01-01');await page.getByLabel('Teléfono / celular *',{exact:true}).fill('5555550022');
+   await page.evaluate(()=>scrollTo(0,0));await settle();await page.screenshot({path:path.join(out,'a4-create-top-'+label+'.png')});
+   await page.getByRole('button',{name:'Crear paciente',exact:true}).scrollIntoViewIfNeeded();await settle();if(theme==='clinical-night')assert.equal(await page.locator('.patient-create-note').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(30, 41, 59)');await page.screenshot({path:path.join(out,'a4-create-'+label+'.png')});
+   let lostCreate=true;await page.route('**/api/px/create-minimal',async r=>{if(lostCreate){const response=await r.fetch();assert.equal(response.status(),200);lostCreate=false;await r.abort();}else await r.continue();});
+   const createsBefore=http.writes.filter(w=>w.path==='/api/px/create-minimal').length;
+   await page.getByRole('button',{name:'Crear paciente',exact:true}).click();await page.getByRole('button',{name:'Consultar resultado del alta',exact:true}).click();
+   await page.getByRole('heading',{name:'Vincular paciente a la cita',exact:true}).waitFor();
+   assert.equal(http.writes.filter(w=>w.path==='/api/px/create-minimal').length,createsBefore+1);
+   assert.equal(await page.evaluate(()=>window.qa.vm.editingAppointment.patientId||null),null);
+   assert.equal(await page.evaluate(()=>window.qa.vm.editingAppointment.contactPhone),'+15555550001');
+   assert.equal(await page.evaluate(()=>window.qa.vm.viewMode),'list');assert.equal(await page.evaluate(()=>window.qa.vm.selectedDate),seed.date);
+   const persisted=await page.evaluate(()=>JSON.stringify({local:{...localStorage},session:{...sessionStorage},history:history.state}));assert.doesNotMatch(persisted,/Nombre histórico|Borrador privado|Nuevo desktop|Nuevo mobile/);
+   await page.getByRole('button',{name:'Confirmar vínculo',exact:true}).click();await page.waitForFunction(()=>!window.qa.vm.linkDialog&&!!window.qa.vm.editingAppointment.patientId);
+   row=(await f.query('SELECT contact_phone FROM appointment WHERE id_appointment=:id',{id:seed.id}))[0];assert.equal(row.contact_phone,'+15555550001');
+   await page.evaluate(()=>window.qa.vm.closeDialog(true));
+   pass(label+': real minimal creation recovers lost response by GET, returns context, requires link confirmation and preserves international appointment phone');
+   const trace='trace-'+index;await f.query('INSERT INTO tracing(id_tracing,id_business,id_person,treatment_now,treatment_after,quote_date_after) VALUES(:trace,\'qa-clinic\',\'qa-patient\',\'QA\',:text,:date)',{trace,text:'Indicación '+label,date:'2030-01-0'+(index+2)});
+   await page.getByRole('button',{name:'Seguimientos',exact:true}).click();const tr=page.locator('.follow-up-table tbody tr').filter({hasText:'Indicación '+label});await tr.getByRole('button',{name:'Agendar',exact:true}).click();
+   await page.waitForFunction(()=>window.qa.vm.appointmentDialog&&!window.qa.vm.dialogLoading);
+   assert.equal(await page.evaluate(()=>window.qa.vm.editingAppointment.startTime),'');assert.equal(await page.getByLabel('Motivo de la cita (opcional)',{exact:true}).inputValue(),'');
+   const select=page.getByLabel('Hora',{exact:true});await select.click();await page.getByRole('option',{name:/09:00/}).first().click();
+   await page.getByRole('button',{name:'Guardar',exact:true}).click();await page.waitForFunction(()=>!window.qa.vm.appointmentDialog);
+   await page.getByRole('button',{name:'Seguimientos',exact:true}).click();await tr.getByRole('button',{name:'Ver cita',exact:true}).waitFor();await settle();await page.screenshot({path:path.join(out,'a4-follow-ups-'+label+'.png')});
+   const countBefore=(await f.query('SELECT COUNT(*) AS n FROM appointment WHERE id_tracing=:trace',{trace}))[0].n;
+   await tr.getByRole('button',{name:'Ver cita',exact:true}).click();await page.waitForFunction(()=>window.qa.vm.appointmentDialog&&!!window.qa.vm.editingAppointment.id);
+   assert.equal((await f.query('SELECT COUNT(*) AS n FROM appointment WHERE id_tracing=:trace',{trace}))[0].n,countBefore);
+   assert.equal(await page.evaluate(()=>window.qa.vm.editingAppointment.followUpId),trace);
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+   pass(label+': fresh follow-up choice requires a time, saves once and immediately changes to view existing reservation');
+   if(index===1){
+     const origin=await page.evaluate(()=>window.qa.vm.editingAppointment.id);
+     await page.getByRole('button',{name:'Reprogramar',exact:true}).click();await page.getByLabel('Hora',{exact:true}).click();await page.getByRole('option',{name:/10:00/}).first().click();await page.getByRole('button',{name:'Guardar',exact:true}).click();await page.waitForFunction(()=>!window.qa.vm.appointmentDialog);
+     await page.getByRole('button',{name:'Seguimientos',exact:true}).click();await tr.getByRole('button',{name:'Ver cita',exact:true}).click();await page.waitForFunction(id=>window.qa.vm.editingAppointment.id&&window.qa.vm.editingAppointment.id!==id,origin);
+     assert.equal(await page.evaluate(()=>window.qa.vm.editingAppointment.rescheduledFromAppointmentId),origin);
+     await page.getByRole('button',{name:'Cancelar cita',exact:true}).click();await page.waitForFunction(()=>window.qa.vm.cancellationPreview);
+     await page.getByLabel('Motivo de cancelación (obligatorio)',{exact:true}).click();await page.getByRole('option',{name:/paciente/i}).first().click();await page.getByRole('button',{name:'Confirmar cancelación',exact:true}).click();await page.waitForFunction(()=>!window.qa.vm.appointmentDialog);
+     await page.getByRole('button',{name:'Seguimientos',exact:true}).click();await tr.getByRole('button',{name:'Agendar',exact:true}).waitFor();assert.match(await tr.innerText(),/Sin reserva/);
+     await tr.getByRole('button',{name:'Agendar',exact:true}).click();await page.waitForFunction(()=>window.qa.vm.appointmentDialog&&!window.qa.vm.dialogLoading);assert.equal(await page.evaluate(()=>window.qa.vm.explicitNewFollowUp),false);await page.waitForFunction(()=>window.qa.vm.selectedFollowUp&&Number(window.qa.vm.selectedFollowUp.has_history)===1);
+     pass('reschedule refresh opens the new destination; cancellation refresh removes reservation and requires explicit new care');
+   }
+   await page.evaluate(()=>{window.qa.store.commit('revoke');});await page.waitForFunction(()=>!window.qa.vm.appointmentDialog);
+   assert.equal(await page.getByRole('button',{name:'Seguimientos',exact:true}).count(),0);assert.equal(await page.evaluate(()=>window.qa.vm.followUpRows.length),0);assert.equal(await page.evaluate(()=>window.qa.navigation.peekAgendaReturn(window.qa.store)),null);
+   pass(label+': changed permissions clear continuity data and remove protected actions');await page.close();
+ }
+ assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'a4-browser-results.json'),JSON.stringify({checkedAt:new NativeDate().toISOString(),syntheticOnly:true,checks,pageErrors:errors,realRouter:true,realMinimalRegistration:true},null,2));
+}finally{global.Date=NativeDate;if(browser)await browser.close();if(http)await http.close();await f.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
