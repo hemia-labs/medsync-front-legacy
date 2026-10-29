@@ -394,46 +394,80 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="linkDialog" persistent max-width="650"><agenda-link-patient v-if="linkDialog" :appointment="originalAppointment" :candidate="linkCandidate" @close="linkDialog = false" @linked="patientLinked" @conflict="conflictAppointment = $event" /></v-dialog>
-    <v-dialog v-model="createPatientDialog" persistent max-width="480">
-      <v-card class="pa-5"><h2 class="text-xl mb-3">Registrar paciente</h2><p>Conservaremos la cita en memoria al volver. Si recargas o cambia tu acceso, se perderá esta captura. Crear el paciente no guardará ni vinculará la cita automáticamente.</p>
-        <v-card-actions class="agenda-detail-tools"><v-btn class="appointment-review-action" @click="createPatientDialog = false">Seguir en la cita</v-btn><v-btn class="appointment-confirm-action" @click="createPatientFromAgenda">Continuar al registro</v-btn></v-card-actions>
+    <v-dialog v-model="linkDialog" persistent scrollable max-width="650" aria-labelledby="agenda-link-title"><agenda-link-patient v-if="linkDialog" :appointment="originalAppointment" :candidate="linkCandidate" @close="linkDialog = false" @linked="patientLinked" @conflict="conflictAppointment = $event" /></v-dialog>
+    <v-dialog v-model="createPatientDialog" persistent scrollable max-width="520" aria-labelledby="agenda-create-title">
+      <v-card class="agenda-modal">
+        <div class="agenda-modal-header">
+          <span class="agenda-modal-icon"><v-icon aria-hidden="true">mdi-account-plus-outline</v-icon></span>
+          <div class="agenda-modal-heading"><p class="agenda-modal-eyebrow">Registro de paciente</p><h2 id="agenda-create-title">Registrar paciente</h2></div>
+        </div>
+        <v-card-text class="agenda-modal-body"><p>Conservaremos la cita en memoria al volver. Si recargas o cambia tu acceso, se perderá esta captura.</p><p class="agenda-modal-note">Crear el paciente no guardará ni vinculará la cita automáticamente.</p></v-card-text>
+        <v-card-actions class="agenda-modal-footer"><v-btn class="agenda-modal-button" @click="createPatientDialog = false">Seguir en la cita</v-btn><v-btn class="agenda-modal-button agenda-modal-button--primary" @click="createPatientFromAgenda">Continuar al registro</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="pastCreationDialog" persistent max-width="480" aria-labelledby="past-creation-title">
-      <v-card class="pa-5"><h2 id="past-creation-title" class="text-xl mb-3">Revisar horario pasado</h2>
+    <v-dialog v-model="pastCreationDialog" persistent scrollable max-width="520" aria-labelledby="past-creation-title">
+      <v-card class="agenda-modal">
+        <div class="agenda-modal-header">
+          <span class="agenda-modal-icon"><v-icon aria-hidden="true">mdi-clock-alert-outline</v-icon></span>
+          <div class="agenda-modal-heading"><p class="agenda-modal-eyebrow">Revisión de horario</p><h2 id="past-creation-title">Revisar horario pasado</h2></div>
+        </div>
+        <v-card-text class="agenda-modal-body">
         <p>Este horario ya pasó. Revisa la fecha y hora antes de continuar.</p>
-        <p>{{ dialogTitle }} · {{ appointmentConfig.timezone }}</p>
+        <div class="agenda-modal-summary"><span>Horario de la cita</span><strong>{{ dialogTitle }}</strong><span>{{ appointmentConfig.timezone }}</span></div>
         <p>No se marcará la cita como atendida automáticamente.</p>
-        <v-card-actions class="agenda-detail-tools"><v-btn class="appointment-review-action" text @click="pastCreationDialog = false">Volver a revisar</v-btn><v-btn class="appointment-confirm-action" @click="confirmPastCreation">Continuar con este horario</v-btn></v-card-actions>
+        </v-card-text>
+        <v-card-actions class="agenda-modal-footer"><v-btn class="agenda-modal-button" @click="pastCreationDialog = false">Volver a revisar</v-btn><v-btn class="agenda-modal-button agenda-modal-button--primary" @click="confirmPastCreation">Continuar con este horario</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="recordLeaveDialog" persistent max-width="480" aria-labelledby="record-leave-title">
-      <v-card class="pa-5"><h2 id="record-leave-title" class="text-xl mb-3">Abrir expediente</h2>
-        <p>Tu captura se conservará al volver a la agenda en esta sesión. Si recargas la página o cambian tus permisos, se descartará. La cita todavía no se guardará.</p>
-        <v-card-actions class="agenda-detail-tools"><v-btn class="appointment-review-action" text @click="recordLeaveDialog = false">Seguir editando</v-btn><v-btn class="appointment-confirm-action" @click="navigateToPatientRecord(recordPatientId)">Conservar captura y abrir</v-btn></v-card-actions>
+    <v-dialog v-model="recordLeaveDialog" persistent scrollable max-width="520" aria-labelledby="record-leave-title">
+      <v-card class="agenda-modal">
+        <div class="agenda-modal-header">
+          <span class="agenda-modal-icon"><v-icon aria-hidden="true">mdi-folder-account-outline</v-icon></span>
+          <div class="agenda-modal-heading"><p class="agenda-modal-eyebrow">Continuidad de captura</p><h2 id="record-leave-title">Abrir expediente</h2></div>
+        </div>
+        <v-card-text class="agenda-modal-body"><p>Tu captura se conservará al volver a la agenda en esta sesión. Si recargas la página o cambian tus permisos, se descartará.</p><p class="agenda-modal-note">La cita todavía no se guardará.</p></v-card-text>
+        <v-card-actions class="agenda-modal-footer"><v-btn class="agenda-modal-button" @click="recordLeaveDialog = false">Seguir editando</v-btn><v-btn class="agenda-modal-button agenda-modal-button--primary" @click="navigateToPatientRecord(recordPatientId)">Conservar captura y abrir</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="leaveDialog" persistent max-width="480">
-      <v-card><v-card-title>Cambios sin guardar</v-card-title><v-card-text>{{ pendingSave ? 'El resultado de la operación no está confirmado. Reintenta antes de salir para evitar iniciar otra reserva.' : 'Tu captura se perderá si la descartas.' }}</v-card-text><v-card-actions class="agenda-detail-tools"><v-btn @click="keepEditing">Seguir editando</v-btn><v-btn color="error" @click="discardDraft">Descartar y salir</v-btn></v-card-actions></v-card>
+    <v-dialog v-model="leaveDialog" persistent scrollable max-width="520" aria-labelledby="agenda-leave-title">
+      <v-card class="agenda-modal">
+        <div class="agenda-modal-header">
+          <span class="agenda-modal-icon agenda-modal-icon--danger"><v-icon aria-hidden="true">mdi-file-alert-outline</v-icon></span>
+          <div class="agenda-modal-heading"><p class="agenda-modal-eyebrow">Captura pendiente</p><h2 id="agenda-leave-title">Cambios sin guardar</h2></div>
+        </div>
+        <v-card-text class="agenda-modal-body">{{ pendingSave ? 'El resultado de la operación no está confirmado. Reintenta antes de salir para evitar iniciar otra reserva.' : 'Tu captura se perderá si la descartas.' }}</v-card-text>
+        <v-card-actions class="agenda-modal-footer"><v-btn class="agenda-modal-button" @click="keepEditing">Seguir editando</v-btn><v-btn class="agenda-modal-button agenda-modal-button--danger" @click="discardDraft">Descartar y salir</v-btn></v-card-actions>
+      </v-card>
     </v-dialog>
-    <v-dialog v-model="contactPreview" max-width="480">
-      <v-card><v-card-title>Revisar destinatario</v-card-title><v-card-text>Se abrirá WhatsApp para {{ contactTarget }}. Revisa el número antes de continuar.</v-card-text><v-card-actions><v-btn @click="contactPreview = false">Volver</v-btn><v-btn :href="contactUrl" target="_blank" rel="noopener noreferrer" @click="contactPreview = false">Abrir WhatsApp</v-btn></v-card-actions></v-card>
+    <v-dialog v-model="contactPreview" scrollable max-width="520" aria-labelledby="agenda-contact-title">
+      <v-card class="agenda-modal">
+        <div class="agenda-modal-header">
+          <span class="agenda-modal-icon"><v-icon aria-hidden="true">mdi-whatsapp</v-icon></span>
+          <div class="agenda-modal-heading"><p class="agenda-modal-eyebrow">Contacto de la cita</p><h2 id="agenda-contact-title">Revisar destinatario</h2></div>
+        </div>
+        <v-card-text class="agenda-modal-body"><p>Se abrirá WhatsApp para este número. Revísalo antes de continuar.</p><div class="agenda-modal-summary"><span>Destinatario</span><strong>{{ contactTarget }}</strong></div></v-card-text>
+        <v-card-actions class="agenda-modal-footer"><v-btn class="agenda-modal-button" @click="contactPreview = false">Volver</v-btn><v-btn class="agenda-modal-button agenda-modal-button--primary" :href="contactUrl" target="_blank" rel="noopener noreferrer" @click="contactPreview = false">Abrir WhatsApp</v-btn></v-card-actions>
+      </v-card>
     </v-dialog>
-    <v-dialog v-model="cancellationDialog" max-width="560" :persistent="savingAppointment" aria-labelledby="cancellation-title">
-      <v-card class="pa-5">
-        <h2 id="cancellation-title" class="text-xl mb-3">Confirmar cancelación de cita</h2>
+    <v-dialog v-model="cancellationDialog" scrollable max-width="560" :persistent="savingAppointment" aria-labelledby="cancellation-title">
+      <v-card class="agenda-modal">
+        <div class="agenda-modal-header">
+          <span class="agenda-modal-icon agenda-modal-icon--danger"><v-icon aria-hidden="true">mdi-calendar-remove-outline</v-icon></span>
+          <div class="agenda-modal-heading"><p class="agenda-modal-eyebrow">Cancelación de cita</p><h2 id="cancellation-title">Confirmar cancelación de cita</h2></div>
+        </div>
+        <v-card-text class="agenda-modal-body">
         <p>Se cancelará la cita conservando su fecha, hora, doctor e historial. Si ya tienes otra fecha, vuelve y usa Reprogramar.</p>
         <v-select v-model="cancellationCode" :items="cancellationReasons" label="Motivo de cancelación (obligatorio)" outlined dense class="mt-4" :disabled="savingAppointment" @change="cancellationError = ''" />
         <v-textarea v-model="cancellationDetail" :label="cancellationCode === 'other' ? 'Describe el motivo (obligatorio)' : 'Detalle adicional (opcional)'" outlined dense rows="2" maxlength="900" counter :disabled="savingAppointment" @input="cancellationError = ''" />
-        <p v-if="cancellationLoading" role="status">Consultando el efecto sobre el seguimiento…</p>
-        <p v-else-if="cancellationPreview" role="status" class="mb-3">{{ cancellationMessage(cancellationPreview) }}</p>
-        <p v-if="cancellationError" role="alert" class="red--text">{{ cancellationError }}</p>
-        <div class="d-flex flex-wrap justify-end mt-4" style="gap: 12px">
-          <v-btn text :disabled="savingAppointment" @click="cancellationDialog = false">Volver a la cita</v-btn>
-          <v-btn v-if="!cancellationPreview && !cancellationLoading" outlined @click="loadCancellationImpact">Reintentar consulta</v-btn>
-          <v-btn color="error" :disabled="cancellationLoading || !cancellationPreview || savingAppointment" @click="confirmCancellation">Confirmar cancelación</v-btn>
-        </div>
+        <p v-if="cancellationLoading" role="status" class="agenda-modal-note">Consultando el efecto sobre el seguimiento…</p>
+        <p v-else-if="cancellationPreview" role="status" class="agenda-modal-note">{{ cancellationMessage(cancellationPreview) }}</p>
+        <p v-if="cancellationError" role="alert" class="agenda-modal-error">{{ cancellationError }}</p>
+        </v-card-text>
+        <v-card-actions class="agenda-modal-footer">
+          <v-btn class="agenda-modal-button" :disabled="savingAppointment" @click="cancellationDialog = false">Volver a la cita</v-btn>
+          <v-btn v-if="!cancellationPreview && !cancellationLoading" class="agenda-modal-button" @click="loadCancellationImpact">Reintentar consulta</v-btn>
+          <v-btn class="agenda-modal-button agenda-modal-button--danger" :disabled="cancellationLoading || !cancellationPreview || savingAppointment" @click="confirmCancellation">Confirmar cancelación</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 

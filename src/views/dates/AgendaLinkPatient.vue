@@ -1,18 +1,26 @@
 <template>
-  <v-card class="agenda-link-card pa-5">
-    <h2 class="text-xl mb-3">Vincular paciente a la cita</h2>
-    <p>Nombre guardado: {{ appointment.patientName }}. El vínculo conserva ese nombre, el teléfono, el horario y el estado. Los demás cambios de la cita no se guardarán con esta acción.</p>
-    <p v-if="appointment.status === 'completed'">Esta atención aparecerá en el historial del paciente elegido.</p>
-    <v-text-field v-model="query" label="Buscar por nombre, código o teléfono" outlined dense :disabled="busy || !!pending" @keyup.enter="search" />
-    <v-btn :disabled="busy || !!pending || query.trim().length < 2" @click="search">Buscar pacientes</v-btn>
-    <p class="mt-3">Revisa nombre y código: un teléfono compartido puede corresponder a varias personas.</p>
-    <v-radio-group v-model="selected" :disabled="busy || !!pending">
-      <v-radio v-for="person in candidates" :key="person.id" :value="person.id" :label="person.label" />
-    </v-radio-group>
-    <p v-if="message" role="status">{{ message }}</p>
-    <v-card-actions class="link-actions">
-      <v-btn :disabled="busy || !!pending" @click="$emit('close')">Volver a la cita</v-btn>
-      <v-btn class="link-confirm" :disabled="busy || (!selected && !pending)" @click="link">{{ pending ? 'Reintentar vínculo' : 'Confirmar vínculo' }}</v-btn>
+  <v-card class="agenda-link-card agenda-modal">
+    <div class="agenda-modal-header">
+      <span class="agenda-modal-icon"><v-icon aria-hidden="true">mdi-account-check-outline</v-icon></span>
+      <div class="agenda-modal-heading"><p class="agenda-modal-eyebrow">Continuidad de atención</p><h2 id="agenda-link-title">Vincular paciente a la cita</h2></div>
+    </div>
+    <v-card-text class="agenda-modal-body">
+      <div class="agenda-modal-summary"><span>Nombre guardado en la cita</span><strong>{{ appointment.patientName }}</strong></div>
+      <p>El vínculo conserva ese nombre, el teléfono, el horario y el estado. Los demás cambios de la cita no se guardarán con esta acción.</p>
+      <p v-if="appointment.status === 'completed'" class="agenda-modal-note">Esta atención aparecerá en el historial del paciente elegido.</p>
+      <div class="agenda-modal-search">
+        <v-text-field v-model="query" label="Buscar por nombre, código o teléfono" outlined dense hide-details :disabled="busy || !!pending" @keyup.enter="search" />
+        <v-btn class="agenda-modal-button" :disabled="busy || !!pending || query.trim().length < 2" @click="search"><v-icon left small aria-hidden="true">mdi-magnify</v-icon>Buscar pacientes</v-btn>
+      </div>
+      <p id="agenda-link-hint">Revisa nombre y código: un teléfono compartido puede corresponder a varias personas.</p>
+      <v-radio-group v-model="selected" class="agenda-link-candidates" aria-label="Pacientes encontrados" aria-describedby="agenda-link-hint" :disabled="busy || !!pending">
+        <v-radio v-for="person in candidates" :key="person.id" class="agenda-link-candidate" :value="person.id" :label="person.label" />
+      </v-radio-group>
+      <p v-if="message" class="agenda-modal-note" role="status">{{ message }}</p>
+    </v-card-text>
+    <v-card-actions class="link-actions agenda-modal-footer">
+      <v-btn class="agenda-modal-button" :disabled="busy || !!pending" @click="$emit('close')">Volver a la cita</v-btn>
+      <v-btn class="link-confirm agenda-modal-button agenda-modal-button--primary" :disabled="busy || (!selected && !pending)" @click="link">{{ pending ? 'Reintentar vínculo' : 'Confirmar vínculo' }}</v-btn>
     </v-card-actions>
   </v-card>
 </template>
@@ -60,10 +68,6 @@ export default {
 };
 </script>
 <style scoped>
-.link-actions { display:flex; flex-wrap:wrap; gap:10px; }
-.link-actions .v-btn { margin-left:0!important; min-height:44px; }
-.v-btn.link-confirm { background:var(--color-primary-900)!important; color:white!important; }
-html[data-theme="clinical-night"] .agenda-link-card .v-btn:not(.link-confirm) { color:#e2e8f0!important; background:#334155!important; }
-html[data-theme="clinical-night"] .agenda-link-card ::v-deep .v-label { color:#e2e8f0!important; }
-html[data-theme="clinical-night"] .agenda-link-card ::v-deep .v-icon:not(.primary--text) { color:#94a3b8!important; }
+.agenda-link-card .agenda-modal-search { margin-top: 20px; }
 </style>
+<style src="./agendaDialogs.css"></style>

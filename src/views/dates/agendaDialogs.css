@@ -1,0 +1,69 @@
+/* Shared presentation for the agenda's secondary dialogs. */
+.v-card.agenda-modal {
+  --agenda-surface: var(--color-surface, #fff);
+  --agenda-background: var(--color-bg, #f8fafc);
+  --agenda-text: var(--color-text, #25364d);
+  --agenda-muted: var(--color-text-muted, #526579);
+  --agenda-border: var(--color-border, #d8e6ed);
+  --agenda-accent: var(--color-primary-900, #086783);
+  --agenda-tint: var(--color-primary-100, #e6f7fb);
+  --agenda-danger: #b42318;
+  --agenda-danger-tint: #fff1f2;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+  border: 1px solid var(--agenda-border);
+  border-radius: 16px;
+  color: var(--agenda-text);
+  background: var(--agenda-surface);
+}
+.agenda-modal-header { display: flex; align-items: flex-start; flex-shrink: 0; gap: 14px; padding: 24px; border-bottom: 1px solid var(--agenda-border); }
+.agenda-modal-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; color: var(--agenda-accent); background: var(--agenda-tint); }
+.agenda-modal-icon .v-icon { color: inherit; }
+.agenda-modal-icon--danger { color: var(--agenda-danger); background: var(--agenda-danger-tint); }
+.agenda-modal-heading { flex: 1; min-width: 0; }
+.agenda-modal-heading .agenda-modal-eyebrow { margin: 0 0 5px; color: var(--agenda-accent); font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.agenda-modal-heading h2 { margin: 0; color: var(--agenda-text); font-size: 20px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.v-dialog .v-card.agenda-modal .agenda-modal-body { min-height: 0; padding: 22px 24px; overflow-y: auto; color: var(--agenda-muted); background: var(--agenda-background); font-size: 14px; line-height: 1.65; letter-spacing: normal; }
+.agenda-modal-body > :last-child { margin-bottom: 0; }
+.agenda-modal .agenda-modal-summary { margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--agenda-border); border-radius: 10px; color: var(--agenda-text); background: var(--agenda-surface); overflow-wrap: anywhere; }
+.agenda-modal-summary > span { display: block; margin-bottom: 3px; color: var(--agenda-muted); font-size: 12px; }
+.agenda-modal-summary > strong { font-size: 15px; font-weight: 700; }
+.agenda-modal .agenda-modal-note { margin: 16px 0; padding: 12px 14px; border-left: 3px solid var(--agenda-accent); border-radius: 0 8px 8px 0; background: var(--agenda-tint); color: var(--agenda-accent); }
+.agenda-modal .agenda-modal-error { color: var(--agenda-danger); }
+.v-dialog .v-card.agenda-modal .agenda-modal-footer { display: flex; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 18px 24px; border-top: 1px solid var(--agenda-border); background: var(--agenda-surface); }
+.agenda-modal .v-btn.agenda-modal-button { height: auto; min-height: 44px; min-width: 0; margin: 0; padding: 10px 16px; border: 1px solid var(--agenda-border); border-radius: 10px; background: var(--agenda-surface); color: var(--agenda-text); box-shadow: none; font-size: 13px; font-weight: 600; letter-spacing: normal; text-transform: none; }
+.agenda-modal-button .v-btn__content { white-space: normal; line-height: 1.45; }
+.agenda-modal .v-btn.agenda-modal-button--primary { background: var(--color-primary-900, #086783); border-color: transparent; color: white; box-shadow: 0 3px 8px rgba(8, 103, 131, .16); }
+.agenda-modal .v-btn.agenda-modal-button--danger { background: #b42318; border-color: transparent; color: white; }
+.agenda-modal .v-btn.agenda-modal-button.v-btn--disabled { opacity: .7; color: var(--agenda-muted) !important; background: var(--agenda-border) !important; border-color: transparent; box-shadow: none; }
+.agenda-modal .v-btn:focus-visible { outline: 3px solid var(--agenda-accent); outline-offset: 2px; }
+.agenda-modal-search { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+.agenda-modal-search > .v-input { min-width: 0; }
+.agenda-modal-search .v-btn { flex-shrink: 0; }
+.agenda-modal .agenda-link-candidates { margin-top: 4px; padding-top: 0; }
+.agenda-link-candidates .v-input--radio-group__input { gap: 8px; }
+.agenda-modal .agenda-link-candidate { margin: 0 !important; padding: 13px 14px; border: 1px solid var(--agenda-border); border-radius: 10px; background: var(--agenda-surface); }
+.agenda-modal .agenda-link-candidate.v-item--active { border-color: var(--agenda-accent); background: var(--agenda-tint); box-shadow: inset 3px 0 var(--agenda-accent); }
+.agenda-link-candidate .v-label { color: var(--agenda-text); font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.agenda-link-candidate:focus-within { outline: 2px solid var(--agenda-accent); outline-offset: 2px; }
+html[data-theme="clinical-night"] .v-card.agenda-modal { --agenda-surface: #1e293b; --agenda-background: #172333; --agenda-text: #e2e8f0; --agenda-muted: #cbd5e1; --agenda-border: #415167; --agenda-accent: #7dd3fc; --agenda-tint: #173e50; --agenda-danger: #fda4af; --agenda-danger-tint: #4c1d28; }
+html[data-theme="clinical-night"] .agenda-modal .v-label,
+html[data-theme="clinical-night"] .agenda-modal input,
+html[data-theme="clinical-night"] .agenda-modal textarea,
+html[data-theme="clinical-night"] .agenda-modal .v-select__selection,
+html[data-theme="clinical-night"] .agenda-modal .v-counter { color: var(--agenda-text); }
+html[data-theme="clinical-night"] .agenda-modal .v-text-field--outlined fieldset { border-color: var(--agenda-border); }
+html[data-theme="clinical-night"] .agenda-modal .v-text-field input { background-color: transparent !important; }
+html[data-theme="clinical-night"] .agenda-modal .v-input .v-icon { color: var(--agenda-accent); }
+@media (max-width: 600px) {
+  .agenda-modal-header { gap: 12px; padding: 20px 16px; }
+  .agenda-modal-heading h2 { font-size: 18px; }
+  .v-dialog .v-card.agenda-modal .agenda-modal-body { padding: 18px 16px; }
+  .v-dialog .v-card.agenda-modal .agenda-modal-footer { padding: 16px; }
+  .agenda-modal-footer > .v-btn { width: 100%; }
+  .agenda-modal-search { flex-wrap: wrap; }
+  .agenda-modal-search > .v-input, .agenda-modal-search > .v-btn { width: 100%; }
+}
