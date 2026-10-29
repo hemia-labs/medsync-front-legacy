@@ -68,6 +68,8 @@ function buildModules(options = {}) {
                 styles.push(result.code);
             });
         }
+        source = source.replace(/process\.env\.NODE_ENV/g, JSON.stringify(options.production ? 'production' : 'development'));
+        source = source.replace(/import\(\/\*[^*]*\*\/\s*([^)]*)\)/g, 'Promise.resolve(require($1))');
         source = source.replace(/import\(([^)]+)\)/g, 'Promise.resolve(require($1))');
         let code = babel.transformSync(source, {
             filename: id, babelrc: false, configFile: false,
