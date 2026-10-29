@@ -84,23 +84,28 @@ function checkIndex() {
     assert.ok(list.length >= 2);
     assert.equal(new Set(list.map(e => e.order)).size, list.length);
   }
-  assert.equal(routes('production').length, 0);
-  assert.equal(routes('test').length, 0);
-  assert.equal(routes('development')[0].meta.requireAuth, true);
-  assert.equal(routes('development')[0].meta.layout, 'admin');
+  for (const mode of ['production', 'test', 'development']) {
+    const helpRoutes = routes(mode);
+    assert.equal(helpRoutes.length, 1);
+    assert.equal(helpRoutes[0].name, 'helpCenter');
+    assert.equal(helpRoutes[0].path, '/ayuda');
+    assert.equal(helpRoutes[0].meta.requireAuth, true);
+    assert.equal(helpRoutes[0].meta.layout, 'admin');
+  }
   const prod = navigation('production').tenantNavigationItems;
   const dev = navigation('development').tenantNavigationItems;
-  assert.deepEqual(dev.filter(e => e.key !== 'help'), prod, 'Existing navigation unchanged');
+  assert.deepEqual(dev, prod, 'Navigation is consistent across builds');
   assert.equal(dev.filter(e => e.key === 'help').length, 1);
+  assert.equal(prod.find(e => e.key === 'help').routeName, 'helpCenter');
+  assert.equal(prod.find(e => e.key === 'help').path, '/ayuda');
   const build = path.resolve(root, process.env.HELP_QA_BUILD || 'dist', 'js');
   if (fs.existsSync(build)) {
     const files = fs.readdirSync(build).filter(file => file.endsWith('.js'));
     assert.ok(files.length);
-    assert.ok(!files.some(file => file.includes('help-center-preview')));
-    for (const file of files) {
-      const code = fs.readFileSync(path.join(build, file), 'utf8');
-      assert.ok(!code.includes('preparacion-pendiente') && !code.includes('Resuelve una tarea y comprueba el resultado'), 'No help index or article in production');
-    }
+    const helpFiles = files.filter(file => /^help-center\./.test(file));
+    assert.ok(helpFiles.length, 'Production includes the lazy help chunk');
+    const helpCode = helpFiles.map(file => fs.readFileSync(path.join(build, file), 'utf8')).join('\n');
+    assert.ok(helpCode.includes('preparacion-pendiente') && helpCode.includes('Centro de ayuda'), 'Production includes help content');
   }
   return { guides: entries.filter(e => e.type === 'guide').length, questions: entries.filter(e => e.type === 'question').length };
 }
@@ -147,6 +152,10 @@ async function mount(browser, width, role) {
 
 (async () => {
   const counts = checkIndex(), results = [];
+  if (process.argv.includes('--static')) {
+    console.log(JSON.stringify({ counts, result: 'PASS', checks: 'content, search, routes, authenticated metadata, navigation and optional production bundle; no browser launched' }, null, 2));
+    return;
+  }
   fs.mkdirSync(out, { recursive: true });
   const channel = process.env.HELP_QA_CHANNEL === 'chromium' ? undefined : process.env.HELP_QA_CHANNEL || 'msedge';
   const browser = await chromium.launch({ channel, headless: true });
