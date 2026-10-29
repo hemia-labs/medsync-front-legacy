@@ -1,5 +1,11 @@
 <template>
   <div class="patient-odontogram" :aria-busy="String(loading || saving || sectionBusy)">
+    <odontogram-preview v-if="previewAvailable && showPreview" :key="patientId" @close="showPreview = false" />
+    <template v-else>
+    <div v-if="previewAvailable" class="odontogram-preview-entry">
+      <div><strong>Próxima captura del odontograma · CO26</strong><p>Referencia visual para desarrollo: teclado, tableta, dentición mixta y plan. Datos ficticios.</p></div>
+      <button class="odontogram-button odontogram-button--secondary" :disabled="saving || sectionBusy || openOdontogramTreatment || addOdontograma || isOpenHistory || isChangeActive" @click="showPreview = true">Ver cascarón visual</button>
+    </div>
     <section class="odontogram-hero">
       <div class="odontogram-heading">
         <p class="odontogram-eyebrow">Expediente clínico</p>
@@ -78,6 +84,7 @@
     <v-dialog v-model="isOpenHistory" :persistent="sectionBusy" max-width="1040" scrollable>
       <da-odontogram-history :open="isOpenHistory" :id="patientId" @close="isOpenHistory = false" @refresh-error="onHistoryRefreshError" @busy="sectionBusy = $event"></da-odontogram-history>
     </v-dialog>
+    </template>
   </div>
 </template>
 
@@ -103,6 +110,8 @@ export default {
   },
   data: function() {
     return {
+      previewAvailable: process.env.NODE_ENV === 'development',
+      showPreview: false,
       addOdontograma: false,
       loading: true,
       saving: false,
@@ -121,6 +130,9 @@ export default {
     }
   },
   components: {
+    ...(process.env.NODE_ENV === 'development' ? {
+      OdontogramPreview: () => import(/* webpackChunkName: "odontogram-co26-preview" */ './components/OdontogramPreview.vue')
+    } : {}),
     OdontogramCreateDialog,
     OdontogramConfirmDialog,
     'da-odontogram-treatment': () => import("../components/DAOdontogramTreatment.vue"),
@@ -267,6 +279,9 @@ export default {
 </script>
 
 <style scoped>
+.odontogram-preview-entry { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 20px; margin-bottom: 18px; border: 1px dashed var(--color-primary-500, #0e7490); border-radius: 12px; background: var(--color-surface, #fff); }
+.odontogram-preview-entry strong { font-size: 13px; }
+.odontogram-preview-entry p { font-size: 12px; margin: 5px 0 0; color: var(--color-text-muted, #64748b); }
 .patient-odontogram { padding: 20px; color: var(--color-text, #25364d); }
 .odontogram-hero, .odontogram-record, .odontogram-empty { border: 1px solid var(--color-border, #d8e9ef); border-radius: 12px; background: var(--color-surface, #fff); }
 .odontogram-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 22px 24px; margin-bottom: 18px; }
