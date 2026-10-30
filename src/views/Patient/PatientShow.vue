@@ -73,10 +73,13 @@
                       :key="item.component + '-' + activePatientId"
                       :px="px"
                       :document-focus-request="documentFocusRequest"
+                      :treatment-focus-request="treatmentFocusRequest"
                       v-on:edit="requestPatientEdit"
                       v-on:delete="requestArchive"
                       v-on:open-documents="openTabByComponent('da-patient-documents', $event)"
                       v-on:document-focus-consumed="consumeDocumentFocusRequest"
+                      v-on:prepare-treatment="openTabByComponent('da-patient-treatment', $event)"
+                      v-on:treatment-focus-consumed="consumeTreatmentFocusRequest"
                       v-on:edit-allergies="openAllergyEditor"
                       v-on:register-navigation-guard="registerSectionGuard">
                     </component>
@@ -169,6 +172,8 @@ export default {
             tabNavigationPending: false,
             sectionLeaveGuard: null,
             documentFocusRequest: null,
+            treatmentFocusRequest: null,
+            treatmentFocusSequence: 0,
             documentFocusSequence: 0,
             loadingPatient: true,
             patientError: '',
@@ -330,6 +335,14 @@ export default {
                 ? { ...payload, requestId: ++this.documentFocusSequence, id_person: this.activePatientId }
                 : null
         }
+        if(component === 'da-patient-treatment') {
+            this.treatmentFocusRequest = payload && payload.id_person === this.activePatientId
+                ? { ...payload, requestId: ++this.treatmentFocusSequence } : null
+        }
+    },
+    consumeTreatmentFocusRequest(request) {
+        const current = this.treatmentFocusRequest
+        if(current && request && current.requestId === request.requestId && current.id_person === request.id_person) this.treatmentFocusRequest = null
     },
     consumeDocumentFocusRequest(request) {
         const current = this.documentFocusRequest
@@ -442,6 +455,7 @@ export default {
             this.showAllergyEditor = false
             this.allergyFeedback = ''
             this.documentFocusRequest = null
+            this.treatmentFocusRequest = null
             this.isEdit = false
             this.init()
         },

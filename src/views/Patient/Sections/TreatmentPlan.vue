@@ -2,6 +2,11 @@
   <div class="patient-treatment px-5 py-5">
     <da-loader v-bind:overlay="isLoading"></da-loader>
     <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
+    <div v-if="treatmentFocusRequest && treatmentFocusRequest.id_person === patientId" class="plan-feedback" role="status">
+      Selección del odontograma pendiente. {{ activePlan ? 'Se abrirá el mismo editor de tratamiento cuando termines la edición actual.' : 'Crea un plan para conservar esta selección y preparar el tratamiento.' }}
+      <button v-if="!activePlan && ready && canCreate" type="button" :disabled="isBusy" @click="openCreatePlan()">Crear plan</button>
+      <button type="button" :disabled="isBusy" @click="$emit('treatment-focus-consumed', treatmentFocusRequest)">Descartar selección</button>
+    </div>
 
     <section v-if="loadError" class="treatment-empty" role="alert">
       <h3>No se pudo actualizar el plan</h3>
@@ -152,7 +157,7 @@
               <span v-if="showCosts && item.cost !== null && item.cost !== undefined && item.cost !== ''"><v-icon size="15">mdi-cash</v-icon>{{ formatCurrencyValue(item.cost) }}</span>
             </div>
             <div v-if="item.teeth && item.teeth.length" class="tooth-row">
-              <span v-for="tooth in item.teeth" :key="tooth">Diente {{ tooth }}</span>
+              <span v-for="tooth in item.teeth" :key="tooth">{{ dentalLabel(item, tooth) }}</span>
             </div>
             <p v-if="item.notes" class="notes">{{ item.notes }}</p>
           </div>
@@ -357,7 +362,7 @@
           <section v-if="showToothSelector" class="tooth-selector form-section">
             <div>
               <h4>Dientes asociados</h4>
-              <span>Selecciona uno o varios dientes si este tratamiento está relacionado con piezas dentales específicas.</span>
+              <span>Selecciona piezas permanentes (11–48) o temporales (51–85). La selección es opcional y no requiere odontograma.</span>
             </div>
             <div class="tooth-grid">
               <button :disabled="isBusy"
@@ -372,6 +377,7 @@
                 {{ tooth }}
               </button>
             </div>
+            <treatment-dental-details v-if="config.dentalSchemaAvailable" v-model="treatmentForm.tooth_details" :teeth="treatmentForm.teeth" :patient-id="patientId" :busy="isBusy" :can-read="Boolean(planData.permissions && planData.permissions.odontogramRead)" @selection="treatmentForm.teeth = $event" @context-notes="appendDentalContext" />
           </section>
         </v-card-text>
         <v-card-actions class="dialog-actions">
@@ -634,7 +640,7 @@
               </div>
               <p v-if="item.description">{{ item.description }}</p>
               <div v-if="item.teeth && item.teeth.length" class="tooth-row">
-                <span v-for="tooth in item.teeth" :key="tooth">Diente {{ tooth }}</span>
+                <span v-for="tooth in item.teeth" :key="tooth">{{ dentalLabel(item, tooth) }}</span>
               </div>
               <div v-if="item.notes" class="notes-toggle">
                 <button :disabled="isBusy" class="btn-text" type="button" @click="toggleHistoryNotes(item.id_patient_treatment)">
@@ -716,6 +722,7 @@ import fieldError from '../../../core/directives/field-error';
 import { sanitizeHtmlForDocumentSnapshot } from '../../../utils/sanitizeHtml';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
 import { localToday, requestId, snapshot, treatmentErrors, planErrors } from '../../../domain/treatment-plan/plan.editor';
+import { surfaceLabel as dentalSurfaceLabel } from '../../../utils/odontogram/dentalContract';
 import { getSettingsSections } from '../../../security/settingsAccess';
 
 const today = localToday;
@@ -725,8 +732,9 @@ import ListPageNav from '../../../components/common/ListPageNav.vue';
 export default {
   mixins: [VuexMixin],
   directives: { dialogName, fieldError },
-  components: { DocumentSignatureOptionsDialog, ListPageNav },
+  components: { DocumentSignatureOptionsDialog, ListPageNav, TreatmentDentalDetails: () => import('./components/TreatmentDentalDetails.vue') },
   props: {
+    treatmentFocusRequest: { type: Object, default: null },
     px: {
       type: Object,
       default: function(){return {}}
@@ -815,7 +823,7 @@ export default {
         { label: 'Cancelado', value: 'cancelled' },
         { label: 'Pausado', value: 'paused' }
       ],
-      toothOptions: ['11','12','13','14','15','16','17','18','21','22','23','24','25','26','27','28','31','32','33','34','35','36','37','38','41','42','43','44','45','46','47','48']
+      toothOptions: ['11','12','13','14','15','16','17','18','21','22','23','24','25','26','27','28','31','32','33','34','35','36','37','38','41','42','43','44','45','46','47','48','51','52','53','54','55','61','62','63','64','65','71','72','73','74','75','81','82','83','84','85']
     }
   },
   created() {
@@ -1112,6 +1120,10 @@ export default {
     })
   },
   watch: {
+    treatmentFocusRequest: { immediate: true, handler() { this.$nextTick(this.applyDentalPreparation); } },
+    ready(value) { if(value) this.$nextTick(this.applyDentalPreparation); },
+    editorKind(value) { if(!value) this.$nextTick(this.applyDentalPreparation); },
+    isBusy(value) { if(!value) this.$nextTick(this.applyDentalPreparation); },
     patientId: { immediate: true, handler() {
       this.historyPage = 1;
       this.localPlanData = null;
@@ -1132,12 +1144,24 @@ export default {
     }
   },
   methods: {
+    applyDentalPreparation() {
+      const request = this.treatmentFocusRequest;
+      if(!request || request.id_person !== this.patientId || this.consumedDentalRequest === request.requestId || !this.ready || !this.activePlan || !this.canCreate || this.isBusy || this.editorKind) return;
+      if(!this.config.dentalSchemaAvailable || !this.allowToothSelection) { this.notice = { type: 'warning', message: 'La selección dental no está habilitada. La preparación se conserva y puedes usar el formulario manual.' }; return; }
+      this.openTreatmentDialog();
+      if(!this.showTreatmentDialog) return;
+      this.treatmentForm.tooth_details = JSON.parse(JSON.stringify(request.tooth_details || []));
+      this.treatmentForm.teeth = this.treatmentForm.tooth_details.map(detail => String(detail.tooth_number));
+      this.consumedDentalRequest = request.requestId;
+      this.$emit('treatment-focus-consumed', request);
+    },
     allowed(flag, permission) {
       return this.planLoaded && this.hasPermission(permission) && Boolean(this.planData.permissions && this.planData.permissions[flag]);
     },
     toastFunction(type, message) {
       this.notice = { type, message };
       if(this.$toast && typeof this.$toast[type] === 'function') this.$toast[type](message);
+      else if(this.$swal && typeof this.$swal.fire === 'function') this.$swal.fire({toast:true,position:'top-end',icon:type,titleText:message,showConfirmButton:false,timer:4500,timerProgressBar:true});
     },
     rememberFocus() { this.opener = document.activeElement; this.notice = { type: 'info', message: '' }; },
     restoreFocus() {
@@ -1262,7 +1286,10 @@ export default {
         estimated_end_date: '',
         cost: '',
         notes: '',
-        teeth: []
+        teeth: [],
+        tooth_details: [],
+        dental_revision: 0,
+        treatment_revision: 0
       };
     },
     loadConsentContext: async function(request = this.loadRequest, patientId = this.patientId) {
@@ -1439,7 +1466,10 @@ export default {
         estimated_end_date: item.estimated_end_date ? String(item.estimated_end_date).slice(0, 10) : '',
         cost: item.cost === null || item.cost === undefined ? '' : item.cost,
         notes: item.notes || '',
-        teeth: item.teeth ? [...item.teeth] : []
+        teeth: item.teeth ? [...item.teeth] : [],
+        tooth_details: item.tooth_details ? JSON.parse(JSON.stringify(item.tooth_details)) : (item.teeth || []).map(tooth => ({ tooth_number: String(tooth), surfaces: null, manual: true, sources: [] })),
+        dental_revision: item.dental_revision || 0,
+        treatment_revision: item.treatment_revision || 0
       } : this.emptyTreatmentForm();
       this.beginEditor('treatment');
       this.showTreatmentDialog = true;
@@ -1461,6 +1491,7 @@ export default {
         request_id: this.editorRequestId
       };
       if(!this.canEditCosts) delete payload.cost;
+      if(!this.config.dentalSchemaAvailable) { delete payload.tooth_details; delete payload.dental_revision; delete payload.treatment_revision; }
       if(!payload.id_patient_treatment) {
         payload.status = 'pending';
       }
@@ -1507,6 +1538,10 @@ export default {
       const item = this.confirmDialog.item;
       const type = this.confirmDialog.type;
       this.closeConfirmDialog();
+      if(type === 'dentalTooth') {
+        if((this.treatmentForm.teeth || []).includes(item)) { this.toggleTooth(item, true);this.toastFunction('info','Pieza retirada del formulario. Guarda el tratamiento para confirmar el cambio.'); }
+        return;
+      }
       if(type === 'recaptureConsent') {
         await this.openSignatureOptions();
         return;
@@ -1541,7 +1576,8 @@ export default {
       const saved = await this.performAction(this.changePlanTreatmentStatus, {
         id_person: this.patientId,
         id_patient_treatment: item.id_patient_treatment,
-        status
+        status,
+        ...(item.treatment_revision !== undefined ? { treatment_revision: item.treatment_revision } : {})
       }, 'Estado actualizado.');
       if(saved) this.statusSaved(item, status);
       return saved;
@@ -1550,15 +1586,25 @@ export default {
       if(!this.canEdit || this.isBusy) return false;
       return this.performAction(this.deletePlanTreatment, {
         id_person: this.patientId,
-        id_patient_treatment: item.id_patient_treatment
+        id_patient_treatment: item.id_patient_treatment,
+        ...(item.treatment_revision !== undefined ? { treatment_revision: item.treatment_revision } : {})
       }, 'Tratamiento eliminado del plan activo.');
     },
-    toggleTooth: function(tooth) {
+    toggleTooth: function(tooth, confirmed = false) {
       const current = this.treatmentForm.teeth || [];
+      const detail = this.treatmentForm.tooth_details.find(item => String(item.tooth_number) === tooth);
+      if(current.includes(tooth) && detail && detail.sources && detail.sources.length && !confirmed) {
+        this.confirmDialog={show:true,type:'dentalTooth',item:tooth,eyebrow:'Selección dental',title:'Retirar pieza '+tooth,message:'Retirar la pieza '+tooth+' también retirará sus orígenes de este tratamiento. El odontograma no cambiará.',confirmText:'Retirar pieza'};
+        return;
+      }
       this.treatmentForm.teeth = current.includes(tooth)
         ? current.filter((item) => item !== tooth)
         : [...current, tooth];
+      if(current.includes(tooth)) this.treatmentForm.tooth_details = this.treatmentForm.tooth_details.filter(item => String(item.tooth_number) !== tooth);
+      else this.treatmentForm.tooth_details.push({ tooth_number: tooth, surfaces: null, manual: true, sources: [] });
     },
+    appendDentalContext(text) { this.treatmentForm.notes = [this.treatmentForm.notes, text].filter(Boolean).join('\n'); },
+    dentalLabel(item, tooth) { const detail = (item.tooth_details || []).find(detail => String(detail.tooth_number) === String(tooth)); return 'Diente ' + tooth + (detail && detail.surfaces ? ' · ' + [...detail.surfaces].map(face=>dentalSurfaceLabel(face,Number(tooth))).join('') : ''); },
     openHistory: function(plan) {
       this.rememberFocus();
       this.selectedHistory = plan;
@@ -1759,7 +1805,7 @@ export default {
           <td>${this.escapeHtml(this.formatDisplayDate(item.estimated_start_date))}</td>
           <td>${this.escapeHtml(this.formatDisplayDate(item.estimated_end_date))}</td>
           ${this.showCosts ? `<td>${this.escapeHtml(this.formatCurrencyValue(item.cost))}</td>` : ''}
-          <td>${this.escapeHtml((item.teeth || []).join(', ') || 'No especificado')}</td>
+          <td>${this.escapeHtml((item.teeth || []).map(tooth => this.dentalLabel(item, tooth)).join(', ') || 'No especificado')}</td>
         </tr>
       `).join('');
       const consentHtml = consent ? `

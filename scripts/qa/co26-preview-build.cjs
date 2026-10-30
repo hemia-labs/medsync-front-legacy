@@ -13,6 +13,6 @@ service.loadEnv = () => {};
 const destination = path.resolve(repo, '../_qa/co26-visual-' + mode);
 service.run('build', { mode, dest: destination, clean: false }).then(() => {
   const chunks = fs.readdirSync(path.join(destination, 'js'));
-  assert.equal(chunks.some(name => name.startsWith('odontogram-co26-preview')), mode === 'development');
-  console.log('PASS CO26 ' + mode + ': preview chunk ' + (mode === 'development' ? 'included' : 'excluded') + '. Synthetic config only.');
+  assert.equal(chunks.some(name => name.startsWith('odontogram-co26-preview')), true);
+  console.log('PASS CO26 ' + mode + ': preview chunk included (temporary preview access). Synthetic config only.');
 }).catch(() => { console.error('CO26 build verification failed'); process.exitCode = 1; });

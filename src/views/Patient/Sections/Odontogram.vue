@@ -1,6 +1,7 @@
 <template>
   <div class="patient-odontogram" :aria-busy="String(loading || saving || sectionBusy)">
-    <odontogram-preview v-if="previewAvailable && showPreview" :key="patientId" @close="showPreview = false" />
+    <odontogram-capture v-if="captureMode !== 'v1'" :key="patientId" ref="capture" :patient-id="patientId" :patient-name="patientName" :mode="captureMode" @prepare-treatment="$emit('prepare-treatment', $event)" />
+    <odontogram-preview v-else-if="previewAvailable && showPreview" :key="patientId" @close="showPreview = false" />
     <template v-else>
     <div v-if="previewAvailable" class="odontogram-preview-entry">
       <div><strong>Próxima captura del odontograma · CO26</strong><p>Referencia visual para desarrollo: teclado, tableta, dentición mixta y plan. Datos ficticios.</p></div>
@@ -47,6 +48,7 @@
     </section>
 
     <section v-else class="odontogram-record" aria-label="Diagnósticos dentales">
+      <odontogram-clinical-chart :key="patientId + ':' + id_odontogram" :teeth="odontogram" :busy="saving || sectionBusy" @edit="onEditOdontogramTreatment" />
       <div class="odontogram-record-header">
         <div><h3>Regiones dentales</h3><p>{{ activeDentition }}<span v-if="activeDentition"> · </span>{{ diagnosedCount }} de {{ odontogram.length }} con diagnóstico</p></div>
         <v-text-field v-model="search" class="odontogram-search" label="Buscar región o diagnóstico" prepend-inner-icon="mdi-magnify" outlined dense hide-details clearable :color="'var(--color-primary-700, #0e7490)'"></v-text-field>
@@ -95,6 +97,8 @@ import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
 import OdontogramCreateDialog from './components/OdontogramCreateDialog.vue';
 import OdontogramConfirmDialog from './components/OdontogramConfirmDialog.vue';
+import OdontogramClinicalChart from './components/OdontogramClinicalChart.vue';
+import { DAOdontogramV2Service } from '../../../services/context/core-proccess-context';
 import {
   buildOdontogramParentPayload,
   buildOdontogramStatusPayload
@@ -110,7 +114,9 @@ export default {
   },
   data: function() {
     return {
-      previewAvailable: process.env.NODE_ENV === 'development',
+      // Temporal: permitir revisar el cascarón también en builds de producción.
+      previewAvailable: true,
+      captureMode: 'v1',
       showPreview: false,
       addOdontograma: false,
       loading: true,
@@ -130,9 +136,9 @@ export default {
     }
   },
   components: {
-    ...(process.env.NODE_ENV === 'development' ? {
-      OdontogramPreview: () => import(/* webpackChunkName: "odontogram-co26-preview" */ './components/OdontogramPreview.vue')
-    } : {}),
+    OdontogramCapture: () => import(/* webpackChunkName: "odontogram-co26-capture" */ './components/OdontogramCapture.vue'),
+    OdontogramClinicalChart,
+    OdontogramPreview: () => import(/* webpackChunkName: "odontogram-co26-preview" */ './components/OdontogramPreview.vue'),
     OdontogramCreateDialog,
     OdontogramConfirmDialog,
     'da-odontogram-treatment': () => import("../components/DAOdontogramTreatment.vue"),
@@ -143,7 +149,7 @@ export default {
   },
   created() {
     this.$emit('register-navigation-guard', this.confirmLeave);
-    this.removeNavigationGuard = this.$router.beforeEach((to, from, next) => next(!this.saving && !this.sectionBusy));
+    this.removeNavigationGuard = this.$router.beforeEach((to, from, next) => this.confirmLeave().then(next));
   },
   computed: {
     patientId() { return this.px && this.px.person && this.px.person.id_person; },
@@ -181,6 +187,14 @@ export default {
       this.addOdontograma = false;
       try {
         if(!this.patientId) throw new Error('Missing patient');
+        const capabilities = await DAOdontogramV2Service.capabilities();
+        if(request !== this.loadRequest) return;
+        if(capabilities.success && capabilities.data && capabilities.data.mode !== 'v1') {
+          this.captureMode = capabilities.data.mode;
+          return;
+        }
+        if(!capabilities.success && capabilities.status !== 404) throw new Error('No se pudo consultar el modo del odontograma.');
+        this.captureMode = 'v1';
         const response = await this.ActionWrapp(moduleTypes.ODONTOGRAM, fnTypes.initOdontogram, {id: this.patientId});
         if(request !== this.loadRequest) return;
         if(!response || !response.success) {
@@ -201,7 +215,7 @@ export default {
       this.feedback = '';
       this.addOdontograma = true;
     },
-    confirmLeave() { return Promise.resolve(!this.saving && !this.sectionBusy); },
+    confirmLeave() { return this.$refs.capture ? this.$refs.capture.confirmLeave() : Promise.resolve(!this.saving && !this.sectionBusy); },
     onEditOdontogramTreatment: function(data) {
       if(this.saving || this.sectionBusy) return;
       this.setOdontogramDetail(data);

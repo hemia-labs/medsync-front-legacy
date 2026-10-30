@@ -1,4 +1,5 @@
 // CO26 visual fixtures only. Never pass patient IDs or connect services to this module.
+import { sequence as dentalSequence, surfaceLabel as dentalSurfaceLabel } from '../../../../../utils/odontogram/dentalContract';
 export const dentitions = [
   { id: 'permanent', label: 'Permanente' },
   { id: 'primary', label: 'Temporal' },
@@ -16,13 +17,7 @@ export const rows = {
   primaryLower: [...range(8, 5, true), ...range(7, 5)]
 };
 export function sequence(mode) {
-  const permanent = [...rows.upper, ...range(3, 8, true), ...range(4, 8)];
-  const primary = [...rows.primaryUpper, ...range(7, 5, true), ...range(8, 5)];
-  return mode === 'mixed'
-    ? [...permanent, ...primary]
-    : mode === 'primary'
-    ? primary
-    : permanent;
+  return dentalSequence(mode);
 }
 export const tools = [
   { code: 'car', label: 'Caries', kind: 'condition', surface: true },
@@ -112,11 +107,7 @@ export function position(n) {
   );
 }
 export function surfaceLabel(s, n) {
-  return s === 'O' && n % 10 <= 3
-    ? 'I'
-    : s === 'L' && [1, 2, 5, 6].includes(Math.floor(n / 10))
-    ? 'P'
-    : s;
+  return dentalSurfaceLabel(s, n);
 }
 export function tone(f) {
   return f.kind === 'presence'

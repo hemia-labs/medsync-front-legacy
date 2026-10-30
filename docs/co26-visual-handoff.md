@@ -6,11 +6,11 @@ Fecha: 2026-10-29. Entrega de referencia visual para el desarrollador, no funcio
 
 1. Usar Node 22 y las dependencias/configuracion habituales del frontend.
 2. Ejecutar `npm run serve:d2` (o el arranque de desarrollo habitual del equipo).
-3. Entrar al sistema con acceso al expediente y a la pestana Odontograma.
+3. Entrar al sistema con acceso al expediente y a la pestana Odontograma. Temporalmente la pestana no depende de `odontogramEnabled`; conserva el permiso `px.tab.odontogram`.
 4. Abrir un paciente -> Odontograma -> **Ver cascaron visual**.
 5. **Volver al odontograma actual** cierra la simulacion y descarta sus cambios.
 
-El acceso aparece solo con `NODE_ENV=development`. El build de produccion no incluye el componente lazy de CO26. No cambia rutas, permisos ni la disponibilidad de la captura actual. No hay sitio aparte ni dependencia de la demo de Claude.
+Temporalmente, el acceso aparece en desarrollo y produccion, y ambos builds incluyen el componente lazy de CO26. Se requiere recompilar y desplegar para verlo en un entorno publicado. No cambia rutas, permisos ni la disponibilidad de la captura actual. No hay sitio aparte ni dependencia de la demo de Claude.
 
 La vista muestra **Paciente ficticio**, aunque este abierta dentro de un expediente. No recibe el objeto `px`, IDs del paciente, servicios ni store. La seccion existente conserva su consulta normal; el componente nuevo no hace llamadas clinicas ni usa almacenamiento del navegador. No introducir datos de pacientes en esta referencia.
 
@@ -18,7 +18,7 @@ La vista muestra **Paciente ficticio**, aunque este abierta dentro de un expedie
 
 | Archivo | Responsabilidad |
 | --- | --- |
-| [Odontogram.vue](../src/views/Patient/Sections/Odontogram.vue) | Entrada desde el expediente, carga lazy solo en desarrollo y retorno a la captura existente. |
+| [Odontogram.vue](../src/views/Patient/Sections/Odontogram.vue) | Entrada desde el expediente, carga lazy temporal en todos los entornos y retorno a la captura existente. |
 | [OdontogramPreview.vue](../src/views/Patient/Sections/components/OdontogramPreview.vue) | Composicion visual, arcadas, panel, teclado, resumen, modales y estados simulados; estilos con prefijo co26 y tema nocturno. |
 | [OdontogramPreviewTooth.vue](../src/views/Patient/Sections/components/preview/OdontogramPreviewTooth.vue) | Dibujo SVG esquematico; pieza y caras con color mas texto en el panel. |
 | [OdontogramPreviewPlan.vue](../src/views/Patient/Sections/components/preview/OdontogramPreviewPlan.vue) | Un editor para tratamiento manual e importado; origen, caras y preview de importacion. |
