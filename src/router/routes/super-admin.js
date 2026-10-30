@@ -13,6 +13,11 @@ export default [
         meta: { title: 'Super Admin - MedSync', requireAuth: true, layout: 'super-admin', role: 'super_admin' },
         children: [
             {
+                path: 'odontogram-aliases', name: 'superAdminOdontogramAliases',
+                component: () => import('@/views/super-admin/OdontogramAliases.vue'),
+                meta: { title: 'Abreviaturas dentales globales', requireAuth: true, layout: 'super-admin', role: 'super_admin', headertitle: 'Abreviaturas dentales' }
+            },
+            {
                 path: 'dashboard',
                 name: 'superAdminDashboard',
                 component: () => import('@/views/super-admin/Dashboard.vue'),

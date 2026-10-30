@@ -4,6 +4,7 @@
       <div>
         <p class="eyebrow">Administracion global</p>
         <h1>Dashboard Super Admin</h1>
+        <router-link :to="{ name: 'superAdminOdontogramAliases' }">Administrar abreviaturas dentales globales</router-link>
         <span>Resumen operativo del sistema SaaS con metricas agregadas y sin datos clinicos privados.</span>
         <small>{{ rangeLabel }}</small>
       </div>
