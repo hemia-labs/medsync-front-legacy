@@ -1,0 +1,163 @@
+name: Deploy medsync-front-legacy to Contabo dev
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+# DEV_* secrets are separate from prod. NODE_ENV=production is intentional.
+env:
+  VPS_HOST: 185.187.235.117
+  # Toolchain antiguo: vue-cli 4.5 usa webpack 4. En Node 17+ hace falta
+  # --openssl-legacy-provider para compilar (se fuerza en el paso de build).
+  NODE_VERSION: 22
+  APP_NAME: medsync-front-legacy
+  APP_PORT: 4324
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    if: github.ref == 'refs/heads/develop' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Validate deployment secrets
+        env:
+          VPS_HOST: ${{ env.VPS_HOST }}
+          VPS_FINGERPRINT: ${{ secrets.DEV_VPS_FINGERPRINT }}
+          VPS_USER: ${{ secrets.DEV_VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.DEV_VPS_SSH_KEY }}
+          VPS_APP_DIR: ${{ secrets.DEV_VPS_APP_DIR }}
+          VUE_APP_CORE_URL_API: ${{ secrets.DEV_VUE_APP_CORE_URL_API }}
+          VUE_APP_AUTH_COOKIE_MODE: ${{ secrets.DEV_VUE_APP_AUTH_COOKIE_MODE }}
+          VUE_APP_BROWSER_AUTH_TRANSPORT: ${{ secrets.DEV_VUE_APP_BROWSER_AUTH_TRANSPORT }}
+          VUE_APP_CSRF_ENABLED: ${{ secrets.DEV_VUE_APP_CSRF_ENABLED }}
+        run: |
+          node <<'NODE'
+          const required = ['VPS_HOST', 'VPS_FINGERPRINT', 'VPS_USER', 'VPS_SSH_KEY', 'VPS_APP_DIR', 'VUE_APP_CORE_URL_API', 'VUE_APP_AUTH_COOKIE_MODE', 'VUE_APP_BROWSER_AUTH_TRANSPORT', 'VUE_APP_CSRF_ENABLED'];
+          const missing = required.filter((key) => !process.env[key]);
+          if (missing.length > 0) {
+            console.error(`Missing GitHub secrets: ${missing.join(', ')}`);
+            process.exit(1);
+          }
+          const expected = { VUE_APP_AUTH_COOKIE_MODE: 'd2', VUE_APP_BROWSER_AUTH_TRANSPORT: 'cookie', VUE_APP_CSRF_ENABLED: 'true' };
+          if (Object.keys(expected).some(key => String(process.env[key]).trim().toLowerCase() !== expected[key])) {
+            console.error('Production requires d2 / cookie / true authentication configuration.');
+            process.exit(1);
+          }
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build optimized bundle for development server
+        env:
+          # `npm run build` aplica --openssl-legacy-provider vía cross-env
+          # (multiplataforma) y dispara el prebuild, que valida que
+          # VUE_APP_CORE_URL_API sea https:// antes de compilar.
+          VUE_APP_CORE_URL_API: ${{ secrets.DEV_VUE_APP_CORE_URL_API }}
+          # Config de auth D2 (cookie + CSRF). Vienen de secrets para poder
+          # ajustarlas por entorno sin tocar el código.
+          VUE_APP_AUTH_COOKIE_MODE: ${{ secrets.DEV_VUE_APP_AUTH_COOKIE_MODE }}
+          VUE_APP_BROWSER_AUTH_TRANSPORT: ${{ secrets.DEV_VUE_APP_BROWSER_AUTH_TRANSPORT }}
+          VUE_APP_CSRF_ENABLED: ${{ secrets.DEV_VUE_APP_CSRF_ENABLED }}
+        run: npm run build
+
+      - name: Prepare app directory on VPS
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          VPS_APP_DIR: ${{ secrets.DEV_VPS_APP_DIR }}
+        with:
+          host: ${{ env.VPS_HOST }}
+          fingerprint: ${{ secrets.DEV_VPS_FINGERPRINT }}
+          username: ${{ secrets.DEV_VPS_USER }}
+          key: ${{ secrets.DEV_VPS_SSH_KEY }}
+          port: ${{ secrets.DEV_VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 10m
+          envs: VPS_APP_DIR
+          script: |
+            set -e
+            mkdir -p "$VPS_APP_DIR"
+            rm -rf "$VPS_APP_DIR/dist"
+
+      - name: Upload dist to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.VPS_HOST }}
+          fingerprint: ${{ secrets.DEV_VPS_FINGERPRINT }}
+          username: ${{ secrets.DEV_VPS_USER }}
+          key: ${{ secrets.DEV_VPS_SSH_KEY }}
+          port: ${{ secrets.DEV_VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 10m
+          source: "dist"
+          target: ${{ secrets.DEV_VPS_APP_DIR }}
+
+      - name: Serve with pm2
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          VPS_APP_DIR: ${{ secrets.DEV_VPS_APP_DIR }}
+          NODE_VERSION: ${{ env.NODE_VERSION }}
+          APP_NAME: ${{ env.APP_NAME }}
+          APP_PORT: ${{ secrets.DEV_APP_PORT || env.APP_PORT }}
+        with:
+          host: ${{ env.VPS_HOST }}
+          fingerprint: ${{ secrets.DEV_VPS_FINGERPRINT }}
+          username: ${{ secrets.DEV_VPS_USER }}
+          key: ${{ secrets.DEV_VPS_SSH_KEY }}
+          port: ${{ secrets.DEV_VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 10m
+          envs: VPS_APP_DIR,NODE_VERSION,APP_NAME,APP_PORT
+          script: |
+            set -e
+
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            nvm install "$NODE_VERSION"
+            nvm use "$NODE_VERSION"
+
+            cd "$VPS_APP_DIR"
+
+            command -v pm2 > /dev/null || npm install --global pm2
+
+            # pm2 sirve los estáticos de dist/ con fallback SPA a index.html.
+            # Si el proceso ya existe lo recargamos; si no, lo creamos.
+            if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
+              pm2 reload "$APP_NAME" --update-env
+            else
+              pm2 serve dist "$APP_PORT" --spa --name "$APP_NAME"
+            fi
+            pm2 save
+
+            for i in $(seq 1 10); do
+              if curl -fsS "http://127.0.0.1:$APP_PORT" > /dev/null; then
+                echo "$APP_NAME is ready on port $APP_PORT"
+                exit 0
+              fi
+              echo "Attempt $i: app not ready yet..."
+              sleep 2
+            done
+
+            echo "$APP_NAME did not become ready in time"
+            pm2 status
+            pm2 logs "$APP_NAME" --lines 80 --nostream
+            exit 1
