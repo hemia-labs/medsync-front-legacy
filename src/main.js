@@ -14,6 +14,7 @@ import VueSweetalert2 from 'vue-sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import './assets/sweetalert.css';
 import registerGlobalComponents from './plugins/global-components';
+import Analytics from './plugins/analytics';
 
 import 'viewerjs/dist/viewer.css'
 import VueViewer from 'v-viewer'
@@ -30,6 +31,7 @@ library.add(fas);
 Vue.config.productionTip = false
 
 registerGlobalComponents(Vue);
+Vue.use(Analytics, { store });
 
 new Vue({
   router,

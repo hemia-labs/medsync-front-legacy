@@ -20,6 +20,7 @@ import { getSessionPermissions, hasAnyPermission, hasPermission } from '../secur
 import { canAccessSettings } from '../security/settingsAccess';
 import store from '../store';
 import { isD2AuthMode } from '../services/config/authTransport.config';
+import { trackPageView } from '../plugins/analytics';
 
 Vue.use(VueRouter)
 
@@ -328,6 +329,7 @@ router.afterEach((to) => {
   Vue.nextTick(() => {
     document.title = to.meta.title || DEFAULT_TITLE;
   })
+  trackPageView(to);
 })
 
 export default router
