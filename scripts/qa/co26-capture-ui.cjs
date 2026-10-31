@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { buildClient } = require('./odontogram-ui-preview.cjs');
-const D = require('../../../medsync-back-legacy/src/domain/odontogram/operations');
+const D = require('./co26-backend-fixture.cjs');
 const pause = () => new Promise(resolve => setTimeout(resolve, 10));
 async function until(check) { for (let i=0;i<800;i++) { if(check()) return; await pause(); } throw Error('Timed out in CO26 rendered flow'); }
 (async () => {
@@ -34,6 +34,14 @@ async function until(check) { for (let i=0;i<800;i++) { if(check()) return; awai
     w.Vue.prototype.$toast=Object.fromEntries(['success','error','warning','info'].map(type=>[type,message=>toasts.push({type,message})]));
     await until(()=>w.document.querySelectorAll('.co26-live-teeth button').length===52);
     const live=w.__odontogramQA.vm.$refs.capture;
+    const initialWrites=writes;
+    live.dentitionFilter='primary';await w.Vue.nextTick();assert.equal(w.document.querySelectorAll('.co26-live-teeth button').length,20);
+    live.dentitionFilter='permanent';await w.Vue.nextTick();assert.equal(w.document.querySelectorAll('.co26-live-teeth button').length,32);
+    live.dentitionFilter='all';await w.Vue.nextTick();assert.equal(w.document.querySelectorAll('.co26-live-teeth button').length,52);
+    assert.equal(writes,initialWrites,'Dentition filters do not save or remove clinical data');
+    live.selectTool('res');assert.equal(live.toolCode,'res');assert.equal(live.indicated,false);
+    await live.selectTooth(55);await live.moveTooth(1);assert.equal(live.selected,54);
+    live.selectTool('car');assert.equal(w.document.querySelectorAll('.co26-live-tools button').length,D.CATALOG.length);
     let autoConfirm=true;w.setInterval(()=>{const dialog=live.$refs.confirmation;if(autoConfirm&&dialog&&dialog.opened)dialog.settle(true);},5);
     live.command='16 car mo';await live.runCommand();await until(()=>live.sync==='saved'&&!live.pending);
     assert.equal(server.teeth[16].findings[0].surfaces,'MO');
@@ -42,6 +50,7 @@ async function until(check) { for (let i=0;i<800;i++) { if(check()) return; awai
     assert.ok(toasts.some(toast=>toast.type==='success'&&toast.message==='Nota guardada.'));
     await live.reviewTooth();await live.session.flush();await until(()=>!live.pending);
     assert.equal(server.teeth[16].findings.length,1);assert.equal(server.teeth[16].note,'Nota conservada');
+    assert.match(live.toothState(server.teeth[16]),/con hallazgos/);assert.equal(live.reviewedCount,1);
     live.evolutionOrigins=[server.teeth[16].findings[0].id];live.evolutionResult='res';live.surfaces=['M','O'];await live.evolve();await live.session.flush();await until(()=>!live.pending);
     assert.equal(server.teeth[16].findings[0].status,'resolved');
     await live.undo();await live.session.flush();await until(()=>!live.pending);

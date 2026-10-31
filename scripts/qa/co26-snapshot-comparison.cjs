@@ -1,6 +1,6 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const {compareSnapshots}=require('../../src/domain/odontogram/compareSnapshots');
-const D=require('../../../medsync-back-legacy/src/domain/odontogram/operations');
+const D=require('./co26-backend-fixture.cjs');
 test('snapshot comparison distinguishes evolution/correction/notes and never interprets missing text as health',()=>{
  const before={id_chart:'chart',...D.emptyChart('mixed')};before.teeth[16].note='Prior note';before.teeth[16].findings=[{id:'a',label:'Caries',status:'active',surfaces:'MO'},{id:'b',label:'Fractura',status:'active',surfaces:null}];
  const after=D.clone(before);after.revision=2;after.teeth[16].findings[0].status='resolved';after.teeth[16].findings[1].status='corrected';after.teeth[16].findings.push({id:'c',label:'Resina',status:'active',surfaces:'MO'});after.teeth[16].note='';

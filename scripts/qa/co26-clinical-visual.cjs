@@ -28,7 +28,7 @@ const { buildClient } = require('./odontogram-ui-preview.cjs');
     // fixtureBootstrap obtains the scenario from the URL; no real network is used.
     await page.evaluate(() => { window.history.replaceState(null, '', 'about:blank'); });
     if (capture) {
-      const D = require('../../../medsync-back-legacy/src/domain/odontogram/operations');
+      const D = require('./co26-backend-fixture.cjs');
       const initial = D.emptyChart('mixed');
       const chart = { id_chart: 'qa-capture', id_person: 'qa-patient', ...D.applyBatch(initial, {
         batch_id:'qa-batch',base_revision:0,generation:1,catalog_version:D.CATALOG_VERSION,
@@ -37,7 +37,7 @@ const { buildClient } = require('./odontogram-ui-preview.cjs');
           {client_op_id:'qa-res',type:'finding.add',tooth:55,code:'res',surfaces:'O'}]
       }, 'qa-actor').chart };
       await page.evaluate(({ chart, catalog }) => {
-        window.__odontogramPermissions=['px.tab.odontogram','odontogram.capture','odontogram.finalize'];
+        window.__odontogramPermissions=['px.tab.odontogram','odontogram.capture','odontogram.finalize','treatments.create'];
         window.__odontogramV2Fixture={
           capabilities:async()=>({success:true,data:{mode:'v2',schema_ready:true}}),
           list:async()=>({success:true,data:{catalog,charts:[{id_chart:chart.id_chart,revision:chart.revision,dentition:'mixed',status:'active'}]}}),
@@ -57,16 +57,26 @@ const { buildClient } = require('./odontogram-ui-preview.cjs');
         return { id_tooth: 'qa-' + sec, sec, treatment: sec === 16 ? 'Nota sintética para QA visual.' : '' };
       });
     });
-    const output = path.resolve(__dirname, '../../../roadmap/evidence/CO26'); fs.mkdirSync(output, { recursive: true });
-    for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
+    const output = path.resolve(__dirname, '../../../_qa/co26-review-evidence'); fs.mkdirSync(output, { recursive: true });
+    for (const [name, width, height] of [['desktop', 1440, 1000], ['tablet',1024,900], ['mobile', 390, 844]]) {
       await page.setViewportSize({ width, height });
       const selector = capture ? '.co26-live-teeth button' : '.clinical-chart-teeth button';
-      await page.locator(selector).first().click();
+      await page.locator(capture ? '.co26-live-teeth button[data-tooth="16"]' : selector).first().click();
       assert.equal(await page.locator(selector).count(), capture ? 52 : 32);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       await page.locator(capture ? '.co26-live' : '.clinical-chart').screenshot({ path: path.join(output, (capture ? 'capture-v2-' : 'clinical-api-') + name + '.png') });
+      if(capture){
+        const targets=await page.locator('.co26-live-tools button, .co26-live-surfaces button, .co26-live-piece-nav button').evaluateAll(nodes=>nodes.map(node=>({width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height})));
+        assert.ok(targets.every(target=>target.width>=44&&target.height>=44),'Capture targets must be at least 44x44 CSS px');
+      }
     }
     if(capture){
+      await page.evaluate(()=>{const plugin=window.__odontogramQA.require('src/plugins/theme.js');plugin.applyTheme({...plugin.DEFAULT_THEME,code:'clinical-night'});});
+      for(const [name,width,height]of [['desktop',1440,1000],['tablet',1024,900],['mobile',390,844]]){
+        await page.setViewportSize({width,height});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+        await page.locator('.co26-live').screenshot({path:path.join(output,'capture-v2-'+name+'-night.png')});
+      }
+      await page.evaluate(()=>{const plugin=window.__odontogramQA.require('src/plugins/theme.js');plugin.applyTheme({...plugin.DEFAULT_THEME,code:'clinical-day'});});
       for(const [name,width,height]of [['desktop',1440,1000],['mobile',390,844]]){
         await page.setViewportSize({width,height});await page.evaluate(()=>{const live=window.__odontogramQA.vm.$refs.capture;live._lastOdontogramToast=null;live.confirmedOperations(['note.set']);});
         await page.getByText('Nota guardada.',{exact:true}).waitFor();await page.waitForTimeout(150);
