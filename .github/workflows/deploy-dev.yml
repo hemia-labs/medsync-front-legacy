@@ -26,7 +26,7 @@ jobs:
   build-and-deploy:
     if: github.ref == 'refs/heads/develop' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    # DEV_* repository secrets; no GitHub Environment required.
+    environment: dev
 
     steps:
       - name: Checkout repository
@@ -54,7 +54,7 @@ jobs:
           const required = ['VPS_HOST', 'VPS_FINGERPRINT', 'VPS_USER', 'VPS_SSH_KEY', 'VPS_APP_DIR', 'VUE_APP_CORE_URL_API', 'VUE_APP_AUTH_COOKIE_MODE', 'VUE_APP_BROWSER_AUTH_TRANSPORT', 'VUE_APP_CSRF_ENABLED'];
           const missing = required.filter((key) => !process.env[key]);
           if (missing.length > 0) {
-            console.error(`Missing GitHub secrets: ${missing.join(', ')}`);
+            console.error(`Missing GitHub secrets: ${missing.map(key => 'DEV_' + key).join(', ')}`);
             process.exit(1);
           }
           const expected = { VUE_APP_AUTH_COOKIE_MODE: 'd2', VUE_APP_BROWSER_AUTH_TRANSPORT: 'cookie', VUE_APP_CSRF_ENABLED: 'true' };
