@@ -1,16 +1,16 @@
 # CO26 - Cascaron visual integrado del odontograma
 
-Fecha: 2026-10-29. Entrega de referencia visual para el desarrollador, no funcionalidad clinica terminada.
+Fecha inicial: 2026-10-29. Revision: 2026-10-30. El cascaron sigue siendo una referencia sintetica; `OdontogramCapture.vue` contiene la captura conectada al backend. La revision del 30 de octubre recupera su distribucion visual sin sustituir los servicios reales por fixtures.
 
 ## Como verlo dentro del sistema
 
 1. Usar Node 22 y las dependencias/configuracion habituales del frontend.
 2. Ejecutar `npm run serve:d2` (o el arranque de desarrollo habitual del equipo).
-3. Entrar al sistema con acceso al expediente y a la pestana Odontograma. Temporalmente la pestana no depende de `odontogramEnabled`; conserva el permiso `px.tab.odontogram`.
+3. Entrar al sistema con acceso al expediente y a la pestana Odontograma; se conserva el permiso `px.tab.odontogram`.
 4. Abrir un paciente -> Odontograma -> **Ver cascaron visual**.
 5. **Volver al odontograma actual** cierra la simulacion y descarta sus cambios.
 
-Temporalmente, el acceso aparece en desarrollo y produccion, y ambos builds incluyen el componente lazy de CO26. Se requiere recompilar y desplegar para verlo en un entorno publicado. No cambia rutas, permisos ni la disponibilidad de la captura actual. No hay sitio aparte ni dependencia de la demo de Claude.
+El cascaron ficticio aparece solo en desarrollo cuando el consultorio utiliza v1; se excluye del build production. Con modo v2/v2_readonly, la seccion muestra la captura real, que conserva los permisos y la activacion por consultorio. La correccion visual no activa modos ni migra bases. No hay sitio aparte ni dependencia de la demo de Claude.
 
 La vista muestra **Paciente ficticio**, aunque este abierta dentro de un expediente. No recibe el objeto `px`, IDs del paciente, servicios ni store. La seccion existente conserva su consulta normal; el componente nuevo no hace llamadas clinicas ni usa almacenamiento del navegador. No introducir datos de pacientes en esta referencia.
 
@@ -18,7 +18,8 @@ La vista muestra **Paciente ficticio**, aunque este abierta dentro de un expedie
 
 | Archivo | Responsabilidad |
 | --- | --- |
-| [Odontogram.vue](../src/views/Patient/Sections/Odontogram.vue) | Entrada desde el expediente, carga lazy temporal en todos los entornos y retorno a la captura existente. |
+| [Odontogram.vue](../src/views/Patient/Sections/Odontogram.vue) | Entrada desde el expediente: v1 o captura real segun capacidades; referencia ficticia solo development. |
+| [OdontogramCapture.vue](../src/views/Patient/Sections/components/OdontogramCapture.vue) | Interfaz real: teclado, progreso, herramientas, arcadas, panel ampliado y resumen conectados a CaptureSession y API v2. |
 | [OdontogramPreview.vue](../src/views/Patient/Sections/components/OdontogramPreview.vue) | Composicion visual, arcadas, panel, teclado, resumen, modales y estados simulados; estilos con prefijo co26 y tema nocturno. |
 | [OdontogramPreviewTooth.vue](../src/views/Patient/Sections/components/preview/OdontogramPreviewTooth.vue) | Dibujo SVG esquematico; pieza y caras con color mas texto en el panel. |
 | [OdontogramPreviewPlan.vue](../src/views/Patient/Sections/components/preview/OdontogramPreviewPlan.vue) | Un editor para tratamiento manual e importado; origen, caras y preview de importacion. |
@@ -36,6 +37,8 @@ La vista muestra **Paciente ficticio**, aunque este abierta dentro de un expedie
 8. Desde el resumen, seleccionar piezas -> Preparar tratamiento: se abre el mismo editor. Guardar crea solo una tarjeta de ejemplo en memoria.
 
 ## Contrato de entrega: que falta desarrollar
+
+Los puntos siguientes describen los limites del **cascaron**, no una auditoria de faltantes de la captura funcional incorporada en PR #35. La revision visual del 2026-10-30 comprobo captura, notas, evolucion, deshacer, historial, impresion y plan con servicios sinteticos y dominio real. No sustituye la aceptacion integrada/clinica de F6 ni el smoke del destino. El plan manual sigue independiente; el resumen prepara seleccion en el mismo editor y no crea tratamientos automaticamente.
 
 El documento funcional **PHASE_CO26_ODONTOGRAM_PROPOSAL_REVIEW_20261028.md**, entregado junto con este codigo por producto, sigue siendo la fuente de decisiones. En el workspace original esta en `docs/clinical-operations/phases/` fuera de este repositorio. El cascaron no sustituye sus fases F0-F7 ni sus AC01-AC24.
 
@@ -62,3 +65,7 @@ node scripts/qa/co26-preview-build.cjs --production
 ```
 
 Los builds de QA usan configuracion sintetica sin leer `.env` y escriben bajo `../_qa/`. No desplegar esas salidas. Para QA visual aislada del componente real (auxiliar, no la entrega): `node scripts/qa/odontogram-ui-preview.cjs 4346 --editors` y abrir `/preview?scenario=existing`; soporta `&theme=clinical-night`.
+
+Para verificar la captura real: `node scripts/qa/co26-capture-ui.cjs` y `node scripts/qa/co26-clinical-visual.cjs --capture`. Estos scripts utilizan API sintetica y el dominio puro del backend, ubicado en el checkout hermano `hemia-assistance-back-legacy` o `medsync-back-legacy`; se puede indicar otra ruta mediante `CO26_BACKEND_ROOT`. No abren conexiones DB. Se comprobaron escritorio, tableta y movil, temas claro/nocturno, controles de al menos 44x44, filtros sin escritura y conservacion de notas/hallazgos al revisar.
+
+La entrega no requiere cambios de `vue.config.js`, dependencias ni scripts de arranque. Se conserva el arranque D2 habitual en `localhost:4324` con API en `localhost:3009`.

@@ -1,10 +1,10 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chromium}=require('@playwright/test');
 const {buildClient}=require('./odontogram-ui-preview.cjs');
-const D=require('../../../medsync-back-legacy/src/domain/odontogram/operations');
+const D=require('./co26-backend-fixture.cjs');
 (async()=>{
  const browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
- const output=path.resolve(__dirname,'../../../roadmap/evidence/CO26');
+ const output=path.resolve(__dirname,'../../../_qa/co26-review-evidence');
  try{
   const page=await browser.newPage({viewport:{width:794,height:1123}});await page.route('**/*',route=>route.abort());
   const built=buildClient({includeEditors:true});await page.setContent('<div id="app"></div>');await page.addStyleTag({path:require.resolve('vuetify/dist/vuetify.min.css')});await page.addStyleTag({content:built.styles});

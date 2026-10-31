@@ -10,9 +10,9 @@ Object.assign(process.env, { NODE_ENV: mode, VUE_APP_CORE_URL_API: 'https://127.
 const Service = require('@vue/cli-service/lib/Service');
 const service = new Service(repo);
 service.loadEnv = () => {};
-const destination = path.resolve(repo, '../_qa/co26-visual-' + mode);
-service.run('build', { mode, dest: destination, clean: false }).then(() => {
+const destination = path.resolve(repo, '../_qa/co26-review-' + mode);
+service.run('build', { mode, dest: destination, clean: true }).then(() => {
   const chunks = fs.readdirSync(path.join(destination, 'js'));
-  assert.equal(chunks.some(name => name.startsWith('odontogram-co26-preview')), true);
-  console.log('PASS CO26 ' + mode + ': preview chunk included (temporary preview access). Synthetic config only.');
+  assert.equal(chunks.some(name => name.startsWith('odontogram-co26-preview')), mode === 'development');
+  console.log('PASS CO26 ' + mode + ': preview chunk gated by development mode. Synthetic config only.');
 }).catch(() => { console.error('CO26 build verification failed'); process.exitCode = 1; });

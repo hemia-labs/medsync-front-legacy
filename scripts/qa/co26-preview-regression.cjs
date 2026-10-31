@@ -70,5 +70,5 @@ async function fixture(production = false) {
     console.log('PASS zero clinical service calls and return to existing odontogram.');
   } finally { f.close(); }
   const prod = await fixture(true);
-  try { assert.equal(prod.qa.vm.previewAvailable, true); assert.ok(prod.w.document.querySelector('.odontogram-preview-entry')); assert.deepEqual(prod.errors, []); console.log('PASS temporary production preview access.'); } finally { prod.close(); }
+  try { assert.equal(prod.qa.vm.previewAvailable, false); assert.equal(prod.w.document.querySelector('.odontogram-preview-entry'), null); assert.deepEqual(prod.errors, []); console.log('PASS production excludes synthetic preview.'); } finally { prod.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

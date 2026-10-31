@@ -114,8 +114,7 @@ export default {
   },
   data: function() {
     return {
-      // Temporal: permitir revisar el cascarón también en builds de producción.
-      previewAvailable: true,
+      previewAvailable: process.env.NODE_ENV === 'development',
       captureMode: 'v1',
       showPreview: false,
       addOdontograma: false,
@@ -138,7 +137,9 @@ export default {
   components: {
     OdontogramCapture: () => import(/* webpackChunkName: "odontogram-co26-capture" */ './components/OdontogramCapture.vue'),
     OdontogramClinicalChart,
-    OdontogramPreview: () => import(/* webpackChunkName: "odontogram-co26-preview" */ './components/OdontogramPreview.vue'),
+    ...(process.env.NODE_ENV === 'development' ? {
+      OdontogramPreview: () => import(/* webpackChunkName: "odontogram-co26-preview" */ './components/OdontogramPreview.vue')
+    } : {}),
     OdontogramCreateDialog,
     OdontogramConfirmDialog,
     'da-odontogram-treatment': () => import("../components/DAOdontogramTreatment.vue"),

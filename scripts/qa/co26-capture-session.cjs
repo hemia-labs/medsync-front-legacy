@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { CaptureSession } = require('../../src/domain/odontogram/captureSession');
 const { parseCommand } = require('../../src/domain/odontogram/commandParser');
-const D = require('../../../medsync-back-legacy/src/domain/odontogram/operations');
+const D = require('./co26-backend-fixture.cjs');
 const start = () => ({ id_chart: 'chart', ...D.emptyChart('mixed') });
 let number = 0; const makeId = () => 'test-' + ++number;
 test('lost response retries immutable batch and does not duplicate confirmed mutation', async () => {
