@@ -28,7 +28,17 @@ The destination IP is explicit in each workflow. The old VPS_HOST secret is no l
 | `VUE_APP_CORE_URL_API` | `DEV_VUE_APP_CORE_URL_API` |
 | `VUE_APP_CSRF_ENABLED` | `DEV_VUE_APP_CSRF_ENABLED` |
 
-VPS_PORT/DEV_VPS_PORT default to 22. APP_PORT/DEV_APP_PORT default to 4324. Other listed secrets are required. For dev, DEV_VPS_USER is medsync-deploy and DEV_VPS_APP_DIR is /srv/medsync/frontend. This account has no sudo/docker/lxd membership. Production credentials remain to be configured separately. Use dedicated GitHub Actions SSH keys, separate from personal login keys. Install each public key in the corresponding server account; put its private key in the corresponding GitHub secret. These workflows expect deployment keys without a passphrase; restrict and rotate them as deployment credentials. Never put private keys in the repository.
+VPS_PORT/DEV_VPS_PORT default to 22. Production APP_PORT defaults to 4324. Dev is fixed to 4324 to match Nginx: DEV_APP_PORT may be absent or exactly 4324; any other value fails before contacting the VPS. Other listed secrets are required. For dev, DEV_VPS_USER is medsync-deploy and DEV_VPS_APP_DIR is /srv/medsync/frontend. This account has no sudo/docker/lxd membership. Production credentials remain to be configured separately. Use dedicated GitHub Actions SSH keys, separate from personal login keys. Install each public key in the corresponding server account; put its private key in the corresponding GitHub secret. These workflows expect deployment keys without a passphrase; restrict and rotate them as deployment credentials. Never put private keys in the repository.
+
+## Dev deployment success criteria
+
+After building, the workflow writes dist/deploy-release.json containing the application name, commit/run/attempt ID and SHA256 of index.html. These are public build identifiers, not secrets. It transfers the marker with the bundle and the dependency-free verification script.
+
+Activation recreates only medsync-front-legacy with an explicit dist path and port, avoiding stale PM2 serve settings. Success requires three consecutive probes (two seconds apart) with the same PM2 PID, restart count and start time, online status, expected port/path/entry point, the matching release marker over HTTP, and the exact index.html hash. Redirects, errors, an API returning 200, an old release and an unstable PM2 process fail. Only a successful verification runs pm2 save. The checks use the local upstream; public HTTPS and authenticated journeys still need separate validation.
+
+The existing dist replacement and process recreation can briefly interrupt service. This change does not implement atomic release switching or automatic rollback, and does not change the production workflow.
+
+Run regression checks with node --test scripts/qa/frontend-deploy-health.test.cjs.
 
 VPS_FINGERPRINT/DEV_VPS_FINGERPRINT must contain the SHA256 SSH host fingerprint verified through the Contabo console. All SSH/SCP steps verify it. VUE_APP_CORE_URL_API/DEV_VUE_APP_CORE_URL_API must be the corresponding HTTPS backend URL. Authentication settings remain d2 / cookie / true for both servers. Dev uses an optimized production-mode bundle with development service URLs, not the hot-reload development server. The current deployment expects nvm and serves static files with PM2.
 
