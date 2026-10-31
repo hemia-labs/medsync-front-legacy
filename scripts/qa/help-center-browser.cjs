@@ -72,7 +72,7 @@ function checkIndex() {
   for (const flow of Object.values(flows)) assert.ok(fs.existsSync(path.join(root, flow.source)), flow.source);
   assert.deepEqual(Object.keys(data.helpAnswers).sort(), entries.filter(entry => entry.type === 'question').map(entry => entry.id).sort());
   for (const paragraphs of Object.values(data.helpAnswers)) assert.ok(paragraphs.length && paragraphs.every(text => typeof text === 'string' && text.trim()));
-  assert.deepEqual(Object.keys(data.helpArticles).sort(), entries.filter(entry => entry.type === 'guide').map(entry => entry.id).sort(), 'All 33 authorized guides are drafted');
+  assert.deepEqual(Object.keys(data.helpArticles).sort(), entries.filter(entry => entry.type === 'guide').map(entry => entry.id).sort(), 'All authorized guides are drafted');
   for (const [id, article] of Object.entries(data.helpArticles)) {
     assert.ok(entries.some(entry => entry.id === id && entry.type === 'guide'));
     assert.ok(article.summary && article.sections.length);
@@ -170,9 +170,9 @@ async function mount(browser, width, role) {
       assert.equal(await page.evaluate(() => window.helpRouter.currentRoute.name), 'helpCenter');
       if (width < 1024) await page.waitForFunction(() => !window.layout.isMobileNavigationOpen);
       assert.equal(await page.locator('.help-entry-list li').count(), counts.guides);
-      assert.equal(await page.locator('.help-entry-list a').count(), 33);
-      assert.equal(await page.locator('.help-row-link').count(), 33);
-      assert.equal(await page.locator('.help-row-summary').count(), 33, 'Each guide shows its summary');
+      assert.equal(await page.locator('.help-entry-list a').count(), data.helpEntries.filter(e => e.type === 'guide').length);
+      assert.equal(await page.locator('.help-row-link').count(), data.helpEntries.filter(e => e.type === 'guide').length);
+      assert.equal(await page.locator('.help-row-summary').count(), data.helpEntries.filter(e => e.type === 'guide').length, 'Each guide shows its summary');
       assert.equal(await page.locator('.help-topic-count').first().textContent(), '4 guías');
       assert.equal(await page.locator('.help-entry-list button').count(), 0);
       assert.equal(await page.evaluate(() => document.querySelector('.help-center').innerText.includes('«')), false);
@@ -314,7 +314,7 @@ async function mount(browser, width, role) {
       assert.equal(await page.locator('.help-article').count(), 0);
       await page.evaluate(async () => { await window.helpRouter.push('/ayuda?seccion=preguntas&articulo=revisar-preparacion'); });
       assert.equal(await page.locator('.help-article').count(), 0, 'Guide query cannot open inside FAQ');
-      assert.equal(await page.locator('.help-answer').count(), 23);
+      assert.equal(await page.locator('.help-answer').count(), data.helpEntries.filter(e => e.type === 'question').length);
       await page.evaluate(async () => { await window.helpRouter.push('/ayuda?seccion=guia&articulo=revisar-preparacion'); });
       await page.waitForFunction(() => document.activeElement.id === 'help-article-title');
       await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'clinical-night'));
@@ -322,12 +322,12 @@ async function mount(browser, width, role) {
       await page.screenshot({ path: out + '/night-' + width + '.png', fullPage: false });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
       assert.deepEqual(errors, []);
-      results.push({ width, role, result: 'PASS', checks: 'menu, section, search and clear, 14 anchors, focus, headings, guide summaries, 33 articles with breadcrumb/where/prerequisites/related questions/label chips, 23 collapsed FAQ answers and related guides, FAQ deep link, article links/back/history, invalid article fallback, reflow, night' });
+      results.push({ width, role, result: 'PASS', checks: 'menu, section, search and clear, 14 anchors, focus, headings, guide summaries, all articles with breadcrumb/where/prerequisites/related questions/label chips, all collapsed FAQ answers and related guides, FAQ deep link, article links/back/history, invalid article fallback, reflow, night' });
       await page.close();
     }
     // Existing development server: anonymous help request must reach login, with all API traffic blocked.
     if (process.env.HELP_QA_SKIP_LIVE === '1') {
-      results.push({ test: 'actual development router anonymous guard', result: 'SKIPPED: servers stopped at user request' });
+      results.push({ test: 'actual development router anonymous guard', result: 'SKIPPED: live server check disabled for this isolated run' });
     } else {
     const live = await browser.newPage();
     await live.route('**/*', route => {

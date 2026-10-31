@@ -12,6 +12,9 @@ export const helpAnswers = {
     'Pide a quien administra el consultorio que revise el requisito indicado desde su cuenta. Leer el tutorial o completar otro pendiente no te concede ese acceso.',
     'Cuando se guarde la configuración necesaria, vuelve a consultar la preparación. Puedes avanzar con las tareas disponibles para tu cuenta.'
   ],
+  "vinculo-telefono": ["No. Busca por nombre, código o teléfono y compara los resultados. Un número puede pertenecer al contacto de varias personas. Selecciona al paciente correcto y usa «Confirmar vínculo»."],
+  "vinculo-pendiente": ["Usa «Reintentar vínculo» en la misma ventana. Conserva la selección mientras se confirma el resultado; no registres otra persona para resolver el aviso. Si la cita cambió, revisa la versión vigente antes de continuar."],
+  "registro-desde-cita": ["No. Al volver a una cita guardada debes revisar al paciente y seleccionar «Confirmar vínculo». Si la cita era nueva, todavía debes revisar la captura y seleccionar «Guardar». Crear al paciente tampoco guarda los otros cambios pendientes de una cita existente."],
   'sin-horarios': [
     'Comprueba el doctor y la fecha seleccionados. La disponibilidad depende de que el perfil esté activo, de sus horarios, de los bloqueos y cierres del consultorio y de las citas que ya ocupan espacios.',
     'Revisa también la zona horaria. «Próximo libre» busca dentro de un periodo de 30 días; que no encuentre un espacio no significa que no exista disponibilidad después de ese periodo. Si aparece un error de carga, reintenta antes de cambiar la configuración.'
