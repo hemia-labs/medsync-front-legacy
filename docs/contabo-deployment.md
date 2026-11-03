@@ -28,7 +28,7 @@ The destination IP is explicit in each workflow. The old VPS_HOST secret is no l
 | `VUE_APP_CORE_URL_API` | `DEV_VUE_APP_CORE_URL_API` |
 | `VUE_APP_CSRF_ENABLED` | `DEV_VUE_APP_CSRF_ENABLED` |
 
-VPS_PORT/DEV_VPS_PORT default to 22. APP_PORT/DEV_APP_PORT default to 4324. Other listed secrets are required. For dev, DEV_VPS_USER is medsync-deploy and DEV_VPS_APP_DIR is /srv/medsync/frontend. This account has no sudo/docker/lxd membership. Production credentials remain to be configured separately. Use dedicated GitHub Actions SSH keys, separate from personal login keys. Install each public key in the corresponding server account; put its private key in the corresponding GitHub secret. These workflows expect deployment keys without a passphrase; restrict and rotate them as deployment credentials. Never put private keys in the repository.
+VPS_PORT/DEV_VPS_PORT default to 22. Production uses port 4324: APP_PORT may be absent or exactly 4324; any other value is rejected before SSH. DEV_APP_PORT defaults to 4324 in this branch. Other listed secrets are required. For dev, DEV_VPS_USER is medsync-deploy and DEV_VPS_APP_DIR is /srv/medsync/frontend. This account has no sudo/docker/lxd membership. Production credentials remain to be configured separately. Use dedicated GitHub Actions SSH keys, separate from personal login keys. Install each public key in the corresponding server account; put its private key in the corresponding GitHub secret. These workflows expect deployment keys without a passphrase; restrict and rotate them as deployment credentials. Never put private keys in the repository.
 
 VPS_FINGERPRINT/DEV_VPS_FINGERPRINT must contain the SHA256 SSH host fingerprint verified through the Contabo console. All SSH/SCP steps verify it. VUE_APP_CORE_URL_API/DEV_VUE_APP_CORE_URL_API must be the corresponding HTTPS backend URL. Authentication settings remain d2 / cookie / true for both servers. Dev uses an optimized production-mode bundle with development service URLs, not the hot-reload development server. The current deployment expects nvm and serves static files with PM2.
 
@@ -56,3 +56,13 @@ Disable the affected workflow before changing routing. Reverting these workflow 
 Frontend: https://test.medsync.mx/ . Backend base URL: https://api-test.medsync.mx/ (do not append /api in DEV_VUE_APP_CORE_URL_API).
 
 The backend connects to MySQL on 127.0.0.1:3306, database hemia_assitant_legacy, user medsync_test_app. DEV_ENV_FILE contains its password and independent application signing keys. Email, self-registration and application background jobs are initially disabled; email and S3 still require their own test configuration. Never print the environment file in CI logs.
+
+## Production release verification
+
+Production targets https://app.medsync.mx/ and API base https://api.medsync.mx/ (without an extra /api). Its VPS_APP_DIR is /srv/medsync/frontend and VPS_USER is medsync-deploy. Set VPS_SSH_KEY as an environment **secret**, never an environment variable. A rotated key must be saved in both repositories before revoking the previous server authorization.
+
+The production build seals dist/deploy-release.json with the application name, commit/run/attempt and SHA256 of index.html. Verification requires the exact marker and HTML over local HTTP, exactly one online frontend PM2 process with the correct port, path and Serve.js entry point, and three consecutive stable process checks. A generic HTTP 200, a previous release or another application cannot pass these checks. The verifier is transferred alongside dist.
+
+Activation recreates only medsync-front-legacy with explicit port 4324 and the expected dist path; pm2 save runs only after verification succeeds. This can interrupt the frontend briefly. The existing dist replacement is not atomic and has no automatic rollback. Public HTTPS, authentication and application functionality need separate checks; local health verification does not prove them.
+
+Run node --test scripts/qa/frontend-deploy-health.test.cjs for isolated HTTP/PM2 regression coverage. The workflow runs this suite before dependency installation, build or remote changes.
