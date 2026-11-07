@@ -98,6 +98,7 @@ const actions = {
             commit(types.SET_AUTH_SENDOTP,false)
             commit(types.SET_AUTH_OTP_EXCEPTION, new DAHasErrorModel(true, response.message) )
         }
+        return response;
     },
 
     /**
@@ -276,7 +277,7 @@ const actions = {
             commit(types.SET_AUTH_UNAUTHORIZED, false);
             clearLegacyAuthStorageForD2(Vue.prototype.$session);
             clearD2ClientAuthArtifacts(Vue.prototype.$session);
-            window.location.href = '/auth/login';
+            window.location.href = '/login';
         }
     }
 }

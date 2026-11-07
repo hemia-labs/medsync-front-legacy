@@ -34,6 +34,10 @@ const regexCode = babel.transformSync(regexSource,{babelrc:false,configFile:fals
 const moduleObject = {exports:{}};
 new Function('require','module','exports',regexCode)(() => validators,moduleObject,moduleObject.exports);
 const staffValidation = value(pick(staffComponent,'validations').value, {...validators,...moduleObject.exports});
+assert.equal(staffValidation.user.first_name.required(''),false);
+assert.equal(staffValidation.user.last_name.required(''),false);
+assert.equal(staffValidation.user.last_name.namesLength.call({user:{first_name:'a'.repeat(100),last_name:'b'.repeat(100)}}),false);
+assert.equal(staffValidation.user.last_name.namesLength.call({user:{first_name:'María del Carmen',last_name:'De la Cruz López'}}),true);
 assert.equal(staffValidation.user.phone.required(''),false);
 assert.equal(staffValidation.user.phone.phonePattern('123'),false);
 assert.equal(staffValidation.user.phone.phonePattern('12345678901'),false);
@@ -54,6 +58,14 @@ assert.equal(staff.formatLicenseUsage({used:0,limit:0}),'0 de 0');
 assert.equal(staff.formatLicenseUsage({used:2,limit:null}),'Sin límite');
 const context = {licenseSummary:null,licenseLoading:false,licenseError:false};
 (async () => {
+    const rules = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(repo,'src/utils/registration.js'),'utf8')).toString('base64'));
+    const loginComponent = component('src/views/Auth/Login.vue');
+    const policy = value(babel.types.objectExpression([pick(pick(loginComponent,'computed').value,'newPasswordErrors')]), { registrationPasswordError: rules.registrationPasswordError }).newPasswordErrors;
+    for (const [password, valid] of [['abcdefgh',true],['12345678',true],['😀'.repeat(8),true],['e\u0301'.repeat(8),true],['1234567',false],['a'.repeat(129),false],['\ud800'.repeat(8),false]]) {
+        assert.equal(!rules.registrationPasswordError(password),valid);
+        assert.equal(policy.call({recoveryTouched:{password:true},newPwd:password}).length===0,valid,'Recovery uses the registration policy');
+    }
+    console.log('PASS recovery policy: 8 characters without composition rules, Unicode/NFC, maximum length and malformed Unicode; actual computed validator matches registration.');
     await staff.loadLicenseSummary.call(context);
     assert.equal(context.licenseError,false);
     assert.equal(context.licenseSummary.business.planName,'Profesional');

@@ -326,7 +326,7 @@ async function mount(browser, width, role) {
       return url.hostname === 'localhost' && url.port === '4324' ? route.continue() : route.abort();
     });
     await live.goto('http://localhost:4324/ayuda');
-    await live.waitForURL('**/auth/login', { timeout: 30000 });
+    await live.waitForURL('**/login', { timeout: 30000 });
     results.push({ test: 'actual development router anonymous guard (API blocked)', result: 'PASS' });
     await live.close();
     }

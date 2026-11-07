@@ -3,5 +3,5 @@ export default process.env.NODE_ENV === 'development' ? [{
   path: '/ayuda',
   name: 'helpCenter',
   component: () => import(/* webpackChunkName: "help-center-preview" */ '../../views/Help/HelpCenter.vue'),
-  meta: { title: 'Centro de ayuda - MedSync', requireAuth: true, layout: 'admin' }
+  meta: { title: 'Centro de ayuda - medsync', requireAuth: true, layout: 'admin' }
 }] : [];

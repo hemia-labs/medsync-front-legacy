@@ -44,7 +44,7 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  const headerComponent={...header.options,render:header.render,staticRenderFns:header.staticRenderFns};
  const emptyPanel={render:h=>h('div')};
  let dirty=false,confirm=false,notifications=[];
- const router=new VueRouter({mode:'abstract',routes:[{path:'/admin',name:'admin'},{path:'/px/dates',name:'appointments'},{path:'/auth/login',name:'login'}]});
+ const router=new VueRouter({mode:'abstract',routes:[{path:'/admin',name:'admin'},{path:'/px/dates',name:'appointments'},{path:'/login',name:'login'}]});
  const view=new Vue({...shell.options,router,vuetify:new Vuetify(),render:shell.render,staticRenderFns:shell.staticRenderFns,
   components:{AdminSettingsHeader:headerComponent,AdminSettingsSidebar:emptyPanel,'da-user-index':emptyPanel,'da-config-index':emptyPanel},
   beforeCreate(){this.$swal={fire:async options=>{notifications.push(options);return {isConfirmed:confirm};}};this.$store={state:{CORE:{AUTH:{authenticated:true,user:{id_login:'SYNTHETIC_ACTOR'}}}}};},

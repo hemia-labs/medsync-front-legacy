@@ -6,7 +6,7 @@ export function isPublicAuthPath(pathname, base = process.env.BASE_URL || '/') {
     let path = String(pathname || '').replace(/\/$/, '') || '/';
     const prefix = String(base).replace(/\/$/, '');
     if(prefix && path.startsWith(prefix + '/')) path = path.slice(prefix.length);
-    if(path === '/auth' || path.startsWith('/auth/')) return true;
+    if(path === '/auth' || path.startsWith('/auth/') || ['/login', '/register', '/forgot-password'].includes(path)) return true;
     return [...legalRoutes, ...signatureRoutes].some(route => {
         if(route.meta && route.meta.requireAuth !== false) return false;
         const pattern = route.path.split('/').map(part => part.startsWith(':') ? '[^/]+' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('/');

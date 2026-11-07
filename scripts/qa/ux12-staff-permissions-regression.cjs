@@ -11,7 +11,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 (async () => {
   const navigation = await import(`data:text/javascript;base64,${Buffer.from(read('src/domain/settings/settings.navigation.js')).toString('base64')}`);
   const presentation = await import(`data:text/javascript;base64,${Buffer.from(read('src/domain/settings/permissions.presentation.js')).toString('base64')}`);
-  const base = { mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {AUTH:'AUTH'}, fnTypes: {getUser:'getUser',getToken:'getToken'}, mutationTypes: {}, VuexMixin: {}, ACTIONS: {}, validationMixin: {}, DAUserModel: function() { this.name=''; }, DAProfessionalProfile: {}, required: () => true, emailPattern: () => true, phonePattern: () => true, buildLicenseLimitMessage: response => response && response.message || 'No se pudo guardar.', isD2AuthMode: () => false, ...navigation };
+  const base = { mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: {AUTH:'AUTH'}, fnTypes: {getUser:'getUser',getToken:'getToken'}, mutationTypes: {}, VuexMixin: {}, ACTIONS: {}, validationMixin: {}, DAUserModel: function() { this.name=''; }, DAProfessionalProfile: {}, PreparationGuide: {}, focusControl: () => {}, authorizationContext: () => ({}), isCurrentAuthorization: () => true, required: () => true, emailPattern: () => true, phonePattern: () => true, buildLicenseLimitMessage: response => response && response.message || 'No se pudo guardar.', isD2AuthMode: () => false, ...navigation };
   function load(file, bindings={}) {
     const sfc=compiler.parseComponent(read(file));
     assert.deepEqual(compiler.compile(sfc.template.content).errors, [], `${file} template compiles`);
@@ -55,7 +55,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
   const editOptions=load('src/views/User/DAEditUser.vue');
   const emitted=[];
   const edit=state(editOptions,{id:'B',loadedUserId:'B',user:{id_login:'B',name:'Pending edit',phone:'0123456789'},$v:{$touch(){},$anyError:false},$emit:(...event)=>emitted.push(event),roles:[]});
-  api.update=async()=>({success:false,message:'Synthetic update rejection'});
+  api.update=async()=>({status:400,success:false,message:'Synthetic update rejection'});
   edit.update=payload=>actions.update(store,payload);
   let authorizations=0;edit.saveProfessionalProfileIfNeeded=async()=>{authorizations++;return true;};
   const baseline=JSON.stringify({id_login:'B',name:'Previous',phone:'0123456789'});edit.baseline=baseline;
@@ -71,6 +71,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
   edit.id='B';edit.loadRequest=3;const readB=edit.getUserById('B',3);
   reads.B.resolve({success:true,data:{id_login:'B',name:'Synthetic B'}});assert.equal(await readB,true);
   reads.A.resolve({success:true,data:{id_login:'A',name:'Synthetic A'}});assert.equal(await readA,false);
+  assert.equal(edit.user.first_name,'Synthetic B');assert.equal(edit.user.last_name,'');
   assert.equal(edit.user.id_login,'B','Late detail response cannot populate another users editor');
   let confirmation=true, prompts=0;
   edit.$swal={fire:async()=>{prompts++;return {isConfirmed:confirmation};}};
@@ -88,7 +89,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
   const add=state(load('src/views/User/DAAddUser.vue'),{$v:{$touch(){},$anyError:false},user:{name:'Synthetic new user'},$emit:(...event)=>emitted.push(event)});
   add.baseline=JSON.stringify({name:''});add.$swal=edit.$swal;
   confirmation=false;assert.equal(await add.requestClose(),false);
-  add.save=async()=>({success:false,message:'Synthetic create rejection'});
+  add.save=async()=>({status:400,success:false,message:'Synthetic create rejection'});
   assert.equal(await add.onSave(),false);assert.equal(add.user.name,'Synthetic new user');assert.equal(add.dirty,true);assert.match(add.saveError,/Synthetic create rejection/);
 
   const permissionReads={A:deferred(),B:deferred()};let permissionSaves=0;

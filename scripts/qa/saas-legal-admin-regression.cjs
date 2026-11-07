@@ -152,7 +152,7 @@ async function check(label, callback) {
   await check('expired authentication releases a dirty route and clears the old administrative capture', async f => {
     f.vm.form.title = 'Captura privada del administrador anterior';
     const auth = f.store.state.CORE.AUTH; auth.authenticated = false; auth.user = null;
-    let decision = 'unset'; f.options.beforeRouteLeave.call(f.vm, { path: '/auth/login' }, {}, value => { decision = value; });
+    let decision = 'unset'; f.options.beforeRouteLeave.call(f.vm, { path: '/login' }, {}, value => { decision = value; });
     assert.equal(decision, undefined, 'Expired session can reach login before the reactive cleanup tick');
     assert.equal(f.vm.discardOpen, false);
     const event = { prevented: false, preventDefault() { this.prevented = true; } }; f.vm.onBeforeUnload(event); assert.equal(event.prevented, false);

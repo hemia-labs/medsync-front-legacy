@@ -1,7 +1,7 @@
 <template>
-  <div class="min-h-full app-background tenant-layout" :class="{ 'tenant-settings-layout': $route.path === '/admin', 'tenant-pulse-layout': $route.name === 'business-pulse' }">
+  <div class="min-h-full app-background tenant-layout" :class="{ 'tenant-settings-layout': $route.path === '/admin', 'tenant-pulse-layout': $route.name === 'business-pulse', 'tenant-sidebar-collapsed': isSidebarCollapsed }">
     <header class="tenant-header" :inert="isMobileNavigationOpen ? '' : null">
-      <nav class="tenant-header-nav">
+      <div class="tenant-header-nav">
         <div class="tenant-header-left">
           <v-btn
             class="tenant-mobile-menu-button"
@@ -16,33 +16,55 @@
             <v-icon>mdi-menu</v-icon>
           </v-btn>
 
-          <div class="tenant-route-context">
-            <v-icon size="21">{{ currentPrimaryIcon }}</v-icon>
-            <span>{{ currentPrimaryLabel }}</span>
-          </div>
+          <nav class="tenant-breadcrumb" aria-label="Ruta de navegación">
+            <ol>
+              <li v-for="(item, index) in breadcrumbs" :key="item.label">
+                <v-icon v-if="index" class="tenant-breadcrumb-separator" size="16" aria-hidden="true">mdi-chevron-right</v-icon>
+                <router-link v-if="index < breadcrumbs.length - 1" :to="item.path">{{ item.label }}</router-link>
+                <span v-else aria-current="page" :title="item.label">{{ item.label }}</span>
+              </li>
+            </ol>
+          </nav>
         </div>
 
         <div class="tenant-header-right">
           <div class="tenant-logo">
-            <div :style="`background-image: url('` + logoOrrico + `')`"></div>
+            <medsync-brand :custom-logo="logoOrrico === defaultBrandLogo ? '' : logoOrrico" />
           </div>
         </div>
-      </nav>
+      </div>
     </header>
 
     <tenant-navigation-rail
+      id="tenant-desktop-navigation"
       class="tenant-desktop-navigation"
+      :collapsed="isSidebarCollapsed"
       :section-items="sectionNavigationItems"
       :action-items="actionNavigationItems"
       :session-items="sessionNavigationItems"
       :session-name="sessionName"
+      :session-email="(sessionUser || {}).email || ''"
       :session-initials="sessionInitials"
       :session-role-label="sessionRoleLabel"
       :business-name="businessName"
+      :business-logo="clinicLogo"
       :tenant-restricted="isTenantRestrictedMode"
       @navigate="navigateToItem"
       @session-action="handleSessionAction"
-    />
+    >
+      <template v-slot:brand-action>
+        <button class="tenant-sidebar-toggle" type="button" aria-controls="tenant-desktop-navigation"
+          :aria-expanded="String(!isSidebarCollapsed)" :aria-label="sidebarToggleLabel" :title="sidebarToggleLabel"
+          @click="isSidebarCollapsed = !isSidebarCollapsed">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M9 4v16" />
+            <path :d="isSidebarCollapsed ? 'm14 9 3 3-3 3' : 'm17 9-3 3 3 3'" />
+          </svg>
+        </button>
+      </template>
+    </tenant-navigation-rail>
 
     <v-navigation-drawer
       ref="mobileDrawer"
@@ -58,13 +80,17 @@
       class="tenant-mobile-drawer"
     >
       <tenant-navigation-rail
+        mobile
+        :navigation-open="isMobileNavigationOpen"
         :section-items="sectionNavigationItems"
         :action-items="actionNavigationItems"
         :session-items="sessionNavigationItems"
         :session-name="sessionName"
+        :session-email="(sessionUser || {}).email || ''"
         :session-initials="sessionInitials"
         :session-role-label="sessionRoleLabel"
         :business-name="businessName"
+        :business-logo="clinicLogo"
         :tenant-restricted="isTenantRestrictedMode"
         @navigate="navigateToItem"
         @session-action="handleSessionAction"
@@ -74,6 +100,7 @@
     <main class="tenant-main-shell" :inert="isMobileNavigationOpen ? '' : null">
       <da-re-login :show="isRelogin" v-on:auth="isRelogin = false"></da-re-login>
       <div class="tenant-content">
+        <trial-notice />
         <legal-update-notice />
         <pulse-return />
         <onboarding-coordinator />
@@ -115,11 +142,13 @@ import moduleTypes from '../../store/modules/common/module-types';
 import ReLogin from '../../views/Auth/ReLogin.vue';
 import VuexMixin from '../../mixins/VuexMixin';
 import { DAConfigService } from '../../services/context/core-proccess-context';
+import DABusinessService from '../../services/core/business/DABusinessService';
 import { getLoginImageData, setStoredLoginLogo } from '../../utils/branding';
 import decode from 'jwt-decode';
 import { isD2AuthMode } from '../../services/config/authTransport.config';
 import TenantNavigationRail from '../components/navigation/TenantNavigationRail.vue';
 import LegalUpdateNotice from '../components/legal/LegalUpdateNotice.vue';
+import TrialNotice from '../../components/billing/TrialNotice.vue';
 import {
   tenantNavigationItems,
   sortTenantNavigationItems,
@@ -131,14 +160,17 @@ export default {
     mixins:[VuexMixin],
     data: function() {
         return {
-            logoOrrico: require('@/assets/login/med-sync-logo.png'),
+            defaultBrandLogo: require('@/assets/login/med-sync-logo.svg'),
+            logoOrrico: require('@/assets/login/med-sync-logo.svg'),
+            clinicLogo: '',
+            isSidebarCollapsed: false,
             isMobileNavigationOpen: false,
             isRelogin: false,
             navigationItems: sortTenantNavigationItems(tenantNavigationItems)
         }
     },
     components: {
-      LegalUpdateNotice, PulseReturn, OnboardingCoordinator,
+      LegalUpdateNotice, TrialNotice, PulseReturn, OnboardingCoordinator,
       'da-re-login': ReLogin,
       'tenant-navigation-rail': TenantNavigationRail
     },
@@ -197,11 +229,16 @@ export default {
             || this.sectionNavigationItems[0]
             || null
         },
-        currentPrimaryLabel: function() {
-          return this.currentPrimaryItem ? this.currentPrimaryItem.label : 'Inicio'
+        breadcrumbs: function() {
+          const home = this.sectionNavigationItems.find((item) => item.key === 'home') || { label: 'Inicio', path: '/inicio' }
+          const current = this.currentPrimaryItem || home
+          if(current.key === 'home' || current === home) return [home]
+          const items = [home, current]
+          if(this.$route.name === 'ShowPx') items.push({ label: 'Expediente del paciente' })
+          return items
         },
-        currentPrimaryIcon: function() {
-          return this.currentPrimaryItem ? this.currentPrimaryItem.icon : 'mdi-home-outline'
+        sidebarToggleLabel: function() {
+          return this.isSidebarCollapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral'
         },
         sessionName: function() {
           const user = this.sessionUser
@@ -243,6 +280,10 @@ export default {
             .slice(0, 2)
             .map((part) => part.charAt(0))
             .join('')
+        },
+        clinicLogoBusinessId: function() {
+          if(!this.isAuthorized || this.isTenantRestrictedMode) return ''
+          return (this.business || {}).id_business || (this.sessionUser || {}).id_business || ''
         },
         businessName: function() {
           if(isD2AuthMode()) {
@@ -287,6 +328,17 @@ export default {
         ...mapActions(moduleTypes.AUTH, [
             fnTypes.logout, fnTypes.getRefreshtoken
         ]),
+        loadClinicLogo: async function(businessId) {
+          this.clinicLogo = ''
+          if(!businessId) return
+          try {
+            const response = await DABusinessService.getCurrent()
+            if(!this._isDestroyed && this.clinicLogoBusinessId === businessId
+              && response && response.success && response.data && response.data.id_business === businessId) {
+              this.clinicLogo = response.data.logoUrl || ''
+            }
+          } catch (_) { /* The navigation brand has an icon fallback. */ }
+        },
         loadHeaderLogo: async function() {
             const response = await DAConfigService.getLoginImage();
             const logo = getLoginImageData(response);
@@ -386,7 +438,7 @@ export default {
             }
 
             if(!this.isAuthorized) {
-                this.$router.push('/auth/login')
+                this.$router.push('/login')
             }
         },
         roleLabel: function(role) {
@@ -403,6 +455,7 @@ export default {
         }
     },
     watch: {
+      clinicLogoBusinessId: { immediate: true, handler: 'loadClinicLogo' },
       isMobileNavigationOpen: function(open) {
           if(this.releaseMobileFocus) { this.releaseMobileFocus(); this.releaseMobileFocus = null; }
           this.$nextTick(() => {
@@ -475,8 +528,13 @@ html[data-theme="clinical-night"] .app-background {
 
 <style scoped>
 .tenant-layout {
+  --tenant-sidebar-width: 17rem;
   position: relative;
   min-height: 100vh;
+}
+
+.tenant-sidebar-collapsed {
+  --tenant-sidebar-width: 4.5rem;
 }
 
 .tenant-header {
@@ -519,39 +577,78 @@ html[data-theme="clinical-night"] .app-background {
   display: inline-flex;
 }
 
-.tenant-desktop-navigation,
-.tenant-route-context {
+.tenant-desktop-navigation {
   display: none;
 }
 
-.tenant-route-context {
-  align-items: center;
-  gap: 0.55rem;
-  min-height: 2.4rem;
-  padding: 0 0.85rem;
-  border: 1px solid #d5e8e8;
-  border-radius: 999px;
-  color: #0f766e;
-  background: #f0fdfa;
-  font-size: 0.92rem;
-  font-weight: 800;
+.tenant-sidebar-toggle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: #475569;
 }
 
-.tenant-route-context .v-icon {
+.tenant-sidebar-toggle:hover,
+.tenant-sidebar-toggle:focus-visible {
+  border-color: #b7e4df;
   color: #0f766e;
+  background: #eef8f8;
+}
+
+.tenant-breadcrumb {
+  min-width: 0;
+  color: #526477;
+  font-size: 0.875rem;
+}
+
+.tenant-breadcrumb ol,
+.tenant-breadcrumb li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.tenant-breadcrumb ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tenant-breadcrumb a {
+  color: inherit;
+  white-space: nowrap;
+}
+
+.tenant-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.tenant-breadcrumb-separator {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.tenant-breadcrumb [aria-current="page"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #12313a;
+  font-weight: 600;
 }
 
 .tenant-logo {
-  width: 9.5rem;
+  display: flex;
+  align-items: center;
   height: 3rem;
 }
 
-.tenant-logo div {
-  width: 100%;
-  height: 100%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center right;
+.tenant-logo .medsync-brand {
+  font-size: 1.375rem;
 }
 
 .tenant-main-shell {
@@ -657,14 +754,20 @@ html[data-theme="clinical-night"] .tenant-header {
   background: #0f172a;
 }
 
-html[data-theme="clinical-night"] .tenant-route-context {
-  border-color: rgba(45, 212, 191, 0.24);
-  color: #5eead4;
-  background: rgba(20, 184, 166, 0.12);
+html[data-theme="clinical-night"] .tenant-breadcrumb,
+html[data-theme="clinical-night"] .tenant-sidebar-toggle {
+  color: #94a3b8;
 }
 
-html[data-theme="clinical-night"] .tenant-route-context .v-icon {
+html[data-theme="clinical-night"] .tenant-breadcrumb [aria-current="page"] {
+  color: #e2e8f0;
+}
+
+html[data-theme="clinical-night"] .tenant-sidebar-toggle:hover,
+html[data-theme="clinical-night"] .tenant-sidebar-toggle:focus-visible {
+  border-color: rgba(45, 212, 191, 0.28);
   color: #5eead4;
+  background: rgba(20, 184, 166, 0.14);
 }
 
 html[data-theme="clinical-night"] .tenant-footer {
@@ -701,12 +804,12 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
     display: block;
   }
 
-  .tenant-route-context {
-    display: flex;
-  }
-
   .tenant-mobile-drawer {
     display: none !important;
+  }
+
+  .tenant-header {
+    inset-inline-start: var(--tenant-sidebar-width);
   }
 
   .tenant-header-nav {
@@ -715,7 +818,7 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
   }
 
   .tenant-main-shell {
-    padding-left: 17rem;
+    padding-inline-start: var(--tenant-sidebar-width);
   }
 
   .tenant-content {
@@ -723,15 +826,18 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
   }
 
   .tenant-footer {
-    left: 17rem;
+    inset-inline-start: var(--tenant-sidebar-width);
+  }
+}
+
+@media (max-width: 1023px) {
+  .tenant-breadcrumb li:not(:last-child),
+  .tenant-breadcrumb-separator {
+    display: none;
   }
 }
 
 @media (max-width: 639px) {
-  .tenant-logo {
-    width: 7.25rem;
-  }
-
   .tenant-main-shell {
     padding-bottom: 7.5rem;
   }
@@ -796,10 +902,10 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
 .tenant-settings-layout .tenant-main-shell { min-height: calc(100vh - 3.25rem); padding-bottom: 0; }
 .tenant-pulse-layout .tenant-main-shell { padding-bottom: 0; }
 .tenant-pulse-layout .tenant-footer { position: relative; left: auto; right: auto; bottom: auto; z-index: auto; }
-@media (min-width: 1024px) { .tenant-pulse-layout .tenant-footer { margin-left: 17rem; } }
+@media (min-width: 1024px) { .tenant-pulse-layout .tenant-footer { margin-inline-start: var(--tenant-sidebar-width); } }
 .tenant-settings-layout .tenant-content { min-height: calc(100vh - 7.25rem); }
 .tenant-settings-layout .tenant-footer { position: relative; left: auto; right: auto; bottom: auto; z-index: auto; background: #f8fafc; }
 html[data-theme="clinical-night"] .tenant-settings-layout .tenant-footer { background: #0f172a; }
-@media (min-width: 1024px) { .tenant-settings-layout .tenant-footer { margin-left: 17rem; } }
+@media (min-width: 1024px) { .tenant-settings-layout .tenant-footer { margin-inline-start: var(--tenant-sidebar-width); } }
 @media (max-width: 639px) { .tenant-settings-layout .tenant-main-shell { min-height: calc(100vh - 2.65rem); } }
 </style>

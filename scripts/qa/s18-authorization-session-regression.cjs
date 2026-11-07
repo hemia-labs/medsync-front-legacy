@@ -188,7 +188,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     assert.equal(state.authenticated, false, 'A late session check cannot undo logout');
     resolveClose({ success: false }); await closing;
     assert.equal(storage.has('token'), false, 'Both transports clear client storage after a failed close');
-    assert.equal(windows.location.href, '/auth/login');
+    assert.equal(windows.location.href, '/login');
   }
   assert.equal(closeCalls, 2);
   commit(types.SET_AUTH_ACCESS_SESSION, session());

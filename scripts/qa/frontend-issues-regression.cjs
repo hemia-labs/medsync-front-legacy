@@ -42,7 +42,7 @@ const inertBindings = { mapGetters: () => ({}), mapActions: () => ({}), moduleTy
   const state = { authenticated: false, accessRevision: 0 };
   const commits = [];
   const ctx = { state, commit: (key, data) => commits.push({ key, data }), dispatch: () => {} };
-  for(const route of ['/sign/d/synthetic', '/privacy', '/privacity', '/aviso-de-privacidad', '/terms-and-conditions', '/auth/login']) {
+  for(const route of ['/sign/d/synthetic', '/privacy', '/privacity', '/aviso-de-privacidad', '/terms-and-conditions', '/login']) {
     window.location.pathname = route; window.location.href = route;
     await actions.refreshAccess(ctx, { hydrate: true });
     assert.equal(window.location.href, route, 'Anonymous public hydration: ' + route);
@@ -55,7 +55,7 @@ const inertBindings = { mapGetters: () => ({}), mapActions: () => ({}), moduleTy
   for(const route of ['/inicio', '/px/history/test', '/sign/d/', '/privacy/private']) {
     window.location.pathname = route; window.location.href = route;
     await actions.refreshAccess(ctx);
-    assert.equal(window.location.href, '/auth/login');
+    assert.equal(window.location.href, '/login');
   }
   assert.equal(isPublicAuthPath('/sub/privacy', '/sub/'), true);
   assert.ok(cleared >= 11, 'Private auth artifacts are cleared on public as well as protected routes');

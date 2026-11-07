@@ -8,23 +8,45 @@ html, body, .v-application {
 }
 
 :root {
-   --bg-box-shadow-primary: rgba(184, 154, 77, 0.25);
-   --bg-box-shadow-secondary: rgba(220, 38, 38, 0.25);
+   --bg-box-shadow-primary: rgba(28, 127, 167, 0.25);
+   --bg-box-shadow-secondary: rgba(214, 69, 69, 0.25);
    --bg-opacity-box: 0.6;
-   --color-primary-100: #F7F1DE;
-   --color-primary-200: #E9DBB8;
-   --color-primary-300: #D8C58D;
-   --color-primary-500: #B89A4D;
-   --color-primary-700: #6F642A;
-   --color-primary-900: #38422A;
-   --color-primary-1000: #24301F;
-   --color-secondary-500: #DC2626;
-   --color-secondary-700: #991B1B;
-   --color-terciary-500: #64748B;
-   --color-forty-500: #CBD5E1;
-   --color-grey: #64748B;
-   --color-gray98: #F8FAFC;
-   --color-red: #DC2626;
+   --color-primary-100: #E6F0F8;
+   --color-primary-100-rgb: 230, 240, 248;
+   --color-primary-200: #A7E0D1;
+   --color-primary-200-rgb: 167, 224, 209;
+   --color-primary-300: #A7E0D1;
+   --color-primary-300-rgb: 167, 224, 209;
+   --color-primary-500: #1C7FA7;
+   --color-primary-500-rgb: 28, 127, 167;
+   --color-primary-700: #1C7FA7;
+   --color-primary-700-rgb: 28, 127, 167;
+   --color-primary-900: #12294A;
+   --color-primary-900-rgb: 18, 41, 74;
+   --color-primary-1000: #12294A;
+   --color-primary-1000-rgb: 18, 41, 74;
+   --color-secondary-500: #D64545;
+   --color-secondary-500-rgb: 214, 69, 69;
+   --color-secondary-700: #D64545;
+   --color-secondary-700-rgb: 214, 69, 69;
+   --color-terciary-500: #6E7C92;
+   --color-terciary-500-rgb: 110, 124, 146;
+   --color-forty-500: #DCE3EC;
+   --color-forty-500-rgb: 220, 227, 236;
+   --color-grey: #4E5B70;
+   --color-grey-rgb: 78, 91, 112;
+   --color-gray98: #F3F6F9;
+   --color-gray98-rgb: 243, 246, 249;
+   --color-red: #D64545;
+   --color-red-rgb: 214, 69, 69;
+   --color-surface: #FAFBFC;
+   --color-surface-rgb: 250, 251, 252;
+   --color-success: #2FA36B;
+   --color-success-rgb: 47, 163, 107;
+   --color-info: #3B82C4;
+   --color-info-rgb: 59, 130, 196;
+   --color-muted: #8A94A6;
+   --color-muted-rgb: 138, 148, 166;
 }
 
 @layer base {

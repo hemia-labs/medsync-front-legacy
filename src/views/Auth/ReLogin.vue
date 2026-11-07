@@ -26,11 +26,11 @@
         <v-text-field
           v-model.trim="$v.auth.param.$model"
           :label="ui.phoneLabel"
-          type="tel"
-          inputmode="numeric"
-          maxlength="10"
+          type="email"
+          inputmode="email"
+          maxlength="254"
           autocomplete="username"
-          prepend-inner-icon="mdi-phone-outline"
+          prepend-inner-icon="mdi-email-outline"
           outlined
           dense
           color="#0f766e"
@@ -88,8 +88,7 @@ import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import DAAuthModel from '../../models/auth/DAAuthModel';
 import { validationMixin } from 'vuelidate';
-import { required, maxLength } from 'vuelidate/lib/validators';
-import { phonePattern } from '../../utils/common/regex';
+import { required, email, maxLength } from 'vuelidate/lib/validators';
 import { getRememberedIdentifier } from '../../utils/authRememberedIdentifier';
 
 export default {
@@ -103,7 +102,7 @@ export default {
       showPWD: false,
       isSubmitting: false,
       ui: {
-        phoneLabel: 'Tel\u00e9fono',
+        phoneLabel: 'Correo electrónico',
         passwordLabel: 'Contrase\u00f1a',
         showPassword: 'Mostrar contrase\u00f1a',
         hidePassword: 'Ocultar contrase\u00f1a'
@@ -120,8 +119,8 @@ export default {
     auth: {
       param: {
         required,
-        phonePattern,
-        maxLength: maxLength(10)
+        email,
+        maxLength: maxLength(254)
       },
       pwd: {
         required
@@ -140,9 +139,9 @@ export default {
         return errors;
       }
       if (!this.$v.auth.param.required) {
-        errors.push('Ingresa tu tel\u00e9fono.');
-      } else if (!this.$v.auth.param.phonePattern || !this.$v.auth.param.maxLength) {
-        errors.push('Ingresa un tel\u00e9fono valido de 10 digitos.');
+        errors.push('Ingresa tu correo electrónico.');
+      } else if (!this.$v.auth.param.email || !this.$v.auth.param.maxLength) {
+        errors.push('Ingresa un correo electrónico válido.');
       }
       return errors;
     },
@@ -210,7 +209,7 @@ export default {
     onLogout: async function() {
       await this.logout();
       if (!this.isAuthorized) {
-        this.$router.push('/auth/login');
+        this.$router.push('/login');
       }
     }
   }

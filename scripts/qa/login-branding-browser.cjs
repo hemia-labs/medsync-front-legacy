@@ -49,8 +49,8 @@ const cases = [
             }
             return route.fulfill({ json });
           });
-          await page.goto(baseURL + '/auth/login', { waitUntil: 'networkidle' });
-          const image = page.locator('.auth-brand-logo');
+          await page.goto(baseURL + '/login', { waitUntil: 'networkidle' });
+          const image = page.locator('.auth-logo-lockup img');
           await expect(image).toBeVisible();
           if (test.custom) {
             await expect(image).toHaveAttribute('src', logo);
@@ -58,7 +58,7 @@ const cases = [
             await page.reload({ waitUntil: 'networkidle' });
             await expect(image).toHaveAttribute('src', logo);
           } else {
-            await expect(image).toHaveAttribute('src', /med-sync-logo/);
+            await expect(image).toHaveAttribute('src', /medsync-isotipo/);
             assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null);
           }
           assert.equal(await image.evaluate(img => img.complete && img.naturalWidth > 0), true);

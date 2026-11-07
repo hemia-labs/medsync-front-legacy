@@ -44,7 +44,7 @@ const businessService={async getCurrent(){businessReads++;return businessRespons
 const documentService={async getTemplates(){return documentReadResponse;},async saveTemplate(){documentSaves++;return documentSaveResponse;}};
 const sfc=compiler.parseComponent(read('src/views/configuration/index.vue'));
 assert.deepEqual(compiler.compile(sfc.template.content).errors,[],'Real settings template compiles');
-const sandbox={component:null,PreparationGuide:{},document:dom.window.document,window:dom.window,URL,console,Promise,
+const sandbox={component:null,PrivateClinicLogo:{},PreparationGuide:{},document:dom.window.document,window:dom.window,URL,console,Promise,
     mapActions:()=>({}),mapGetters:()=>({}),moduleTypes,fnTypes,VuexMixin:{},getSettingsSections,
     ChangePassword:{},AccountLegalDocuments:{},ProfessionalAgendaConfig:{},PrescriptionConfig:{},AdminSummary:{},ClinicalHistoryTemplateConfig:{},RolesPermissionsConfig:{},DAProfessionalProfile:{},
     ...theme,...navigation,...authorization,...availability,validateBusinessProfile,sanitizeHtmlForDocumentSnapshot,

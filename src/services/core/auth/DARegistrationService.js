@@ -47,6 +47,7 @@ export default {
     DACsrfService.clearCsrfToken();
     return result;
   },
+  publicPlans: () => request('get', 'registration/plans'),
   activation: () => request('get', 'account/activation', undefined, {}, true),
   plans: () => request('get', 'account/activation/plans', undefined, {}, true),
   acknowledgeWelcome: () => request('post', 'account/setup-welcome/acknowledge', { acknowledged: true }, {}, true),

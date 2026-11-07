@@ -1,5 +1,7 @@
 import Vue from 'vue'
 import App from './App.vue'
+import MedSyncBrand from './components/MedSyncBrand.vue'
+Vue.component('medsync-brand', MedSyncBrand)
 import vuetify from './plugins/vuetify';
 import router from './router';
 import store from './store';
