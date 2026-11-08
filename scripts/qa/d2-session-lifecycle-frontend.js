@@ -253,7 +253,7 @@ assertIncludesAll(
         '} finally {',
         'commit(types.SET_AUTH_ACCESS_SESSION, null)',
         'clearD2ClientAuthArtifacts(Vue.prototype.$session)',
-        'window.location.href = \'/auth/login\''
+        'window.location.href = \'/login\''
     ],
     'Runtime is cleared before HTTP; artifact cleanup runs in finally even if backend close fails.'
 );

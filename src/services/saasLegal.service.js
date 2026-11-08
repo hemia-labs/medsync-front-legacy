@@ -6,7 +6,10 @@ const segment = value => encodeURIComponent(String(value || ''));
 
 export default {
   current() { return DACore.get(tenant); },
-  history() { return DACore.get(`${tenant}/history`); },
+  history(cursor) { return DACore.get(`${tenant}/history`, { params: cursor ? { cursor } : {} }); },
+  centralContext() { return DACore.get(`${tenant}/central/context`); },
+  acceptCentral(payload) { return DACore.post(`${tenant}/central/accept`, payload); },
+  centralDocument(versionId, cursor) { return DACore.get(`${tenant}/central/documents/${segment(versionId)}`, { params: cursor ? { cursor } : {} }); },
   accept(idVersion) { return DACore.post(`${tenant}/accept`, { id_version: idVersion, acknowledged: true }); },
   publicCurrent(documentKey) { return DACore.get(`${tenant}/public/${segment(documentKey)}`); },
   adminList() { return DACore.get(admin); },

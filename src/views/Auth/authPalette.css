@@ -1,0 +1,30 @@
+.auth-clinic-screen,
+.account-flow,
+.flow-legal {
+  color-scheme: light;
+  --auth-clinic-background:
+    linear-gradient(90deg,rgba(var(--color-surface-rgb),.82) 0%,rgba(var(--color-primary-100-rgb),.48) 31%,rgba(var(--color-primary-100-rgb),.08) 60%,rgba(var(--color-primary-100-rgb),.22) 100%),
+    url('../../assets/login/clinic-reception.webp') center / cover no-repeat;
+  --color-primary-100: #eef8f5;
+  --color-primary-100-rgb: 238, 248, 245;
+  --color-primary-200: #a7e0d1;
+  --color-primary-200-rgb: 167, 224, 209;
+  --color-primary-500: #176b61;
+  --color-primary-500-rgb: 23, 107, 97;
+  --color-primary-700: #176b61;
+  --color-primary-700-rgb: 23, 107, 97;
+  --color-primary-900: #12294a;
+  --color-primary-900-rgb: 18, 41, 74;
+  --color-surface: #ffffff;
+  --color-surface-rgb: 255, 255, 255;
+  --color-gray98: #f3f7f8;
+  --color-gray98-rgb: 243, 247, 248;
+  --color-grey: #526970;
+  --color-terciary-500: #526970;
+  --color-terciary-500-rgb: 82, 105, 112;
+  --auth-link: #0050a8;
+  --auth-focus: #0085ff;
+  --auth-petrol: #0084a7;
+  --auth-border: #dce6e8;
+  --auth-primary-hover: #12574f;
+}

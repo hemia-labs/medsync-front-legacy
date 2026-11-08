@@ -1,4 +1,4 @@
-const initial = () => ({ context: '', applied: null, candidate: null, history: null, returnTarget: null, savedAt: null, pendingAppointment: null, appointmentOutcome: null, clock: null, errors: { snapshot: '', history: '', list: '' }, denied: false });
+const initial = () => ({ context: '', applied: null, candidate: null, history: null, returnTarget: null, savedAt: null, pendingAppointment: null, appointmentOutcome: null, session: null, clock: null, errors: { snapshot: '', history: '', list: '' }, denied: false });
 export default {
   namespaced: true, state: initial,
   mutations: {
@@ -12,6 +12,7 @@ export default {
     returnTarget(state, value) { state.returnTarget = value; state.savedAt = null; state.pendingAppointment = null; state.appointmentOutcome = null; },
     saved(state, time) { state.savedAt = time; state.candidate = null; state.pendingAppointment = null; state.appointmentOutcome = null; },
     appointmentSaved(state, value) { state.pendingAppointment = value; },
+    session(state, value) { state.session = value; },
     appointmentOutcome(state, value) { state.appointmentOutcome = value; if (value && value.kind === 'verified') state.pendingAppointment = null; }
   }
 };

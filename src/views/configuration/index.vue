@@ -162,8 +162,7 @@
                         <div class="py-3">
                             <dt class="text-xs font-bold uppercase tracking-wider text-gray-500">Logo</dt>
                             <dd class="m-0 mt-1">
-                                <a v-if="businessInfo.logoUrl" :href="businessInfo.logoUrl" target="_blank" rel="noopener noreferrer" class="text-primary-900 font-semibold break-all">Ver logo configurado</a>
-                                <span v-else class="text-gray-500">Sin logo configurado</span>
+                                <private-clinic-logo :key="businessInfo.id_business" :business-id="businessInfo.id_business" :image="businessInfo.logoUrl" @saved="onPrivateLogoSaved" />
                             </dd>
                         </div>
                     </dl>
@@ -206,7 +205,7 @@
                         <v-text-field ref="business_name" v-model="businessInfo.name" :error-messages="businessFieldErrors.name" :disabled="businessInfoSaving" label="Nombre comercial *" dense outlined :color="themePrimaryColor"></v-text-field>
                         <v-text-field ref="business_legalName" v-model="businessInfo.legalName" :error-messages="businessFieldErrors.legalName" :disabled="businessInfoSaving" label="Razón social" dense outlined :color="themePrimaryColor"></v-text-field>
                     </div>
-                    <v-text-field ref="business_logoUrl" v-model="businessInfo.logoUrl" :error-messages="businessFieldErrors.logoUrl" :disabled="businessInfoSaving" label="Enlace del logo del consultorio (opcional)" hint="Se usa al imprimir historias clínicas y en firmas públicas. El logo de acceso se configura en Apariencia." persistent-hint dense outlined :color="themePrimaryColor"></v-text-field>
+                    <p class="text-sm text-gray-500">Puedes subir o eliminar el logo privado desde la tarjeta del consultorio al terminar de editar estos datos.</p>
                 </article>
 
                 <article class="min-w-0 lg:col-span-3 border border-gray-200 bg-white shadow-sm p-5">
@@ -372,7 +371,7 @@
         <prescription-config
             v-if="activeSection === 'prescriptions'"
             :theme-color="themePrimaryColor"
-            @saved="toastFunction('success','Configuracion de recetas guardada.')"
+            @saved="toastFunction('success','Configuración de recetas guardada.')"
             @error="toastFunction('error',$event)"
         ></prescription-config>
 
@@ -767,6 +766,7 @@
 </template>
 
 <script>
+import PrivateClinicLogo from './components/PrivateClinicLogo.vue';
 import PreparationGuide from './components/PreparationGuide.vue';
 import { focusControl } from '../../domain/onboarding/focusControl';
 import { mapActions, mapGetters } from 'vuex';
@@ -810,6 +810,7 @@ import {
 export default {
     mixins:[VuexMixin],
     components: {
+        PrivateClinicLogo,
         PreparationGuide,
         AccountLegalDocuments,
         ChangePassword,
@@ -1845,14 +1846,17 @@ export default {
             }
         },
 
+        onPrivateLogoSaved(info) {
+            this.businessInfo = { ...this.businessInfo, logoUrl: info.logoUrl || '' };
+            this.businessInfoOriginal = this.cloneBusinessInfo();
+        },
         getBusinessInfoPayload: function() {
             return {
                 name: this.businessInfo.name,
                 legalName: this.businessInfo.legalName,
                 email: this.businessInfo.email,
                 phone: this.businessInfo.phone,
-                address: this.businessInfo.address,
-                logoUrl: this.businessInfo.logoUrl
+                address: this.businessInfo.address
             }
         },
 
@@ -1914,6 +1918,7 @@ export default {
             const context=authorizationContext(this.$store)
             if(this.pendingBusinessSave){this.businessInfoSaving=true;try{await this.reconcileBusinessSave(context)}catch(_){if(isCurrentAuthorization(context,this.$store))this.businessSaveError='No pudimos comprobar el guardado anterior. Reintenta la consulta.'}finally{if(!this.disposed && isCurrentAuthorization(context,this.$store))this.businessInfoSaving=false}return}
             const validation = validateBusinessProfile(this.getBusinessInfoPayload())
+            delete validation.data.logoUrl
             this.businessFieldErrors = validation.fieldErrors
             this.businessSaveError = ''
             if(!validation.isValid) {

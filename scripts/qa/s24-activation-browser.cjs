@@ -10,21 +10,26 @@ const folder=path.resolve(__dirname,'../../../docs/saas-platform/phases/evidence
   try {
     for(const width of [1440,390,320]) {
       const context=await browser.newContext({viewport:{width,height:width===1440?900:844}}),page=await context.newPage();
-      let active=false,ack=false,preparationFailure=false,ackFailure=false,statusFailure=false,ackCount=0;
+      let active=false,ack=false,preparationFailure=false,ackFailure=false,ackCount=0;
       const requested=[];
       page.on('pageerror',e=>errors.push(e.message));
       page.on('console',message=>{if(message.type()==='error' && !message.text().startsWith('Failed to load resource:'))errors.push(message.text());});
       await page.route('http://127.0.0.1:4337/**',async route=>{
         const url=new URL(route.request().url()),endpoint=url.pathname;requested.push(endpoint);
-        const status={accountId:'qa-r4',businessId:'qa-business',subscriptionStatus:active?'active':'pending_activation',
-          contact:{emailVerified:true,telephoneVerified:false,requiredChannels:['email']},commercialState:active?'activated':'unavailable',
+        const status={accountId:'qa-r4',businessId:'qa-business',subscriptionStatus:active?'trial':'pending_activation',
+          contact:{emailVerified:active,telephoneVerified:false,requiredChannels:['email']},commercialState:active?'activated':'unavailable',
           nextAction:active?(preparationFailure?'retry_preparation':ack?'home':'setup_summary'):'unavailable',welcomePending:!ack,
           destination:active&&!preparationFailure?(ack?'home':'summary'):null,activationCompletedAt:active?'2026-10-23T00:00:00Z':null};
         let json={success:true,status:200,data:{}};
         if(endpoint==='/api/auth/session')json={success:true,data:{authenticated:true,user:{id_login:'qa-r4',id_business:'qa-business',name:'QA Administrator',email:'qa@example.invalid'},role:{code:'admin'},
-          permissions:['admin.config'],business:{id_business:'qa-business',name:'Consultorio QA',status:'active',subscriptionStatus:active?'active':'pending_activation',plan:active?'professional':null,registrationWelcomePending:!ack,registrationActivationConfirmed:active},
+          permissions:['admin.config'],business:{id_business:'qa-business',name:'Consultorio QA',status:'active',subscriptionStatus:active?'trial':'pending_activation',plan:active?'professional':null,registrationWelcomePending:!ack,registrationActivationConfirmed:active},
           tenantOperational:active?{allowed:true}:{allowed:false,code:'TENANT_NOT_OPERATIONAL',reasonCode:'ACCOUNT_PENDING_ACTIVATION',tenantStatus:'pending_activation'},sessionState:'active'}};
-        else if(endpoint==='/api/account/activation') {if(statusFailure)return route.fulfill({status:503,json:{code:'REGISTRATION_UNAVAILABLE'}});json=status;}
+        else if(endpoint==='/api/account/activation')json=status;
+        else if(endpoint==='/api/account/contact-verifications/confirm'){
+          active=true;preparationFailure=width===390;
+          json={...status,subscriptionStatus:'trial',contact:{...status.contact,emailVerified:true},commercialState:'activated'};
+        }
+        else if(endpoint==='/api/account/contact-verifications')json={challengeId:'qa-r4-code',expiresAt:new Date(Date.now()+600000).toISOString(),resendAfterSeconds:60};
         else if(endpoint==='/api/account/activation/plans')json={available:false,offers:[],reason:'provider_unavailable',planId:'professional'};
         else if(endpoint==='/api/auth/csrf')json={success:true,data:{csrfToken:'synthetic-csrf',expiresAt:'2099-01-01T00:00:00Z'}};
         else if(endpoint==='/api/account/setup-welcome/acknowledge') {
@@ -40,37 +45,47 @@ const folder=path.resolve(__dirname,'../../../docs/saas-platform/phases/evidence
         return route.fulfill({json});
       });
       await page.goto('http://127.0.0.1:4338/activar-cuenta?paid=true');
-      await expect(page.getByRole('heading',{name:'Profesional',exact:true})).toBeVisible();
+      await expect(page.getByRole('heading',{name:'Confirma tu correo',exact:true})).toBeVisible();
+      await expect(page.getByLabel('Código de verificación')).toBeVisible();
+      await expect(page.getByText('Código enviado.',{exact:true})).toHaveCount(0);
       assert.equal(requested.some(endpoint=>endpoint.startsWith('/api/business/')),false,'Pending screen must not request clinical readiness');
       assert.equal(await page.getByRole('button',{name:/pagar|simular|activar licencia/i}).count(),0);
       await page.screenshot({path:path.join(folder,'pendiente-'+width+'.png'),fullPage:true});
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
-      await page.reload();await expect(page.getByText('Activación pendiente',{exact:true})).toBeVisible();
-      active=true;preparationFailure=true;
-      await page.getByRole('button',{name:'Actualizar estado',exact:true}).click();
-      await expect(page.getByText(/No pudimos revisar la preparación de tu consultorio/)).toBeVisible();
-      assert.ok(page.url().includes('/activar-cuenta'));assert.equal(ackCount,0);
-      statusFailure=true;
-      await page.getByRole('button',{name:'Actualizar estado',exact:true}).click();await expect(page.locator('.flow-alert[role=alert]').last()).toBeVisible();
-      statusFailure=false;preparationFailure=false;
-      await page.getByRole('button',{name:'Actualizar estado',exact:true}).click();
-      await expect(page).toHaveURL('http://127.0.0.1:4338/admin?section=summary');
-      await expect(page.getByRole('heading',{name:'Tu licencia está activa. Prepara tu consultorio.'})).toBeVisible();
-      assert.equal(new URL(page.url()).searchParams.has('guide'),false);assert.equal(ackCount,0);
-      assert.equal(await page.locator('.preparation-guide').count(),0);
-      assert.equal(await page.getByText('Probar activación de Profesional',{exact:true}).count(),0);
-      await page.screenshot({path:path.join(folder,'bienvenida-'+width+'.png'),fullPage:true});
+      await page.reload();await expect(page.getByRole('heading',{name:'Confirma tu correo',exact:true})).toBeVisible();
+      await expect(page.getByRole('button',{name:'Actualizar estado',exact:true})).toHaveCount(0);
+      await page.getByLabel('Código de verificación').fill('123456');
+      await page.getByRole('button',{name:'Verificar correo',exact:true}).click();
+      const ready=page.getByRole('heading',{name:'Tu cuenta está lista',exact:true});
+      const configure=page.getByRole('button',{name:'Configurar mi consultorio',exact:true});
+      await expect(ready).toBeVisible();
+      await expect(ready).toBeFocused();
+      await expect(page.getByText(/tu prueba de 15 días ya comenzó/i)).toBeVisible();
+      await expect(page.locator('[aria-current="step"]')).toHaveText(/Cuenta lista/);
+      assert.equal(ackCount,0);
+      await page.reload();await expect(ready).toBeVisible();
+      assert.equal(ackCount,0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
-      await page.reload();await expect(page.locator('.activation-welcome')).toBeVisible();assert.equal(ackCount,0);
-      ackFailure=true;
-      await page.getByRole('button',{name:'Entendido, revisar mis tareas',exact:true}).click();
-      await expect(page.getByText(/No pudimos guardar la bienvenida/)).toBeVisible();
-      ackFailure=false;
-      await page.getByRole('button',{name:'Entendido, revisar mis tareas',exact:true}).click();
+      await page.screenshot({path:path.join(folder,'bienvenida-'+width+'.png'),fullPage:true});
+      if(width===320){
+        await page.getByRole('button',{name:'Ir al inicio',exact:true}).click();
+        await expect(page).toHaveURL(/\/inicio(?:[?#]|$)/);
+        assert.equal(ackCount,1);
+      }else{
+        ackFailure=true;
+        await configure.click();
+        await expect(page.getByRole('alert').filter({hasText:'No pudimos abrir el siguiente paso'})).toBeVisible();
+        await expect(ready).toBeVisible();
+        ackFailure=false;
+        await configure.click();
+        await expect(page).toHaveURL('http://127.0.0.1:4338/admin?section=summary');
+        await expect(page.getByText('Siguiente tarea: Datos del consultorio',{exact:true})).toBeVisible();
+        assert.equal(ackCount,2);
+      }
       await expect(page.locator('.activation-welcome')).toHaveCount(0);
       assert.equal(new URL(page.url()).searchParams.has('guide'),false);
       await page.reload();await expect(page.locator('.activation-welcome')).toHaveCount(0);
-      checks.push(width+'px: pending/reload, no client activation or clinical requests, readiness/network recovery, Summary without auto-guide, explicit durable welcome and retry');
+      checks.push(width+'px: verification, welcome retained on reload, explicit navigation and durable acknowledgment');
       await context.close();
     }
     assert.deepEqual(errors,[]);

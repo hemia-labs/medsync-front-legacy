@@ -1,29 +1,29 @@
 export default [
     {
-        path:'/auth',
-        name:'auth',
-        redirect: '/auth/login',
-        component: () => import('../../views/Auth/index.vue'),
-        meta: {title: 'Auth - MedSync',   requireAuth: false, layout: 'default'},
-        children: [
-            {
-                path:'/auth/login',
-                name:'login',
-                component: () => import('../../views/Auth/Login.vue'),
-                meta: {title: 'Login - MedSync',  requireAuth: false, layout: 'default'},
-            },
-            {
-                path: '/auth/registro',
-                name: 'register',
-                component: () => import('../../views/Auth/Register.vue'),
-                meta: { title: 'Crear cuenta - MedSync', requireAuth: false, layout: 'default' }
-            }
-        ]
+        path: '/login',
+        name: 'login',
+        component: () => import('../../views/Auth/Login.vue'),
+        meta: { title: 'Iniciar sesión - medsync', requireAuth: false, layout: 'default' }
     },
+    {
+        path: '/register',
+        name: 'register',
+        component: () => import('../../views/Auth/Register.vue'),
+        meta: { title: 'Crear cuenta - medsync', requireAuth: false, layout: 'default' }
+    },
+    {
+        path: '/forgot-password',
+        name: 'forgotPassword',
+        component: () => import('../../views/Auth/Login.vue'),
+        meta: { title: 'Recuperar contraseña - medsync', requireAuth: false, layout: 'default' }
+    },
+    { path: '/auth', name: 'auth', redirect: { name: 'login' } },
+    { path: '/auth/login', redirect: { name: 'login' } },
+    { path: '/auth/registro', redirect: { name: 'register' } },
     {
         path: '/activar-cuenta',
         name: 'accountActivation',
         component: () => import('../../views/Auth/AccountActivation.vue'),
-        meta: { title: 'Verificar cuenta - MedSync', requireAuth: true, allowTenantRestricted: true, layout: 'default' }
+        meta: { title: 'Verificar cuenta - medsync', requireAuth: true, allowTenantRestricted: true, layout: 'default' }
     }
-]
+];

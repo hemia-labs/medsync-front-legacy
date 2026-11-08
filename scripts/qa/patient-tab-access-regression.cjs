@@ -14,7 +14,7 @@ const component = context.module.exports;
 function state(permissions, query = {}, hash = '') {
   const s = { ...component.data(), id: 'patient', px: { person: { id_person: 'patient', active: 1 }, access: { clinical: true } },
     clinicalModules: { odontogramEnabled: true, treatmentPlanEnabled: true }, $route: { query, hash },
-    hasPermission: permission => permissions.includes(permission) };
+    hasPermission: permission => permissions.includes(permission), $nextTick: async () => {} };
   Object.entries(component.methods).forEach(([key, method]) => { s[key] = method.bind(s); });
   Object.entries(component.computed).forEach(([key, method]) => Object.defineProperty(s, key, { get: method.bind(s) }));
   return s;
@@ -37,7 +37,7 @@ function state(permissions, query = {}, hash = '') {
   await hash.applyRequestedTab();
   assert.equal(hash.tab, 'da-medical-monitoring');
   assert.ok(hash.tabAccessNotice);
-  const allowed = state(['px.tab.history', 'clinical_history.view', ...follow], { tab: 'history' });
+  const allowed = state(['px.tab.history', 'clinical_history.view', 'clinical_history.view_sensitive', ...follow], { tab: 'history' });
   await allowed.applyRequestedTab();
   assert.equal(allowed.tab, 'da-medical-history');
   assert.equal(allowed.tabAccessNotice, '');
@@ -54,7 +54,7 @@ function state(permissions, query = {}, hash = '') {
   assert.equal(await blocked.requestTabChange('da-medical-history'), false);
   assert.equal(blocked.tab, 'da-medical-monitoring');
   assert.ok(blocked.tabAccessNotice);
-  const rights = ['px.tab.history', 'clinical_history.view', ...follow];
+  const rights = ['px.tab.history', 'clinical_history.view', 'clinical_history.view_sensitive', ...follow];
   const revoked = state(rights);
   revoked.tab = 'da-medical-monitoring';
   revoked.sectionLeaveGuard = async () => { rights.splice(0, 2); return true; };

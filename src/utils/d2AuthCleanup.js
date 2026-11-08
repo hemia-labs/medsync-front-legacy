@@ -1,6 +1,7 @@
 import DACsrfService from '../services/core/auth/DACsrfService';
 import { isD2AuthMode } from '../services/config/authTransport.config';
 import { clearLegacyAuthStorageForD2 } from './authStorageCleanup';
+import { isPublicAuthPath } from './publicAuthRoute';
 
 export const D2_UNAUTHORIZED_REDIRECT_SKIP_ENDPOINTS = Object.freeze([
   'api/auth/login',
@@ -8,7 +9,7 @@ export const D2_UNAUTHORIZED_REDIRECT_SKIP_ENDPOINTS = Object.freeze([
   'api/auth/csrf'
 ]);
 
-const AUTH_LOGIN_PATH = '/auth/login';
+const AUTH_LOGIN_PATH = '/login';
 
 const normalizeRequestUrl = (url) => {
   if (!url) {
@@ -54,7 +55,7 @@ export const redirectToAuthIfNeeded = () => {
   }
 
   const currentPath = window.location.pathname || '';
-  if (currentPath === '/auth' || currentPath.startsWith('/auth/')) {
+  if (isPublicAuthPath(currentPath)) {
     return false;
   }
 

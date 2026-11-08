@@ -11,7 +11,7 @@
         </div>
 
         <div ref="guideDoctor" class="px-7 pt-5">
-            <v-select :key="selectedDoctorId + '-' + selectorRevision" :value="selectedDoctorId" :items="doctorOptions" item-text="label" item-value="id" label="Configuracion de recetas del doctor" no-data-text="No hay doctores con perfil activo" :readonly="doctorOptions.length === 1" :disabled="loading || saving || !doctorOptions.length" outlined dense :color="themeColor" @change="chooseDoctor"></v-select>
+            <v-select :key="selectedDoctorId + '-' + selectorRevision" :value="selectedDoctorId" :items="doctorOptions" item-text="label" item-value="id" label="Configuración de recetas del doctor" no-data-text="No hay doctores con perfil activo" :readonly="doctorOptions.length === 1" :disabled="loading || saving || !doctorOptions.length" outlined dense :color="themeColor" @change="chooseDoctor"></v-select>
             <div v-if="!loading && !loadError && !doctorOptions.length" role="status" class="mb-4 p-4 rounded-lg border border-yellow-200 bg-yellow-50 text-yellow-900">
                 <p>Primero completa y guarda el perfil profesional del doctor. Después podrás revisar el formato de sus recetas. La autorización para emitir se revisa por separado.</p>
                 <router-link v-if="canManageAllDoctors && hasPermission('admin.users')" to="/admin?section=users">Revisar profesionales del consultorio</router-link>
@@ -55,7 +55,7 @@
                         :color="themeColor"
                     ></v-select>
                 </div>
-                <p class="m-0 -mt-2 mb-4 text-xs text-gray-500">La plantilla de cabecera es la recomendada para lectura e impresion.</p>
+                <p class="m-0 -mt-2 mb-4 text-xs text-gray-500">La plantilla de cabecera es la recomendada para lectura e impresión.</p>
 
                 <v-textarea ref="guideAddress" v-model="form.clinic_address" :disabled="saving" label="Domicilio completo del consultorio (obligatorio)" maxlength="2000" :error-messages="configFieldErrors('clinic_address')" @blur="touchConfigField('clinic_address')" rows="2" outlined :color="themeColor"></v-textarea>
                 <v-textarea v-model="form.footer_note" :disabled="saving" label="Nota inferior o texto legal (opcional)" rows="2" outlined :color="themeColor"></v-textarea>
@@ -136,7 +136,7 @@
                     </div>
                     <div v-else>
                         <v-icon color="#9CA3AF" size="42">mdi-draw-pen</v-icon>
-                        <p class="m-0 mt-2 text-gray-600 font-semibold">Aun no hay firma para recetas</p>
+                        <p class="m-0 mt-2 text-gray-600 font-semibold">Aún no hay firma para recetas</p>
                         <p class="m-0 mt-1 text-sm text-gray-500">Usa “Capturar firma” para agregarla.</p>
                     </div>
                 </div>

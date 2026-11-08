@@ -26,7 +26,7 @@ Vue.prototype.$session = { get: key => storage.get(key), set: (key, value) => st
 let d2 = true;
 const authMutations = load('src/store/modules/auth/mutations.js', { Vue, types, ...permissions, ...rights,
   isD2AuthMode: () => d2, decode: value => JSON.parse(value) });
-const blank = () => ({ authenticated: false, user: null, role: null, permissions: [], business: null, accessRevision: 0 });
+const blank = () => ({ authenticated: false, user: null, role: null, permissions: [], business: null, accessRevision: 0, isLoggingOut: false });
 class PatientModel { constructor() { this.notes = []; } isEmpty() { return this.notes.length === 0; } }
 const CORE = { namespaced: true, state: () => ({ currentAction: null }), modules: {
   AUTH: { namespaced: true, state: blank, mutations: authMutations },
@@ -45,7 +45,7 @@ const session = (permission = 'clinical_history.view', role = 'doctor') => ({ au
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const deferred = [];
 const network = () => new Promise(resolve => deferred.push(resolve));
-const windows = { location: { href: '', pathname: '/patient' } };
+const windows = { location: { href: '', pathname: '/patient', replace(path) { this.href = path; } } };
 let sessionCalls = 0;
 let sessionReply;
 let closeCalls = 0;
@@ -129,15 +129,25 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
   sessionReply = new Promise(resolve => { finishSession = resolve; });
   const beforeCalls = sessionCalls;
   const alreadyFlying = core.get('/api/px/get/fixture'); await tick();
+  const changesInFlight = core.get('/api/px/get/fixture'); await tick();
   const forbidden = { config: { url: 'api/clinical-history/fixture/draft', method: 'put' }, response: { status: 403, data: { message: 'Denied', data: { code: 'AUTHZ_FORBIDDEN' } } } };
   const rejected1 = assert.rejects(status.options[403](forbidden));
   const rejected2 = assert.rejects(status.options[403](forbidden));
   assert.equal(sessionCalls - beforeCalls, 1, 'Concurrent 403 checks share a session request');
   deferred.shift()({ status: 200, data: { data: { private: 'pre-revocation' } } });
-  assert.equal((await alreadyFlying).success, false, '403 invalidates in-flight reads before rehydration finishes');
+  assert.equal((await alreadyFlying).success, true, 'An ordinary 403 does not discard an unrelated successful read');
   finishSession({ success: true, data: session('px.dates', 'receptionist') });
   await Promise.all([rejected1, rejected2]);
+  deferred.shift()({ status: 200, data: { data: { private: 'stale-after-role-change' } } });
+  const staleAfterChange = await changesInFlight;
+  assert.equal(staleAfterChange.success, false, 'Actual changed role/permissions invalidate old reads');
+  assert.equal(staleAfterChange.data.code, 'AUTH_CONTEXT_CHANGED');
   assert.equal(state.permissions[0], 'px.dates'); assert.equal(state.role, 'receptionist');
+  const stableRead = core.get('/api/px/get/fixture'); await tick();
+  sessionReply = Promise.resolve({ success: true, data: session('px.dates', 'receptionist') });
+  await assert.rejects(status.options[403](forbidden));
+  deferred.shift()({ status: 200, data: { data: { name: 'unchanged-access' } } });
+  assert.equal((await stableRead).success, true, 'An unchanged session after 403 preserves successful reads');
   const currentCalls = sessionCalls;
   await assert.rejects(status.options[403]({ ...forbidden, response: { status: 403, data: { data: { code: 'CSRF_TOKEN_INVALID' } } } }));
   await assert.rejects(status.options[403]({ ...forbidden, response: { status: 403, data: { data: { code: 'PLAN_FEATURE_NOT_ALLOWED' } } } }));
@@ -162,7 +172,12 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     closeReply = new Promise(resolve => { resolveClose = resolve; });
     const pending = actions.refreshAccess(actionContext);
     store.state.CORE.PX.patient = 'private-fixture';
+    const beforeClose = closeCalls;
     const closing = actions.logout(actionContext);
+    assert.equal(state.isLoggingOut, true, 'Logout shows the loader before clearing protected views');
+    await actions.logout(actionContext);
+    assert.equal(closeCalls, beforeClose + 1, 'Repeated logout does not send a second close');
+    assert.equal(await actions.getToken(actionContext), null, 'Bootstrap cannot reopen the session during logout');
     assert.equal(state.authenticated, false, 'Logout clears local authorization before network completion');
     assert.equal(store.state.CORE.PX.patient, null);
     await tick();
@@ -178,7 +193,9 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     assert.equal(state.authenticated, false, 'A late session check cannot undo logout');
     resolveClose({ success: false }); await closing;
     assert.equal(storage.has('token'), false, 'Both transports clear client storage after a failed close');
-    assert.equal(windows.location.href, '/auth/login');
+    assert.equal(windows.location.href, '/login');
+    assert.equal(state.isLoggingOut, true, 'The current document keeps the loader until it unloads');
+    commit(types.SET_AUTH_LOGGING_OUT, false); // Simulate the new document's initial state.
   }
   assert.equal(closeCalls, 2);
   commit(types.SET_AUTH_ACCESS_SESSION, session());
@@ -284,6 +301,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     assert.equal(storage.has('token'), false);
     if(!mode) assert.equal(closeRequests[closeRequests.length - 1].config.headers.Authorization, 'access-only-to-close');
     else assert.equal(closeRequests[closeRequests.length - 1].config.headers['X-CSRF-Token'], 'csrf-fixture');
+    commit(types.SET_AUTH_LOGGING_OUT, false);
   }
 
   d2 = false;
@@ -367,6 +385,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     assert.equal(actualCloses, 2);
     assert.equal(serverSessionActive, false, 'Expired/missing access cookie logout really closes the server session');
     assert.equal(state.authenticated, false);
+    commit(types.SET_AUTH_LOGGING_OUT, false);
     await actions.getToken(actionContext);
     assert.equal(state.authenticated, false, 'Login-page bootstrap cannot restore the closed session');
     assert.equal(actualRenewals, 2, 'A closed session never renews again');

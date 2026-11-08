@@ -40,7 +40,7 @@ async function check(name,run){resetMocks();try{await run();results.push({name,o
  function load(file){
   const sfc=compiler.parseComponent(read(file)),compiled=compiler.compile(sfc.template.content);
   assert.deepEqual(compiled.errors,[],file+' compiles');
-  const context={component:null,SaaSLegalService:service,...sanitizer.module.exports,...authorization,...navigation,window:dom.window,document:dom.window.document,Date};
+  const context={component:null,CentralLegalReview:{render:h=>h('div')},SaaSLegalService:service,...sanitizer.module.exports,...authorization,...navigation,window:dom.window,document:dom.window.document,Date};
   vm.runInNewContext(strip(sfc.script.content).replace('export default','component ='),context,{filename:file});
   return {options:context.component,sfc,render:new Function(compiled.render),staticRenderFns:compiled.staticRenderFns.map(source=>new Function(source))};
  }
@@ -53,7 +53,7 @@ async function check(name,run){resetMocks();try{await run();results.push({name,o
  function reviewing(){const view=state(account);view.documents=[documentItem()];view.currentLoaded=true;view.openCurrent(view.documents[0]);return view;}
 
  await check('current/history loading failures remain unknown and independently retry into real empty or populated results',async()=>{
-  const view=state(account);currentReply={success:false,message:'SQL private failure'};historyReply={success:false};
+  const view=state(account);view.reviewSaving=true;view.resetSession();assert.equal(view.reviewSaving,false);currentReply={success:false,message:'SQL private failure'};historyReply={success:false};
   await view.refreshAll();assert.ok(view.currentError);assert.ok(view.historyError);assert.equal(view.currentLoaded,false);assert.equal(view.historyLoaded,false);assert.doesNotMatch(view.currentError,/SQL|private/);
   currentReply={success:true,data:{documents:[],pending_count:0}};historyReply={success:true,data:{acceptances:[]}};await view.refreshAll();assert.equal(view.currentError,'');assert.equal(view.historyError,'');assert.equal(view.currentLoaded,true);assert.equal(view.historyLoaded,true);assert.equal(view.documents.length,0);assert.equal(historyCalls,2);
   currentReply={success:true,data:{documents:[documentItem()],pending_count:1}};await view.loadCurrent();assert.equal(view.documents.length,1);
@@ -150,16 +150,49 @@ async function check(name,run){resetMocks();try{await run();results.push({name,o
   const view=state(notice);notice.options.mounted.call(view);notice.options.beforeDestroy.call(view);const count=currentCalls;window.dispatchEvent(new dom.window.Event('focus'));document.dispatchEvent(new dom.window.Event('visibilitychange'));window.dispatchEvent(new dom.window.CustomEvent('saas-legal-accepted'));await flush();assert.equal(currentCalls,count);
   const anonymous=state(notice);anonymous.authState.authenticated=false;notice.options.watch.sessionKey.handler.call(anonymous);assert.equal(anonymous.pendingCount,null);assert.equal(anonymous.error,'');assert.equal(currentCalls,count);
  });
+ await check('central failures keep local receipts visible and notices never report a complete legal state',async()=>{
+  const view=state(account);
+  currentReply={success:true,data:{documents:[documentItem()],pending_count:1,central_available:false,pending_unknown:true}};
+  historyReply={success:true,data:{acceptances:[historyItem()],central_available:false}};
+  await view.refreshAll();assert.equal(view.documents.length,1);assert.equal(view.acceptances.length,1);
+  assert.ok(view.centralWarning);assert.ok(view.historyWarning);assert.equal(view.currentError,'');
+  const alert=state(notice);await alert.load(true);assert.ok(alert.error.includes('Legal central'));
+ });
+ await check('central receipts use verified exact-version text; queued evidence never asks for local acceptance',async()=>{
+  const view=state(account),proof={...historyItem(),source:'central',evidence_id:'central-proof',history_cursor:'page'};
+  let requested;service.centralDocument=async(id,cursor)=>{requested={id,cursor};return {success:true,data:{version:version()}};};
+  view.openReceipt(proof);await flush();assert.equal(requested.id,proof.id_version);assert.equal(requested.cursor,'page');
+  assert.equal(view.selectedVersion.content_html,version().content_html);assert.equal(view.selectedAcceptance.evidence_id,'central-proof');
+  const central=documentItem(1,{source:'central',pending:false,can_accept:false,sync_pending:true});
+  view.documents=[central];view.openCurrent(central);await flush();assert.equal(view.statusLabel(central),'Sincronización pendiente');assert.equal(view.mayAcceptSelected,false);
+  currentReply={success:true,data:{documents:[central],pending_count:0,central_sync_pending:true}};
+  const alert=state(notice);await alert.load(true);assert.equal(alert.syncPending,true);assert.equal(alert.error,'');
+  const gate=deferred();service.centralDocument=()=>gate.promise;view.openReceipt(proof);view.authState.user.id_login='another';
+  gate.resolve({success:true,data:{version:{...version(),content_html:'<p>late</p>'}}});await flush();assert.notEqual(view.selectedVersion.content_html,'<p>late</p>');
+ });
+ await check('central history pagination appends without duplicating local history or existing receipts',async()=>{
+  const view=state(account);historyReply={success:true,data:{acceptances:[historyItem()],central_next_cursor:'page'}};
+  await view.loadHistory();assert.equal(view.historyCursor,'page');
+  historyReply={success:true,data:{acceptances:[historyItem(),historyItem(2)],central_next_cursor:null}};
+  await view.loadHistory(true);assert.equal(view.acceptances.length,2);assert.equal(view.historyCursor,null);
+ });
  await check('compiled scoped night styles keep headings, notice, actions, receipt and error states readable',async()=>{
   const scope='data-v-saas-legal-qa',styles=[],sample=document.createElement('section'),previous=document.documentElement.getAttribute('data-theme');
-  function element(tag,className){const node=document.createElement(tag);node.className=className;node.setAttribute(scope,'');sample.appendChild(node);return node;}
+  function element(tag,className,parent=sample){const node=document.createElement(tag);node.className=className;node.setAttribute(scope,'');parent.appendChild(node);return node;}
   try{
    const globalStyle=document.createElement('style'),tailwind=read('src/assets/tailwind.css');globalStyle.textContent=tailwind.slice(tailwind.indexOf('html[data-theme="clinical-night"],'));document.head.appendChild(globalStyle);styles.push(globalStyle);
    for(const component of [account,notice])for(const block of component.sfc.styles){const compiled=compileStyle({source:block.content,id:scope,scoped:Boolean(block.scoped)});assert.deepEqual(compiled.errors,[]);const style=document.createElement('style');style.textContent=compiled.code;document.head.appendChild(style);styles.push(style);}
    document.documentElement.setAttribute('data-theme','clinical-night');sample.className='account-legal bg-white text-gray-700';sample.setAttribute(scope,'');document.body.appendChild(sample);
-   for(const className of ['legal-heading','legal-update-notice text-gray-700']){const node=element('div',className),css=window.getComputedStyle(node);assert.equal(css.backgroundColor,'rgb(23, 47, 65)');assert.equal(css.color,'rgb(226, 232, 240)');}
-   assert.equal(window.getComputedStyle(element('button','legal-button--outline')).color,'rgb(186, 230, 253)');assert.equal(window.getComputedStyle(element('button','legal-update-retry')).color,'rgb(186, 230, 253)');
-   for(const className of ['legal-button--primary','legal-update-primary']){const css=window.getComputedStyle(element('button',className));assert.equal(css.backgroundColor,'rgb(14, 116, 144)');assert.equal(css.color,'rgb(255, 255, 255)');}
+   const heading=window.getComputedStyle(element('header','legal-heading'));assert.equal(heading.backgroundColor,'rgb(23, 47, 65)');assert.equal(heading.color,'rgb(226, 232, 240)');
+   assert.equal(window.getComputedStyle(element('button','legal-button--outline')).color,'rgb(186, 230, 253)');
+   const primary=window.getComputedStyle(element('button','legal-button--primary'));assert.equal(primary.backgroundColor,'rgb(14, 116, 144)');assert.equal(primary.color,'rgb(255, 255, 255)');
+   // The pending notice uses the warning palette in both themes; it is not an account heading.
+   const banner=element('aside','legal-update-notice'),bannerCss=window.getComputedStyle(banner);
+   assert.equal(bannerCss.backgroundColor,'rgb(48, 38, 23)');assert.equal(bannerCss.color,'rgb(253, 232, 187)');
+   const copy=element('div','legal-update-copy',banner);assert.equal(window.getComputedStyle(element('h2','',copy)).color,bannerCss.color);
+   assert.equal(window.getComputedStyle(element('button','legal-update-retry',banner)).color,bannerCss.color);
+   const icon=window.getComputedStyle(element('span','legal-update-icon',banner));assert.equal(icon.backgroundColor,'rgb(73, 52, 27)');assert.equal(icon.color,'rgb(252, 211, 77)');
+   const noticeAction=window.getComputedStyle(element('a','legal-update-primary',banner));assert.equal(noticeAction.backgroundColor,'rgb(252, 211, 77)');assert.equal(noticeAction.color,'rgb(66, 32, 6)');
    for(const className of ['legal-acceptance-proof','legal-status--accepted']){const css=window.getComputedStyle(element('div',className));assert.equal(css.backgroundColor,'rgb(24, 62, 50)');assert.equal(css.color,'rgb(200, 245, 222)');}
    const error=window.getComputedStyle(element('p','legal-message--error'));assert.equal(error.backgroundColor,'rgb(73, 43, 53)');assert.equal(error.color,'rgb(255, 218, 225)');
    const content=window.getComputedStyle(element('article','legal-document-content'));assert.equal(content.backgroundColor,'rgb(255, 255, 255)');assert.equal(content.color,'rgb(37, 54, 77)');

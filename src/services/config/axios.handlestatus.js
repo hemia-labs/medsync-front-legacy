@@ -4,7 +4,7 @@ import types from '../../store/modules/common/mutation-types';
 import modules from '../../store/modules/common/module-types';
 import { isD2AuthMode } from './authTransport.config';
 import { clearD2ClientAuthArtifacts, redirectToAuthIfNeeded, shouldSkipD2UnauthorizedRedirect } from '../../utils/d2AuthCleanup';
-import { invalidatePendingRequests, isAuthControlRequest } from '../../security/authorizationContext';
+import { isAuthControlRequest } from '../../security/authorizationContext';
 import { clearLegacyAuthStorageForD2 } from '../../utils/authStorageCleanup';
  
 export const actions = {
@@ -84,7 +84,8 @@ export const options = {
         }
 
         if(!isAuthControlRequest(error.config && error.config.url) && !/^(CSRF_|PLAN_|LICENSE_)/.test(code)) {
-            invalidatePendingRequests();
+            // Session mutations invalidate only a real identity/permission change.
+            // An ordinary resource denial must not discard unrelated 200 responses.
             await store.dispatch(modules.AUTH + '/refreshAccess', { clearOnFailure: true });
         }
 

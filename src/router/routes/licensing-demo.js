@@ -3,5 +3,5 @@ export default process.env.NODE_ENV === 'development' ? [{
   path: '/activar-cuenta/demo',
   name: 'licenseActivationDemo',
   component: () => import('../../views/licensing/LicenseActivationDemo.vue'),
-  meta: { title: 'Activación de prueba - MedSync', requireAuth: false, layout: 'default' }
+  meta: { title: 'Activación de prueba - medsync', requireAuth: false, layout: 'default' }
 }] : [];

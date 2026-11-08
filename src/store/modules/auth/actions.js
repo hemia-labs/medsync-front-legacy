@@ -1,8 +1,6 @@
 import Vue from 'vue';
 import decode from 'jwt-decode';
 import { DAAuthService } from '../../../services/context/core-proccess-context';
-import { toSHA256 } from '../../../libs/crypto';
-import { getTimestamp } from '../../../libs/time';
 import DAAuthModel from '../../../models/auth/DAAuthModel';
 import types from '../common/mutation-types';
 import DAHasErrorModel from '../../../models/error/DAHasErrorModel';
@@ -62,9 +60,6 @@ const actions = {
             let authModel = new DAAuthModel()
             authModel.param = param
             authModel.pwd = pwd
-            authModel.secretkey = process.env.VUE_APP_SECRET_KEY
-            authModel.timestamp = getTimestamp()
-            authModel.signature = toSHA256(authModel.secretkey+authModel.timestamp);
             authModel.refresh = refresh
 
             let response = await DAAuthService.login(authModel);
@@ -103,6 +98,7 @@ const actions = {
             commit(types.SET_AUTH_SENDOTP,false)
             commit(types.SET_AUTH_OTP_EXCEPTION, new DAHasErrorModel(true, response.message) )
         }
+        return response;
     },
 
     /**
@@ -141,7 +137,8 @@ const actions = {
      * Función que permite recuperar el token de la sesión
      * @param {*} param0 
      */
-    async getToken({commit, dispatch}) {
+    async getToken({commit, dispatch, state}) {
+        if(state.isLoggingOut) return null;
         if(isD2AuthMode()) {
             return dispatch('refreshAccess', { hydrate: true });
         }
@@ -242,8 +239,7 @@ const actions = {
             commit(types.SET_REFRESH_TOKEN, null)
             commit(types.SET_AUTH_PERMISSIONS, [])
             commit(types.SET_AUTH_TENANT_OPERATIONAL, null)
-            dispatch('logout', null);
-            window.location.href = '/'
+            await dispatch('logout', null);
         }
         commit(types.SET_AUTH_REFRESING_TOKEN, false)
     },
@@ -253,6 +249,8 @@ const actions = {
      * @param {*} param0 
      */
     async logout({commit, state}) {
+        if(state.isLoggingOut) return;
+        commit(types.SET_AUTH_LOGGING_OUT, true);
         clearClinicalContinuityCache();
         const hadSession = state.authenticated || state.token;
         const cookieMode = isD2AuthMode();
@@ -281,7 +279,7 @@ const actions = {
             commit(types.SET_AUTH_UNAUTHORIZED, false);
             clearLegacyAuthStorageForD2(Vue.prototype.$session);
             clearD2ClientAuthArtifacts(Vue.prototype.$session);
-            window.location.href = '/auth/login';
+            window.location.replace('/login');
         }
     }
 }

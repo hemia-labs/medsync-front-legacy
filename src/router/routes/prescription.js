@@ -4,7 +4,7 @@ export default [
         name: 'Prescriptions',
         component: () => import('../../views/prescriptions/Prescriptions.vue'),
         meta: {
-            title: 'Recetas - MedSync',
+            title: 'Recetas - medsync',
             requireAuth: true,
             layout: 'admin',
             headertitle: 'Recetas',

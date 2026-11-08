@@ -1,19 +1,21 @@
 <template>
-  <aside class="tenant-navigation-rail" aria-label="Navegacion principal">
+  <aside class="tenant-navigation-rail" :class="{ 'is-collapsed': collapsed }" aria-label="Navegación principal">
     <div class="navigation-panel">
-      <div class="navigation-brand">
-        <span class="brand-mark" aria-hidden="true">
-          <v-icon size="20">mdi-hospital-building</v-icon>
+      <div class="navigation-brand" :title="collapsed ? businessName : null">
+        <span class="brand-mark" :class="{ 'brand-mark--logo': showBusinessLogo }" aria-hidden="true">
+          <img v-if="showBusinessLogo" :src="businessLogo" alt="" @error="failedLogo = businessLogo">
+          <v-icon v-else size="20">mdi-hospital-building</v-icon>
         </span>
         <div class="brand-copy">
-          <strong>{{ businessName || 'Tu consultorio' }}</strong>
+          <strong :title="businessName || null">{{ businessName || 'Tu consultorio' }}</strong>
           <small>Consultorio</small>
         </div>
+        <slot name="brand-action" />
       </div>
 
-      <div v-if="tenantRestricted" class="restricted-status" role="status">
+      <div v-if="tenantRestricted" class="restricted-status" role="status" :title="collapsed ? 'Acceso restringido' : null" :aria-label="collapsed ? 'Acceso restringido' : null">
         <v-icon size="18">mdi-lock-alert-outline</v-icon>
-        <span>Acceso restringido</span>
+        <span class="restricted-label">Acceso restringido</span>
       </div>
 
       <div v-if="actionItems.length" class="navigation-actions">
@@ -23,88 +25,134 @@
           type="button"
           :class="primaryActionClass(item)"
           :aria-label="item.label"
+          :title="collapsed ? item.label : null"
           :aria-disabled="isRestrictedDisabled(item) ? 'true' : null"
           :disabled="isRestrictedDisabled(item)"
           @click="emitNavigation(item)"
         >
           <v-icon size="20">{{ item.icon }}</v-icon>
-          <span>{{ item.label }}</span>
+          <span class="navigation-label">{{ item.label }}</span>
         </button>
       </div>
 
       <nav class="navigation-sections" aria-label="Secciones del sistema">
-        <p class="navigation-caption">Operacion</p>
+        <p class="navigation-caption">Operación</p>
         <button
           v-for="item in operationItems"
           :key="item.key"
           type="button"
           :class="navItemClass(item)"
           :aria-current="isActive(item) ? 'page' : null"
+          :aria-label="item.label"
+          :title="collapsed ? item.label : null"
           :aria-disabled="isRestrictedDisabled(item) ? 'true' : null"
           :disabled="isRestrictedDisabled(item)"
           @click="emitNavigation(item)"
         >
           <span class="active-marker" aria-hidden="true"></span>
           <v-icon size="21">{{ item.icon }}</v-icon>
-          <span>{{ item.label }}</span>
+          <span class="navigation-label">{{ item.label }}</span>
         </button>
 
         <template v-if="clinicalItems.length">
-          <p class="navigation-caption">Clinico</p>
+          <p class="navigation-caption">Clínico</p>
           <button
             v-for="item in clinicalItems"
             :key="item.key"
             type="button"
             :class="navItemClass(item)"
             :aria-current="isActive(item) ? 'page' : null"
+            :aria-label="item.label"
+            :title="collapsed ? item.label : null"
             :aria-disabled="isRestrictedDisabled(item) ? 'true' : null"
             :disabled="isRestrictedDisabled(item)"
             @click="emitNavigation(item)"
           >
             <span class="active-marker" aria-hidden="true"></span>
             <v-icon size="21">{{ item.icon }}</v-icon>
-            <span>{{ item.label }}</span>
+            <span class="navigation-label">{{ item.label }}</span>
           </button>
         </template>
 
         <template v-if="managementItems.length">
-          <p class="navigation-caption">Gestion</p>
+          <p class="navigation-caption">Gestión</p>
           <button
             v-for="item in managementItems"
             :key="item.key"
             type="button"
             :class="navItemClass(item)"
             :aria-current="isActive(item) ? 'page' : null"
+            :aria-label="item.label"
+            :title="collapsed ? item.label : null"
             :aria-disabled="isRestrictedDisabled(item) ? 'true' : null"
             :disabled="isRestrictedDisabled(item)"
             @click="emitNavigation(item)"
           >
             <span class="active-marker" aria-hidden="true"></span>
             <v-icon size="21">{{ item.icon }}</v-icon>
-            <span>{{ item.label }}</span>
+            <span class="navigation-label">{{ item.label }}</span>
           </button>
         </template>
       </nav>
 
       <div class="navigation-session">
-        <div class="session-card">
-          <div class="session-avatar">{{ sessionInitials }}</div>
-          <div>
-            <strong>{{ sessionName }}</strong>
-            <small>{{ sessionRoleLabel || 'Sesion activa' }}</small>
-          </div>
-        </div>
-        <button
-          v-for="item in sessionItems"
-          :key="item.key"
-          type="button"
-          class="session-action"
-          :aria-label="item.label"
-          @click="$emit('session-action', item)"
+        <v-menu
+          v-model="accountMenuOpen"
+          attach
+          top
+          :disabled="!navigationOpen"
+          :offset-x="!mobile"
+          :offset-y="mobile"
+          :nudge-right="mobile ? 0 : 16"
+          :nudge-top="mobile ? 8 : 0"
+          origin="bottom left"
+          min-width="244"
+          max-width="244"
+          content-class="sidebar-account-menu"
+          :content-props="{ 'aria-label': 'Cuenta' }"
         >
-          <v-icon size="20">{{ item.icon }}</v-icon>
-          <span>{{ item.label }}</span>
-        </button>
+          <template v-slot:activator="{ on, attrs }">
+            <button
+              type="button"
+              class="session-card session-trigger"
+              v-bind="attrs"
+              v-on="on"
+              :aria-label="'Menú de cuenta de ' + sessionName"
+              :title="collapsed ? sessionName : null"
+            >
+              <span class="session-avatar" aria-hidden="true">{{ sessionInitials }}</span>
+              <span class="session-copy">
+                <strong>{{ sessionName }}</strong>
+                <small>{{ sessionEmail || sessionRoleLabel || 'Sesión activa' }}</small>
+              </span>
+              <v-icon class="session-chevron" size="18" aria-hidden="true">mdi-chevron-right</v-icon>
+            </button>
+          </template>
+
+          <v-list class="session-menu-list" role="presentation">
+            <div class="session-card session-menu-header">
+              <span class="session-avatar" aria-hidden="true">{{ sessionInitials }}</span>
+              <span>
+                <strong :title="sessionName">{{ sessionName }}</strong>
+                <small :title="sessionEmail || sessionRoleLabel">
+                  {{ sessionEmail || sessionRoleLabel || 'Sesión activa' }}
+                </small>
+                <small v-if="sessionEmail && sessionRoleLabel">{{ sessionRoleLabel }}</small>
+              </span>
+            </div>
+            <v-list-item
+              v-for="item in sessionItems"
+              :key="item.key"
+              :id="'account-' + (mobile ? 'mobile-' : 'desktop-') + item.key"
+              class="session-menu-item"
+              role="menuitem"
+              @click="$emit('session-action', item)"
+            >
+              <v-icon size="17" aria-hidden="true">{{ item.icon }}</v-icon>
+              <span>{{ item.label }}</span>
+            </v-list-item>
+          </v-list>
+        </v-menu>
       </div>
     </div>
   </aside>
@@ -136,6 +184,10 @@ export default {
       type: String,
       default: ''
     },
+    sessionEmail: {
+      type: String,
+      default: ''
+    },
     sessionRoleLabel: {
       type: String,
       default: ''
@@ -144,12 +196,26 @@ export default {
       type: String,
       default: ''
     },
+    businessLogo: {
+      type: String,
+      default: ''
+    },
+    collapsed: Boolean,
+    mobile: Boolean,
+    navigationOpen: {
+      type: Boolean,
+      default: true
+    },
     tenantRestricted: {
       type: Boolean,
       default: false
     }
   },
+  data: () => ({ failedLogo: '', accountMenuOpen: false }),
   computed: {
+    showBusinessLogo() {
+      return this.businessLogo && this.businessLogo !== this.failedLogo;
+    },
     operationItems: function() {
       return this.sectionItems.filter((item) => item.group === TENANT_NAVIGATION_GROUPS.OPERATION);
     },
@@ -158,6 +224,14 @@ export default {
     },
     managementItems: function() {
       return this.sectionItems.filter((item) => item.group === TENANT_NAVIGATION_GROUPS.MANAGEMENT);
+    }
+  },
+  watch: {
+    navigationOpen(open) {
+      if (!open) this.accountMenuOpen = false;
+    },
+    collapsed() {
+      this.accountMenuOpen = false;
     }
   },
   methods: {
@@ -199,13 +273,10 @@ export default {
 <style scoped>
 .tenant-navigation-rail {
   position: fixed;
-  top: 4rem;
-  left: 0;
-  bottom: 2.75rem;
+  inset-block: 0;
+  inset-inline-start: 0;
   z-index: 38;
-  width: 17rem;
-  padding: 0.85rem 0.8rem;
-  pointer-events: none;
+  width: var(--tenant-sidebar-width, 17rem);
 }
 
 .navigation-panel {
@@ -215,14 +286,11 @@ export default {
   min-height: 0;
   padding: 0.85rem;
   border-right: 1px solid rgba(14, 116, 144, 0.12);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.08);
-  pointer-events: auto;
+  background: #fff;
 }
 
 .navigation-brand {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: flex;
   gap: 0.75rem;
   align-items: center;
   min-width: 0;
@@ -231,11 +299,11 @@ export default {
 }
 
 .brand-copy {
+  flex: 1;
   min-width: 0;
 }
 
-.brand-mark,
-.session-avatar {
+.brand-mark {
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -254,6 +322,19 @@ export default {
   width: 2.4rem;
   height: 2.4rem;
   font-size: 0.8rem;
+}
+
+.brand-mark--logo {
+  background: #fff;
+  border: 1px solid #e5edf1;
+  overflow: hidden;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  padding: 0.2rem;
+  object-fit: contain;
 }
 
 .navigation-brand strong,
@@ -282,6 +363,9 @@ export default {
 }
 
 .navigation-brand strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -309,8 +393,7 @@ export default {
 }
 
 .primary-action,
-.navigation-item,
-.session-action {
+.navigation-item {
   width: 100%;
   min-height: 2.8rem;
   display: flex;
@@ -426,62 +509,105 @@ export default {
 }
 
 .navigation-session {
-  display: grid;
-  gap: 0.55rem;
+  --account-surface: #fff;
+  --account-border: #e5e7eb;
+  --account-hover: #f1f5f9;
+  --account-text: #0f172a;
+  --account-muted: #64748b;
+  --account-avatar-bg: #e5f2ef;
+  --account-avatar-text: #115e59;
   margin-top: auto;
-  padding-top: 0.85rem;
-  border-top: 1px solid #e5edf1;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--account-border);
 }
 
 .session-card {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.65rem;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
+  gap: 0.65rem;
   min-width: 0;
-  padding: 0.55rem 0.35rem;
+}
+
+.session-trigger {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  width: 100%;
+  padding: 0.45rem;
+  border-radius: 0.55rem;
+  text-align: start;
+}
+
+.session-trigger:hover,
+.session-trigger[aria-expanded="true"] {
+  background: var(--account-hover);
+}
+
+.session-trigger:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
 }
 
 .session-avatar {
+  display: grid;
+  place-items: center;
   width: 2rem;
   height: 2rem;
-  font-size: 0.72rem;
-}
-
-.session-card div {
-  min-width: 0;
-}
-
-.session-card strong,
-.session-card small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-action {
-  padding: 0 0.75rem;
-  color: #475569;
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  border-radius: 0.5rem;
+  background: var(--account-avatar-bg);
+  color: var(--account-avatar-text);
+  font-size: 0.74rem;
   font-weight: 700;
+  text-transform: uppercase;
 }
 
-.session-action:hover,
-.session-action:focus {
-  color: #b91c1c;
-  background: #fef2f2;
-  border-color: #fecaca;
-  outline: none;
+.session-card strong {
+  color: var(--account-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.session-card small,
+.session-chevron.v-icon {
+  color: var(--account-muted);
+}
+
+.navigation-session ::v-deep .sidebar-account-menu {
+  border: 1px solid var(--account-border);
+  border-radius: 0.65rem;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+}
+
+.session-menu-list.v-list {
+  padding: 0.25rem;
+  background: var(--account-surface);
+  color: var(--account-text);
+}
+
+.session-menu-header {
+  margin-bottom: 0.25rem;
+  padding: 0.45rem 0.45rem 0.65rem;
+  border-bottom: 1px solid var(--account-border);
+}
+
+.session-menu-item.v-list-item {
+  gap: 0.55rem;
+  min-height: 2.1rem;
+  padding-inline: 0.45rem;
+  border-radius: 0.4rem;
+  color: var(--account-text) !important;
+  font-size: 0.85rem;
+}
+
+.session-menu-item .v-icon {
+  color: var(--account-muted);
 }
 
 html[data-theme="clinical-night"] .navigation-panel {
   border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.95);
+  background: #0f172a;
 }
 
-html[data-theme="clinical-night"] .navigation-brand,
-html[data-theme="clinical-night"] .navigation-session {
+html[data-theme="clinical-night"] .navigation-brand {
   border-color: rgba(148, 163, 184, 0.18);
 }
 
@@ -491,13 +617,11 @@ html[data-theme="clinical-night"] .restricted-status {
   color: #93c5fd;
 }
 
-html[data-theme="clinical-night"] .navigation-brand strong,
-html[data-theme="clinical-night"] .session-card strong {
+html[data-theme="clinical-night"] .navigation-brand strong {
   color: #e2e8f0;
 }
 
 html[data-theme="clinical-night"] .navigation-brand small,
-html[data-theme="clinical-night"] .session-card small,
 html[data-theme="clinical-night"] .navigation-caption {
   color: #94a3b8;
 }
@@ -534,10 +658,50 @@ html[data-theme="clinical-night"] .primary-action.is-restricted .v-icon {
   color: #64748b;
 }
 
-html[data-theme="clinical-night"] .session-action {
-  color: #cbd5e1;
-  background: rgba(30, 41, 59, 0.82);
-  border-color: rgba(148, 163, 184, 0.2);
+html[data-theme="clinical-night"] .navigation-session {
+  --account-surface: #111c2e;
+  --account-border: #334155;
+  --account-hover: #1e293b;
+  --account-text: #e2e8f0;
+  --account-muted: #94a3b8;
+  --account-avatar-bg: #134e4a;
+  --account-avatar-text: #ccfbf1;
+}
+
+.is-collapsed .navigation-panel {
+  padding-inline: 0.55rem;
+}
+
+.is-collapsed .navigation-brand {
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-inline: 0;
+}
+
+.is-collapsed .brand-copy,
+.is-collapsed .navigation-caption,
+.is-collapsed .navigation-label,
+.is-collapsed .session-copy,
+.is-collapsed .session-chevron,
+.is-collapsed .restricted-label {
+  display: none;
+}
+
+.is-collapsed .navigation-item,
+.is-collapsed .primary-action,
+.is-collapsed .restricted-status {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.is-collapsed .active-marker {
+  inset-inline-start: 0.2rem;
+}
+
+.is-collapsed .session-trigger {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding-inline: 0;
 }
 
 @media (max-width: 1023px) {
@@ -545,13 +709,11 @@ html[data-theme="clinical-night"] .session-action {
     position: static;
     width: 100%;
     height: 100%;
-    padding: 0;
   }
 
   .navigation-panel {
     height: 100%;
     border-right: 0;
-    box-shadow: none;
   }
 }
 </style>

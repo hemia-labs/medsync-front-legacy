@@ -11,21 +11,21 @@ const evidence=path.resolve(__dirname,'../../../docs/saas-platform/phases/eviden
       const context=await browser.newContext({viewport:{width,height:width===1440?900:844}}),page=await context.newPage();
       page.on('pageerror',error=>errors.push(error.message));
       await page.route('http://127.0.0.1:4337/**',route=>route.fulfill({json:route.request().url().endsWith('/registration/context')
-        ?{enabled:true,legalDocuments:['terms_conditions','privacy_notice'].map(documentKey=>({documentKey,versionId:'qa-visual-v1',contentHash:'qa',title:documentKey==='privacy_notice'?'Aviso de privacidad · Prueba':'Términos · Prueba',
+        ?{enabled:true,legalContext:'synthetic-visual-context',legalSnapshotToken:'synthetic-snapshot',legalDocuments:['terms_conditions','privacy_notice'].map(documentKey=>({documentKey,versionId:'qa-visual-v1',contentHash:'qa',requiredAction:documentKey==='privacy_notice'?'acknowledge':'accept',title:documentKey==='privacy_notice'?'Aviso de privacidad · Prueba':'Términos · Prueba',
           contentHtml:'<script>window.legalUnsafe=true</script><img src=x onerror="window.legalUnsafe=true"><a href="javascript:alert(1)">Enlace de prueba</a>'+'<p>Texto sintético para comprobar la lectura y el desplazamiento. No es un documento contractual.</p>'.repeat(35)}))}
         :{success:true,data:{authenticated:false}}}));
-      await page.goto('http://127.0.0.1:4338/auth/registro');
+      await page.goto('http://127.0.0.1:4338/register');
       await page.locator('#register-name').fill('Nombre conservado');
-      await page.getByRole('button',{name:'Leer aviso de privacidad',exact:true}).click();
+      await page.getByRole('button',{name:'Leer Aviso de privacidad · Prueba',exact:true}).click();
       await expect(page.locator('.v-dialog--active')).toHaveCSS('transform','none');
       const body=page.locator('.flow-legal__body');
       assert.equal(await body.locator('script,img,[onerror],a[href^="javascript:"]').count(),0);
       assert.equal(await page.evaluate(()=>Boolean(window.legalUnsafe)),false);
-      const close=page.getByRole('button',{name:'Volver al registro',exact:true});
+      const close=page.getByRole('button',{name:'Cerrar documento',exact:true});
       const rect=await close.boundingBox();assert.ok(rect.y>=0&&rect.y+rect.height<=page.viewportSize().height);
       await body.focus();await page.keyboard.press('End');
       await page.screenshot({path:path.join(evidence,'legal-'+width+'.png'),animations:'disabled'});
-      await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'Leer aviso de privacidad',exact:true})).toBeFocused();
+      await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'Leer Aviso de privacidad · Prueba',exact:true})).toBeFocused();
       await expect(page.locator('#register-name')).toHaveValue('Nombre conservado');
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
       if(width===390){
