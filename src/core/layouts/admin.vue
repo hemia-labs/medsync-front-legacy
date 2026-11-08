@@ -368,7 +368,7 @@ export default {
           this.isMobileNavigationOpen = false
 
           if(item && item.key === 'logout') {
-            this.onLogout()
+            this.logout()
           }
         },
         isItemActive: function(item) {
@@ -430,16 +430,6 @@ export default {
           if(window.innerWidth >= 1024) {
             this.isMobileNavigationOpen = false
           }
-        },
-        onLogout: async function() {
-            await this.logout();
-            if(isD2AuthMode()) {
-                return
-            }
-
-            if(!this.isAuthorized) {
-                this.$router.push('/login')
-            }
         },
         roleLabel: function(role) {
             const roles = {

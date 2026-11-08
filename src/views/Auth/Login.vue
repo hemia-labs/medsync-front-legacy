@@ -39,7 +39,7 @@
         <v-form v-if="isLoginView" class="login-form" @submit.prevent="onLogin">
           <h1 id="login-title" class="auth-title">Acceso a tu portal clínico</h1>
           <p class="auth-subtitle">
-            Ingresa con tu correo electrónico y contraseña para continuar.
+            Ingresa con tu correo electrónico o teléfono y tu contraseña para continuar.
           </p>
 
           <v-alert
@@ -66,21 +66,20 @@
             {{ loginErrorMessage }}
           </v-alert>
 
-          <label class="login-field-label" for="login-phone">Correo electrónico</label>
+          <label class="login-field-label" for="login-phone">{{ ui.identifierLabel }}</label>
           <v-text-field
             id="login-phone"
             v-model.trim="$v.auth.param.$model"
-            placeholder="Ingresa tu correo electrónico"
-            type="email"
-            inputmode="email"
+            placeholder="Ingresa tu correo electrónico o teléfono"
+            type="text"
             maxlength="254"
             autocomplete="username"
-            prepend-inner-icon="mdi-email-outline"
+            prepend-inner-icon="mdi-account-outline"
             outlined
             dense
             class="auth-input"
             color="var(--auth-focus)"
-            :error-messages="phoneErrors"
+            :error-messages="identifierErrors"
             :disabled="isLoading"
             @input="clearLoginError"
           ></v-text-field>
@@ -117,7 +116,7 @@
           <div class="auth-row">
             <v-checkbox
               v-model="rememberIdentifier"
-              :label="ui.rememberPhone"
+              :label="ui.rememberIdentifier"
               color="var(--color-primary-700)"
               hide-details
               class="remember-checkbox"
@@ -427,12 +426,14 @@
 
 <script>
 import { mapActions, mapGetters } from 'vuex';
+import { isNavigationFailure } from 'vue-router';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import DAAuthModel from '../../models/auth/DAAuthModel';
 import { DAConfigService } from '../../services/context/core-proccess-context';
 import { validationMixin } from 'vuelidate';
-import { required, email, maxLength } from 'vuelidate/lib/validators';
+import { required, email, maxLength, or } from 'vuelidate/lib/validators';
+import { loginPhonePattern } from '../../utils/common/regex';
 import { registrationPasswordError } from '../../utils/registration';
 import { getLoginImageData, getStoredLoginLogo, setStoredLoginLogo } from '../../utils/branding';
 import defaultLoginLogo from '@/assets/login/med-sync-logo.svg';
@@ -494,12 +495,12 @@ export default {
       defaultBrandLogo: defaultLoginLogo,
       bgLogotype: getStoredLoginLogo() || defaultLoginLogo,
       ui: {
-        phoneLabel: 'Correo electrónico',
+        identifierLabel: 'Correo electrónico o teléfono',
         passwordLabel: 'Contrase\u00f1a',
         recoveryCodeLabel: 'C\u00f3digo de recuperaci\u00f3n',
         newPasswordLabel: 'Nueva contrase\u00f1a',
         confirmPasswordLabel: 'Confirmar contrase\u00f1a',
-        rememberPhone: 'Recordar mi correo electrónico',
+        rememberIdentifier: 'Recordar mi correo o teléfono',
         showPassword: 'Mostrar contrase\u00f1a',
         hidePassword: 'Ocultar contrase\u00f1a',
         showNewPassword: 'Mostrar nueva contrase\u00f1a',
@@ -533,7 +534,7 @@ export default {
     auth: {
       param: {
         required,
-        email,
+        identifier: or(email, loginPhonePattern),
         maxLength: maxLength(254)
       },
       pwd: {
@@ -553,6 +554,7 @@ export default {
       hasErrorPWD: fnTypes.hasErrorPWD,
       unauthorized: fnTypes.unauthorized,
       role: fnTypes.getRole,
+      business: fnTypes.getBusiness,
       tenantOperational: fnTypes.getTenantOperational
     }),
     isActive() {
@@ -650,15 +652,15 @@ export default {
 
       return errors;
     },
-    phoneErrors() {
+    identifierErrors() {
       const errors = [];
       if (!this.$v.auth.param.$dirty) {
         return errors;
       }
       if (!this.$v.auth.param.required) {
-        errors.push('Ingresa tu correo electrónico.');
-      } else if (!this.$v.auth.param.email || !this.$v.auth.param.maxLength) {
-        errors.push('Ingresa un correo electrónico válido.');
+        errors.push('Ingresa tu correo electrónico o teléfono.');
+      } else if (!this.$v.auth.param.identifier || !this.$v.auth.param.maxLength) {
+        errors.push('Ingresa un correo electrónico válido o un teléfono de entre 7 y 15 dígitos.');
       }
       return errors;
     },
@@ -744,6 +746,10 @@ export default {
 
       if (normalized.includes('network') || normalized.includes('timeout') || normalized.includes('no fue posible completar') || normalized.includes('preparar la solicitud segura')) {
         return 'No pudimos conectar con MedSync. Revisa tu conexi\u00f3n e int\u00e9ntalo nuevamente.';
+      }
+
+      if (/^(no pudimos iniciar sesi[oó]n con esos datos|usuario o contraseña incorrectos)\.?$/.test(normalized.trim())) {
+        return 'Usuario o contraseña incorrectos.';
       }
 
       return 'No pudimos iniciar sesi\u00f3n con esos datos.';
@@ -881,7 +887,7 @@ export default {
       this.clearRecoveryFeedback();
       this.resetRecoveryTouched();
       this.recoveryStep = 'phone';
-      this.phoneOtp = this.auth.param || this.phoneOtp || '';
+      this.phoneOtp = (email(this.auth.param) ? this.auth.param : '') || this.phoneOtp || '';
       this.classFormAuth = 'hidden';
       this.classFormOtp = 'hidden';
       this.classFormPass = 'hidden';
@@ -986,32 +992,36 @@ export default {
 
       this.syncRememberedIdentifier();
       this.isLoading = true;
-      if (this.isAuthorized) {
-        this.isLoading = false;
-        this.$router.push(this.getPostLoginRoute());
-        return;
-      }
+      try {
+        if (!this.isAuthorized) {
+          await this.login(this.auth);
+          if (!this.isAuthorized) return;
 
-      await this.login(this.auth);
-      if (this.isAuthorized) {
-        if (isPendingActivation(this.tenantOperational)) {
-          const user = this.$store.getters['CORE/AUTH/getUser'] || {};
-          try { sessionStorage.removeItem(verificationStorageKey(user.id_login, user.email)); }
-          catch (_) { /* The verification screen also works without storage. */ }
+          if (isPendingActivation(this.tenantOperational, this.business)) {
+            const user = this.$store.getters['CORE/AUTH/getUser'] || {};
+            try { sessionStorage.removeItem(verificationStorageKey(user.id_login, user.email)); }
+            catch (_) { /* The verification screen also works without storage. */ }
+          } else {
+            await this.loadLoginImage();
+          }
         }
-        if (!isPendingActivation(this.tenantOperational)) await this.loadLoginImage();
-        this.$router.push(this.getPostLoginRoute());
+
+        await this.$router.push(this.getPostLoginRoute());
+      } catch (error) {
+        if (!isNavigationFailure(error)) throw error;
+      } finally {
+        this.isLoading = false;
       }
-      this.isLoading = false;
     },
 
     getPostLoginRoute: function() {
-      if (this.role !== 'super_admin' && isPendingActivation(this.tenantOperational)) return '/activar-cuenta';
+      if (this.role !== 'super_admin' && isPendingActivation(this.tenantOperational, this.business)) return '/activar-cuenta';
       if (isD2AuthMode()) {
         if (this.role !== 'super_admin' && this.tenantOperational && this.tenantOperational.allowed === false && this.tenantOperational.code === 'TENANT_NOT_OPERATIONAL') {
           return '/tenant-restricted';
         }
 
+        if (this.role !== 'super_admin' && this.business && this.business.registrationWelcomePending) return '/activar-cuenta';
         return this.role === 'super_admin' ? '/super-admin/dashboard' : '/inicio';
       }
 

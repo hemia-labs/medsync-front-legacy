@@ -26,7 +26,7 @@ Vue.prototype.$session = { get: key => storage.get(key), set: (key, value) => st
 let d2 = true;
 const authMutations = load('src/store/modules/auth/mutations.js', { Vue, types, ...permissions, ...rights,
   isD2AuthMode: () => d2, decode: value => JSON.parse(value) });
-const blank = () => ({ authenticated: false, user: null, role: null, permissions: [], business: null, accessRevision: 0 });
+const blank = () => ({ authenticated: false, user: null, role: null, permissions: [], business: null, accessRevision: 0, isLoggingOut: false });
 class PatientModel { constructor() { this.notes = []; } isEmpty() { return this.notes.length === 0; } }
 const CORE = { namespaced: true, state: () => ({ currentAction: null }), modules: {
   AUTH: { namespaced: true, state: blank, mutations: authMutations },
@@ -45,7 +45,7 @@ const session = (permission = 'clinical_history.view', role = 'doctor') => ({ au
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const deferred = [];
 const network = () => new Promise(resolve => deferred.push(resolve));
-const windows = { location: { href: '', pathname: '/patient' } };
+const windows = { location: { href: '', pathname: '/patient', replace(path) { this.href = path; } } };
 let sessionCalls = 0;
 let sessionReply;
 let closeCalls = 0;
@@ -172,7 +172,12 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     closeReply = new Promise(resolve => { resolveClose = resolve; });
     const pending = actions.refreshAccess(actionContext);
     store.state.CORE.PX.patient = 'private-fixture';
+    const beforeClose = closeCalls;
     const closing = actions.logout(actionContext);
+    assert.equal(state.isLoggingOut, true, 'Logout shows the loader before clearing protected views');
+    await actions.logout(actionContext);
+    assert.equal(closeCalls, beforeClose + 1, 'Repeated logout does not send a second close');
+    assert.equal(await actions.getToken(actionContext), null, 'Bootstrap cannot reopen the session during logout');
     assert.equal(state.authenticated, false, 'Logout clears local authorization before network completion');
     assert.equal(store.state.CORE.PX.patient, null);
     await tick();
@@ -189,6 +194,8 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     resolveClose({ success: false }); await closing;
     assert.equal(storage.has('token'), false, 'Both transports clear client storage after a failed close');
     assert.equal(windows.location.href, '/login');
+    assert.equal(state.isLoggingOut, true, 'The current document keeps the loader until it unloads');
+    commit(types.SET_AUTH_LOGGING_OUT, false); // Simulate the new document's initial state.
   }
   assert.equal(closeCalls, 2);
   commit(types.SET_AUTH_ACCESS_SESSION, session());
@@ -294,6 +301,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     assert.equal(storage.has('token'), false);
     if(!mode) assert.equal(closeRequests[closeRequests.length - 1].config.headers.Authorization, 'access-only-to-close');
     else assert.equal(closeRequests[closeRequests.length - 1].config.headers['X-CSRF-Token'], 'csrf-fixture');
+    commit(types.SET_AUTH_LOGGING_OUT, false);
   }
 
   d2 = false;
@@ -377,6 +385,7 @@ const actionContext = { state, commit, dispatch: async (key, payload) => actions
     assert.equal(actualCloses, 2);
     assert.equal(serverSessionActive, false, 'Expired/missing access cookie logout really closes the server session');
     assert.equal(state.authenticated, false);
+    commit(types.SET_AUTH_LOGGING_OUT, false);
     await actions.getToken(actionContext);
     assert.equal(state.authenticated, false, 'Login-page bootstrap cannot restore the closed session');
     assert.equal(actualRenewals, 2, 'A closed session never renews again');

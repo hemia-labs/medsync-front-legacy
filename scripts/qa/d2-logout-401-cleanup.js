@@ -118,7 +118,7 @@ assertIncludesAll(
         'DEFAULT_BROWSER_AUTH_TRANSPORT = BROWSER_AUTH_TRANSPORTS.AUTHORIZATION',
         'const hadSession = state.authenticated || state.token',
         'clearLegacyAuthStorageForD2(Vue.prototype.$session)',
-        "window.location.href = '/login'",
+        "window.location.replace('/login')",
         "store.commit(modules.AUTH+'/'+types.SET_AUTH_UNAUTHORIZED, true, {root: true})"
     ],
     'Legacy defaults, shared logout cleanup, login redirect and 401 unauthorized commit remain present.'
