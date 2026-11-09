@@ -1,5 +1,5 @@
 <template>
-  <aside v-if="sessionEligible && (pendingCount > 0 || error)" class="legal-update-notice" aria-labelledby="legal-update-notice-title">
+  <aside v-if="sessionEligible && (pendingCount > 0 || error || syncPending)" class="legal-update-notice" aria-labelledby="legal-update-notice-title">
     <span class="legal-update-icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
@@ -7,9 +7,10 @@
       </svg>
     </span>
     <div class="legal-update-copy">
-      <h2 id="legal-update-notice-title">{{ pendingCount > 0 ? 'Revisión legal pendiente' : 'No pudimos revisar las actualizaciones legales' }}</h2>
+      <h2 id="legal-update-notice-title">{{ pendingCount > 0 ? 'Revisión legal pendiente' : syncPending && !error ? 'Confirmaciones en sincronización' : 'No pudimos revisar las actualizaciones legales' }}</h2>
       <p v-if="pendingCount > 0" role="status"><strong>{{ pendingCount }} {{ pendingCount === 1 ? 'documento por revisar' : 'documentos por revisar' }}.</strong> Puedes continuar trabajando.</p>
       <details v-if="pendingCount > 0"><summary>Sobre la aceptación</summary><p>Revisa los documentos en Cuenta y legal antes de aceptarlos.</p><p v-if="businessPending">La aceptación por el consultorio corresponde a una persona administradora. Las aceptaciones personales las realiza cada usuario.</p></details>
+      <p v-if="syncPending" role="status">Tus confirmaciones están guardadas y pendientes de sincronizar. No necesitas aceptarlas otra vez.</p>
       <p v-if="error" role="alert">{{ error }}</p>
     </div>
     <div class="legal-update-actions">
@@ -28,14 +29,14 @@ import { authorizationContext, authorizationFingerprint, isCurrentAuthorization 
 const CHECK_INTERVAL = 45000;
 export default {
   name: 'LegalUpdateNotice',
-  data: () => ({ pendingCount: null, businessPending: false, loading: false, error: '', lastCheckedAt: 0, request: 0, disposed: false, queuedRefresh: false }),
+  data: () => ({ pendingCount: null, businessPending: false, syncPending: false, loading: false, error: '', lastCheckedAt: 0, request: 0, disposed: false, queuedRefresh: false }),
   computed: {
     authState() { return this.$store && this.$store.state && this.$store.state.CORE && this.$store.state.CORE.AUTH || {}; },
     sessionEligible() { const auth = this.authState; return Boolean(auth.authenticated && (auth.user || {}).id_login && ((auth.business || {}).id_business || (auth.user || {}).id_business) && String(auth.role || '').toLowerCase() !== 'super_admin'); },
     sessionKey() { return authorizationFingerprint(this.authState) + ':' + (this.authState.accessRevision || 0) + ':' + String(this.authState.token || ''); }
   },
   watch: {
-    sessionKey: { immediate: true, handler() { this.request++; this.pendingCount = null; this.businessPending = false; this.loading = false; this.error = ''; this.lastCheckedAt = 0; this.queuedRefresh = false; if(this.sessionEligible) this.load(true); } },
+    sessionKey: { immediate: true, handler() { this.request++; this.pendingCount = null; this.businessPending = false; this.syncPending = false; this.loading = false; this.error = ''; this.lastCheckedAt = 0; this.queuedRefresh = false; if(this.sessionEligible) this.load(true); } },
     '$route.fullPath'() { this.load(); }
   },
   mounted() { window.addEventListener('focus', this.onVisible); document.addEventListener('visibilitychange', this.onVisible); window.addEventListener('saas-legal-accepted', this.onAccepted); },
@@ -55,6 +56,8 @@ export default {
         if(this.disposed || request !== this.request) return false;
         if(!current()) { this.pendingCount = null; this.businessPending = false; this.error = 'La sesión o tus accesos cambiaron. Reintenta para comprobar los documentos actuales.'; return false; }
         if(!response || !response.success || !response.data || !Array.isArray(response.data.documents) || !Number.isInteger(response.data.pending_count) || response.data.pending_count < 0) throw new Error();
+        this.syncPending = response.data.central_sync_pending === true;
+        this.error = response.data.pending_unknown ? 'No pudimos consultar Legal central. Reintenta para comprobar sus documentos pendientes.' : '';
         this.pendingCount = response.data.pending_count; this.businessPending = response.data.documents.some(item => item.pending && item.acceptance_scope === 'business'); return true;
       } catch(_) { if(current()) this.error = 'Actualiza la consulta para comprobar qué versiones están pendientes. No se registró ninguna aceptación desde este aviso.'; return false; }
       finally {

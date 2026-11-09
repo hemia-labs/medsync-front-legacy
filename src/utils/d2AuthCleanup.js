@@ -9,7 +9,7 @@ export const D2_UNAUTHORIZED_REDIRECT_SKIP_ENDPOINTS = Object.freeze([
   'api/auth/csrf'
 ]);
 
-const AUTH_LOGIN_PATH = '/auth/login';
+const AUTH_LOGIN_PATH = '/login';
 
 const normalizeRequestUrl = (url) => {
   if (!url) {

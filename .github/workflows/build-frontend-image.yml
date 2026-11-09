@@ -1,0 +1,79 @@
+name: Build MedSync frontend image
+
+on:
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build and verify the static container
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_BASE_REF" == main ]]; then
+            api=https://api.medsync.mx/
+          else
+            api=https://api-test.medsync.mx/
+          fi
+          docker build --build-arg "VUE_APP_CORE_URL_API=$api" \
+            --build-arg "DEPLOY_RELEASE=$GITHUB_SHA" --tag medsync-front-check .
+          docker run --rm --entrypoint nginx medsync-front-check -t
+          export MEDSYNC_FRONT_IMAGE=medsync-front-check MEDSYNC_FRONT_PORT=14324
+          compose=(docker compose -p medsync-front-check -f ops/frontend/compose.yml)
+          trap '"${compose[@]}" down' EXIT
+          "${compose[@]}" up -d --wait --wait-timeout 45
+          origin=http://127.0.0.1:14324
+          marker="$(curl -fsS "$origin/deploy-release.json")"
+          expected="$(jq -er --arg release "$GITHUB_SHA" 'select(.application == "medsync-front-legacy" and .release == $release) | .indexSha256' <<<"$marker")"
+          html="$(mktemp)"
+          curl -fsS "$origin/auth/login" -o "$html"
+          [[ "$(sha256sum "$html" | cut -d ' ' -f1)" == "$expected" ]]
+          asset="$(grep -oE '/js/app[.][a-f0-9]{8}[.]js' "$html" | head -n 1)"
+          curl -fsS "$origin$asset" -o /dev/null
+          [[ "$(curl -sS -o /dev/null -w '%{http_code}' "$origin/js/missing.js")" == 404 ]]
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build and publish the environment image
+        env:
+          REGISTRY_USERNAME: ${{ vars.FRONT_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.FRONT_REGISTRY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${REGISTRY_USERNAME:?Missing FRONT_REGISTRY_USERNAME}" "${REGISTRY_PASSWORD:?Missing FRONT_REGISTRY_PASSWORD}"
+          registry=registry.hemia.cloud
+          if [[ "$GITHUB_REF_NAME" == main ]]; then
+            repository="$registry/medsync/prod-front"
+            api=https://api.medsync.mx/
+          else
+            repository="$registry/medsync/qa-front"
+            api=https://api-test.medsync.mx/
+          fi
+          release="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          export DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/medsync-front-registry.XXXXXX")"
+          trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$REGISTRY_PASSWORD" | docker login "$registry" --username "$REGISTRY_USERNAME" --password-stdin
+          unset REGISTRY_PASSWORD
+          docker buildx build --platform linux/amd64 --provenance=false --push \
+            --build-arg "VUE_APP_CORE_URL_API=$api" --build-arg "DEPLOY_RELEASE=$release" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "$repository:$release" --metadata-file "$DOCKER_CONFIG/metadata.json" .
+          digest="$(jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' "$DOCKER_CONFIG/metadata.json")"
+          printf 'Frontend image: `%s@%s`\n' "$repository" "$digest" >> "$GITHUB_STEP_SUMMARY"

@@ -9,14 +9,20 @@ function load(file,bindings={},component=false) {
 }
 (async()=>{
   const rules=await import('data:text/javascript;base64,'+Buffer.from(read('src/utils/registration.js')).toString('base64'));
-  const valid={name:'Médica Ñ',businessName:'Clínica Ñ',telephone:'5512345678',email:'QA@example.test',password:'  Una frase extensa y privada  '};
+  const valid={name:'Médica',lastName:'Ñ',businessName:'Clínica Ñ',telephone:'5512345678',email:'QA@example.test',password:'  Una frase extensa y privada  '};
+  valid.confirmPassword=valid.password;
   assert.deepEqual(rules.registrationErrors(valid),{});
+  assert.ok(rules.registrationErrors({...valid,lastName:''}).lastName);
+  assert.ok(rules.registrationErrors({...valid,name:'a'.repeat(100),lastName:'b'.repeat(100)}).lastName);
+  assert.deepEqual(rules.registrationErrors({...valid,telephone:''}),{});
+  assert.deepEqual(rules.registrationErrors({...valid,password:'Eight123',confirmPassword:'Eight123'}),{});
+  assert.ok(rules.registrationErrors({...valid,confirmPassword:'different'}).confirmPassword);
   assert.ok(rules.registrationErrors({...valid,telephone:'+525512345678'}).telephone);
   assert.ok(rules.registrationErrors({...valid,password:'corta'}).password);
-  assert.deepEqual(rules.registrationErrors({...valid,password:'😀'.repeat(128)}),{});
+  assert.deepEqual(rules.registrationErrors({...valid,password:'😀'.repeat(128),confirmPassword:'😀'.repeat(128)}),{});
   assert.ok(rules.registrationErrors({...valid,password:'😀'.repeat(129)}).password);
   assert.equal(rules.usableRegistrationContext({enabled:true,legalDocuments:[]}),false);
-  const complete={enabled:true,legalDocuments:rules.LEGAL_KEYS.map(documentKey=>({documentKey,versionId:'v1',contentHash:'hash',title:'Legal',contentHtml:'<p>Texto</p>'}))};
+  const complete={enabled:true,legalContext:'server-signed-context',legalSnapshotToken:'snapshot',legalDocuments:rules.LEGAL_KEYS.map((documentKey,i)=>({documentKey,versionId:'v'+i,contentHash:'hash',title:'Legal',requiredAction:i?'acknowledge':'accept',contentHtml:'<p>Texto</p>'}))};
   assert.equal(rules.usableRegistrationContext(complete),true);
   assert.equal(rules.usableRegistrationContext({...complete,legalDocuments:[complete.legalDocuments[0],complete.legalDocuments[0]]}),false);
 
@@ -30,7 +36,7 @@ function load(file,bindings={},component=false) {
   const Vue={use(){},nextTick:fn=>fn(),prototype:{$session:{get:key=>key==='token'?(authorized?'token':null):key==='tenantOperational'?restricted():null}}};
   class Router{constructor(options){this.options=options;}beforeEach(fn){this.guard=fn;}afterEach(){}}
   const router=load('src/router/index.js',{Vue,VueRouter:Router,store,isD2AuthMode:()=>cookie,isPendingActivation:rules.isPendingActivation,
-    ...Object.fromEntries(['dashboard','superAdmin','admin','auth','patient','error','legal','business','prescription','publicSignature','licensingDemo'].map(name=>[name,[]])),
+    ...Object.fromEntries(['dashboard','superAdmin','admin','auth','patient','error','legal','business','prescription','publicSignature','licensingDemo','help'].map(name=>[name,[]])),
     process:{env:{}},getSessionPermissions:()=>[],hasAnyPermission:()=>true,hasPermission:()=>true,canAccessSettings:()=>true,canAccessPulse:()=>true});
   const navigate=(name,meta={requireAuth:true})=>new Promise(resolve=>router.guard({name,matched:[{meta}],query:{}},{},resolve));
   for(const mode of [true,false]){
@@ -49,9 +55,10 @@ function load(file,bindings={},component=false) {
 
   let calls=[],csrf=0,refreshes=0,revision=1,fail=null;
   const service=load('src/services/core/auth/DARegistrationService.js',{
-    axios:{create:()=>({request:async config=>{calls.push(config);if(fail){const error=fail;fail=null;throw error;}return {data:{ok:true}};}})},
+    axios:{create:()=>({interceptors:{response:{use(){}}},request:async config=>{calls.push(config);if(fail){const error=fail;fail=null;throw error;}return {data:{ok:true}};}})},
     context:{APP_CORE_URL:'https://qa.invalid/'},isCsrfEnabled:()=>true,
-    DACsrfService:{getCsrfHeader:async options=>{assert.equal(options.force,true);csrf++;return {'X-CSRF-Token':'synthetic'};},clearCsrfToken(){}},
+    axiosHelper:{buildRequestConfig:async (method,{headers})=>({headers:method==='get'?headers:{...headers,'X-CSRF-Token':`synthetic-${++csrf}`}})},
+    DACsrfService:{clearCsrfToken(){}},
     store:{getters:{'CORE/AUTH/isAuthorized':true},dispatch:async()=>{refreshes++;}},
     authorizationContext:()=>revision,isCurrentAuthorization:owner=>owner===revision
   });
@@ -60,8 +67,26 @@ function load(file,bindings={},component=false) {
   fail={response:{status:429,data:{code:'REGISTRATION_RATE_LIMITED',retryAfterSeconds:47},headers:{}}};
   await assert.rejects(service.sendCode(),error=>error.retryAfterSeconds===47);assert.equal(refreshes,0);
   fail={response:{status:401,data:{code:'AUTH_ACCESS_EXPIRED'},headers:{}}};await service.activation();assert.equal(refreshes,1);
+  let submitted;
+  const Register=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PlanCatalog:{},LEGAL_KEYS:rules.LEGAL_KEYS,
+    registrationErrors:rules.registrationErrors,registrationAttemptId:()=> 'test-attempt',
+    Registration:{register:async payload=>{submitted=payload;return {accountCreated:true,sessionEstablished:false};}}},true);
+  const registration={...Register.data(),loading:false,form:{...valid,name:' Médica ',lastName:' Ñ ',telephone:''},available:true,context:complete,documents:complete.legalDocuments,accepted:{terms_conditions:true,privacy_notice:true}};
+  await Register.methods.submit.call({...registration,loading:true});
+  assert.equal(submitted,undefined,'Pending legal refresh must block submission');
+  await Register.methods.submit.call(registration);
+  assert.equal(submitted.legalContext,complete.legalContext);
+  assert.equal(submitted.legalAcceptances.length,2);
+  assert.equal(rules.usableRegistrationContext({...complete,legalContext:''}),false);
+  assert.equal(rules.usableRegistrationContext({...complete,legalDocuments:complete.legalDocuments.map(doc=>({...doc,requiredAction:'unknown'}))}),false);
+  assert.ok(Register.methods.documentConfirmation({requiredAction:'acknowledge',title:'Aviso'}).includes('se me presentó'));
+  assert.ok(Register.methods.documentConfirmation({requiredAction:'accept',title:'Términos'}).startsWith('Acepto'));
+  assert.equal(submitted.account.first_name,'Médica');
+  assert.equal(submitted.account.last_name,'Ñ');
+  assert.equal(submitted.account.telephone,'');
+  assert.equal(registration.created,true);
   for(const file of ['Register','AccountActivation']) {
-    const component=load('src/views/Auth/'+file+'.vue',{AccountFlowShell:{}},true);
+    const component=load('src/views/Auth/'+file+'.vue',{AccountFlowShell:{},ActivationWelcome:{}},true);
     const destroyed={_isDestroyed:true};await component.methods.showError.call(destroyed,{code:'REGISTRATION_RATE_LIMITED',retryAfterSeconds:60});
     assert.deepEqual(destroyed,{_isDestroyed:true},'Late failure cannot start timers or update a destroyed view');
   }

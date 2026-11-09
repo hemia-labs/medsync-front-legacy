@@ -1,7 +1,8 @@
 export const REMEMBERED_IDENTIFIER_KEY = 'medsync.auth.rememberedIdentifier.v1';
 
 export function normalizeRememberedIdentifier(value) {
-  return String(value || '').replace(/\D/g, '').slice(0, 15);
+  const identifier = String(value || '').trim().toLowerCase();
+  return identifier.includes('@') ? identifier.slice(0, 254) : identifier.replace(/\D/g, '').slice(0, 15);
 }
 
 export function getRememberedIdentifier() {

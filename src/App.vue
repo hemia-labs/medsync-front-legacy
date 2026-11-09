@@ -2,8 +2,9 @@
 
   <div id="app" style="height: 100%">
     <v-app style="height: 100%;">
-      <component v-bind:is="layout" style="height: 100%">
-          <router-view :key="authorizationRevision" />
+      <da-loader v-if="isLoggingOut" :overlay="true" />
+      <component v-else v-bind:is="layout" style="height: 100%">
+          <router-view :key="routeViewKey" />
       </component>
 
     </v-app>
@@ -61,8 +62,15 @@ export default {
     }
   },
   computed: {
+    isLoggingOut() {
+      return this.$store.state.CORE.AUTH.isLoggingOut;
+    },
     authorizationRevision() {
       return this.$store.getters[moduleTypes.AUTH + '/getAccessRevision'];
+    },
+    routeViewKey() {
+      // Login and recovery share a view that must survive session creation until navigation.
+      return ['login', 'forgotPassword'].includes(this.$route.name) ? 'login' : this.authorizationRevision;
     },
     layout: function() {
       return (this.$route.meta.layout || default_layout) + "-layout";

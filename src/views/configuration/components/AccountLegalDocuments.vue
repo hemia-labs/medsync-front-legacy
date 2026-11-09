@@ -6,11 +6,13 @@
         <h2 id="account-legal-title">Documentos de tu cuenta</h2>
         <p>Revisa las versiones publicadas y conserva el comprobante de cada aceptación. Una actualización requiere una nueva revisión.</p>
       </div>
-      <button type="button" class="legal-button legal-button--outline" :disabled="currentLoading || historyLoading || saving" @click="refreshAll">Actualizar documentos</button>
+      <button type="button" class="legal-button legal-button--outline" :disabled="currentLoading || historyLoading || saving || reviewSaving" @click="refreshAll">Actualizar documentos</button>
     </header>
 
     <p v-if="!sessionEligible" class="legal-message" role="status">Inicia sesión con un usuario de tu consultorio para consultar estos documentos.</p>
     <template v-else>
+      <p v-if="centralWarning" class="legal-message" role="status">{{ centralWarning }}</p>
+      <CentralLegalReview :owner-key="sessionKey" :available="centralReviewAvailable" :disabled="saving || currentLoading || !!currentError" @saving="reviewSaving = $event" @confirmed="refreshAfterCentral" @refresh="refreshAll" />
       <p v-if="currentLoading" class="legal-message" role="status">Consultando las versiones publicadas…</p>
       <div v-if="currentError" class="legal-message legal-message--error" role="alert">
         <p>{{ currentError }}</p><button type="button" class="legal-link" :disabled="currentLoading || saving" @click="loadCurrent">Reintentar consulta</button>
@@ -20,25 +22,27 @@
         <article v-for="item in documents" :key="item.id_document" class="legal-document-card bg-white border border-gray-200">
           <div class="legal-card-top"><h3>{{ item.title }}</h3><span class="legal-status" :class="statusClass(item)">{{ statusLabel(item) }}</span></div>
           <p v-if="item.description">{{ item.description }}</p>
-          <p class="legal-scope">{{ scopeHelp(item.acceptance_scope) }}</p>
+          <p class="legal-scope">{{ scopeHelp(item.acceptance_scope) }} · {{ item.source === 'central' ? 'Legal central' : 'Historial local' }}</p>
           <p v-if="!item.current_version">Aún no se ha publicado una versión. No hay una aceptación disponible.</p>
           <template v-else>
-            <p class="legal-meta">Versión {{ item.current_version.version_number }} · Publicada {{ formatDate(item.current_version.published_at) }}</p>
+            <p class="legal-meta">Versión {{ item.current_version.version_number }}<template v-if="item.current_version.published_at"> · Publicada {{ formatDate(item.current_version.published_at) }}</template></p>
             <p v-if="isAccepted(item)" class="legal-meta">Aceptada por {{ actorName(item.accepted) }} el {{ formatDate(item.accepted.accepted_at) }}.</p>
             <p v-else-if="item.pending && !item.can_accept && item.acceptance_scope === 'business'" class="legal-responsible">Pide a una persona administradora que revise y acepte esta versión por el consultorio.</p>
-            <button type="button" class="legal-button legal-button--outline" :disabled="saving || currentLoading" @click="openCurrent(item)">Ver documento<span class="sr-only">: {{ item.title }}, versión {{ item.current_version.version_number }}</span></button>
+            <button type="button" class="legal-button legal-button--outline" :disabled="saving || reviewSaving || currentLoading" @click="openCurrent(item)">Ver documento<span class="sr-only">: {{ item.title }}, versión {{ item.current_version.version_number }}</span></button>
           </template>
         </article>
       </div>
 
       <section class="legal-history" aria-labelledby="legal-history-title">
-        <div class="legal-history-heading"><div><h3 id="legal-history-title">Historial y comprobantes</h3><p>Las versiones aceptadas se conservan para consulta. El historial personal sólo muestra tus aceptaciones.</p></div><button type="button" class="legal-link" :disabled="historyLoading || saving" @click="loadHistory">Actualizar historial</button></div>
+        <div class="legal-history-heading"><div><h3 id="legal-history-title">Historial y comprobantes</h3><p>Las versiones aceptadas se conservan para consulta. El historial personal sólo muestra tus aceptaciones.</p></div><button type="button" class="legal-link" :disabled="historyLoading || saving || reviewSaving" @click="loadHistory">Actualizar historial</button></div>
+        <p v-if="historyWarning" class="legal-message" role="status">{{ historyWarning }}</p>
+        <button v-if="historyCursor" type="button" class="legal-link" :disabled="historyLoading || saving || reviewSaving" @click="loadHistory(true)">Cargar más comprobantes de Legal central</button>
         <p v-if="historyLoading" class="legal-message" role="status">Consultando comprobantes…</p>
-        <div v-if="historyError" class="legal-message legal-message--error" role="alert"><p>{{ historyError }}</p><button type="button" class="legal-link" :disabled="historyLoading || saving" @click="loadHistory">Reintentar historial</button></div>
+        <div v-if="historyError" class="legal-message legal-message--error" role="alert"><p>{{ historyError }}</p><button type="button" class="legal-link" :disabled="historyLoading || saving || reviewSaving" @click="loadHistory">Reintentar historial</button></div>
         <p v-if="historyLoaded && !historyLoading && !historyError && !acceptances.length" class="legal-message" role="status">Aún no hay aceptaciones registradas para mostrar.</p>
         <ol v-if="historyLoaded && !historyError && acceptances.length" class="legal-receipt-list">
           <li v-for="receipt in acceptances" :key="receipt.id_acceptance" class="legal-receipt bg-white border border-gray-200">
-            <div><strong>{{ receipt.title || 'Documento legal' }} · Versión {{ receipt.version_number }}</strong><p>{{ scopeLabel(receipt.acceptance_scope) }} · {{ actorName(receipt) }}</p><p>{{ formatDate(receipt.accepted_at) }}</p><p class="legal-hash" v-if="receipt.content_hash">Huella del contenido: {{ receipt.content_hash }}</p></div>
+            <div><strong>{{ receipt.title || 'Documento legal' }} · Versión {{ receipt.version_number }}</strong><p>{{ scopeLabel(receipt.acceptance_scope) }} · {{ actorName(receipt) }} · {{ receipt.source === 'central' ? 'Legal central' : 'Historial local' }}</p><p>{{ formatDate(receipt.accepted_at) }}</p><p class="legal-hash" v-if="receipt.content_hash">Huella del contenido: {{ receipt.content_hash }}</p></div>
             <button type="button" class="legal-button legal-button--outline" :disabled="saving || !receipt.version" @click="openReceipt(receipt)">Ver documento aceptado<span class="sr-only">: {{ receipt.title }}, versión {{ receipt.version_number }}</span></button>
           </li>
         </ol>
@@ -48,19 +52,19 @@
     <v-dialog v-model="dialogOpen" persistent scrollable max-width="920" role="dialog" aria-modal="true" aria-labelledby="saas-legal-dialog-title" @keydown.esc.stop.prevent="requestClose">
       <v-card class="legal-review bg-white">
         <header class="legal-review-heading">
-          <div><p class="legal-eyebrow">{{ dialogSource === 'history' || confirmedAcceptance ? 'Comprobante de aceptación' : 'Revisión del documento' }}</p><h2 id="saas-legal-dialog-title">{{ selectedDocument ? selectedDocument.title : 'Documento legal' }}</h2><p v-if="selectedVersion">Versión {{ selectedVersion.version_number }} · Publicada {{ formatDate(selectedVersion.published_at) }}</p></div>
+          <div><p class="legal-eyebrow">{{ dialogSource === 'history' || confirmedAcceptance ? 'Comprobante de aceptación' : 'Revisión del documento' }}</p><h2 id="saas-legal-dialog-title">{{ selectedDocument ? selectedDocument.title : 'Documento legal' }}</h2><p v-if="selectedVersion">Versión {{ selectedVersion.version_number }}<template v-if="selectedVersion.published_at"> · Publicada {{ formatDate(selectedVersion.published_at) }}</template></p></div>
           <v-btn icon :disabled="saving" aria-label="Cerrar documento legal" @click="requestClose"><v-icon>mdi-close</v-icon></v-btn>
         </header>
         <v-card-text class="legal-review-body">
-          <div v-if="selectedAcceptance" ref="acceptanceStatus" class="legal-acceptance-proof" role="status" tabindex="-1"><strong>Aceptación registrada</strong><p>{{ actorName(selectedAcceptance) }} · {{ formatDate(selectedAcceptance.accepted_at) }}</p><p>{{ scopeLabel(selectedAcceptance.acceptance_scope) }}</p></div>
+          <div v-if="selectedAcceptance" ref="acceptanceStatus" class="legal-acceptance-proof" role="status" tabindex="-1"><strong>Aceptación registrada</strong><p v-if="selectedAcceptance.evidence_id">Comprobante de Legal central: {{ selectedAcceptance.evidence_id }}</p><p>{{ actorName(selectedAcceptance) }} · {{ formatDate(selectedAcceptance.accepted_at) }}</p><p>{{ scopeLabel(selectedAcceptance.acceptance_scope) }}</p></div>
           <p v-if="dialogSource === 'history'" class="legal-message">Estás consultando la versión que se aceptó en esa fecha. No se reemplaza con el texto de versiones posteriores.</p>
           <p v-if="saveError" role="alert" class="legal-message legal-message--error">{{ saveError }}</p>
-          <button v-if="staleVersion" type="button" class="legal-button legal-button--outline" :disabled="saving || currentLoading" @click="reviewLatest">Cargar y revisar la versión vigente</button>
+          <button v-if="staleVersion" type="button" class="legal-button legal-button--outline" :disabled="saving || reviewSaving || currentLoading" @click="reviewLatest">Cargar y revisar la versión vigente</button>
           <article v-if="contentAvailable" class="legal-document-content" v-html="safeContent"></article>
-          <p v-else class="legal-message" role="alert">No se pudo mostrar el contenido de esta versión. Actualiza los documentos antes de aceptarla.</p>
+          <p v-else class="legal-message" role="status">{{ centralDocumentLoading ? 'Consultando el contenido exacto de esta versión…' : 'El contenido de esta versión no está disponible. El comprobante y su huella se conservan; no se sustituye por una versión posterior.' }}</p>
           <p v-if="selectedVersion && selectedVersion.content_hash" class="legal-hash">Huella del contenido: {{ selectedVersion.content_hash }}</p>
           <label v-if="mayAcceptSelected" class="legal-acknowledgment"><input v-model="acknowledged" type="checkbox" :disabled="saving || staleVersion || currentLoading"><span>Leí la versión {{ selectedVersion.version_number }} y acepto este documento {{ selectedDocument.acceptance_scope === 'business' ? 'por el consultorio' : 'de forma personal' }}.</span></label>
-          <p v-else-if="dialogSource === 'current' && selectedDocument && selectedDocument.pending && !selectedDocument.can_accept" class="legal-message">{{ selectedDocument.acceptance_scope === 'business' ? 'Esta versión debe aceptarla una persona administradora del consultorio.' : 'Tu acceso actual no permite registrar esta aceptación. Actualiza la consulta o pide ayuda al administrador.' }}</p>
+          <p v-else-if="dialogSource === 'current' && selectedDocument && selectedDocument.pending && !selectedDocument.can_accept" class="legal-message">{{ selectedDocument.source === 'central' ? (selectedDocument.sync_pending ? 'Tus confirmaciones están pendientes de sincronizar con Legal central. No necesitas aceptarlas otra vez.' : 'Esta versión requiere revisión. Cierra este documento y utiliza «Revisar y confirmar documentos» para revisar el conjunto de versiones.') : selectedDocument.acceptance_scope === 'business' ? 'Esta versión debe aceptarla una persona administradora del consultorio.' : 'Tu acceso actual no permite registrar esta aceptación. Actualiza la consulta o pide ayuda al administrador.' }}</p>
         </v-card-text>
         <v-card-actions class="legal-review-actions">
           <button type="button" class="legal-button legal-button--outline" :disabled="saving" @click="requestClose">{{ selectedAcceptance ? 'Cerrar comprobante' : 'Cerrar sin aceptar' }}</button>
@@ -72,6 +76,7 @@
 </template>
 
 <script>
+import CentralLegalReview from './CentralLegalReview.vue';
 import SaaSLegalService from '@/services/saasLegal.service';
 import { sanitizeHtmlForDocumentSnapshot } from '../../../utils/sanitizeHtml';
 import { authorizationContext, authorizationFingerprint, isCurrentAuthorization } from '../../../security/authorizationContext';
@@ -80,11 +85,13 @@ import { registerSettingsNavigationGuard } from '../../../domain/settings/settin
 const clone = value => JSON.parse(JSON.stringify(value));
 export default {
   name: 'AccountLegalDocuments',
+  components: { CentralLegalReview },
   data: () => ({ documents: [], acceptances: [], currentLoading: false, historyLoading: false, currentLoaded: false, historyLoaded: false,
-    currentError: '', historyError: '', currentRequest: 0, historyRequest: 0, actionRequest: 0, disposed: false,
+    reviewSaving: false, centralWarning: '', historyWarning: '', historyCursor: null, centralDocumentLoading: false, currentError: '', historyError: '', currentRequest: 0, historyRequest: 0, actionRequest: 0, disposed: false,
     dialogOpen: false, dialogSource: '', selectedDocument: null, selectedVersion: null, selectedAcceptance: null,
     acknowledged: false, saving: false, saveError: '', staleVersion: false, confirmedAcceptance: false, reviewContext: null, opener: null, removeSavingGuard: null }),
   computed: {
+    centralReviewAvailable() { return this.documents.some(doc => doc.source === 'central' && doc.pending && !doc.sync_pending); },
     authState() { return this.$store && this.$store.state && this.$store.state.CORE && this.$store.state.CORE.AUTH || {}; },
     sessionEligible() { const auth = this.authState; return Boolean(auth.authenticated && (auth.user || {}).id_login && ((auth.business || {}).id_business || (auth.user || {}).id_business) && String(auth.role || '').toLowerCase() !== 'super_admin'); },
     sessionKey() { return authorizationFingerprint(this.authState) + ':' + (this.authState.accessRevision || 0) + ':' + String(this.authState.token || ''); },
@@ -96,19 +103,22 @@ export default {
   },
   watch: { sessionKey: { immediate: true, handler() { this.resetSession(); if(this.sessionEligible) this.refreshAll(); } } },
   mounted() {
-    this.removeSavingGuard = registerSettingsNavigationGuard(this, { isSaving: () => this.saving });
+    this.removeSavingGuard = registerSettingsNavigationGuard(this, { isSaving: () => this.saving || this.reviewSaving });
     window.addEventListener('saas-legal-accepted', this.onAcceptanceNotice);
   },
   beforeDestroy() { this.disposed = true; this.currentRequest++; this.historyRequest++; this.actionRequest++; if(this.removeSavingGuard) this.removeSavingGuard(); window.removeEventListener('saas-legal-accepted', this.onAcceptanceNotice); },
   methods: {
+    refreshAfterCentral() { this.$nextTick(() => this.refreshAll()); },
     captureContext() { return { authorization: authorizationContext(this.$store), key: this.sessionKey }; },
     isCurrent(context) { return !this.disposed && this.sessionEligible && context.key === this.sessionKey && isCurrentAuthorization(context.authorization, this.$store); },
     resetSession() {
+      this.reviewSaving = false;
+      this.centralWarning = ''; this.historyWarning = ''; this.historyCursor = null; this.centralDocumentLoading = false;
       this.currentRequest++; this.historyRequest++; this.actionRequest++; this.documents = []; this.acceptances = [];
       this.currentLoading = false; this.historyLoading = false; this.currentLoaded = false; this.historyLoaded = false;
       this.currentError = ''; this.historyError = ''; this.saving = false; this.clearSelection(); this.opener = null;
     },
-    async refreshAll() { if(this.saving) return false; await Promise.all([this.loadCurrent(), this.loadHistory()]); return true; },
+    async refreshAll() { if(this.saving || this.reviewSaving) return false; await Promise.all([this.loadCurrent(), this.loadHistory()]); return true; },
     async loadCurrent() {
       if(!this.sessionEligible || this.currentLoading || this.saving) return false;
       const context = this.captureContext(), request = ++this.currentRequest;
@@ -119,6 +129,7 @@ export default {
         if(!this.isCurrent(context)) { this.documents = []; this.currentLoaded = false; this.clearSelection(); this.currentError = 'La sesión o tus accesos cambiaron. Actualiza la consulta para ver los documentos actuales.'; return false; }
         if(!response || !response.success || !response.data || !Array.isArray(response.data.documents)) throw new Error();
         this.documents = response.data.documents; this.currentLoaded = true;
+        this.centralWarning = response.data.central_available === false ? 'No pudimos consultar Legal central. El historial local sigue disponible; reintenta para comprobar los documentos de registro.' : response.data.central_sync_pending ? 'Tus confirmaciones están guardadas y pendientes de sincronizar con Legal central. No necesitas aceptarlas otra vez.' : '';
         if(this.dialogSource === 'current' && this.selectedVersion && !this.selectedIsCurrent && !this.confirmedAcceptance) {
           this.acknowledged = false; this.staleVersion = true; this.saveError = 'Hay una versión diferente disponible. Cárgala y revísala antes de aceptar.';
         } else if(this.dialogSource === 'current' && this.selectedVersion && this.selectedIsCurrent) {
@@ -130,21 +141,25 @@ export default {
       } catch(_) { if(request === this.currentRequest && this.isCurrent(context)) this.currentError = 'No pudimos consultar los documentos vigentes. Reintenta antes de registrar una aceptación.'; return false; }
       finally { if(request === this.currentRequest && !this.disposed) this.currentLoading = false; }
     },
-    async loadHistory() {
+    async loadHistory(more = false) {
+      more = more === true;
       if(!this.sessionEligible || this.historyLoading || this.saving) return false;
       const context = this.captureContext(), request = ++this.historyRequest;
       this.historyLoading = true; this.historyError = '';
       try {
-        const response = await SaaSLegalService.history();
+        const response = await SaaSLegalService.history(more ? this.historyCursor : undefined);
         if(request !== this.historyRequest || this.disposed) return false;
         if(!this.isCurrent(context)) { this.acceptances = []; this.historyLoaded = false; this.historyError = 'La sesión o tus accesos cambiaron. Reintenta para consultar el historial actual.'; return false; }
         if(!response || !response.success || !response.data || !Array.isArray(response.data.acceptances)) throw new Error();
-        this.acceptances = response.data.acceptances; this.historyLoaded = true; return true;
+        this.acceptances = more ? this.acceptances.concat(response.data.acceptances.filter(item => !this.acceptances.some(old => old.id_acceptance === item.id_acceptance))) : response.data.acceptances;
+        this.historyCursor = response.data.central_next_cursor || null;
+        this.historyWarning = response.data.central_available === false ? 'No pudimos consultar los comprobantes de Legal central. Tus comprobantes locales se conservan; reintenta el historial.' : response.data.central_sync_pending ? 'Hay confirmaciones pendientes de sincronización. Se mostrarán como comprobantes centrales cuando Legal confirme su recepción.' : '';
+        this.historyLoaded = true; return true;
       } catch(_) { if(request === this.historyRequest && this.isCurrent(context)) this.historyError = 'No pudimos consultar los comprobantes. Reintenta el historial; esto no elimina las aceptaciones registradas.'; return false; }
       finally { if(request === this.historyRequest && !this.disposed) this.historyLoading = false; }
     },
     isAccepted(item) { return Boolean(item.current_version && item.accepted && item.accepted.id_version === item.current_version.id_version); },
-    statusLabel(item) { return !item.current_version ? 'Sin publicar' : this.isAccepted(item) ? 'Aceptado' : item.pending ? 'Pendiente de aceptación' : 'Disponible para revisar'; },
+    statusLabel(item) { return item.sync_pending ? 'Sincronización pendiente' : !item.current_version ? 'Sin publicar' : this.isAccepted(item) ? 'Aceptado' : item.source === 'central' && !item.pending ? 'Sin nueva aceptación requerida' : item.pending ? 'Pendiente de aceptación' : 'Disponible para revisar'; },
     statusClass(item) { return !item.current_version ? 'legal-status--neutral' : this.isAccepted(item) ? 'legal-status--accepted' : 'legal-status--pending'; },
     scopeLabel(scope) { return scope === 'business' ? 'Aceptación por el consultorio' : 'Aceptación personal'; },
     scopeHelp(scope) { return scope === 'business' ? 'Una persona administradora acepta por el consultorio.' : 'Cada usuario revisa y acepta este documento de forma personal.'; },
@@ -153,17 +168,29 @@ export default {
       if(!value) return 'Fecha no disponible'; const date = new Date(value);
       return Number.isNaN(date.getTime()) ? 'Fecha no disponible' : new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(date) + ' (hora del centro de México)';
     },
-    clearSelection() { this.dialogOpen = false; this.dialogSource = ''; this.selectedDocument = null; this.selectedVersion = null; this.selectedAcceptance = null; this.acknowledged = false; this.saveError = ''; this.staleVersion = false; this.confirmedAcceptance = false; this.reviewContext = null; },
+    clearSelection() { this.centralDocumentLoading = false; this.dialogOpen = false; this.dialogSource = ''; this.selectedDocument = null; this.selectedVersion = null; this.selectedAcceptance = null; this.acknowledged = false; this.saveError = ''; this.staleVersion = false; this.confirmedAcceptance = false; this.reviewContext = null; },
     openCurrent(item) {
       if(!this.sessionEligible || this.saving || this.currentLoading || !item || !item.current_version || !item.current_version.id_version) return false;
       this.opener = document.activeElement; this.clearSelection(); this.dialogSource = 'current'; this.selectedDocument = clone(item); this.selectedVersion = clone(item.current_version);
-      this.selectedAcceptance = this.isAccepted(item) ? clone(item.accepted) : null; this.reviewContext = this.captureContext(); this.dialogOpen = true; return true;
+      this.selectedAcceptance = this.isAccepted(item) ? clone(item.accepted) : null; this.reviewContext = this.captureContext(); this.dialogOpen = true; if(item.source === 'central') this.loadCentralVersion(item.current_version.id_version); return true;
     },
     openReceipt(receipt) {
       if(!this.sessionEligible || this.saving || !receipt || !receipt.version) return false;
       this.opener = document.activeElement; this.clearSelection(); this.dialogSource = 'history';
       this.selectedDocument = { id_document: receipt.id_document, title: receipt.title, acceptance_scope: receipt.acceptance_scope };
-      this.selectedVersion = clone(receipt.version); this.selectedAcceptance = clone(receipt); this.dialogOpen = true; return true;
+      this.selectedVersion = clone(receipt.version); this.selectedAcceptance = clone(receipt); this.dialogOpen = true;
+      if(receipt.source === 'central') this.loadCentralVersion(receipt.id_version, receipt.history_cursor); return true;
+    },
+    async loadCentralVersion(id, cursor) {
+      const context = this.captureContext(); this.centralDocumentLoading = true;
+      try {
+        const response = await SaaSLegalService.centralDocument(id, cursor);
+        if(!this.isCurrent(context) || !this.dialogOpen || !this.selectedVersion || this.selectedVersion.id_version !== id) return;
+        const version = response && response.success && response.data && response.data.version;
+        if(!version || version.id_version !== id || version.content_hash !== this.selectedVersion.content_hash) throw new Error();
+        this.selectedVersion = clone(version);
+      } catch(_) { /* Keep the immutable receipt visible when archived text is unavailable. */ }
+      finally { if(this.isCurrent(context) && this.selectedVersion && this.selectedVersion.id_version === id) this.centralDocumentLoading = false; }
     },
     requestClose() {
       if(this.saving) return false;
