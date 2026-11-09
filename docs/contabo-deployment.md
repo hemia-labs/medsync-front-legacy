@@ -7,7 +7,22 @@ Both repositories use these destinations:
 | main | prod | deploy.yml | 195.26.247.210 |
 | develop | dev | deploy-dev.yml | 185.187.235.117 |
 
-Pushes to the matching branch deploy automatically after required checks. Manual runs are allowed only on that same branch. Pull requests never deploy. Merge the workflow changes separately into main and develop; publishing only on main does not install the workflow on develop. The dev workflow also exists on the default branch so GitHub can expose its manual trigger.
+The legacy PM2 workflows run only when dispatched manually from their matching branch. Use the Docker procedure below for frontend deployments.
+
+## Frontend in Docker
+
+The image builds Vue with Node and runs the compiled assets with unprivileged Nginx Alpine Slim. Node, npm, dependencies, environment files and source maps are excluded from the runtime image. The container listens on 8080, and Compose exposes it only on loopback. Use one image per environment because Vue compiles the API URL into the JavaScript.
+
+After this workflow is on the default branch, run **Build MedSync frontend image** from `develop` for QA or from `main` for production. Configure `FRONT_REGISTRY_USERNAME` and `FRONT_REGISTRY_PASSWORD` in the corresponding `dev` or `prod` environment before dispatch. Use the repository and digest printed by the workflow and a read-only registry account on the host.
+
+Install `ops/frontend/compose.yml` on each host. With the existing host reverse proxy, run the candidate on port 14324 first and verify `/deploy-release.json`, `/auth/login` and an actual hashed JS asset. Use a separate Compose project for that candidate. After verification, stop the old frontend listener and start the approved image on 4324:
+
+```sh
+MEDSYNC_FRONT_IMAGE='registry.hemia.cloud/medsync/qa-front@sha256:<digest>' \
+  docker compose -p medsync-front -f compose.yml up -d --wait
+```
+
+Use `medsync/prod-front` for production and verify the public HTTPS route before closing the deployment. Keep the prior image or PM2 bundle for rollback. The frontend cutover does not require backend, DNS or database changes.
 
 ## GitHub setup
 
@@ -46,8 +61,8 @@ VPS_FINGERPRINT/DEV_VPS_FINGERPRINT must contain the SHA256 SSH host fingerprint
 
 1. Populate DEV_* secrets in the dev environment and/or repository for dev, or the prod environment secrets for production, and verify the SSH trust data.
 2. Finish VPS, database, HTTPS/reverse proxy and DNS setup separately.
-3. Merge the develop-targeted PR first when dev is ready; this triggers a dev deployment. Validate the application using its development URLs.
-4. Merge the main-targeted PR only when the production migration is ready; this triggers a production deployment. DNS/database migration is a separate operation.
+3. Merge the develop-targeted PR first when QA is ready and validate the Docker deployment using its development URLs.
+4. Merge the main-targeted PR only when the production migration is ready. Publish and deploy the production image separately.
 5. Inspect Actions and the target service after each deployment. Configuration validation and local tests do not prove a real deployment.
 
 For manual deployment select develop in Deploy medsync-front-legacy to Contabo dev, or main in the prod workflow. Other refs are skipped.

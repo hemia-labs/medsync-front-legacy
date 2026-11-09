@@ -1,9 +1,6 @@
 name: Deploy medsync-front-legacy to Contabo dev
 
 on:
-  push:
-    branches:
-      - develop
   workflow_dispatch:
 
 # DEV_* secrets are separate from prod. NODE_ENV=production is intentional.
@@ -25,7 +22,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    if: github.ref == 'refs/heads/develop' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: dev
 

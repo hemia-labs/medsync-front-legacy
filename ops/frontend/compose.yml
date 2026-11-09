@@ -1,0 +1,16 @@
+services:
+  web:
+    image: ${MEDSYNC_FRONT_IMAGE:?frontend image required}
+    ports:
+      - "127.0.0.1:${MEDSYNC_FRONT_PORT:-4324}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "5m"
+        max-file: "2"
