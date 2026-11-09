@@ -1,0 +1,121 @@
+name: MedSync frontend releases
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: medsync-frontend-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: bash -n scripts/release-frontend.sh
+      - name: Verify the version plan
+        if: hashFiles('.changeset/*.md', '!.changeset/README.md') != ''
+        run: npm run version-packages
+
+  prerelease:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify the deployed frontend in QA
+        if: hashFiles('.changeset/*.md', '!.changeset/README.md') != ''
+        id: qa
+        run: |
+          set -euo pipefail
+          origin=https://test.medsync.mx
+          marker="$(curl --fail --silent --show-error --max-time 15 "$origin/deploy-release.json?commit=$GITHUB_SHA")"
+          release="$(jq -er 'select(.application == "medsync-front-legacy") | .release' <<<"$marker")"
+          if [[ ! "$release" =~ ^${GITHUB_SHA}(-[0-9]+-[0-9]+)?$ ]]; then
+            echo "::notice::QA aún no sirve el commit $GITHUB_SHA. Reintenta este workflow después del despliegue."
+            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then exit 1; fi
+            exit 0
+          fi
+          expected="$(jq -er '.indexSha256 | select(test("^[a-f0-9]{64}$"))' <<<"$marker")"
+          actual="$(curl --fail --silent --show-error --max-time 15 "$origin/auth/login?commit=$GITHUB_SHA" | sha256sum | cut -d ' ' -f1)"
+          [[ "$expected" == "$actual" ]]
+          latest="$(curl --fail --silent --show-error --max-time 15 "$origin/deploy-release.json?commit=$GITHUB_SHA" | jq -er .release)"
+          [[ "$latest" == "$release" ]]
+          echo 'verified=true' >> "$GITHUB_OUTPUT"
+      - if: steps.qa.outputs.verified == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.qa.outputs.verified == 'true'
+        run: npm ci --ignore-scripts
+      - name: Publish QA prerelease
+        if: steps.qa.outputs.verified == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release-frontend.sh
+
+  stable:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Publish stable release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release-frontend.sh
+      - name: Check whether this run can update the version PR
+        if: hashFiles('.changeset/*.md', '!.changeset/README.md') != ''
+        id: head
+        run: |
+          if [[ "$GITHUB_SHA" == "$(git rev-parse origin/main)" ]]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.head.outputs.current == 'true'
+        run: npm ci --ignore-scripts
+      - name: Create a hemia-ci installation token
+        if: steps.head.outputs.current == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Prepare the stable version PR
+        if: steps.head.outputs.current == 'true'
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          commitMode: github-api
+          version: npm run version-packages
+          title: "Release: versionar frontend"
+          commit: "Release: versionar frontend"
