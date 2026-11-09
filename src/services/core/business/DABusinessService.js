@@ -11,6 +11,8 @@ export default {
     getLicenseUsage() {
         return DACore.get('/api/business/license-usage');
     },
+    updateLogo(data) { return DACore.put(`${DAC_BUSINESS_CURRENT}/logo`, data); },
+    deleteLogo() { return DACore.delete(`${DAC_BUSINESS_CURRENT}/logo`); },
     updateCurrent(data) {
         return DACore.put(DAC_BUSINESS_CURRENT, data);
     }

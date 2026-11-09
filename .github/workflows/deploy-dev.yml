@@ -1,9 +1,6 @@
 name: Deploy medsync-front-legacy to Contabo dev
 
 on:
-  push:
-    branches:
-      - develop
   workflow_dispatch:
 
 # DEV_* secrets are separate from prod. NODE_ENV=production is intentional.
@@ -14,6 +11,7 @@ env:
   NODE_VERSION: 22
   APP_NAME: medsync-front-legacy
   APP_PORT: 4324
+  DEPLOY_RELEASE: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
 permissions:
   contents: read
@@ -24,7 +22,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    if: github.ref == 'refs/heads/develop' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: dev
 
@@ -45,12 +43,14 @@ jobs:
           VPS_USER: ${{ secrets.DEV_VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.DEV_VPS_SSH_KEY }}
           VPS_APP_DIR: ${{ secrets.DEV_VPS_APP_DIR }}
+          CONFIGURED_APP_PORT: ${{ secrets.DEV_APP_PORT }}
           VUE_APP_CORE_URL_API: ${{ secrets.DEV_VUE_APP_CORE_URL_API }}
           VUE_APP_AUTH_COOKIE_MODE: ${{ secrets.DEV_VUE_APP_AUTH_COOKIE_MODE }}
           VUE_APP_BROWSER_AUTH_TRANSPORT: ${{ secrets.DEV_VUE_APP_BROWSER_AUTH_TRANSPORT }}
           VUE_APP_CSRF_ENABLED: ${{ secrets.DEV_VUE_APP_CSRF_ENABLED }}
         run: |
           node <<'NODE'
+          require('./scripts/ops/verify-frontend.cjs').assertPort(process.env.CONFIGURED_APP_PORT);
           const required = ['VPS_HOST', 'VPS_FINGERPRINT', 'VPS_USER', 'VPS_SSH_KEY', 'VPS_APP_DIR', 'VUE_APP_CORE_URL_API', 'VUE_APP_AUTH_COOKIE_MODE', 'VUE_APP_BROWSER_AUTH_TRANSPORT', 'VUE_APP_CSRF_ENABLED'];
           const missing = required.filter((key) => !process.env[key]);
           if (missing.length > 0) {
@@ -63,6 +63,9 @@ jobs:
             process.exit(1);
           }
           NODE
+
+      - name: Test deployment verification
+        run: node --test scripts/qa/frontend-deploy-health.test.cjs
 
       - name: Install dependencies
         run: npm ci
@@ -78,7 +81,9 @@ jobs:
           VUE_APP_AUTH_COOKIE_MODE: ${{ secrets.DEV_VUE_APP_AUTH_COOKIE_MODE }}
           VUE_APP_BROWSER_AUTH_TRANSPORT: ${{ secrets.DEV_VUE_APP_BROWSER_AUTH_TRANSPORT }}
           VUE_APP_CSRF_ENABLED: ${{ secrets.DEV_VUE_APP_CSRF_ENABLED }}
-        run: npm run build
+        run: |
+          npm run build
+          node scripts/ops/verify-frontend.cjs seal
 
       - name: Prepare app directory on VPS
         uses: appleboy/ssh-action@v1.2.2
@@ -108,7 +113,7 @@ jobs:
           port: ${{ secrets.DEV_VPS_PORT || 22 }}
           timeout: 60s
           command_timeout: 10m
-          source: "dist"
+          source: "dist,scripts/ops/verify-frontend.cjs"
           target: ${{ secrets.DEV_VPS_APP_DIR }}
 
       - name: Serve with pm2
@@ -117,7 +122,8 @@ jobs:
           VPS_APP_DIR: ${{ secrets.DEV_VPS_APP_DIR }}
           NODE_VERSION: ${{ env.NODE_VERSION }}
           APP_NAME: ${{ env.APP_NAME }}
-          APP_PORT: ${{ secrets.DEV_APP_PORT || env.APP_PORT }}
+          APP_PORT: ${{ env.APP_PORT }}
+          DEPLOY_RELEASE: ${{ env.DEPLOY_RELEASE }}
         with:
           host: ${{ env.VPS_HOST }}
           fingerprint: ${{ secrets.DEV_VPS_FINGERPRINT }}
@@ -126,7 +132,7 @@ jobs:
           port: ${{ secrets.DEV_VPS_PORT || 22 }}
           timeout: 60s
           command_timeout: 10m
-          envs: VPS_APP_DIR,NODE_VERSION,APP_NAME,APP_PORT
+          envs: VPS_APP_DIR,NODE_VERSION,APP_NAME,APP_PORT,DEPLOY_RELEASE
           script: |
             set -e
 
@@ -139,25 +145,16 @@ jobs:
 
             command -v pm2 > /dev/null || npm install --global pm2
 
-            # pm2 sirve los estáticos de dist/ con fallback SPA a index.html.
-            # Si el proceso ya existe lo recargamos; si no, lo creamos.
+            # Recreate only this app so an old PM2 port/path cannot survive reload.
             if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
-              pm2 reload "$APP_NAME" --update-env
-            else
-              pm2 serve dist "$APP_PORT" --spa --name "$APP_NAME"
+              pm2 delete "$APP_NAME"
             fi
-            pm2 save
-
-            for i in $(seq 1 10); do
-              if curl -fsS "http://127.0.0.1:$APP_PORT" > /dev/null; then
-                echo "$APP_NAME is ready on port $APP_PORT"
-                exit 0
-              fi
-              echo "Attempt $i: app not ready yet..."
-              sleep 2
-            done
-
-            echo "$APP_NAME did not become ready in time"
-            pm2 status
-            pm2 logs "$APP_NAME" --lines 80 --nostream
-            exit 1
+            PM2_SERVE_PORT="$APP_PORT" PM2_SERVE_PATH="$VPS_APP_DIR/dist" \
+              pm2 serve "$VPS_APP_DIR/dist" "$APP_PORT" --spa --name "$APP_NAME"
+            if node scripts/ops/verify-frontend.cjs verify; then
+              pm2 save
+            else
+              pm2 status
+              pm2 logs "$APP_NAME" --lines 40 --nostream
+              exit 1
+            fi

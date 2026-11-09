@@ -129,7 +129,8 @@
             <table class="staff-table">
               <thead>
                 <tr>
-                  <th>Usuario</th>
+                  <th>Nombre</th>
+                  <th>Apellidos</th>
                   <th>Contacto</th>
                   <th>Puesto</th>
                   <th>Estado</th>
@@ -142,11 +143,12 @@
                     <div class="staff-cell">
                       <span class="staff-avatar">{{ userInitials(user) }}</span>
                       <div class="staff-cell-copy">
-                        <strong>{{ userName(user) }}</strong>
+                        <strong>{{ user.first_name || userName(user) }}</strong>
                         <small>{{ userEmail(user) }}</small>
                       </div>
                     </div>
                   </td>
+                  <td><span class="staff-muted">{{ user.last_name || '—' }}</span></td>
                   <td>
                     <span class="staff-muted">{{ userPhone(user) }}</span>
                   </td>

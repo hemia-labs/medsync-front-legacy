@@ -10,6 +10,8 @@ export default class DAUserModel {
         this.phone = phone ? phone : '',
         this.id_rol = id_rol ? id_rol : '',
         this.name = name ? name : '',
+        this.first_name = name ? name : '',
+        this.last_name = '',
         this.password = password ? password : ''
     }
 }

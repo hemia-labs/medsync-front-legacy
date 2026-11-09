@@ -25,16 +25,15 @@
 
         <v-text-field
           v-model.trim="$v.auth.param.$model"
-          :label="ui.phoneLabel"
-          type="tel"
-          inputmode="numeric"
-          maxlength="10"
+          :label="ui.identifierLabel"
+          type="text"
+          maxlength="254"
           autocomplete="username"
-          prepend-inner-icon="mdi-phone-outline"
+          prepend-inner-icon="mdi-account-outline"
           outlined
           dense
           color="#0f766e"
-          :error-messages="phoneErrors"
+          :error-messages="identifierErrors"
           :disabled="isSubmitting"
           @input="clearLoginError"
         ></v-text-field>
@@ -73,7 +72,7 @@
           <v-btn type="submit" depressed class="relogin-submit" :loading="isSubmitting" :disabled="isSubmitting">
             Iniciar sesión
           </v-btn>
-          <v-btn type="button" outlined color="#334155" :disabled="isSubmitting" @click="onLogout">
+          <v-btn type="button" outlined color="#334155" :disabled="isSubmitting" @click="logout">
             Salir
           </v-btn>
         </div>
@@ -88,8 +87,8 @@ import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
 import DAAuthModel from '../../models/auth/DAAuthModel';
 import { validationMixin } from 'vuelidate';
-import { required, maxLength } from 'vuelidate/lib/validators';
-import { phonePattern } from '../../utils/common/regex';
+import { required, email, maxLength, or } from 'vuelidate/lib/validators';
+import { loginPhonePattern } from '../../utils/common/regex';
 import { getRememberedIdentifier } from '../../utils/authRememberedIdentifier';
 
 export default {
@@ -103,7 +102,7 @@ export default {
       showPWD: false,
       isSubmitting: false,
       ui: {
-        phoneLabel: 'Tel\u00e9fono',
+        identifierLabel: 'Correo electrónico o teléfono',
         passwordLabel: 'Contrase\u00f1a',
         showPassword: 'Mostrar contrase\u00f1a',
         hidePassword: 'Ocultar contrase\u00f1a'
@@ -120,8 +119,8 @@ export default {
     auth: {
       param: {
         required,
-        phonePattern,
-        maxLength: maxLength(10)
+        identifier: or(email, loginPhonePattern),
+        maxLength: maxLength(254)
       },
       pwd: {
         required
@@ -134,15 +133,15 @@ export default {
       user: fnTypes.getUser,
       isAuthorized: fnTypes.isAuthorized
     }),
-    phoneErrors() {
+    identifierErrors() {
       const errors = [];
       if (!this.$v.auth.param.$dirty) {
         return errors;
       }
       if (!this.$v.auth.param.required) {
-        errors.push('Ingresa tu tel\u00e9fono.');
-      } else if (!this.$v.auth.param.phonePattern || !this.$v.auth.param.maxLength) {
-        errors.push('Ingresa un tel\u00e9fono valido de 10 digitos.');
+        errors.push('Ingresa tu correo electrónico o teléfono.');
+      } else if (!this.$v.auth.param.identifier || !this.$v.auth.param.maxLength) {
+        errors.push('Ingresa un correo electrónico válido o un teléfono de entre 7 y 15 dígitos.');
       }
       return errors;
     },
@@ -204,13 +203,6 @@ export default {
       this.isSubmitting = false;
       if (this.isAuthorized) {
         this.$emit('auth');
-      }
-    },
-
-    onLogout: async function() {
-      await this.logout();
-      if (!this.isAuthorized) {
-        this.$router.push('/auth/login');
       }
     }
   }

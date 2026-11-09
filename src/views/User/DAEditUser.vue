@@ -28,8 +28,11 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5" v-if="user">
-          <v-text-field ref="name" label="Nombre *" outlined dense :disabled="isSaving" :color="themePrimary" :error-messages="fieldErrors('name')"
-            v-model="$v.user.name.$model"
+          <v-text-field ref="first_name" label="Nombre *" autocomplete="given-name" maxlength="200" outlined dense :disabled="isSaving" :color="themePrimary" :error-messages="fieldErrors('first_name')"
+            v-model="$v.user.first_name.$model"
+          />
+          <v-text-field ref="last_name" label="Apellidos *" autocomplete="family-name" maxlength="200" outlined dense :disabled="isSaving" :color="themePrimary" :error-messages="fieldErrors('last_name')"
+            v-model="$v.user.last_name.$model"
           />
           <v-text-field ref="phone" label="Teléfono *" type="tel" inputmode="numeric" outlined dense :disabled="isSaving" :color="themePrimary" :error-messages="fieldErrors('phone')" hint="Ingresa un teléfono de 10 dígitos." persistent-hint
             v-model="$v.user.phone.$model"
@@ -161,8 +164,10 @@ export default {
             id_rol: {
                  required
             },
-            name: {
-                 required
+            first_name: { required },
+            last_name: {
+                required,
+                namesLength() { return [...String(this.user.first_name || '').trim(), ' ', ...String(this.user.last_name || '').trim()].length <= 200; }
             }
          }
     },
@@ -179,7 +184,7 @@ export default {
     computed: {
         dirty() { return !!this.baseline && this.baseline !== JSON.stringify(this.user); },
         validationErrors() {
-            return ['name', 'phone', 'email', 'id_rol'].flatMap(field => this.fieldErrors(field).map(message => ({ field, message })));
+            return ['first_name', 'last_name', 'phone', 'email', 'id_rol'].flatMap(field => this.fieldErrors(field).map(message => ({ field, message })));
         },
         ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser }),
         ...mapGetters(moduleTypes.ROLE, {
@@ -210,7 +215,7 @@ export default {
             if(!saved || !saved.id_doctor_professional_profile)return 'Este doctor aún no tiene un perfil guardado. Debe completar sus datos desde su cuenta.';
             return {ready:Number(saved.can_issue_prescriptions)===1 && Number(saved.can_sign_documents)===1,detail:`Autorizaciones guardadas para este doctor: emisión de recetas ${Number(saved.can_issue_prescriptions)===1?'autorizada':'pendiente'}; firma de documentos ${Number(saved.can_sign_documents)===1?'autorizada':'pendiente'}. La identidad y firma del profesional se revisan por separado.`};
         },
-        focusGuideControl(id, reveal){const profile=this.$refs.professionalProfile;focusControl(['issuer','signer'].includes(id) ? profile && profile.$refs[id==='issuer'?'guideIssuer':'guideSigner'] : this.$refs[{users:'name',phone:'phone',email:'email',access:'id_rol',save:'guideSave'}[id]], reveal);},
+        focusGuideControl(id, reveal){const profile=this.$refs.professionalProfile;focusControl(['issuer','signer'].includes(id) ? profile && profile.$refs[id==='issuer'?'guideIssuer':'guideSigner'] : this.$refs[{users:'first_name',phone:'phone',email:'email',access:'id_rol',save:'guideSave'}[id]], reveal);},
         hasPendingChanges() {
             const profile = this.$refs.professionalProfile;
             return this.dirty || Boolean(profile && profile.hasUnsavedChanges);
@@ -229,7 +234,7 @@ export default {
         fieldErrors(field) {
             const value = this.$v.user[field];
             if(!value || !value.$dirty || !value.$invalid) return [];
-            const labels = { name: 'El nombre es obligatorio.', phone: 'Ingresa un teléfono de 10 dígitos.', email: 'Ingresa un correo válido.', id_rol: 'Selecciona un puesto.' };
+            const labels = { first_name: 'El nombre es obligatorio.', last_name: 'Escribe los apellidos; nombre y apellidos deben sumar hasta 200 caracteres.', phone: 'Ingresa un teléfono de 10 dígitos.', email: 'Ingresa un correo válido.', id_rol: 'Selecciona un puesto.' };
             return [labels[field]];
         },
         focusField(field) {
@@ -270,7 +275,7 @@ export default {
                     if(this.disposed || subject!==this.id || !isCurrentAuthorization(context,this.$store))return false;
                     if(!response || !response.success || !response.data || response.data.id_login!==subject)throw Error();
                     const expected=this.pendingContact;
-                    const matches=['name','email','phone','id_rol','active'].every(key=>String(response.data[key] == null ? '' : response.data[key])===String(expected[key] == null ? '' : expected[key]));
+                    const matches=['first_name','last_name','email','phone','id_rol','active'].every(key=>String(response.data[key] == null ? '' : response.data[key])===String(expected[key] == null ? '' : expected[key]));
                     if(matches){this.baseline=JSON.stringify(expected);this.pendingContact=null;this.saveError='Contacto confirmado. Revisa las autorizaciones pendientes y usa Guardar usuario para continuar.';}
                     else this.saveError='El contacto guardado es distinto. Conservamos tu captura; revisa el usuario antes de reemplazarlo.';
                 }catch(_){if(!this.disposed && isCurrentAuthorization(context,this.$store))this.saveError='No pudimos comprobar el guardado anterior. Reintenta la consulta; no reenviamos los cambios.';}
@@ -340,7 +345,7 @@ export default {
                 this.loadedUserId='';
                 return false;
             }
-            this.user=JSON.parse(JSON.stringify(response.data));
+            this.user={...new DAUserModel(),...JSON.parse(JSON.stringify(response.data)),first_name:response.data.first_name || response.data.name || '',last_name:response.data.last_name || ''};
             this.loadedUserId=id;
             this.baseline=JSON.stringify(this.user);
             return true;

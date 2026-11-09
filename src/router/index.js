@@ -14,8 +14,6 @@ import publicSignature from './routes/public-signature';
 import licensingDemo from './routes/licensing-demo';
 import help from './routes/help';
 import { isPendingActivation } from '../utils/registration';
-import Registration from '../services/core/auth/DARegistrationService';
-import { activationDestination } from '../utils/activationDestination';
 import { getSessionPermissions, hasAnyPermission, hasPermission } from '../security/permissions';
 import { canAccessSettings } from '../security/settingsAccess';
 import store from '../store';
@@ -154,7 +152,7 @@ const router = new VueRouter({
   }
 
   async function d2BeforeEach(to, next, requiredAuth) {
-    const shouldHydrate = requiredAuth || ['login', 'register'].includes(to.name);
+    const shouldHydrate = requiredAuth || ['login', 'register', 'forgotPassword'].includes(to.name);
     const hasSession = shouldHydrate ? await ensureD2SessionHydrated() : isD2Authorized();
 
     if (requiredAuth && to.name !== 'login' && !hasSession){
@@ -162,7 +160,7 @@ const router = new VueRouter({
         return;
     }
 
-    if(['login', 'register'].includes(to.name) && hasSession){
+    if(['login', 'register', 'forgotPassword'].includes(to.name) && hasSession){
         next(getDefaultAuthenticatedRoute())
         return;
     }
@@ -193,13 +191,7 @@ const router = new VueRouter({
 
     if(welcomePending && !isPendingAccountSession() && !isD2SuperAdminSession()
         && !isD2TenantRestrictedSession() && ['home', 'dashboard'].includes(to.name)) {
-        let destination;
-        try { destination = activationDestination(await Registration.activation()); }
-        catch (_) { destination = null; }
-        if(!isD2Authorized()) { next({name:'auth'}); return; }
-        if(!destination || destination.name !== to.name) {
-            next(destination || {name:'accountActivation'}); return;
-        }
+        next({ name: 'accountActivation' }); return;
     }
 
     if(to.matched.some(r=>r.meta.pulseAccess) && !canAccessPulse(store.state.CORE.AUTH.permissions,store.state.CORE.AUTH.role)) { next({name:'home'});return; }
@@ -258,7 +250,7 @@ const router = new VueRouter({
           return;
       }
 
-    if(['login', 'register'].includes(to.name) && isLegacyAuthorized()){
+    if(['login', 'register', 'forgotPassword'].includes(to.name) && isLegacyAuthorized()){
         next(getDefaultAuthenticatedRoute())
         return;
     }
@@ -324,7 +316,7 @@ const router = new VueRouter({
   });
 
 
-const DEFAULT_TITLE = 'MedSync';
+const DEFAULT_TITLE = 'medsync';
 router.afterEach((to) => {
   Vue.nextTick(() => {
     document.title = to.meta.title || DEFAULT_TITLE;

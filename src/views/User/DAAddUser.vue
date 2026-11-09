@@ -24,8 +24,11 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <v-text-field ref="name" label="Nombre *" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('name')"
-            v-model="$v.user.name.$model"
+          <v-text-field ref="first_name" label="Nombre *" autocomplete="given-name" maxlength="200" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('first_name')"
+            v-model="$v.user.first_name.$model"
+          />
+          <v-text-field ref="last_name" label="Apellidos *" autocomplete="family-name" maxlength="200" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('last_name')"
+            v-model="$v.user.last_name.$model"
           />
           <v-text-field ref="phone" label="Teléfono *" type="tel" inputmode="numeric" maxlength="10" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('phone')" hint="Ingresa un teléfono de 10 dígitos." persistent-hint
             v-model="$v.user.phone.$model"
@@ -160,8 +163,10 @@ export default {
             id_rol: {
                  required
             },
-            name: {
-                 required
+            first_name: { required },
+            last_name: {
+                required,
+                namesLength() { return [...String(this.user.first_name || '').trim(), ' ', ...String(this.user.last_name || '').trim()].length <= 200; }
             },
             password: {
                  required
@@ -178,7 +183,7 @@ export default {
     computed: {
         dirty() { return !!this.baseline && this.baseline !== JSON.stringify(this.user); },
         validationErrors() {
-            return ['name','phone','email','id_rol','password'].flatMap(field=>this.fieldErrors(field).map(message=>({field,message})));
+            return ['first_name','last_name','phone','email','id_rol','password'].flatMap(field=>this.fieldErrors(field).map(message=>({field,message})));
         },
         ...mapGetters(moduleTypes.ROLE, {
             roles: fnTypes.getRoles,
@@ -260,7 +265,7 @@ export default {
         }
     },
     methods: {
-        focusGuideControl(id, reveal){focusControl(this.$refs[{users:'name',phone:'phone',email:'email',access:'id_rol',password:'password',save:'guideSave'}[id]], reveal);},
+        focusGuideControl(id, reveal){focusControl(this.$refs[{users:'first_name',phone:'phone',email:'email',access:'id_rol',password:'password',save:'guideSave'}[id]], reveal);},
         async requestClose() {
             if(this.saving) return false;
             if(this.dirty && !await confirmSettingsDiscard(this)) return false;
@@ -270,7 +275,7 @@ export default {
         fieldErrors(field) {
             const value=this.$v.user[field];
             if(!value || !value.$dirty || !value.$invalid) return [];
-            const labels={name:'El nombre es obligatorio.',phone:'Ingresa un teléfono de 10 dígitos.',email:'Ingresa un correo válido.',id_rol:'Selecciona un puesto.',password:'La contraseña inicial es obligatoria.'};
+            const labels={first_name:'El nombre es obligatorio.',last_name:'Escribe los apellidos; nombre y apellidos deben sumar hasta 200 caracteres.',phone:'Ingresa un teléfono de 10 dígitos.',email:'Ingresa un correo válido.',id_rol:'Selecciona un puesto.',password:'La contraseña inicial es obligatoria.'};
             return [labels[field]];
         },
         focusField(field) {const input=this.$refs[field];if(input && input.focus)input.focus();},

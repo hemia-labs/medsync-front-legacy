@@ -4,7 +4,12 @@ export function containNavigationFocus(drawer, close) {
         .filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
     const focusFirst = () => (focusable()[0] || drawer).focus();
     const keydown = event => {
-        if(event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+        if(event.key === 'Escape') {
+            if(event.target.closest('[role="menu"], [aria-haspopup][aria-expanded="true"]')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            close();
+        }
         if(event.key !== 'Tab') return;
         const items = focusable(), first = items[0], last = items[items.length - 1];
         if(!items.length) { event.preventDefault(); drawer.focus(); }

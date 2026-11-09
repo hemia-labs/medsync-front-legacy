@@ -131,7 +131,7 @@ export const tenantNavigationItems = [
   },
   {
     key: 'logout',
-    label: 'Salir',
+    label: 'Cerrar sesión',
     icon: 'mdi-logout',
     routeName: null,
     path: null,

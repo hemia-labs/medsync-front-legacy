@@ -67,10 +67,12 @@
                 ></da-button-secondary>
             </div>
 
+            <button v-if="form.signature_image && !signaturePadVisible" type="button" class="mb-3 text-sm underline" :disabled="saving" @click="removeSignature">Eliminar firma del perfil</button>
+            <button v-if="form.signature_image && !signaturePadVisible" type="button" class="mb-3 ml-3 text-sm underline" :disabled="saving" @click="refreshSignature">Actualizar imagen</button>
             <da-signature-pad ref="guideSignaturePad" v-if="signaturePadVisible && !saving" required track-changes @changed="signatureHasInk=!$event.isEmpty" v-on:signed="onSigned"></da-signature-pad>
             <div v-else class="min-h-32 flex items-center justify-center text-center">
                 <div v-if="form.signature_image" class="w-full">
-                    <div class="h-24 bg-contain bg-center bg-no-repeat" :style="imageStyle(form.signature_image)"></div>
+                    <div class="h-24 bg-contain bg-center bg-no-repeat" :style="imageStyle(signaturePreview)"></div>
                     <p class="m-0 mt-2 text-sm text-gray-500">Firma capturada.</p>
                 </div>
                 <p v-else class="m-0 text-gray-500">Sin firma profesional.</p>
@@ -153,6 +155,7 @@ export default {
     },
     computed: {
         ...mapGetters(moduleTypes.AUTH,{role:fnTypes.getRole,hasPermission:fnTypes.hasPermission}),
+        signaturePreview() { return String(this.form.signature_image || '').startsWith('consultorios/') ? this.form.signature_url || '' : this.form.signature_image; },
         signatureCaptureLabel() { return this.signaturePadVisible ? 'Cancelar firma' : this.form.signature_image ? 'Cambiar firma' : 'Capturar firma'; },
         saveButtonLabel() { return this.saving ? (this.checkingProfile ? 'Comprobando…' : 'Guardando…') : this.uncertainProfile ? 'Comprobar guardado' : this.adminControlsOnly ? 'Guardar autorizaciones' : 'Guardar perfil'; },
         guideSaveState() { return this.loading ? 'loading' : this.saving ? 'saving' : this.uncertainProfile ? 'uncertain' : this.loadError || this.saveError ? 'error' : this.hasProfile && !this.hasUnsavedChanges ? 'saved' : 'idle'; },
@@ -191,6 +194,7 @@ export default {
         }
     },
     mounted() {
+        this.signatureRefreshTimer=setInterval(()=>this.refreshSignature(),240000);
         if(!this.adminControlsOnly) this.removeSettingsGuard = registerSettingsNavigationGuard(this, {
             hasChanges: () => this.hasUnsavedChanges,
             isSaving: () => this.saving,
@@ -198,11 +202,34 @@ export default {
         });
     },
     beforeDestroy() {
+        clearInterval(this.signatureRefreshTimer);
         this.disposed = true;
         this.loadRequest++;
         if(this.removeSettingsGuard) this.removeSettingsGuard();
     },
     methods: {
+        removeSignature() { if(!this.saving){this.form.signature_image='';this.saveError='';this.warning=this.validationMessage();} },
+        async refreshSignature() {
+            const id=this.idLogin,key=this.profileSessionKey,source=this.form.signature_image;
+            if(this.saving || !String(source || '').startsWith('consultorios/'))return;
+            try {
+                const result=await DAUserService.getProfessionalProfile(id);
+                if(this.disposed || this.saving || id!==this.idLogin || key!==this.profileSessionKey || source!==this.form.signature_image)return;
+                if(!result || !result.success)throw Error();
+                if(result.data && result.data.signature_image===source)this.$set(this.form,'signature_url',result.data.signature_url);
+                else this.saveError='La firma cambió en otra sesión. Vuelve a cargar el perfil para consultarla.';
+            }catch(_){if(!this.disposed && key===this.profileSessionKey)this.saveError='No se pudo actualizar la imagen de la firma. Reintenta la consulta.';}
+        },
+        async matchesSavedProfile(saved, payload) {
+            for(const field of Object.keys(payload)) {
+                if(field==='signature_image' && String(payload[field]).startsWith('data:image/') && saved.signature_digest) {
+                    const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(payload[field]));
+                    const digest=Array.from(new Uint8Array(hash),byte=>byte.toString(16).padStart(2,'0')).join('');
+                    if(digest!==saved.signature_digest)return false;
+                }else if(String(saved[field] == null ? '' : saved[field])!==String(payload[field] == null ? '' : payload[field]))return false;
+            }
+            return true;
+        },
         focusGuideControl(id, reveal){const pad=this.$refs.guideSignaturePad;const drawing=pad && ['signature-capture','signature-apply'].includes(id);focusControl(drawing ? (id==='signature-apply' && this.signatureHasInk ? pad.$refs.applyButton : pad.$refs.signaturePad) : this.$refs[{identity:'guideIdentity',license:'guideLicense',signature:'guideCapture','signature-capture':'guideCapture',save:'guideSave'}[id]], reveal, drawing ? pad.$el : null);},
         async checkProfileSave() {
             const intent=this.uncertainProfile,id=this.idLogin,key=this.profileSessionKey,request=this.loadRequest;
@@ -213,7 +240,8 @@ export default {
                 if(this.disposed || id!==this.idLogin || key!==this.profileSessionKey || request!==this.loadRequest)return;
                 if(!result || !result.success)throw new Error();
                 const saved=profileForm(result.data || {});
-                const matches=result.data && Object.keys(intent.payload).every(field=>String(saved[field] == null ? '' : saved[field])===String(intent.payload[field] == null ? '' : intent.payload[field]));
+                const matches=result.data && await this.matchesSavedProfile(saved,intent.payload);
+                if(this.disposed || id!==this.idLogin || key!==this.profileSessionKey || request!==this.loadRequest)return;
                 if(matches){
                     if(profileSnapshot(this.form)===intent.submitted)this.form=saved;
                     this.baseline=profileSnapshot(saved);this.hasProfile=true;this.saveError='';this.uncertainProfile=null;this.$emit('saved',result.data);

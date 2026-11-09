@@ -133,6 +133,9 @@ const mutations = {
         state.sessionState = sessionPayload.sessionState || null
         state.unauthorized = false
     },
+    [types.SET_AUTH_LOGGING_OUT] (state, value) {
+        state.isLoggingOut = value;
+    },
     [types.SET_AUTH_ACCESS_SESSION] (state, payload) {
         const session = getSessionPayload(payload);
         if(!session || !session.authenticated) { setAnonymousRuntimeState(state); return; }

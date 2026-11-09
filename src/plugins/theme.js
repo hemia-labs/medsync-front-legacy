@@ -2,20 +2,24 @@ import Vue from 'vue';
 
 const DEFAULT_THEME = {
   code: 'medical-blue',
-  primary_100: '#E6F7FB',
-  primary_200: '#CDEEF7',
-  primary_300: '#A6E1F0',
-  primary_500: '#55C3DD',
-  primary_700: '#1497BD',
-  primary_900: '#086783',
-  primary_1000: '#064E63',
-  secondary_500: '#F05252',
-  secondary_700: '#C81E1E',
-  terciary_500: '#64748B',
-  forty_500: '#CBD5E1',
-  grey: '#64748B',
-  gray98: '#F8FAFC',
-  red: '#DC2626'
+  primary_100: '#E6F0F8',
+  primary_200: '#A7E0D1',
+  primary_300: '#A7E0D1',
+  primary_500: '#1C7FA7',
+  primary_700: '#1C7FA7',
+  primary_900: '#12294A',
+  primary_1000: '#12294A',
+  secondary_500: '#D64545',
+  secondary_700: '#D64545',
+  terciary_500: '#6E7C92',
+  forty_500: '#DCE3EC',
+  grey: '#4E5B70',
+  gray98: '#F3F6F9',
+  red: '#D64545',
+  surface: '#FAFBFC',
+  success: '#2FA36B',
+  info: '#3B82C4',
+  muted: '#8A94A6'
 };
 
 const cssVariableMap = {
@@ -32,7 +36,11 @@ const cssVariableMap = {
   forty_500: '--color-forty-500',
   grey: '--color-grey',
   gray98: '--color-gray98',
-  red: '--color-red'
+  red: '--color-red',
+  surface: '--color-surface',
+  success: '--color-success',
+  info: '--color-info',
+  muted: '--color-muted'
 };
 
 const hexToRgb = (hex) => {
@@ -70,13 +78,18 @@ const validTheme = theme => Boolean(theme && typeof theme.code === 'string'
   && typeof theme.primary_700 === 'string' && /^#[0-9a-f]{6}$/i.test(theme.primary_700));
 
 const renderTheme = theme => {
-  const resolvedTheme = { ...DEFAULT_THEME, ...theme };
+  // The built-in palette is owned here; the API may still return its older colors.
+  const resolvedTheme = theme && theme.code === DEFAULT_THEME.code
+    ? { ...DEFAULT_THEME }
+    : { ...DEFAULT_THEME, ...theme };
   themeState.currentTheme = resolvedTheme;
   if(typeof document === 'undefined') return;
   const root = document.documentElement;
 
   Object.keys(cssVariableMap).forEach((key) => {
     root.style.setProperty(cssVariableMap[key], resolvedTheme[key]);
+    const { r, g, b } = hexToRgb(resolvedTheme[key]);
+    root.style.setProperty(`${cssVariableMap[key]}-rgb`, `${r}, ${g}, ${b}`);
   });
 
   root.style.setProperty('--bg-box-shadow-primary', toShadow(resolvedTheme.primary_500, 0.25));

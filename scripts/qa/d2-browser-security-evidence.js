@@ -202,7 +202,7 @@ async function waitForSessionCall(page) {
 }
 
 async function loginViaUi(page, phone) {
-  await page.goto(`${FRONTEND_URL}/auth/login`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${FRONTEND_URL}/login`, { waitUntil: 'domcontentloaded' });
   await page.locator('input[autocomplete="username"]').fill(phone);
   await page.locator('input[autocomplete="current-password"]').fill(QA_PASSWORD);
 
@@ -363,11 +363,14 @@ async function tryLogoutViaUi(page) {
   await page.goto(`${FRONTEND_URL}/`, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => null);
 
-  const logoutButton = page.locator('button.session-action', { hasText: 'Salir' }).first();
+  const accountButton = page.getByRole('button', { name: /^Menú de cuenta de / });
 
-  if (await logoutButton.count() === 0) {
+  if (await accountButton.count() === 0) {
     return { attempted: false, status: null, method: 'not-found' };
   }
+
+  await accountButton.click();
+  const logoutButton = page.getByRole('menuitem', { name: 'Cerrar sesión' });
 
   const closeResponsePromise = page.waitForResponse(
     (response) => response.url().startsWith(API_URL)
@@ -498,7 +501,7 @@ async function main() {
     await evidence.flushNetwork();
     const clinicalResponses = evidence.apiResponses.slice(clinicalStartIndex);
     const clinicalApiErrors = clinicalResponses.filter((response) => response.status >= 400);
-    evidence.check('clinical patient route loads without auth redirect', !page.url().includes('/auth/login'), {
+    evidence.check('clinical patient route loads without auth redirect', !page.url().includes('/login'), {
       finalPath: normalizeApiPath(page.url()),
       apiErrorCount: clinicalApiErrors.length,
       apiErrors: clinicalApiErrors.slice(0, 5).map((response) => ({ path: response.path, status: response.status }))
@@ -530,7 +533,7 @@ async function main() {
     const assistantContext = await browser.newContext({ baseURL: FRONTEND_URL, ignoreHTTPSErrors: true });
     const assistantPage = await assistantContext.newPage();
     evidence.attachNetwork(assistantPage, 'assistant');
-    await assistantPage.goto(`${FRONTEND_URL}/auth/login`, { waitUntil: 'domcontentloaded' });
+    await assistantPage.goto(`${FRONTEND_URL}/login`, { waitUntil: 'domcontentloaded' });
     const assistantLogin = await loginViaBrowserFetch(assistantPage, USERS.assistant.phone);
     evidence.check('assistant login for super admin close setup succeeds', assistantLogin.status === 200, {
       status: assistantLogin.status,
@@ -540,7 +543,7 @@ async function main() {
     const superContext = await browser.newContext({ baseURL: FRONTEND_URL, ignoreHTTPSErrors: true });
     const superPage = await superContext.newPage();
     evidence.attachNetwork(superPage, 'super-admin');
-    await superPage.goto(`${FRONTEND_URL}/auth/login`, { waitUntil: 'domcontentloaded' });
+    await superPage.goto(`${FRONTEND_URL}/login`, { waitUntil: 'domcontentloaded' });
     const superLogin = await loginViaBrowserFetch(superPage, USERS.superAdmin.phone);
     const closeUserSessions = await fetchWithCsrf(superPage, 'PATCH', `/api/super-admin/users/${USERS.assistant.id}/close-sessions`, {});
     const assistantSessionAfterClose = await fetchWithoutCsrf(assistantPage, 'GET', '/api/auth/session');
@@ -562,7 +565,7 @@ async function main() {
     const tenantContext = await browser.newContext({ baseURL: FRONTEND_URL, ignoreHTTPSErrors: true });
     const tenantPage = await tenantContext.newPage();
     evidence.attachNetwork(tenantPage, 'tenant-user-state');
-    await tenantPage.goto(`${FRONTEND_URL}/auth/login`, { waitUntil: 'domcontentloaded' });
+    await tenantPage.goto(`${FRONTEND_URL}/login`, { waitUntil: 'domcontentloaded' });
     const restrictedLogin = await loginViaBrowserFetch(tenantPage, USERS.restricted.phone);
     const restrictedCookies = await tenantContext.cookies(API_URL);
     const inactiveLogin = await loginViaBrowserFetch(tenantPage, USERS.inactive.phone);

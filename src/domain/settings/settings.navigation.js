@@ -30,7 +30,7 @@ export async function confirmSettingsDiscard(view, { title = 'Tienes cambios sin
 
 const cleanSessionLogin = (view, to) => {
     const auth = view && view.$store && view.$store.state && view.$store.state.CORE && view.$store.state.CORE.AUTH;
-    return to && String(to.path || '').replace(/\/+$/, '') === '/auth/login'
+    return to && String(to.path || '').replace(/\/+$/, '') === '/login'
         && auth && !auth.authenticated && !auth.user;
 };
 

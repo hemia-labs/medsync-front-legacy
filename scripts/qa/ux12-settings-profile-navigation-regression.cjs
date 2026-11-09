@@ -21,9 +21,9 @@ const deferred = () => { let resolve; return { promise: new Promise(done => { re
     assert.equal(await route('/admin'), false); assert.equal(discarded, 0);
     answer = true; assert.equal(await route('/admin'), 'allowed'); assert.equal(discarded, 1);
     saving = true; const beforeSaving = prompts; assert.equal(await route('/inicio'), false); assert.equal(prompts, beforeSaving);
-    assert.equal(await route('/auth/login'), false, 'An active session cannot silently discard via login');
+    assert.equal(await route('/login'), false, 'An active session cannot silently discard via login');
     view.$store.state.CORE.AUTH = { authenticated: false, user: null };
-    assert.equal(await route('/auth/login'), 'allowed', 'Expired/cleared sessions can reach login even if a save was pending');
+    assert.equal(await route('/login'), 'allowed', 'Expired/cleared sessions can reach login even if a save was pending');
     let prevented = false; const event = { preventDefault() { prevented = true; } };
     handlers.get('beforeunload')(event); assert.equal(prevented, true); assert.equal(event.returnValue, '');
     dirty = false; saving = false; prevented = false; handlers.get('beforeunload')({ preventDefault() { prevented = true; } }); assert.equal(prevented, false);
@@ -39,7 +39,7 @@ const deferred = () => { let resolve; return { promise: new Promise(done => { re
     const service = { getProfessionalProfile: async () => readResult, saveProfessionalProfile: (_id, payload) => { saveCalls++; lastPayload = payload; assert.notEqual(payload, profile.form, 'The request owns a snapshot, not the mutable form'); return saveResult; } };
     const sfc = compiler.parseComponent(read('src/views/User/components/DAProfessionalProfile.vue'));
     assert.deepEqual(compiler.compile(sfc.template.content).errors, []);
-    const context = { component: null, PreparationGuide:{}, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, getSettingsSections: () => [], DAUserService: service,
+    const context = { component: null, setInterval:()=>1, clearInterval:()=>{}, crypto:require('node:crypto').webcrypto, TextEncoder, PreparationGuide:{}, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, getSettingsSections: () => [], DAUserService: service,
         buildLicenseLimitMessage: (_response, fallback) => fallback, confirmSettingsDiscard: async () => false,
         registerSettingsNavigationGuard: () => { guardCalls++; return () => cleanupCalls++; } };
     vm.runInNewContext(sfc.script.content.replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component ='), context);

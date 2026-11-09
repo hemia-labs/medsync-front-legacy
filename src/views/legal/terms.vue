@@ -2,7 +2,7 @@
   <div class="terms-page">
     <header class="terms-header">
       <button type="button" class="brand-button" aria-label="Ir al inicio" @click="$router.push('/')">
-        <span class="brand-logo" :style="`background-image: url('` + logoOrrico + `')`"></span>
+        <medsync-brand />
       </button>
       <button type="button" class="print-button" aria-label="Imprimir o guardar estos términos como PDF" @click="printTerms">
         <v-icon size="18" aria-hidden="true">mdi-printer-outline</v-icon>
@@ -188,7 +188,6 @@ import {
 export default {
   data: function() {
     return {
-      logoOrrico: require('@/assets/login/med-sync-logo.png'),
       cards: termsHeroCards,
       jurisdiction: MEDSYNC_JURISDICTION,
       lastUpdated: MEDSYNC_TERMS_LAST_UPDATED,

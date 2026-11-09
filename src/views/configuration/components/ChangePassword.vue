@@ -13,9 +13,6 @@
 
         <div class="password-content" v-if="step !== 'success'">
             <form v-if="step === 'form'" class="password-form" novalidate @submit.prevent="sendCode">
-                <h3>Elige tu nueva contraseña</h3>
-                <p class="password-intro">Completa los tres campos. Tu contraseña actual seguirá vigente hasta que confirmes el código.</p>
-
                 <v-text-field
                     v-for="field in fields"
                     :id="'change-password-' + field.key"
@@ -26,7 +23,6 @@
                     :type="visible[field.key] ? 'text' : 'password'"
                     :autocomplete="field.autocomplete"
                     :error-messages="touched[field.key] ? errors[field.key] : ''"
-                    :maxlength="field.key === 'currentPassword' ? null : 128"
                     :hint="field.hint"
                     :persistent-hint="Boolean(field.hint)"
                     :spellcheck="false"
@@ -50,15 +46,14 @@
 
                 <div class="password-actions">
                     <button type="button" class="password-button password-button--secondary" :disabled="!hasChanges || loading" @click="clearForm">Limpiar campos</button>
-                    <button type="submit" class="password-button password-button--primary" :disabled="loading">
+                    <button type="submit" class="password-button password-button--primary" :disabled="loading || resendRemaining > 0">
                         <v-icon color="inherit" size="18" aria-hidden="true">{{ loading ? 'mdi-loading' : 'mdi-email-outline' }}</v-icon>
-                        {{ loading ? 'Validando y enviando…' : 'Enviar código de verificación' }}
+                        {{ loading ? 'Validando y enviando…' : resendRemaining ? 'Enviar en ' + resendRemaining + ' s' : 'Enviar código de verificación' }}
                     </button>
                 </div>
             </form>
 
             <form v-else class="password-form" novalidate @submit.prevent="confirmCode">
-                <h3>Confirma el cambio</h3>
                 <p class="password-intro">Enviamos un código a <strong>{{ emailMasked || 'el correo asociado a tu cuenta' }}</strong>. Vence en {{ ttlMinutes }} minutos.</p>
 
                 <div
@@ -96,14 +91,13 @@
                     <p v-if="codeTouched && !validCode" id="change-password-code-error" class="otp-error" role="alert">
                         Introduce los 6 dígitos del código.
                     </p>
-                    <p class="otp-help">Ingresa los 6 dígitos que recibiste por correo.</p>
                 </div>
 
                 <p v-if="feedback.message" class="password-feedback" :class="'password-feedback--' + feedback.type" :role="feedback.type === 'error' ? 'alert' : 'status'">{{ feedback.message }}</p>
 
                 <div class="password-actions">
                     <button type="button" class="password-button password-button--secondary" :disabled="loading" @click="backToForm">Cambiar datos</button>
-                    <button type="button" class="password-button password-button--outline" :disabled="loading" @click="sendCode">Reenviar código</button>
+                    <button type="button" class="password-button password-button--outline" :disabled="loading || resendRemaining > 0" @click="sendCode">{{ resendRemaining ? 'Reenviar en ' + resendRemaining + ' s' : 'Reenviar código' }}</button>
                     <button type="submit" class="password-button password-button--primary" :disabled="loading || !validCode">
                         <v-icon color="inherit" size="18" aria-hidden="true">{{ loading ? 'mdi-loading' : 'mdi-lock-check-outline' }}</v-icon>
                         {{ loading ? 'Confirmando…' : 'Confirmar cambio' }}
@@ -111,17 +105,7 @@
                 </div>
             </form>
 
-            <aside class="password-help" aria-labelledby="password-help-title">
-                <div class="password-help-icon" aria-hidden="true"><v-icon color="inherit" size="24">mdi-email-check-outline</v-icon></div>
-                <h3 id="password-help-title">Confirma el cambio desde tu correo</h3>
-                <p>El código se envía al correo asociado a tu cuenta después de validar tu contraseña actual.</p>
-                <ol>
-                    <li>Escribe tu contraseña actual y la nueva dos veces.</li>
-                    <li>Revisa tu correo para obtener el código.</li>
-                    <li>Introduce el código para aplicar el cambio.</li>
-                </ol>
-                <p class="password-help-note"><v-icon color="inherit" size="17" aria-hidden="true">mdi-shield-lock-outline</v-icon><span>No compartas tu contraseña ni el código de verificación.</span></p>
-            </aside>
+
         </div>
 
         <div v-else class="password-success" role="status" tabindex="-1">
@@ -136,6 +120,7 @@
 <script>
 import { registerSettingsNavigationGuard } from '../../../domain/settings/settings.navigation';
 import { DAAuthService } from '../../../services/context/core-proccess-context';
+import { registrationPasswordError } from '../../../utils/registration';
 
 const emptyForm = () => ({ currentPassword: '', newPassword: '', confirmPassword: '' });
 const emptyFlags = () => ({ currentPassword: false, newPassword: false, confirmPassword: false });
@@ -153,10 +138,12 @@ export default {
             emailMasked: '',
             ttlMinutes: 10,
             loading: false,
+            resendRemaining: 0,
+            resendTimer: null,
             feedback: emptyFeedback(),
             fields: [
                 { key: 'currentPassword', label: 'Contraseña actual', autocomplete: 'current-password', hint: '' },
-                { key: 'newPassword', label: 'Nueva contraseña', autocomplete: 'new-password', hint: 'De 8 a 128 caracteres, con al menos una letra y un número.' },
+                { key: 'newPassword', label: 'Nueva contraseña', autocomplete: 'new-password', hint: 'De 8 a 128 caracteres. Puedes incluir espacios.' },
                 { key: 'confirmPassword', label: 'Confirmar nueva contraseña', autocomplete: 'new-password', hint: '' }
             ]
         };
@@ -170,8 +157,7 @@ export default {
             return {
                 currentPassword: currentPassword ? '' : 'Introduce tu contraseña actual.',
                 newPassword: !newPassword ? 'Introduce una nueva contraseña.'
-                    : newPassword.length < 8 || newPassword.length > 128 ? 'Usa entre 8 y 128 caracteres.'
-                    : !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword) ? 'Incluye al menos una letra y un número.'
+                    : registrationPasswordError(newPassword) ? registrationPasswordError(newPassword)
                     : newPassword === currentPassword ? 'Elige una contraseña diferente de la actual.' : '',
                 confirmPassword: !confirmPassword ? 'Vuelve a escribir la nueva contraseña.'
                     : confirmPassword !== newPassword ? 'Las contraseñas no coinciden.' : ''
@@ -188,8 +174,18 @@ export default {
     beforeDestroy() {
         if(this.removeNavigationGuard) this.removeNavigationGuard();
         this.clearForm();
+        clearInterval(this.resendTimer);
     },
     methods: {
+        startResendCooldown(seconds) {
+            clearInterval(this.resendTimer);
+            const until = Date.now() + Math.max(0, Number(seconds) || 0) * 1000;
+            const tick = () => {
+                this.resendRemaining = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+                if (!this.resendRemaining) clearInterval(this.resendTimer);
+            };
+            tick(); this.resendTimer = setInterval(tick, 500);
+        },
         clearForm() {
             this.form = emptyForm();
             this.touched = emptyFlags();
@@ -205,6 +201,7 @@ export default {
             if(this.feedback.message) this.feedback = emptyFeedback();
         },
         async sendCode() {
+            if (this.loading || this.resendRemaining) return;
             this.fields.forEach(field => { this.touched[field.key] = true; });
             const invalid = this.fields.find(field => this.errors[field.key]);
             this.feedback = emptyFeedback();
@@ -224,17 +221,20 @@ export default {
                     newPassword: this.form.newPassword,
                     confirmPassword: this.form.confirmPassword
                 });
+                if (this._isDestroyed) return;
+                if (response && response.retryAfterSeconds) this.startResendCooldown(response.retryAfterSeconds);
                 if(!response || !response.success) {
                     this.feedback = { type: 'error', message: response && response.message ? response.message : 'No se pudo enviar el código.' };
                     return;
                 }
 
+                this.startResendCooldown(response.data.resendAfterSeconds || 60);
                 this.step = 'code';
                 this.codeDigits = Array(6).fill('');
                 this.codeTouched = false;
                 this.emailMasked = response.data && response.data.emailMasked ? response.data.emailMasked : '';
                 this.ttlMinutes = response.data && response.data.ttlMinutes ? response.data.ttlMinutes : 10;
-                this.feedback = { type: 'success', message: 'Código enviado. Revisa tu correo para confirmar el cambio.' };
+                this.feedback = emptyFeedback();
                 this.focusCodeField(0);
             } catch {
                 this.feedback = { type: 'error', message: 'No se pudo enviar el código. Inténtalo de nuevo.' };
@@ -243,6 +243,7 @@ export default {
             }
         },
         async confirmCode() {
+            if (this.loading) return;
             this.codeTouched = true;
             this.feedback = emptyFeedback();
             if(!this.validCode) {
@@ -254,8 +255,11 @@ export default {
             this.loading = true;
             try {
                 const response = await DAAuthService.confirmPasswordChange({ code: String(this.code).trim() });
+                if (this._isDestroyed) return;
                 if(!response || !response.success) {
-                    this.feedback = { type: 'error', message: response && response.message ? response.message : 'No se pudo confirmar el código.' };
+                    this.feedback = { type: 'error', message: response && response.status === 0
+                        ? 'No pudimos confirmar el resultado. Comprueba el acceso con tu nueva contraseña antes de repetir el cambio.'
+                        : response && response.message ? response.message : 'No se pudo confirmar el código.' };
                     return;
                 }
 
@@ -352,9 +356,8 @@ export default {
 .password-eyebrow { margin: 0 0 .35rem; color: var(--color-primary-900); font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .password-heading h2 { margin: 0; color: #4b5563; font-size: 1.5rem; font-weight: 400; }
 .password-heading p:last-child { max-width: 48rem; margin: .5rem 0 0; color: #4b5563; font-size: .875rem; line-height: 1.65; }
-.password-content { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(14rem, 1fr); gap: 2rem; padding: 1.75rem; align-items: start; }
-.password-content h3 { margin: 0; color: #374151; font-size: 1rem; font-weight: 600; line-height: 1.5; }
-.password-form { min-width: 0; }
+.password-content { display: block; padding: 1.75rem; align-items: start; }
+.password-form { min-width: 0; max-width: 40rem; }
 .password-intro { margin: .5rem 0 1.5rem; color: #6b7280; font-size: .875rem; line-height: 1.65; }
 .otp-input-group { margin: 0 0 1rem; }
 .otp-label { margin: 0 0 .5rem; color: #6b7280; font-size: .875rem; font-weight: 500; }
@@ -364,7 +367,6 @@ export default {
 .otp-input:disabled { opacity: .6; }
 .otp-inputs--error .otp-input { border-color: #ef4444; }
 .otp-error { margin: .4rem 0 0; color: #dc2626; font-size: .8rem; line-height: 1.4; }
-.otp-help { margin: .4rem 0 0; color: #6b7280; font-size: .8rem; line-height: 1.4; }
 .password-visibility { display: flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; margin-top: -.25rem; border-radius: .25rem; }
 .password-visibility:focus-visible, .password-button:focus-visible { outline: 3px solid var(--color-primary-700); outline-offset: 3px; }
 .password-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .75rem; padding-top: .5rem; }
@@ -379,18 +381,9 @@ export default {
 .password-feedback { padding: .875rem 1rem; border: 1px solid var(--color-primary-200); font-size: .875rem; line-height: 1.6; }
 .password-feedback--success { color: #166534; border-color: #bbf7d0; background: #f0fdf4; }
 .password-feedback--error { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
-.password-help { padding: 1.5rem; border: 1px solid var(--color-primary-200); background: var(--color-primary-100); }
-.password-help-icon { color: var(--color-primary-900); margin-bottom: .75rem; }
-.password-help p, .password-help li { color: #4b5563; font-size: .875rem; line-height: 1.65; }
-.password-help p { margin: .6rem 0 0; }
-.password-help ol { margin: 1.25rem 0; padding-left: 1.25rem; list-style-type: decimal; }
-.password-help li + li { margin-top: .75rem; }
-.password-help .password-help-note { display: flex; align-items: flex-start; gap: .5rem; padding-top: 1rem; border-top: 1px solid var(--color-primary-200); font-size: .8rem; }
-.password-help-note .v-icon { margin-top: .2rem; }
 .password-success { display: flex; flex-direction: column; align-items: flex-start; gap: .75rem; padding: 2rem; }
 .password-success h3 { margin: 0; color: #166534; font-size: 1.25rem; }
 .password-success p { margin: 0 0 .5rem; color: #4b5563; font-size: .9rem; line-height: 1.6; }
-@media (max-width: 1279px) { .password-content { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 639px) {
     .password-heading, .password-content { padding: 1.25rem; }
     .password-heading-icon { display: none; }

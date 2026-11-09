@@ -19,6 +19,7 @@ const state = () => {
         accessExpiresAt: null,
         sessionState:   null,
         accessRevision: 0,
+        isLoggingOut:   false,
         user:           null,
         security:       null,
         hasError:       new DAHasErrorModel(),
