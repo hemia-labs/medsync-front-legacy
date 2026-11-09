@@ -1,14 +1,36 @@
 name: Build MedSync frontend image
 
 on:
+  pull_request:
+    branches: [develop, main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  verify:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build and verify the static container
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_BASE_REF" == main ]]; then
+            api=https://api.medsync.mx/
+          else
+            api=https://api-test.medsync.mx/
+          fi
+          docker build --build-arg "VUE_APP_CORE_URL_API=$api" \
+            --build-arg "DEPLOY_RELEASE=$GITHUB_SHA" --tag medsync-front-check .
+          docker run --rm --entrypoint nginx medsync-front-check -t
+
   publish:
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}

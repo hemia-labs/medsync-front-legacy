@@ -8,9 +8,10 @@ COPY scripts/ops/verify-frontend.cjs scripts/ops/
 COPY public/ public/
 COPY src/ src/
 ARG VUE_APP_CORE_URL_API
-ARG DEPLOY_RELEASE
 ENV VUE_APP_AUTH_COOKIE_MODE=d2 VUE_APP_BROWSER_AUTH_TRANSPORT=cookie VUE_APP_CSRF_ENABLED=true
-RUN npm run build && node scripts/ops/verify-frontend.cjs seal
+RUN npm run build
+ARG DEPLOY_RELEASE
+RUN node scripts/ops/verify-frontend.cjs seal
 
 FROM nginx:stable-alpine-slim@sha256:f65ed258206d1eb6c4eb6141111715a2cf94ac0a4ec9675fc2da186f7aadb163
 COPY ops/frontend/nginx.conf /etc/nginx/nginx.conf
