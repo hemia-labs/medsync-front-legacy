@@ -1,9 +1,6 @@
 name: Deploy medsync-front-legacy to Contabo prod
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 env:
@@ -24,7 +21,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: prod
 
