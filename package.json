@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "changeset": "changeset",
+    "version-packages": "changeset version && npm version --allow-same-version --no-git-tag-version --ignore-scripts $(node -p \"require('./package.json').version\")",
     "prebuild": "node scripts/qa/enforce-https-api-url.js production",
     "serve": "npm run serve:d2",
     "serve:d2": "node scripts/dev-auth-mode.js d2",
@@ -52,6 +54,7 @@
     "vuex": "^3.4.0"
   },
   "devDependencies": {
+    "@changesets/cli": "2.31.1",
     "@playwright/test": "^1.60.0",
     "@vue/cli-plugin-babel": "~4.5.0",
     "@vue/cli-plugin-eslint": "~4.5.0",
