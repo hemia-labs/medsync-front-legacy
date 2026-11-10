@@ -1,11 +1,10 @@
-name: MedSync frontend releases
+name: MedSync frontend CI and releases
 
 on:
   push:
     branches: [develop, main]
   pull_request:
     branches: [develop, main]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,12 +12,13 @@ permissions:
 concurrency:
   group: medsync-frontend-release-${{ github.ref }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   verify:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -29,58 +29,106 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: bash -n scripts/release-frontend.sh
+      - run: |
+          bash -n scripts/release-frontend.sh
+          bash -n ops/frontend/deploy.sh
       - name: Verify registration when promoting to production
         if: github.base_ref == 'main'
-        run: node scripts/qa/s24-registration-regression.cjs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          node scripts/ops/classify-prod-release.cjs "$BASE_SHA"
+          node scripts/qa/s24-registration-regression.cjs
+      - name: Build and verify the static container
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_BASE_REF" == main ]]; then
+            api=https://api.medsync.mx/
+          else
+            api=https://api-test.medsync.mx/
+          fi
+          docker build --build-arg "VUE_APP_CORE_URL_API=$api" \
+            --build-arg "DEPLOY_RELEASE=$GITHUB_SHA" --tag medsync-front-check .
+          docker run --rm --entrypoint nginx medsync-front-check -t
+          export MEDSYNC_FRONT_IMAGE=medsync-front-check MEDSYNC_FRONT_PORT=14324
+          compose=(docker compose -p medsync-front-check -f ops/frontend/compose.yml)
+          trap '"${compose[@]}" down' EXIT
+          "${compose[@]}" up -d --wait --wait-timeout 45
+          origin=http://127.0.0.1:14324
+          marker="$(curl -fsS "$origin/deploy-release.json")"
+          expected="$(jq -er --arg release "$GITHUB_SHA" 'select(.application == "medsync-front-legacy" and .release == $release) | .indexSha256' <<<"$marker")"
+          html="$(mktemp)"
+          curl -fsS "$origin/auth/login" -o "$html"
+          [[ "$(sha256sum "$html" | cut -d ' ' -f1)" == "$expected" ]]
+          asset="$(grep -oE '/js/app[.][a-f0-9]{8}[.]js' "$html" | head -n 1)"
+          curl -fsS "$origin$asset" -o /dev/null
+          [[ "$(curl -sS -o /dev/null -w '%{http_code}' "$origin/js/missing.js")" == 404 ]]
       - name: Verify the version plan
         if: hashFiles('.changeset/*.md', '!.changeset/README.md') != ''
         run: npm run version-packages
 
-  prerelease:
-    if: github.ref == 'refs/heads/develop'
+  classify:
+    if: github.event_name == 'push' && github.repository == 'hemia-labs/medsync-front-legacy'
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
+    outputs:
+      stable: ${{ steps.version.outputs.stable }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify the deployed frontend in QA
-        if: hashFiles('.changeset/*.md', '!.changeset/README.md') != ''
-        id: qa
+      - name: Detect the stable version merge
+        id: version
+        if: github.ref_name == 'main'
+        env:
+          PREVIOUS_SHA: ${{ github.event.before }}
+        run: node scripts/ops/classify-prod-release.cjs "$PREVIOUS_SHA" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: classify
+    if: github.ref_name == 'develop' || needs.classify.outputs.stable == 'true'
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+      release: ${{ steps.image.outputs.release }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build and publish the environment image
+        id: image
+        env:
+          REGISTRY_USERNAME: ${{ vars.FRONT_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.FRONT_REGISTRY_PASSWORD }}
         run: |
           set -euo pipefail
-          origin=https://test.medsync.mx
-          marker="$(curl --fail --silent --show-error --max-time 15 "$origin/deploy-release.json?commit=$GITHUB_SHA")"
-          release="$(jq -er 'select(.application == "medsync-front-legacy") | .release' <<<"$marker")"
-          if [[ ! "$release" =~ ^${GITHUB_SHA}(-[0-9]+-[0-9]+)?$ ]]; then
-            echo "::notice::QA aún no sirve el commit $GITHUB_SHA. Reintenta este workflow después del despliegue."
-            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then exit 1; fi
-            exit 0
+          : "${REGISTRY_USERNAME:?Missing FRONT_REGISTRY_USERNAME}" "${REGISTRY_PASSWORD:?Missing FRONT_REGISTRY_PASSWORD}"
+          registry=registry.hemia.cloud
+          if [[ "$GITHUB_REF_NAME" == main ]]; then
+            repository="$registry/medsync/prod-front"
+            api=https://api.medsync.mx/
+          else
+            repository="$registry/medsync/qa-front"
+            api=https://api-test.medsync.mx/
           fi
-          expected="$(jq -er '.indexSha256 | select(test("^[a-f0-9]{64}$"))' <<<"$marker")"
-          actual="$(curl --fail --silent --show-error --max-time 15 "$origin/auth/login?commit=$GITHUB_SHA" | sha256sum | cut -d ' ' -f1)"
-          [[ "$expected" == "$actual" ]]
-          latest="$(curl --fail --silent --show-error --max-time 15 "$origin/deploy-release.json?commit=$GITHUB_SHA" | jq -er .release)"
-          [[ "$latest" == "$release" ]]
-          echo 'verified=true' >> "$GITHUB_OUTPUT"
-      - if: steps.qa.outputs.verified == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-          cache: npm
-      - if: steps.qa.outputs.verified == 'true'
-        run: npm ci --ignore-scripts
-      - name: Publish QA prerelease
-        if: steps.qa.outputs.verified == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash scripts/release-frontend.sh
+          release="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          export DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/medsync-front-registry.XXXXXX")"
+          trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$REGISTRY_PASSWORD" | docker login "$registry" --username "$REGISTRY_USERNAME" --password-stdin
+          unset REGISTRY_PASSWORD
+          docker buildx build --platform linux/amd64 --provenance=false --push \
+            --build-arg "VUE_APP_CORE_URL_API=$api" --build-arg "DEPLOY_RELEASE=$release" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "$repository:$release" --metadata-file "$DOCKER_CONFIG/metadata.json" .
+          digest="$(jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' "$DOCKER_CONFIG/metadata.json")"
+          printf 'Frontend image: `%s@%s`\n' "$repository" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          printf 'digest=%s\nrelease=%s\n' "$digest" "$release" >> "$GITHUB_OUTPUT"
 
-  stable:
-    if: github.ref == 'refs/heads/main'
+  prepare-version:
+    needs: classify
+    if: github.ref_name == 'main' && needs.classify.outputs.stable == 'false'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -93,10 +141,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Publish stable release notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash scripts/release-frontend.sh
       - name: Check whether this run can update the version PR
         if: hashFiles('.changeset/*.md', '!.changeset/README.md') != ''
         id: head
@@ -124,3 +168,78 @@ jobs:
           version: npm run version-packages
           title: "Release: versionar frontend"
           commit: "Release: versionar frontend"
+
+  stable:
+    needs: [classify, publish]
+    if: needs.classify.outputs.stable == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Publish stable release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release-frontend.sh
+
+  deploy:
+    needs: [publish, stable]
+    if: ${{ !cancelled() && needs.publish.result == 'success' && (needs.stable.result == 'success' || (github.ref_name == 'develop' && needs.stable.result == 'skipped')) }}
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Deploy and verify the published digest
+        env:
+          FRONT_SSH_HOST: ${{ vars.FRONT_SSH_HOST }}
+          FRONT_SSH_KEY: ${{ secrets.FRONT_SSH_KEY }}
+          FRONT_SSH_KNOWN_HOSTS: ${{ secrets.FRONT_SSH_KNOWN_HOSTS }}
+          FRONT_DIGEST: ${{ needs.publish.outputs.digest }}
+          FRONT_RELEASE: ${{ needs.publish.outputs.release }}
+        run: |
+          set -euo pipefail
+          : "${FRONT_SSH_HOST:?Missing FRONT_SSH_HOST}"
+          : "${FRONT_SSH_KEY:?Missing FRONT_SSH_KEY}" "${FRONT_SSH_KNOWN_HOSTS:?Missing FRONT_SSH_KNOWN_HOSTS}"
+          [[ "$FRONT_SSH_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$FRONT_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$FRONT_RELEASE" =~ ^${GITHUB_SHA}-[0-9]+-[0-9]+$ ]]
+          umask 077
+          auth_dir="$(mktemp -d "$RUNNER_TEMP/medsync-front-ssh.XXXXXX")"
+          trap 'rm -rf -- "$auth_dir"' EXIT
+          printf '%s\n' "$FRONT_SSH_KEY" > "$auth_dir/key"
+          printf '%s\n' "$FRONT_SSH_KNOWN_HOSTS" > "$auth_dir/known_hosts"
+          unset FRONT_SSH_KEY FRONT_SSH_KNOWN_HOSTS
+          ssh -n -i "$auth_dir/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$auth_dir/known_hosts" \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            "root@$FRONT_SSH_HOST" "deploy $FRONT_DIGEST $FRONT_RELEASE"
+
+  prerelease:
+    needs: deploy
+    if: github.ref_name == 'develop'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Publish QA prerelease
+        if: hashFiles('.changeset/*.md', '!.changeset/README.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm ci --ignore-scripts
+          bash scripts/release-frontend.sh
