@@ -223,7 +223,7 @@ jobs:
 
   prerelease:
     needs: deploy
-    if: github.ref_name == 'develop'
+    if: ${{ !cancelled() && github.ref_name == 'develop' && needs.deploy.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
