@@ -25,6 +25,7 @@ release="${BASH_REMATCH[2]}"
 cd "$directory"
 exec 9>deploy.lock
 flock -w 30 9
+export DOCKER_HOST=unix:///var/run/docker.sock
 compose=(docker compose -p "$project" -f compose.yml)
 origin=http://127.0.0.1:4324
 umask 077
