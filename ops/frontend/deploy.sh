@@ -6,26 +6,40 @@ case "${1:-}" in
   dev)
     repository=registry.hemia.cloud/medsync/qa-front
     public_origin=https://test.medsync.mx
+    docker_config=/srv/medsync-qa/docker
+    lock=deploy.lock
     ;;
   prod)
     repository=registry.hemia.cloud/medsync/prod-front
     public_origin=https://app.medsync.mx
+    docker_config=/srv/medsync-prod/docker
+    lock=.deploy.lock
     ;;
   *) exit 2 ;;
 esac
 project="${2:?Existing Compose project required}"
 directory="${3:?Existing Compose directory required}"
 request="${SSH_ORIGINAL_COMMAND:-}"
+export DOCKER_HOST=unix:///var/run/docker.sock
+export DOCKER_CONFIG="$docker_config"
+
+if [[ "$request" == probe ]]; then
+  current="$(docker inspect --format '{{.Config.Image}}' "$project-web-1")"
+  [[ "${current%@*}" == "$repository" && "${current##*@}" =~ ^sha256:[a-f0-9]{64}$ ]]
+  docker manifest inspect "$current" >/dev/null
+  printf 'Frontend registry read verified: %s\n' "$current"
+  exit 0
+fi
+
 if [[ ! "$request" =~ ^deploy\ (sha256:[a-f0-9]{64})\ ([a-f0-9]{40}-[0-9]+-[0-9]+)$ ]]; then
-  echo 'Expected deploy <digest> <release>.' >&2
+  echo 'Expected probe or deploy <digest> <release>.' >&2
   exit 2
 fi
 image="$repository@${BASH_REMATCH[1]}"
 release="${BASH_REMATCH[2]}"
 cd "$directory"
-exec 9>deploy.lock
+exec 9>"$lock"
 flock -w 30 9
-export DOCKER_HOST=unix:///var/run/docker.sock
 compose=(docker compose -p "$project" -f compose.yml)
 origin=http://127.0.0.1:4324
 umask 077
