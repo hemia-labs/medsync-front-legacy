@@ -1,5 +1,11 @@
 # hmdentalassistant_front
 
+## 0.3.1
+
+### Patch Changes
+
+- 052c5c0: Automatiza la publicación y el despliegue del frontend por digest en QA y producción. Unifica las validaciones y releases en un workflow, verifica el frontend servido antes de crear el RC y reutiliza el acceso restringido de cada VPS al registry.
+
 ## 0.3.0
 
 ### Minor Changes
