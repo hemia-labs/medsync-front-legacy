@@ -57,6 +57,7 @@ export const helpEntries = [
 
   { ...guide('consultar-agenda', 'agenda', 10, 'Consultar las citas de un doctor', 'appointments', 'tarea', ['horarios-atencion']), editorialStatus: 'draft' },
   { ...guide('agendar-cita', 'agenda', 20, 'Agendar una cita', 'appointments', 'tarea', ['horarios-atencion']), editorialStatus: 'draft' },
+  { ...guide('vincular-paciente-cita', 'agenda', 25, 'Vincular una cita al expediente del paciente', 'appointments', 'tarea', ['agendar-cita']), editorialStatus: 'draft' },
   { ...guide('cambiar-cita', 'agenda', 30, 'Reprogramar o cancelar una cita', 'appointments', 'tarea', ['agendar-cita']), editorialStatus: 'draft' },
   { ...guide('estado-cita', 'agenda', 40, 'Registrar la confirmación o el resultado de una cita', 'appointments', 'tarea', ['agendar-cita']), editorialStatus: 'draft' },
 
@@ -97,6 +98,9 @@ export const helpEntries = [
   question('sin-horarios', 'agenda', 10, '¿Por qué no aparecen horarios disponibles para un doctor?', 'appointments', 'horarios-atencion'),
   question('agenda-cerrada', 'agenda', 20, '¿Qué pasa con las citas guardadas si se cierra la agenda?', 'appointments', 'consultar-agenda', 'concepto'),
   question('cita-reprogramada', 'agenda', 30, '¿Por qué la cita original aparece como Reprogramada?', 'appointments', 'cambiar-cita', 'concepto'),
+  question('vinculo-telefono', 'agenda', 50, '¿Un teléfono compartido vincula automáticamente al paciente?', 'appointments', 'vincular-paciente-cita', 'concepto'),
+  question('vinculo-pendiente', 'agenda', 60, '¿Qué hago si no se confirmó el vínculo con el paciente?', 'appointments', 'vincular-paciente-cita'),
+  question('registro-desde-cita', 'agenda', 70, '¿Registrar al paciente también guarda su cita?', 'appointments', 'vincular-paciente-cita', 'concepto'),
   question('cita-sin-confirmacion', 'agenda', 40, '¿Qué hago si no se confirmó que mi cita se guardó?', 'appointments', 'agendar-cita'),
 
   question('paciente-archivado', 'pacientes', 10, '¿Archivar un paciente elimina su expediente?', 'patientRecord', 'archivar-paciente', 'concepto'),

@@ -201,9 +201,13 @@ const actions = {
         return response;
     },
 
-    async setOdontogramDetail({commit}, data) {
+    async setOdontogramDetail({commit, state}, data) {
         if(data) {
-            commit(types.SET_ODONTOGRAM_DETAIL, new DAOdontogramDetailModel(data.id_odontogram_detailv1, data.id_tooth, data.treatment)); // 
+            const detail = new DAOdontogramDetailModel(data.id_odontogram_detailv1, data.id_tooth, data.treatment);
+            // Freeze the chart and original text when opening the editor.
+            detail.id_odontogramv1 = state.id_odontogram;
+            detail.expected_treatment = data.treatment || null;
+            commit(types.SET_ODONTOGRAM_DETAIL, detail);
         }
     },
 

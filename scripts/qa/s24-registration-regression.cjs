@@ -55,9 +55,10 @@ function load(file,bindings={},component=false) {
 
   let calls=[],csrf=0,refreshes=0,revision=1,fail=null;
   const service=load('src/services/core/auth/DARegistrationService.js',{
-    axios:{create:()=>({request:async config=>{calls.push(config);if(fail){const error=fail;fail=null;throw error;}return {data:{ok:true}};}})},
+    axios:{create:()=>({interceptors:{response:{use(){}}},request:async config=>{calls.push(config);if(fail){const error=fail;fail=null;throw error;}return {data:{ok:true}};}})},
     context:{APP_CORE_URL:'https://qa.invalid/'},isCsrfEnabled:()=>true,
-    DACsrfService:{getCsrfHeader:async options=>{assert.equal(options.force,true);csrf++;return {'X-CSRF-Token':'synthetic'};},clearCsrfToken(){}},
+    axiosHelper:{buildRequestConfig:async (method,{headers})=>({headers:method==='get'?headers:{...headers,'X-CSRF-Token':`synthetic-${++csrf}`}})},
+    DACsrfService:{clearCsrfToken(){}},
     store:{getters:{'CORE/AUTH/isAuthorized':true},dispatch:async()=>{refreshes++;}},
     authorizationContext:()=>revision,isCurrentAuthorization:owner=>owner===revision
   });

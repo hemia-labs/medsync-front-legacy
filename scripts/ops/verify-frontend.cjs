@@ -10,7 +10,7 @@ const hash = body => crypto.createHash('sha256').update(body).digest('hex');
 
 function assertPort(value) {
   if (value !== undefined && value !== '' && String(value) !== '4324') {
-    throw new Error('DEV_APP_PORT must be 4324 (the backend uses 3009).');
+    throw new Error('APP_PORT must be 4324 (the backend uses 3009).');
   }
 }
 

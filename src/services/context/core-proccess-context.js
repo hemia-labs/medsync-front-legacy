@@ -11,6 +11,7 @@ import DAPhotosService              from '../core/photo/DAPhotoService';
 import DAFileService                from '../core/file/DAFileService';    
 import DAMonitoringService          from '../core/monitoring/DAMonitoringService';    
 import DAOdontogramService          from '../core/odontogram/DAOdontogramService';    
+import DAOdontogramV2Service        from '../core/odontogram/DAOdontogramV2Service';
 import DAConditionService           from '../core/catalogs/DAConditionService';    
 import DATreatmentService           from '../core/treatment/DAOtherTreatmentService';    
 import DADocumentService            from '../core/document/DADocumentService';
@@ -37,6 +38,7 @@ export {
     DAFileService,
     DAMonitoringService,
     DAOdontogramService,
+    DAOdontogramV2Service,
     DAConditionService,
     DATreatmentService,
     DADocumentService,

@@ -1,7 +1,10 @@
 <template>
   <div class="patient-record-page px-4 py-5 mt-16">
     <div class="patient-record-breadcrumb">
-        <button type="button" class="patient-record-back" @click="$router.push('/px/all')">
+        <button v-if="canReturnToAgenda" type="button" class="patient-record-back" @click="returnToAgenda">
+            <v-icon small>mdi-arrow-left</v-icon><span>Volver a la agenda</span>
+        </button>
+        <button v-else type="button" class="patient-record-back" @click="$router.push('/px/all')">
             <v-icon small>mdi-arrow-left</v-icon>
             <span>Pacientes</span>
         </button>
@@ -70,10 +73,13 @@
                       :key="item.component + '-' + activePatientId"
                       :px="px"
                       :document-focus-request="documentFocusRequest"
+                      :treatment-focus-request="treatmentFocusRequest"
                       v-on:edit="requestPatientEdit"
                       v-on:delete="requestArchive"
                       v-on:open-documents="openTabByComponent('da-patient-documents', $event)"
                       v-on:document-focus-consumed="consumeDocumentFocusRequest"
+                      v-on:prepare-treatment="openTabByComponent('da-patient-treatment', $event)"
+                      v-on:treatment-focus-consumed="consumeTreatmentFocusRequest"
                       v-on:edit-allergies="openAllergyEditor"
                       v-on:register-navigation-guard="registerSectionGuard">
                     </component>
@@ -138,6 +144,7 @@ import DASweetConfirm from '../../core/components/form/dialog/components/DASweet
 import DocumentsAndSignatures from './Sections/DocumentsAndSignatures.vue';
 import { DELETE } from '../../utils/lottieicon';
 import { buildProfilePhotoPayload } from '../../domain/photo/photo.builder';
+import { peekAgendaReturn } from '../../domain/appointments/agendaNavigation';
 
 
 export default {
@@ -165,6 +172,8 @@ export default {
             tabNavigationPending: false,
             sectionLeaveGuard: null,
             documentFocusRequest: null,
+            treatmentFocusRequest: null,
+            treatmentFocusSequence: 0,
             documentFocusSequence: 0,
             loadingPatient: true,
             patientError: '',
@@ -202,6 +211,11 @@ export default {
       this.init()
   },
   methods: {
+    async returnToAgenda() {
+        if(!this.canReturnToAgenda) return
+        if(this.isEdit || this.isEditProfile) { this.tabAccessNotice = 'Guarda o cancela la edición del paciente antes de volver a la agenda.'; return }
+        if(await this.confirmSectionLeave() && this.canReturnToAgenda) await this.$router.push({ name: 'Citas' })
+    },
     async requestArchive() {
         if(!this.canManagePatient || this.isArchived || this.archivePending) return
         if(await this.confirmSectionLeave()) this.isDelete = true
@@ -321,6 +335,14 @@ export default {
                 ? { ...payload, requestId: ++this.documentFocusSequence, id_person: this.activePatientId }
                 : null
         }
+        if(component === 'da-patient-treatment') {
+            this.treatmentFocusRequest = payload && payload.id_person === this.activePatientId
+                ? { ...payload, requestId: ++this.treatmentFocusSequence } : null
+        }
+    },
+    consumeTreatmentFocusRequest(request) {
+        const current = this.treatmentFocusRequest
+        if(current && request && current.requestId === request.requestId && current.id_person === request.id_person) this.treatmentFocusRequest = null
     },
     consumeDocumentFocusRequest(request) {
         const current = this.documentFocusRequest
@@ -393,6 +415,9 @@ export default {
     },
   },
   computed: {
+    canReturnToAgenda() {
+        return this.hasPermission('px.dates') && !!peekAgendaReturn(this.$store, this.id)
+    },
         canManagePatient() { return this.hasPermission('px.new') },
         canViewClinical() { return this.hasPermission('clinical_history.view') && this.hasPermission('clinical_history.view_sensitive') && Boolean(this.px && this.px.access && this.px.access.clinical) },
         canCaptureIntake() { return !this.isArchived && this.hasPermission('clinical_history.intake') },
@@ -430,6 +455,7 @@ export default {
             this.showAllergyEditor = false
             this.allergyFeedback = ''
             this.documentFocusRequest = null
+            this.treatmentFocusRequest = null
             this.isEdit = false
             this.init()
         },

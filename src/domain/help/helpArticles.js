@@ -138,6 +138,19 @@ export const helpArticles = {
   'seguimiento': {
     summary: 'Registra la atención de seguimiento y, si corresponde, reserva una próxima cita con doctor y horario.',
     sections: [
+      {
+        "id": "continuar-desde-agenda",
+        "title": "Agenda un seguimiento desde Citas",
+        "steps": [
+          "En «Citas», abre «Seguimientos» si tu cuenta tiene acceso a esa información clínica.",
+          "Localiza al paciente. «Ver cita» abre la reserva vigente; «Agendar» inicia la captura cuando no hay una reserva vigente.",
+          "Revisa el doctor y la fecha, elige expresamente una hora disponible y selecciona «Guardar». Comprueba la reserva antes de terminar."
+        ],
+        "paragraphs": [
+          "La fecha sugerida no ocupa un horario. Si el seguimiento ya tiene historial de citas, revisa y confirma «Agendar una nueva atención; conservar las citas históricas» antes de continuar. Reprogramar conserva la relación con la reserva anterior; al cancelar, lee el aviso sobre el efecto en el seguimiento.",
+          "Si solo tienes acceso a citas, puede que «Seguimientos» no aparezca. Solicita apoyo a una persona autorizada; el acceso a agenda no concede acceso al contenido clínico."
+        ]
+      },
       { id: 'capturar-seguimiento', title: 'Registra el seguimiento', steps: ['Abre el expediente correcto y entra a «Seguimiento». Selecciona «Nuevo seguimiento».', 'Revisa «Fecha» actual y completa «Tratamiento realizado». Puedes escribirlo o seleccionarlo cuando el control esté disponible.', 'Completa «Próximo procedimiento o indicación» y agrega «Notas» si corresponde.'], paragraphs: ['El próximo procedimiento o indicación es obligatorio. Usa una descripción que corresponda a lo indicado; la pantalla admite opciones como «Revisión de rutina» o «Sin retorno previsto». Ese texto no agenda una cita.'] },
       { id: 'proxima-cita', title: 'Decide si también reservarás una cita', steps: ['Si necesitas reservar y tienes acceso a «Agenda», activa «Agendar próxima cita» (opcional).', 'Elige Doctor de la proxima cita, fecha y un horario disponible. Revisa la reserva antes de guardar.', 'Si solo vas a registrar el seguimiento, deja desmarcada esa opción. Selecciona «Guardar».'], paragraphs: ['Una fecha sugerida de próxima atención no equivale a una cita reservada. Sin acceso a «Agenda» puedes guardar el seguimiento y pedir a recepción que programe la cita.', 'La cita creada desde este flujo queda pendiente de confirmar. Consulta «Historial de citas» para comprobar el horario y el estado efectivos.'] },
       { id: 'verificar-seguimiento', title: 'Comprueba por separado el seguimiento y la cita', paragraphs: ['Revisa que el seguimiento aparezca en la lista. Si solicitaste cita, comprueba también su registro vinculado y el horario en la agenda.', 'Si el seguimiento se guardó pero falló la reserva, el mensaje lo indica y ofrece «Reintentar cita». Ese intento conserva el seguimiento ya guardado; no lo registres otra vez. «Cerrar sin agendar» permite terminar sin crear la cita.', 'Corregir un seguimiento no modifica automáticamente las citas existentes. El flujo de corrección pide motivo y ofrece «Modificar cita vinculada» o «Agendar nueva cita» cuando corresponde. «Anular seguimiento» conserva sus cambios y no cancela las citas de «Agenda».'] }
@@ -280,10 +293,18 @@ export const helpArticles = {
     summary: 'Ubica las citas de un doctor, revisa su estado y abre los detalles de la atención programada.',
     sections: [
       {
+        "id": "expediente-retorno",
+        "title": "Consulta el expediente y vuelve a tu captura",
+        "paragraphs": [
+          "Si la cita tiene paciente vinculado y cuentas con acceso al expediente, selecciona «Abrir expediente». Si hay cambios pendientes, «Conservar captura y abrir» permite continuar y después usar «Volver a la agenda». La cita todavía no se guarda.",
+          "La captura se conserva solo en esa sesión. Recargar, cerrar sesión o cambiar de consultorio o permisos puede descartarla. Si el guardado está pendiente de confirmación, resuelve «Reintentar operación» antes de salir. Para abandonar cambios, revisa el aviso «Cambios sin guardar»; «Seguir editando» conserva la captura y «Descartar y salir» la descarta."
+        ]
+      },
+      {
         id: 'elegir-agenda', title: 'Elige el doctor y la fecha',
         steps: [
           'Entra a «Citas» y revisa «Agenda del doctor». Si tienes acceso a varias agendas, selecciona la que necesitas consultar.',
-          'Usa «Fecha» para ir al día que buscas o «Hoy» para volver al día actual. Las flechas de la barra superior avanzan o retroceden una semana.',
+          'Usa «Fecha» para ir al día que buscas o «Hoy» para volver al día actual. Las flechas avanzan o retroceden un día en «Día» y una semana en «Semana» o «Lista».',
           'Comprueba la zona horaria del consultorio que aparece en la agenda antes de comunicar una hora al paciente.'
         ],
         paragraphs: ['Si solo tienes una agenda disponible, el doctor ya aparece seleccionado. Si no aparece ninguno, pide a la administración que revise los perfiles activos y tus accesos.']
@@ -308,9 +329,63 @@ export const helpArticles = {
       }
     ]
   },
+  'vincular-paciente-cita': {
+    "summary": "Asocia una cita guardada sin expediente a la persona correcta, o registra al paciente desde la cita y confirma el vínculo al volver.",
+    "sections": [
+      {
+        "id": "antes-de-vincular",
+        "title": "Comprueba la cita y tus accesos",
+        "paragraphs": [
+          "En «Citas», abre la cita correcta. «Vincular paciente» aparece en citas guardadas sin paciente vinculado, con acceso a expedientes. No permite reemplazar un vínculo existente ni modificar la cita original marcada «Reprogramada».",
+          "Si no aparece la acción, revisa si la cita ya está vinculada o si tu cuenta tiene acceso al expediente. Para registrar una persona nueva también necesitas acceso al registro de pacientes."
+        ]
+      },
+      {
+        "id": "elegir-paciente",
+        "title": "Busca y confirma la persona correcta",
+        "steps": [
+          "Selecciona «Vincular paciente». Revisa el nombre guardado en la cita.",
+          "En «Buscar por nombre, código o teléfono», escribe al menos dos caracteres y selecciona «Buscar pacientes».",
+          "Compara nombre y código de los resultados. Selecciona al paciente correcto y pulsa «Confirmar vínculo».",
+          "Espera la confirmación y comprueba el paciente vinculado al regresar a la cita."
+        ],
+        "paragraphs": [
+          "Un teléfono compartido puede corresponder a varias personas; no confirma su identidad ni las vincula automáticamente.",
+          "El vínculo conserva el nombre histórico, teléfono, horario y estado de la cita. Los demás cambios de tu captura siguen pendientes de guardar. Si la cita ya estaba «Completada», esa atención aparecerá en el historial del paciente elegido."
+        ]
+      },
+      {
+        "id": "registrar-desde-cita",
+        "title": "Registra al paciente si todavía no existe",
+        "steps": [
+          "Antes de crear un registro, busca a la persona para evitar duplicados. Vuelve a la cita y selecciona «Registrar paciente».",
+          "Lee el aviso y elige «Continuar al registro». Completa los datos obligatorios del registro y selecciona «Crear paciente».",
+          "Al volver a una cita ya guardada, revisa la persona propuesta y pulsa «Confirmar vínculo». Si era una cita nueva, revisa los datos y selecciona «Guardar» para reservarla."
+        ],
+        "paragraphs": [
+          "Crear al paciente no guarda ni vincula automáticamente una cita existente. La captura de la cita se conserva en memoria durante el regreso; recargar la página o cambiar de acceso puede perderla."
+        ]
+      },
+      {
+        "id": "resultado-pendiente",
+        "title": "Resuelve un resultado pendiente antes de repetir",
+        "paragraphs": [
+          "Si no se confirma la vinculación, usa «Reintentar vínculo» en la misma ventana. La selección queda bloqueada mientras se resuelve la operación. No inicies otro registro para intentar resolverla.",
+          "Si no se confirma el registro del paciente, usa «Consultar resultado del alta». Evita volver a crear a la persona mientras no conozcas el resultado. Si otra persona modificó la cita, revisa el aviso y la versión vigente antes de continuar."
+        ]
+      }
+    ]
+  },
   'agendar-cita': {
     summary: 'Reserva un espacio para un paciente registrado o captura los datos de contacto de una persona que aún no tiene expediente.',
     sections: [
+      {
+        "id": "horario-pasado",
+        "title": "Revisa los horarios que ya pasaron",
+        "paragraphs": [
+          "Al crear una cita en un horario pasado aparece «Revisar horario pasado». Comprueba fecha, hora y zona del consultorio. Usa «Volver a revisar» para corregirlos o «Continuar con este horario» si la captura corresponde. Continuar no marca la cita como completada."
+        ]
+      },
       {
         id: 'antes-de-reservar', title: 'Revisa la agenda disponible',
         paragraphs: ['Entra a «Citas» y selecciona «Agenda del doctor». Para reservar, el doctor debe estar activo y tener horarios disponibles. Si aún no están preparados, consulta Configurar los horarios de atención en el tema Empezar a usar MedSync.', 'Comprueba la zona horaria del consultorio y la fecha antes de elegir un espacio.']
@@ -330,9 +405,9 @@ export const helpArticles = {
           'Si ya tiene expediente, búscala en «Paciente registrado (opcional)» y selecciónala. Revisa que sea la persona correcta antes de guardar: ese vínculo no se puede cambiar desde una cita ya guardada.',
           'Si aún no tiene expediente, completa «Nombre del paciente» y «Teléfono de contacto / WhatsApp». Para una cita nueva sin paciente registrado, el teléfono es obligatorio.',
           'Revisa «País del teléfono» y el número de contacto. El contacto capturado se usa para esta cita.',
-          'Completa «Motivo o título» y «Descripción» si necesitas agregar información para organizar la cita.'
+          'Completa «Motivo de la cita (opcional)» y «Descripción» si necesitas agregar información para organizar la cita.'
         ],
-        paragraphs: ['Capturar un nombre para la cita no equivale a registrar un expediente clínico. Guardar la cita tampoco envía automáticamente un mensaje de WhatsApp.']
+        paragraphs: ['Capturar un nombre para la cita no equivale a registrar un expediente clínico. Para asociar una cita ya guardada sin paciente vinculado, consulta Vincular una cita al expediente del paciente. Guardar la cita tampoco envía automáticamente un mensaje de WhatsApp.']
       },
       {
         id: 'guardar-reserva', title: 'Guarda y comprueba la reserva',
@@ -365,11 +440,11 @@ export const helpArticles = {
       {
         id: 'cancelar', title: 'Cancela una cita que ya no se realizará',
         steps: [
-          'Abre la cita y selecciona «Cancelada» en «Estado» para mostrar el campo del motivo.',
-          'Registra el motivo de cancelación cuando corresponda y selecciona «Guardar».',
+          'Abre la cita y selecciona «Cancelar cita». Si elegiste «Cancelada» en «Estado», selecciona «Guardar» para abrir la confirmación.',
+          'Selecciona «Motivo de cancelación (obligatorio)». Si eliges «Otro», completa «Describe el motivo (obligatorio)». Lee el efecto sobre el seguimiento y selecciona «Confirmar cancelación».',
           'Comprueba que aparezca como «Cancelada» en la lista. El registro permanece en el historial y deja de reservar el espacio.'
         ],
-        paragraphs: ['El botón «Cancelar cita» también guarda la cancelación directamente; no lo uses solo para cerrar la ventana. Para salir, selecciona «Cerrar».', 'Liberar la reserva no garantiza que el horario quede disponible: aún puede coincidir con un cierre, un bloqueo o una configuración de horarios distinta.']
+        paragraphs: ['«Cancelar cita» abre una confirmación; no cancela directamente. Si falla la consulta del efecto sobre el seguimiento, usa «Reintentar consulta». Para regresar sin cancelar, selecciona «Volver a la cita». La cancelación conserva fecha, hora, doctor e historial; para mover la reserva usa «Reprogramar».', 'Liberar la reserva no garantiza que el horario quede disponible: aún puede coincidir con un cierre, un bloqueo o una configuración de horarios distinta.']
       },
       {
         id: 'revisar-avisos', title: 'Resuelve los avisos antes de repetir el cambio',
@@ -380,6 +455,13 @@ export const helpArticles = {
   'estado-cita': {
     summary: 'Registra si una cita está pendiente de confirmación, fue confirmada, se completó o el paciente no asistió.',
     sections: [
+      {
+        "id": "reloj-consultorio",
+        "title": "Espera al inicio de la cita para registrar el resultado",
+        "paragraphs": [
+          "No puedes marcar «Completada» ni «No asistió» antes del inicio de la cita en la zona horaria del consultorio. Conserva «Pendiente» o «Confirmada» hasta que corresponda registrar el resultado."
+        ]
+      },
       {
         id: 'revisar-estado', title: 'Identifica la cita antes de cambiar el estado',
         paragraphs: ['En «Citas», abre la cita y comprueba paciente, doctor, fecha y hora. Revisa su «Estado actual» antes de modificarlo. Los estados describen lo ocurrido con esa cita; no sustituyen el registro de la atención clínica.']

@@ -30,6 +30,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: bash -n scripts/release-frontend.sh
+      - name: Verify registration when promoting to production
+        if: github.base_ref == 'main'
+        run: node scripts/qa/s24-registration-regression.cjs
       - name: Verify the version plan
         if: hashFiles('.changeset/*.md', '!.changeset/README.md') != ''
         run: npm run version-packages

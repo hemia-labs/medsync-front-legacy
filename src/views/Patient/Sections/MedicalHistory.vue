@@ -166,15 +166,15 @@
         </div>
         <p>{{ sensitiveConsentHelpText }}</p>
       </div>
-      <div class="button-row consent-action-row">
+      <div v-if="canViewConsent" class="button-row consent-action-row">
         <button v-if="sensitiveConsent" class="clinical-button secondary" type="button" @click="openSensitiveDocument">
           {{ hasConsentRefusal ? 'Ver detalle' : 'Ver consentimiento' }}
         </button>
-        <button v-if="!sensitiveConsent" class="clinical-button secondary" type="button" @click="createSensitiveConsent">
+        <button v-if="!sensitiveConsent && hasPermission('documents.create')" class="clinical-button secondary" type="button" @click="createSensitiveConsent">
           Gestionar consentimiento
         </button>
         <button
-          v-if="sensitiveConsent && sensitiveConsent.status !== 'FIRMADO' && sensitiveConsent.status !== 'NO_FIRMADO_POR_NEGATIVA'"
+          v-if="sensitiveConsent && sensitiveConsent.status !== 'FIRMADO' && sensitiveConsent.status !== 'NO_FIRMADO_POR_NEGATIVA' && hasPermission('documents.refusal')"
           class="clinical-button danger-soft"
           type="button"
           @click="registerSensitiveRefusal"
@@ -1063,6 +1063,9 @@ export default {
   },
   computed: {
     canReadHistory() { return this.hasPermission('clinical_history.view') && this.hasPermission('clinical_history.view_sensitive'); },
+    canViewConsent() { return this.hasPermission('documents.view'); },
+    canViewConsentTemplates() { return this.canViewConsent || this.hasPermission('documents.config'); },
+    canViewResponsibleDoctors() { return ['prescriptions.view.own','prescriptions.view.all','prescriptions.create','prescriptions.config'].some(permission => this.hasPermission(permission)); },
     canReviewAllergies() { return this.hasPermission('clinical_history.edit_draft'); },
     canViewCurrentTemplate() { return this.hasPermission('clinical_history_template.view'); },
     allergyStateLabel() { return allergyLabels[this.form.allergies_medications.allergy_status] || (this.isDraft ? 'Alergias sin revisar' : 'Registro de alergias de esta versión'); },
@@ -1343,6 +1346,7 @@ export default {
       return Boolean(this.sensitiveConsent && this.sensitiveConsent.status === 'NO_FIRMADO_POR_NEGATIVA');
     },
     sensitiveConsentTitle() {
+      if(!this.canViewConsent) return 'Sin acceso';
       if(this.hasSignedConsent) {
         return 'Firmado';
       }
@@ -1364,6 +1368,7 @@ export default {
       return 'pending';
     },
     sensitiveConsentHelpText() {
+      if(!this.canViewConsent) return 'Tu acceso no permite consultar este consentimiento. Solicita apoyo a una persona con permiso de documentos para verificarlo.';
       if(this.clinicalHistory && !this.isDraft) return 'Esta historia está cerrada y es de consulta. El estado del consentimiento utilizado al cerrarla está registrado en el historial de versiones.';
       if(this.hasSignedConsent) {
         return 'Ya se cuenta con consentimiento firmado. La historia puede finalizarse cuando esté completa.';
@@ -1651,15 +1656,15 @@ export default {
     },
     async loadConsentStatus(request = this.loadRequest, patientId = this.patientId) {
       try {
-        const documents = await DADocumentService.getPatientDocuments(patientId);
-        const templates = await DADocumentService.getTemplates();
-        const doctors = await DAPrescriptionService.doctors();
+        const documents = this.canViewConsent ? await DADocumentService.getPatientDocuments(patientId) : { success: true, data: [] };
+        const templates = this.canViewConsentTemplates ? await DADocumentService.getTemplates() : { success: true, data: [] };
+        const doctors = this.canViewResponsibleDoctors ? await DAPrescriptionService.doctors() : { success: true, data: [] };
         if(request !== this.loadRequest) return;
         if(!documents || !documents.success || !templates || !templates.success || !doctors || !doctors.success) throw new Error('Context load failed');
         this.documents = documents.data || [];
         this.templates = templates.data || [];
         this.doctors = doctors.data || [];
-        this.contextError = '';
+        this.contextError = this.canViewConsent && this.canViewResponsibleDoctors ? '' : 'Tu acceso no permite verificar todos los consentimientos y doctores responsables. Puedes consultar la historia; solicita apoyo antes de editarla o finalizarla.';
         this.applyDefaultResponsibleDoctor();
       } catch (error) {
         if(request === this.loadRequest) this.contextError = 'No se pudieron verificar el consentimiento y los responsables.';
@@ -2543,6 +2548,7 @@ export default {
       }
     },
     async createSensitiveConsent() {
+      if(!this.canViewConsent || !this.hasPermission('documents.create')) return;
       if(!this.sensitiveConsentTemplate) {
         this.showConsentSetupDialog = true;
         return;
@@ -2580,6 +2586,7 @@ export default {
       await this.loadConsentStatus();
     },
     async registerSensitiveRefusal() {
+      if(!this.canViewConsent || !this.hasPermission('documents.refusal')) return;
       if(!this.sensitiveConsent) {
         return;
       }
@@ -2609,6 +2616,7 @@ export default {
       }
     },
     openSensitiveDocument() {
+      if(!this.canViewConsent) return;
       this.$emit('open-documents', {
         id_patient_document: this.sensitiveConsent ? this.sensitiveConsent.id_patient_document : null,
         document_type: 'SENSITIVE_DATA_CONSENT',

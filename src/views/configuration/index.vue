@@ -52,6 +52,7 @@
                     <div class="mt-4 px-3 py-2 text-sm border" :class="clinicalModulesForm.odontogramEnabled ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'">
                         {{ clinicalModulesForm.odontogramEnabled ? 'Odontograma visible en expediente.' : 'Odontograma oculto en expediente.' }}
                     </div>
+                    <odontogram-mode-settings />
                 </article>
 
                 <article class="border border-gray-200 bg-white shadow-md p-5">
@@ -810,6 +811,7 @@ import {
 export default {
     mixins:[VuexMixin],
     components: {
+        OdontogramModeSettings: () => import('./components/OdontogramModeSettings.vue'),
         PrivateClinicLogo,
         PreparationGuide,
         AccountLegalDocuments,

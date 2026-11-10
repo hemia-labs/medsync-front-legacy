@@ -72,7 +72,7 @@ function checkIndex() {
   for (const flow of Object.values(flows)) assert.ok(fs.existsSync(path.join(root, flow.source)), flow.source);
   assert.deepEqual(Object.keys(data.helpAnswers).sort(), entries.filter(entry => entry.type === 'question').map(entry => entry.id).sort());
   for (const paragraphs of Object.values(data.helpAnswers)) assert.ok(paragraphs.length && paragraphs.every(text => typeof text === 'string' && text.trim()));
-  assert.deepEqual(Object.keys(data.helpArticles).sort(), entries.filter(entry => entry.type === 'guide').map(entry => entry.id).sort(), 'All 33 authorized guides are drafted');
+  assert.deepEqual(Object.keys(data.helpArticles).sort(), entries.filter(entry => entry.type === 'guide').map(entry => entry.id).sort(), 'All authorized guides are drafted');
   for (const [id, article] of Object.entries(data.helpArticles)) {
     assert.ok(entries.some(entry => entry.id === id && entry.type === 'guide'));
     assert.ok(article.summary && article.sections.length);
@@ -84,23 +84,28 @@ function checkIndex() {
     assert.ok(list.length >= 2);
     assert.equal(new Set(list.map(e => e.order)).size, list.length);
   }
-  assert.equal(routes('production').length, 0);
-  assert.equal(routes('test').length, 0);
-  assert.equal(routes('development')[0].meta.requireAuth, true);
-  assert.equal(routes('development')[0].meta.layout, 'admin');
+  for (const mode of ['production', 'test', 'development']) {
+    const helpRoutes = routes(mode);
+    assert.equal(helpRoutes.length, 1);
+    assert.equal(helpRoutes[0].name, 'helpCenter');
+    assert.equal(helpRoutes[0].path, '/ayuda');
+    assert.equal(helpRoutes[0].meta.requireAuth, true);
+    assert.equal(helpRoutes[0].meta.layout, 'admin');
+  }
   const prod = navigation('production').tenantNavigationItems;
   const dev = navigation('development').tenantNavigationItems;
-  assert.deepEqual(dev.filter(e => e.key !== 'help'), prod, 'Existing navigation unchanged');
+  assert.deepEqual(dev, prod, 'Navigation is consistent across builds');
   assert.equal(dev.filter(e => e.key === 'help').length, 1);
+  assert.equal(prod.find(e => e.key === 'help').routeName, 'helpCenter');
+  assert.equal(prod.find(e => e.key === 'help').path, '/ayuda');
   const build = path.resolve(root, process.env.HELP_QA_BUILD || 'dist', 'js');
   if (fs.existsSync(build)) {
     const files = fs.readdirSync(build).filter(file => file.endsWith('.js'));
     assert.ok(files.length);
-    assert.ok(!files.some(file => file.includes('help-center-preview')));
-    for (const file of files) {
-      const code = fs.readFileSync(path.join(build, file), 'utf8');
-      assert.ok(!code.includes('preparacion-pendiente') && !code.includes('Resuelve una tarea y comprueba el resultado'), 'No help index or article in production');
-    }
+    const helpFiles = files.filter(file => /^help-center\./.test(file));
+    assert.ok(helpFiles.length, 'Production includes the lazy help chunk');
+    const helpCode = helpFiles.map(file => fs.readFileSync(path.join(build, file), 'utf8')).join('\n');
+    assert.ok(helpCode.includes('preparacion-pendiente') && helpCode.includes('Centro de ayuda'), 'Production includes help content');
   }
   return { guides: entries.filter(e => e.type === 'guide').length, questions: entries.filter(e => e.type === 'question').length };
 }
@@ -147,6 +152,10 @@ async function mount(browser, width, role) {
 
 (async () => {
   const counts = checkIndex(), results = [];
+  if (process.argv.includes('--static')) {
+    console.log(JSON.stringify({ counts, result: 'PASS', checks: 'content, search, routes, authenticated metadata, navigation and optional production bundle; no browser launched' }, null, 2));
+    return;
+  }
   fs.mkdirSync(out, { recursive: true });
   const channel = process.env.HELP_QA_CHANNEL === 'chromium' ? undefined : process.env.HELP_QA_CHANNEL || 'msedge';
   const browser = await chromium.launch({ channel, headless: true });
@@ -161,9 +170,9 @@ async function mount(browser, width, role) {
       assert.equal(await page.evaluate(() => window.helpRouter.currentRoute.name), 'helpCenter');
       if (width < 1024) await page.waitForFunction(() => !window.layout.isMobileNavigationOpen);
       assert.equal(await page.locator('.help-entry-list li').count(), counts.guides);
-      assert.equal(await page.locator('.help-entry-list a').count(), 33);
-      assert.equal(await page.locator('.help-row-link').count(), 33);
-      assert.equal(await page.locator('.help-row-summary').count(), 33, 'Each guide shows its summary');
+      assert.equal(await page.locator('.help-entry-list a').count(), data.helpEntries.filter(e => e.type === 'guide').length);
+      assert.equal(await page.locator('.help-row-link').count(), data.helpEntries.filter(e => e.type === 'guide').length);
+      assert.equal(await page.locator('.help-row-summary').count(), data.helpEntries.filter(e => e.type === 'guide').length, 'Each guide shows its summary');
       assert.equal(await page.locator('.help-topic-count').first().textContent(), '4 guías');
       assert.equal(await page.locator('.help-entry-list button').count(), 0);
       assert.equal(await page.evaluate(() => document.querySelector('.help-center').innerText.includes('«')), false);
@@ -305,7 +314,7 @@ async function mount(browser, width, role) {
       assert.equal(await page.locator('.help-article').count(), 0);
       await page.evaluate(async () => { await window.helpRouter.push('/ayuda?seccion=preguntas&articulo=revisar-preparacion'); });
       assert.equal(await page.locator('.help-article').count(), 0, 'Guide query cannot open inside FAQ');
-      assert.equal(await page.locator('.help-answer').count(), 23);
+      assert.equal(await page.locator('.help-answer').count(), data.helpEntries.filter(e => e.type === 'question').length);
       await page.evaluate(async () => { await window.helpRouter.push('/ayuda?seccion=guia&articulo=revisar-preparacion'); });
       await page.waitForFunction(() => document.activeElement.id === 'help-article-title');
       await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'clinical-night'));
@@ -313,12 +322,12 @@ async function mount(browser, width, role) {
       await page.screenshot({ path: out + '/night-' + width + '.png', fullPage: false });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
       assert.deepEqual(errors, []);
-      results.push({ width, role, result: 'PASS', checks: 'menu, section, search and clear, 14 anchors, focus, headings, guide summaries, 33 articles with breadcrumb/where/prerequisites/related questions/label chips, 23 collapsed FAQ answers and related guides, FAQ deep link, article links/back/history, invalid article fallback, reflow, night' });
+      results.push({ width, role, result: 'PASS', checks: 'menu, section, search and clear, 14 anchors, focus, headings, guide summaries, all articles with breadcrumb/where/prerequisites/related questions/label chips, all collapsed FAQ answers and related guides, FAQ deep link, article links/back/history, invalid article fallback, reflow, night' });
       await page.close();
     }
     // Existing development server: anonymous help request must reach login, with all API traffic blocked.
     if (process.env.HELP_QA_SKIP_LIVE === '1') {
-      results.push({ test: 'actual development router anonymous guard', result: 'SKIPPED: servers stopped at user request' });
+      results.push({ test: 'actual development router anonymous guard', result: 'SKIPPED: live server check disabled for this isolated run' });
     } else {
     const live = await browser.newPage();
     await live.route('**/*', route => {

@@ -28,6 +28,19 @@ jobs:
           docker build --build-arg "VUE_APP_CORE_URL_API=$api" \
             --build-arg "DEPLOY_RELEASE=$GITHUB_SHA" --tag medsync-front-check .
           docker run --rm --entrypoint nginx medsync-front-check -t
+          export MEDSYNC_FRONT_IMAGE=medsync-front-check MEDSYNC_FRONT_PORT=14324
+          compose=(docker compose -p medsync-front-check -f ops/frontend/compose.yml)
+          trap '"${compose[@]}" down' EXIT
+          "${compose[@]}" up -d --wait --wait-timeout 45
+          origin=http://127.0.0.1:14324
+          marker="$(curl -fsS "$origin/deploy-release.json")"
+          expected="$(jq -er --arg release "$GITHUB_SHA" 'select(.application == "medsync-front-legacy" and .release == $release) | .indexSha256' <<<"$marker")"
+          html="$(mktemp)"
+          curl -fsS "$origin/auth/login" -o "$html"
+          [[ "$(sha256sum "$html" | cut -d ' ' -f1)" == "$expected" ]]
+          asset="$(grep -oE '/js/app[.][a-f0-9]{8}[.]js' "$html" | head -n 1)"
+          curl -fsS "$origin$asset" -o /dev/null
+          [[ "$(curl -sS -o /dev/null -w '%{http_code}' "$origin/js/missing.js")" == 404 ]]
 
   publish:
     if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')

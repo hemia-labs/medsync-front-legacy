@@ -45,7 +45,11 @@ function buildModules(options = {}) {
     function add(id) {
         if (modules[id]) return;
         if (id === serviceId) {
-            modules[id] = 'exports.DAOdontogramService = window.__odontogramQA.service;';
+            modules[id] = 'exports.DAOdontogramService = window.__odontogramQA.service; exports.DAOdontogramV2Service = window.__odontogramQA.v2service || { capabilities: async () => ({success:true,data:{mode:"v1"}}) };';
+            return;
+        }
+        if (id === 'src/services/core/odontogram/DAOdontogramV2Service.js') {
+            modules[id] = 'exports.__esModule = true; exports.default = window.__odontogramQA.v2service || {};';
             return;
         }
         if (!options.includeEditors && excludedComponents.has(id)) {
@@ -68,6 +72,8 @@ function buildModules(options = {}) {
                 styles.push(result.code);
             });
         }
+        source = source.replace(/process\.env\.NODE_ENV/g, JSON.stringify(options.production ? 'production' : 'development'));
+        source = source.replace(/import\(\/\*[^*]*\*\/\s*([^)]*)\)/g, 'Promise.resolve(require($1))');
         source = source.replace(/import\(([^)]+)\)/g, 'Promise.resolve(require($1))');
         let code = babel.transformSync(source, {
             filename: id, babelrc: false, configFile: false,
@@ -93,6 +99,7 @@ function buildModules(options = {}) {
         'src/core/components/form/table/DADatatable.vue',
         'src/core/components/form/table/DAScopedColumn.vue',
         'src/core/components/form/header/DAHeaderTitle.vue',
+        ...(options.extraModules || []),
         ...(options.includeEditors ? [
             'src/core/components/form/buttons/DAPrimaryButton.vue',
             'src/core/components/form/buttons/DASecondaryButton.vue',
@@ -115,6 +122,7 @@ function fixtureBootstrap() {
         payloads: [], delay: 60, saved: false, savedType: '1', notifications: [], routeGuards: []
     };
     qa.includeEditors = Boolean(window.__odontogramIncludeEditors);
+    qa.v2service = window.__odontogramV2Fixture;
     qa.live = Boolean(window.__odontogramLiveContext);
     qa.patient = qa.live ? window.__odontogramLiveContext.patient : { id_person: 'qa-patient', name: 'Paciente', surname: 'de prueba' };
     const ok = data => ({ success: true, data });
@@ -255,7 +263,8 @@ function fixtureBootstrap() {
     const store = qa.store = new Vuex.Store({ modules: { CORE: {
         namespaced: true,
         actions: { ActionWrapper: (context, { module, action, payload }) => store.dispatch(module + '/' + action, payload) },
-        modules: { ODONTOGRAM: odontogram, PX: {namespaced: true, state: {id_person: qa.patient.id_person}} }
+        modules: { ODONTOGRAM: odontogram, PX: {namespaced: true, state: {id_person: qa.patient.id_person}},
+            AUTH: { namespaced: true, getters: { hasPermission: () => permission => (window.__odontogramPermissions || []).includes(permission) } } }
     } } });
     Vue.component('da-dialog', require('src/core/components/form/dialog/DADialog.vue').default);
     Vue.component('da-datatable', require('src/core/components/form/table/DADatatable.vue').default);
@@ -273,6 +282,7 @@ function fixtureBootstrap() {
         Vue.component('lottie-animation', {render: h => h('span', {'aria-hidden': true}, '?')});
     }
     Vue.prototype.$toast = {
+        info: message => qa.notifications.push({ type: 'info', message }),
         success: message => qa.notifications.push({ type: 'success', message }),
         error: message => qa.notifications.push({ type: 'error', message }),
         warning: message => qa.notifications.push({ type: 'warning', message })

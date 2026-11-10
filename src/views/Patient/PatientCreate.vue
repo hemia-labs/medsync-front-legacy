@@ -6,12 +6,15 @@
         <h1>Nuevo paciente</h1>
         <p>Registra los datos básicos del paciente. Los campos con * son obligatorios. La historia clínica se podrá crear después dentro del expediente.</p>
       </div>
-      <button type="button" class="patient-create-secondary" @click="$router.push('/inicio')">
+      <button type="button" class="patient-create-secondary" :disabled="isSaving || !!pendingCreate" @click="cancelCreation">
         Cancelar
       </button>
     </header>
 
+    <p v-if="fromAgenda" role="status">Al terminar volverás a la cita para revisar el paciente. La captura se conserva solo en esta sesión; recargar o cambiar de acceso la descarta.</p>
+    <p v-if="creationMessage" role="alert">{{ creationMessage }}</p>
     <div class="patient-create-shell">
+      <fieldset :disabled="isSaving || !!pendingCreate || !!createdPatient || accessChanged">
       <div v-if="submitted && Object.keys(formErrors).length" class="patient-create-error-summary" role="alert">
         <strong>Revisa los datos antes de crear el paciente.</strong>
         <button v-for="(message, field) in formErrors" :key="field" type="button" @click="focusField(field)">{{ message }}</button>
@@ -63,12 +66,14 @@
         </div>
       </article>
 
+      </fieldset>
       <footer class="patient-create-actions">
-        <button type="button" class="patient-create-secondary" :disabled="isSaving" @click="$router.push('/inicio')">
+        <button type="button" class="patient-create-secondary" :disabled="isSaving || !!pendingCreate" @click="cancelCreation">
           Cancelar
         </button>
-        <button type="button" class="patient-create-primary" :disabled="isSaving" @click="createPatient">
-          {{ isSaving ? 'Creando...' : 'Crear paciente' }}
+        <button v-if="pendingCreate" type="button" class="patient-create-secondary" :disabled="isSaving || accessChanged" @click="recoverCreation">Consultar resultado del alta</button>
+        <button type="button" class="patient-create-primary" :disabled="isSaving || accessChanged || (!!pendingCreate && !retryAllowed)" @click="createPatient">
+          {{ isSaving ? 'Procesando…' : createdPatient ? 'Continuar con el paciente creado' : pendingCreate ? 'Reintentar la misma alta' : 'Crear paciente' }}
         </button>
       </footer>
     </div>
@@ -76,11 +81,16 @@
 </template>
 
 <script>
-import VuexMixin from '../../mixins/VuexMixin';
+import { mapGetters } from 'vuex';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
+import VuexMixin from '../../mixins/VuexMixin';
 import { patientAge, patientAdministrativeErrors, normalizePatientPhone, localDateString } from '../../domain/patient/administrative.validation';
 import fieldError from '../../core/directives/field-error';
+import DAPxService from '../../services/core/px/DAPxService';
+import { newAgendaRequestId } from '../../domain/appointments/agendaInteraction';
+import { peekAgendaReturn, setAgendaCreatedPatient } from '../../domain/appointments/agendaNavigation';
+import { authorizationContext, isCurrentAuthorization } from '../../security/authorizationContext';
 
 export default {
   directives: { fieldError },
@@ -88,6 +98,8 @@ export default {
   data() {
     return {
       isSaving: false,
+      pendingCreate: null, retryAllowed: false, createdPatient: null, creationMessage: '', accessChanged: false,
+      creationContext: authorizationContext(this.$store), alive: true, leaving: false, removeCreationGuard: null,
       submitted: false,
       touched: {},
       form: {
@@ -107,16 +119,54 @@ export default {
       }
     };
   },
+  created() {
+    const entry = peekAgendaReturn(this.$store), phone = entry && entry.kind === 'create-patient' && entry.draft && String(entry.draft.appointment.contactPhone || '').replace(/[()\s-]/g, '');
+    if(/^\+52\d{10}$/.test(phone)) this.form.mobilePhone = phone.slice(3);
+    else if(/^\d{10}$/.test(phone)) this.form.mobilePhone = phone;
+  },
+  mounted() {
+    this.removeCreationGuard = this.$router.beforeEach((to, from, next) => next(!this.leaving && (this.isSaving || this.pendingCreate) ? false : undefined));
+    window.addEventListener('beforeunload', this.guardCreationUnload);
+  },
+  beforeDestroy() { this.alive = false; if(this.removeCreationGuard) this.removeCreationGuard(); window.removeEventListener('beforeunload', this.guardCreationUnload); },
   computed: {
+    ...mapGetters(moduleTypes.AUTH, { hasPermission: fnTypes.hasPermission }),
+    creationAccessKey() { return JSON.stringify(authorizationContext(this.$store)); },
+    fromAgenda() { const entry = peekAgendaReturn(this.$store); return entry && entry.kind === 'create-patient'; },
     today() { return localDateString(); },
     formErrors() { return patientAdministrativeErrors(this.form); }
   },
   watch: {
+    creationAccessKey() { this.accessChanged = true; this.pendingCreate = null; this.createdPatient = null; Object.keys(this.form).forEach(key => { this.form[key] = '' }); this.creationMessage = 'Cambió tu acceso. Recarga para continuar.'; },
     'form.birthDate': function() {
       this.form.age = this.calculateAge(this.form.birthDate);
     }
   },
   methods: {
+    creationCurrent() { return this.alive && isCurrentAuthorization(this.creationContext, this.$store) && this.hasPermission('px.new'); },
+    guardCreationUnload(event) { if(this.pendingCreate || this.isSaving) { event.preventDefault(); event.returnValue = ''; } },
+    async cancelCreation() { if(this.isSaving || this.pendingCreate) return; this.leaving = true; await this.$router.push(this.fromAgenda ? { name: 'Citas' } : '/inicio'); },
+    async finishCreation(id, payload) {
+      if(!this.creationCurrent()) return;
+      this.createdPatient = { id, name: [payload.person.name,payload.person.surname].filter(Boolean).join(' '), label: [payload.person.name,payload.person.surname].filter(Boolean).join(' ') };
+      this.pendingCreate = null; this.leaving = true;
+      const returning = setAgendaCreatedPatient(this.$store, this.createdPatient);
+      try { await this.$router.push(returning ? { name: 'Citas' } : this.hasPermission('px.all') ? { path: `/px/history/${id}`, query: { tab: 'medical-history', fromCreatePatient: '1' } } : '/inicio'); }
+      catch (_) { this.creationMessage = 'El paciente ya se creó. Usa Continuar para volver; no se creará otro.'; this.leaving = false; }
+    },
+    async recoverCreation() {
+      if(this.isSaving || !this.pendingCreate || !this.creationCurrent()) return;
+      this.isSaving = true; this.retryAllowed = false;
+      const sent = this.pendingCreate;
+      try {
+        const r = await DAPxService.minimalResult(sent.request_id);
+        if(!this.creationCurrent()) return;
+        if(r.success && r.data && r.data.id_person) await this.finishCreation(r.data.id_person, sent);
+        else if(r.status === 404 && r.data && r.data.code === 'PATIENT_CREATE_NOT_FOUND') { this.retryAllowed = true; this.creationMessage = 'No hay un alta guardada para esta operación. Puedes reintentar la misma captura.'; }
+        else this.creationMessage = r.message || 'No se pudo confirmar el resultado. Consulta otra vez antes de crear otro paciente.';
+      } catch (_) { if(this.creationCurrent()) this.creationMessage = 'No se pudo consultar. Conservamos la captura; consulta otra vez.'; }
+      finally { this.isSaving = false; }
+    },
     calculateAge(value) {
       return patientAge(value);
     },
@@ -159,41 +209,45 @@ export default {
       };
     },
     async createPatient() {
-      if(this.isSaving) return;
+      if(this.isSaving || !this.creationCurrent()) return;
+      if(this.createdPatient) return this.finishCreation(this.createdPatient.id, this.buildPayload());
+      if(this.pendingCreate && !this.retryAllowed) return;
       this.submitted = true;
-      if(!this.validateForm()) {
-        this.focusField(Object.keys(this.formErrors)[0]);
-        return;
-      }
-      this.isSaving = true;
+      if(!this.pendingCreate && !this.validateForm()) { this.focusField(Object.keys(this.formErrors)[0]); return; }
+      if(!this.pendingCreate) this.pendingCreate = { ...this.buildPayload(), request_id: newAgendaRequestId() };
+      const sent = this.pendingCreate;
+      this.isSaving = true; this.retryAllowed = false; this.creationMessage = '';
+      let recover = false;
       try {
-        const response = await this.ActionWrapp(moduleTypes.PX, fnTypes.createMinimal, this.buildPayload());
-        if(!response || !response.success || !response.data || !response.data.id_person) {
-          this.$swal.fire({
-            icon: 'error',
-            title: 'No se pudo crear el paciente',
-            text: response && response.message ? response.message : 'Revisa los datos e intenta nuevamente.'
-          });
-          return;
-        }
-        await this.$router.push({
-          path: `/px/history/${response.data.id_person}`,
-          query: {
-            tab: 'medical-history',
-            fromCreatePatient: '1'
-          }
-        });
-      } catch (error) {
-        this.$swal.fire({ icon: 'error', title: 'No se pudo confirmar el alta', text: 'Comprueba si el paciente aparece en el buscador antes de volver a intentarlo.' });
-      } finally {
-        this.isSaving = false;
-      }
+        const r = await DAPxService.createMinimal(sent);
+        if(!this.creationCurrent()) return;
+        if(r.success && r.data && r.data.id_person) await this.finishCreation(r.data.id_person, sent);
+        else if(r.data && r.data.code === 'PATIENT_CREATE_ALREADY_RECORDED') recover = true;
+        else if(r.status >= 400 && r.status < 500) { this.pendingCreate = null; this.creationMessage = r.message || 'Revisa los datos del alta.'; }
+        else this.creationMessage = 'No se confirmó el alta. Consulta el resultado antes de volver a enviarla.';
+      } catch (_) { if(this.creationCurrent()) this.creationMessage = 'No se confirmó el alta. Consulta el resultado; no se enviará otra automáticamente.'; }
+      finally { this.isSaving = false; }
+      if(recover) await this.recoverCreation();
     }
   }
 };
 </script>
 
 <style scoped>
+fieldset { border:0; margin:0; padding:0; min-width:0; }
+html[data-theme="clinical-night"] .patient-create-hero,
+html[data-theme="clinical-night"] .patient-create-shell,
+html[data-theme="clinical-night"] .patient-create-note { background:#1e293b; }
+html[data-theme="clinical-night"] .patient-create-kicker,
+html[data-theme="clinical-night"] .section-heading p,
+html[data-theme="clinical-night"] .patient-create-note p { color:#7dd3fc; }
+html[data-theme="clinical-night"] .patient-create-page ::v-deep .v-messages:not(.error--text) { color:#cbd5e1; }
+html[data-theme="clinical-night"] .patient-create-page input[type="date"] { color-scheme:dark; }
+html[data-theme="clinical-night"] .patient-create-hero h1,
+html[data-theme="clinical-night"] .patient-create-hero p,
+html[data-theme="clinical-night"] .section-heading span,
+html[data-theme="clinical-night"] .patient-create-note span,
+html[data-theme="clinical-night"] .patient-create-page > p { color:#e2e8f0; }
 .patient-create-page {
   max-width: 76rem;
   margin: 4.5rem auto 2rem;

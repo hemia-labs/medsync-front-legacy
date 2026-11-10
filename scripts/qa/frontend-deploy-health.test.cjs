@@ -32,7 +32,7 @@ async function fixture(t) {
 
 const quick = { attempts: 3, interval: 0, sleep: async () => {}, log: () => {} };
 
-test('dev port rejects backend port before deployment; default remains 4324', () => {
+test('frontend port rejects backend port before deployment; default remains 4324', () => {
   for (const port of [undefined, '', '4324', 4324]) assert.doesNotThrow(() => assertPort(port));
   for (const port of ['3009', '80', 'bad']) assert.throws(() => assertPort(port), /must be 4324/);
 });

@@ -1,5 +1,12 @@
 <template>
   <div class="patient-odontogram" :aria-busy="String(loading || saving || sectionBusy)">
+    <odontogram-capture v-if="captureMode !== 'v1'" :key="patientId" ref="capture" :patient-id="patientId" :patient-name="patientName" :mode="captureMode" @prepare-treatment="$emit('prepare-treatment', $event)" />
+    <odontogram-preview v-else-if="previewAvailable && showPreview" :key="patientId" @close="showPreview = false" />
+    <template v-else>
+    <div v-if="previewAvailable" class="odontogram-preview-entry">
+      <div><strong>Próxima captura del odontograma · CO26</strong><p>Referencia visual para desarrollo: teclado, tableta, dentición mixta y plan. Datos ficticios.</p></div>
+      <button class="odontogram-button odontogram-button--secondary" :disabled="saving || sectionBusy || openOdontogramTreatment || addOdontograma || isOpenHistory || isChangeActive" @click="showPreview = true">Ver cascarón visual</button>
+    </div>
     <section class="odontogram-hero">
       <div class="odontogram-heading">
         <p class="odontogram-eyebrow">Expediente clínico</p>
@@ -41,6 +48,7 @@
     </section>
 
     <section v-else class="odontogram-record" aria-label="Diagnósticos dentales">
+      <odontogram-clinical-chart :key="patientId + ':' + id_odontogram" :teeth="odontogram" :busy="saving || sectionBusy" @edit="onEditOdontogramTreatment" />
       <div class="odontogram-record-header">
         <div><h3>Regiones dentales</h3><p>{{ activeDentition }}<span v-if="activeDentition"> · </span>{{ diagnosedCount }} de {{ odontogram.length }} con diagnóstico</p></div>
         <v-text-field v-model="search" class="odontogram-search" label="Buscar región o diagnóstico" prepend-inner-icon="mdi-magnify" outlined dense hide-details clearable :color="'var(--color-primary-700, #0e7490)'"></v-text-field>
@@ -78,6 +86,7 @@
     <v-dialog v-model="isOpenHistory" :persistent="sectionBusy" max-width="1040" scrollable>
       <da-odontogram-history :open="isOpenHistory" :id="patientId" @close="isOpenHistory = false" @refresh-error="onHistoryRefreshError" @busy="sectionBusy = $event"></da-odontogram-history>
     </v-dialog>
+    </template>
   </div>
 </template>
 
@@ -88,6 +97,8 @@ import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
 import OdontogramCreateDialog from './components/OdontogramCreateDialog.vue';
 import OdontogramConfirmDialog from './components/OdontogramConfirmDialog.vue';
+import OdontogramClinicalChart from './components/OdontogramClinicalChart.vue';
+import { DAOdontogramV2Service } from '../../../services/context/core-proccess-context';
 import {
   buildOdontogramParentPayload,
   buildOdontogramStatusPayload
@@ -103,6 +114,9 @@ export default {
   },
   data: function() {
     return {
+      previewAvailable: process.env.NODE_ENV === 'development',
+      captureMode: 'v1',
+      showPreview: false,
       addOdontograma: false,
       loading: true,
       saving: false,
@@ -121,6 +135,11 @@ export default {
     }
   },
   components: {
+    OdontogramCapture: () => import(/* webpackChunkName: "odontogram-co26-capture" */ './components/OdontogramCapture.vue'),
+    OdontogramClinicalChart,
+    ...(process.env.NODE_ENV === 'development' ? {
+      OdontogramPreview: () => import(/* webpackChunkName: "odontogram-co26-preview" */ './components/OdontogramPreview.vue')
+    } : {}),
     OdontogramCreateDialog,
     OdontogramConfirmDialog,
     'da-odontogram-treatment': () => import("../components/DAOdontogramTreatment.vue"),
@@ -131,7 +150,7 @@ export default {
   },
   created() {
     this.$emit('register-navigation-guard', this.confirmLeave);
-    this.removeNavigationGuard = this.$router.beforeEach((to, from, next) => next(!this.saving && !this.sectionBusy));
+    this.removeNavigationGuard = this.$router.beforeEach((to, from, next) => this.confirmLeave().then(next));
   },
   computed: {
     patientId() { return this.px && this.px.person && this.px.person.id_person; },
@@ -169,6 +188,14 @@ export default {
       this.addOdontograma = false;
       try {
         if(!this.patientId) throw new Error('Missing patient');
+        const capabilities = await DAOdontogramV2Service.capabilities();
+        if(request !== this.loadRequest) return;
+        if(capabilities.success && capabilities.data && capabilities.data.mode !== 'v1') {
+          this.captureMode = capabilities.data.mode;
+          return;
+        }
+        if(!capabilities.success && capabilities.status !== 404) throw new Error('No se pudo consultar el modo del odontograma.');
+        this.captureMode = 'v1';
         const response = await this.ActionWrapp(moduleTypes.ODONTOGRAM, fnTypes.initOdontogram, {id: this.patientId});
         if(request !== this.loadRequest) return;
         if(!response || !response.success) {
@@ -189,7 +216,7 @@ export default {
       this.feedback = '';
       this.addOdontograma = true;
     },
-    confirmLeave() { return Promise.resolve(!this.saving && !this.sectionBusy); },
+    confirmLeave() { return this.$refs.capture ? this.$refs.capture.confirmLeave() : Promise.resolve(!this.saving && !this.sectionBusy); },
     onEditOdontogramTreatment: function(data) {
       if(this.saving || this.sectionBusy) return;
       this.setOdontogramDetail(data);
@@ -267,6 +294,9 @@ export default {
 </script>
 
 <style scoped>
+.odontogram-preview-entry { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 20px; margin-bottom: 18px; border: 1px dashed var(--color-primary-500, #0e7490); border-radius: 12px; background: var(--color-surface, #fff); }
+.odontogram-preview-entry strong { font-size: 13px; }
+.odontogram-preview-entry p { font-size: 12px; margin: 5px 0 0; color: var(--color-text-muted, #64748b); }
 .patient-odontogram { padding: 20px; color: var(--color-text, #25364d); }
 .odontogram-hero, .odontogram-record, .odontogram-empty { border: 1px solid var(--color-border, #d8e9ef); border-radius: 12px; background: var(--color-surface, #fff); }
 .odontogram-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 22px 24px; margin-bottom: 18px; }
