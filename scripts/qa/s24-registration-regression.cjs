@@ -22,7 +22,8 @@ function load(file,bindings={},component=false) {
   assert.deepEqual(rules.registrationErrors({...valid,password:'😀'.repeat(128),confirmPassword:'😀'.repeat(128)}),{});
   assert.ok(rules.registrationErrors({...valid,password:'😀'.repeat(129)}).password);
   assert.equal(rules.usableRegistrationContext({enabled:true,legalDocuments:[]}),false);
-  const complete={enabled:true,legalContext:'server-signed-context',legalSnapshotToken:'snapshot',legalDocuments:rules.LEGAL_KEYS.map((documentKey,i)=>({documentKey,versionId:'v'+i,contentHash:'hash',title:'Legal',requiredAction:i?'acknowledge':'accept',contentHtml:'<p>Texto</p>'}))};
+  const documentKeys=['terms_conditions','privacy_notice','qa_policy_update'];
+  const complete={enabled:true,legalContext:'server-signed-context',legalSnapshotToken:'snapshot',legalDocuments:documentKeys.map((documentKey,i)=>({documentKey,versionId:'v'+i,contentHash:'hash',title:'Legal',requiredAction:i?'acknowledge':'accept',contentHtml:'<p>Texto</p>'}))};
   assert.equal(rules.usableRegistrationContext(complete),true);
   assert.equal(rules.usableRegistrationContext({...complete,legalDocuments:[complete.legalDocuments[0],complete.legalDocuments[0]]}),false);
 
@@ -68,15 +69,15 @@ function load(file,bindings={},component=false) {
   await assert.rejects(service.sendCode(),error=>error.retryAfterSeconds===47);assert.equal(refreshes,0);
   fail={response:{status:401,data:{code:'AUTH_ACCESS_EXPIRED'},headers:{}}};await service.activation();assert.equal(refreshes,1);
   let submitted;
-  const Register=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PlanCatalog:{},LEGAL_KEYS:rules.LEGAL_KEYS,
+  const Register=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PlanCatalog:{},
     registrationErrors:rules.registrationErrors,registrationAttemptId:()=> 'test-attempt',
     Registration:{register:async payload=>{submitted=payload;return {accountCreated:true,sessionEstablished:false};}}},true);
-  const registration={...Register.data(),loading:false,form:{...valid,name:' Médica ',lastName:' Ñ ',telephone:''},available:true,context:complete,documents:complete.legalDocuments,accepted:{terms_conditions:true,privacy_notice:true}};
+  const registration={...Register.data(),loading:false,form:{...valid,name:' Médica ',lastName:' Ñ ',telephone:''},available:true,context:complete,documents:complete.legalDocuments,accepted:Object.fromEntries(documentKeys.map(key=>[key,true]))};
   await Register.methods.submit.call({...registration,loading:true});
   assert.equal(submitted,undefined,'Pending legal refresh must block submission');
   await Register.methods.submit.call(registration);
   assert.equal(submitted.legalContext,complete.legalContext);
-  assert.equal(submitted.legalAcceptances.length,2);
+  assert.deepEqual(Array.from(submitted.legalAcceptances, ({documentKey})=>documentKey),documentKeys);
   assert.equal(rules.usableRegistrationContext({...complete,legalContext:''}),false);
   assert.equal(rules.usableRegistrationContext({...complete,legalDocuments:complete.legalDocuments.map(doc=>({...doc,requiredAction:'unknown'}))}),false);
   assert.ok(Register.methods.documentConfirmation({requiredAction:'acknowledge',title:'Aviso'}).includes('se me presentó'));

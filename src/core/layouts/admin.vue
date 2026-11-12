@@ -121,10 +121,7 @@
         <button type="button" @click="$router.push('/terms-and-conditions')">
           Términos y condiciones
         </button>
-        <a v-if="hasSupportEmail" class="tenant-footer-support-link" :href="`mailto:${supportEmail}`">
-          <span>Contacto</span><span class="tenant-footer-support-email">: {{ supportEmail }}</span>
-        </a>
-        <button v-else type="button" @click="$swal.fire({icon:'info',title:'Ayuda con tu cuenta',text:'Solicita ayuda al administrador que te entregó el acceso. Si eres titular del consultorio, utiliza el canal por el que contrataste MedSync e indica la pantalla y la acción que necesitas realizar.',confirmButtonText:'Entendido'})">Ayuda y contacto</button>
+        <button type="button" @click="$swal.fire({icon:'info',title:'Ayuda con tu cuenta',text:'Solicita ayuda al administrador que te entregó el acceso. Si eres titular del consultorio, utiliza el canal por el que contrataste MedSync e indica la pantalla y la acción que necesitas realizar.',confirmButtonText:'Entendido'})">Ayuda y contacto</button>
       </nav>
     </footer>
   </div>
@@ -154,7 +151,6 @@ import {
   sortTenantNavigationItems,
   TENANT_NAVIGATION_TYPES
 } from '../navigation/tenantNavigation';
-import { MEDSYNC_SUPPORT_EMAIL } from '../../views/legal/privacyLegalConfig';
 
 export default {
     mixins:[VuexMixin],
@@ -202,12 +198,6 @@ export default {
         },
         currentYear: function() {
           return new Date().getFullYear()
-        },
-        supportEmail: function() {
-          return MEDSYNC_SUPPORT_EMAIL
-        },
-        hasSupportEmail: function() {
-          return Boolean(this.supportEmail && this.supportEmail.indexOf('[') !== 0)
         },
         allowedNavigationItems: function() {
           return this.navigationItems
@@ -884,7 +874,6 @@ html[data-theme="clinical-night"] .tenant-footer a:hover {
     white-space: nowrap;
   }
 
-  .tenant-footer-support-email,
   .tenant-footer-contact-pending {
     display: none;
   }
