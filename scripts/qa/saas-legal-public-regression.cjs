@@ -27,8 +27,10 @@ Object.entries(scope.component.computed).forEach(([key, getter]) => Object.defin
   result = { success: false, status: 404, code: 'LEGAL_DOCUMENT_NOT_FOUND' };
   await page.load(); assert.equal(page.document, null); assert.equal(page.retryable, false); assert.match(page.error, /aún no ha publicado/);
   result = { success: false, status: 500 }; await page.load(); assert.equal(page.retryable, true); assert.match(page.error, /Reintenta/);
-  result = { success: true, data: { document: { title: 'Aviso ficticio', current_version: { version_number: 2, content_html: '<p>Texto publicado</p><script>alert(1)</script><img src="x" onerror="alert(2)">', published_at: '2026-10-17T12:00:00Z' } } } };
+  result = { success: true, data: { document: { title: 'Aviso ficticio', current_version: { version_number: '2.1.0', content_html: '<p>Texto publicado</p><script>alert(1)</script><img src="x" onerror="alert(2)">', published_at: '2026-10-17T12:00:00Z' } } } };
   await page.load(); assert.equal(page.title, 'Aviso ficticio'); assert.match(page.safeContent, /Texto publicado/); assert.doesNotMatch(page.safeContent, /script|onerror/);
+  assert.equal(page.version.version_number, '2.1.0');assert.match(page.publishedDate, /2026/);
+  page.version.published_at = null;assert.equal(page.publishedDate, '');
   let release; result = new Promise(resolve => { release = resolve; });
   const stale = page.load(); page.documentKey = 'terms_conditions'; result = { success: false, status: 404 }; await page.load();
   release({ success: true, data: { document: { title: 'Documento anterior', current_version: {} } } }); await stale;
