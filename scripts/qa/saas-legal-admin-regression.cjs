@@ -87,11 +87,12 @@ async function check(label, callback) {
   finally { f.close(); }
 }
 (async () => {
-  await check('opening reads the three global documents without writing or publishing', async f => {
+  await check('opening exposes only the licence even if an older server returns all three documents', async f => {
     assert.equal(f.calls.list, 1); assert.equal(f.calls.save.length, 0); assert.equal(f.calls.publish.length, 0);
-    assert.equal(f.vm.dirty, false); assert.equal(f.vm.documents.length, 3);
-    assert.equal(f.w.document.querySelectorAll('.legal-document-option').length, 3);
-    f.vm.requestSelection('license_agreement'); assert.match(f.vm.audienceLabel, /administradores/); assert.equal(f.vm.form.acceptance_scope, 'business');
+    assert.equal(f.vm.dirty, false); assert.equal(f.vm.documents.length, 1);
+    assert.equal(f.vm.selectedDocument.document_key, 'license_agreement');
+    assert.match(f.w.document.querySelector('.legal-list-note').textContent, /Hemia Legal/);
+    assert.match(f.vm.audienceLabel, /administradores/); assert.equal(f.vm.form.acceptance_scope, 'business');
   });
   await check('empty title rejects save; a content-free draft may be saved but never published', async f => {
     f.vm.form.title = ' '; await f.vm.saveDraft(); assert.ok(f.vm.fieldErrors.title); assert.equal(f.calls.save.length, 0);
@@ -103,7 +104,8 @@ async function check(label, callback) {
     const textarea = [...f.w.document.querySelectorAll('textarea')].pop(); textarea.value = '<p>Nuevo texto ficticio</p>'; textarea.dispatchEvent(new f.w.Event('input', { bubbles: true })); await f.Vue.nextTick();
     assert.equal(f.vm.dirty, true); assert.equal(f.calls.save.length, 0);
     f.qa.saveGate = deferred(); const pending = f.vm.saveDraft(); await f.vm.saveDraft(); assert.equal(f.calls.save.length, 1); assert.equal(f.vm.saving, true);
-    assert.equal(f.calls.save[0][1].acceptance_scope, 'user'); assert.equal(f.calls.save[0][1].expected_revision, 1);
+    assert.equal(f.calls.save[0][0], 'license_agreement');
+    assert.equal(f.calls.save[0][1].acceptance_scope, 'business'); assert.equal(f.calls.save[0][1].expected_revision, 1);
     let routeDecision; f.options.beforeRouteLeave.call(f.vm, {}, {}, value => { routeDecision = value; }); assert.equal(routeDecision, false);
     f.qa.saveGate.resolve(); await pending; assert.equal(f.vm.dirty, false); assert.equal(f.vm.form.revision, 2); assert.equal(f.vm.saving, false);
   });
@@ -123,7 +125,7 @@ async function check(label, callback) {
   await check('publication requires confirmation, saved draft and deduplicates requests', async f => {
     f.vm.form.title = 'Cambios pendientes'; f.vm.requestPublish(); assert.equal(f.vm.publishOpen, false); assert.equal(f.calls.publish.length, 0);
     await f.vm.saveDraft(); f.vm.requestPublish(); assert.equal(f.vm.publishOpen, true); assert.equal(f.calls.publish.length, 0);
-    f.qa.publishGate = deferred(); const pending = f.vm.publishVersion(); await f.vm.publishVersion(); assert.equal(f.calls.publish.length, 1); assert.equal(f.calls.publish[0][1], 2);
+    f.qa.publishGate = deferred(); const pending = f.vm.publishVersion(); await f.vm.publishVersion(); assert.equal(f.calls.publish.length, 1); assert.equal(f.calls.publish[0][0], 'license_agreement'); assert.equal(f.calls.publish[0][1], 2);
     f.qa.publishGate.resolve(); await pending; assert.equal(f.vm.publishOpen, false); assert.equal(f.vm.versions.length, 1); assert.equal(f.vm.form.revision, 3); assert.equal(f.vm.selectedDocument.current_version.version_number, 1); assert.match(f.vm.successMessage, /pendiente/);
   });
   await check('publication conflict stays open, preserves draft and disables another publication', async f => {
@@ -142,9 +144,10 @@ async function check(label, callback) {
     f.vm.requestPublish(); await f.vm.publishVersion(); f.qa.versionGate = deferred(); const pending = f.vm.openVersion(f.vm.versions[0]); assert.equal(f.vm.versionLoading, true);
     f.vm.closeVersion(); f.qa.versionGate.resolve(); await pending; assert.equal(f.vm.versionOpen, false); assert.equal(f.vm.frozenVersion, null); assert.equal(f.vm.versionLoading, false);
   });
-  await check('document switch, route leave and browser close protect unsaved capture', async f => {
-    f.vm.form.title = 'Sin guardar'; f.vm.requestSelection('privacy_notice'); assert.equal(f.vm.selectedKey, 'terms_conditions'); assert.equal(f.vm.discardOpen, true);
-    f.vm.cancelDiscard(); assert.equal(f.vm.form.title, 'Sin guardar'); f.vm.requestSelection('privacy_notice'); f.vm.confirmDiscard(); assert.equal(f.vm.selectedKey, 'privacy_notice'); assert.equal(f.vm.dirty, false);
+  await check('reload, route leave and browser close protect unsaved capture', async f => {
+    f.vm.form.title = 'Sin guardar'; f.vm.requestReload(); assert.equal(f.vm.discardOpen, true);
+    f.vm.cancelDiscard(); assert.equal(f.vm.form.title, 'Sin guardar'); f.vm.requestReload(); f.vm.confirmDiscard();
+    await until(() => !f.vm.loading, 'explicit reload'); assert.equal(f.vm.dirty, false);
     f.vm.form.title = 'Otra captura'; let decision = 'unset'; f.options.beforeRouteLeave.call(f.vm, {}, {}, value => { decision = value; }); assert.equal(decision, 'unset'); f.vm.cancelDiscard(); assert.equal(decision, false);
     decision = 'unset'; f.options.beforeRouteLeave.call(f.vm, {}, {}, value => { decision = value; }); f.vm.confirmDiscard(); assert.equal(decision, undefined);
     f.vm.form.title = 'Captura final'; const event = { preventDefaultCalled: false, preventDefault() { this.preventDefaultCalled = true; } }; f.vm.onBeforeUnload(event); assert.equal(event.preventDefaultCalled, true); assert.equal(event.returnValue, '');
@@ -171,7 +174,7 @@ async function check(label, callback) {
     f.store.state.CORE.AUTH.user = { id_login: 'qa-other-admin', id_session: 'qa-new-session' }; f.store.state.CORE.AUTH.accessRevision++;
     await f.Vue.nextTick(); assert.equal(f.calls.list, 3); assert.equal(f.vm.form, null);
     f.qa.listGate.resolve(); await oldRead; await until(() => !f.vm.loading, 'new administrator read');
-    assert.equal(f.vm.hasAdministrativeSession, true); assert.equal(f.vm.documents.length, 3); assert.equal(f.vm.dirty, false);
+    assert.equal(f.vm.hasAdministrativeSession, true); assert.equal(f.vm.documents.length, 1); assert.equal(f.vm.dirty, false);
   });
   const route = fs.readFileSync(path.join(repo, 'src/router/routes/super-admin.js'), 'utf8');
   const layout = fs.readFileSync(path.join(repo, 'src/core/layouts/super-admin.vue'), 'utf8');

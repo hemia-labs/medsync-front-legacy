@@ -52,13 +52,13 @@ export default {
       const current = () => !this.disposed && request === this.request && key === this.sessionKey && this.sessionEligible && isCurrentAuthorization(authorization, this.$store);
       this.loading = true; this.error = ''; this.lastCheckedAt = Date.now();
       try {
-        const response = await SaaSLegalService.current();
+        const response = await SaaSLegalService.notice();
         if(this.disposed || request !== this.request) return false;
         if(!current()) { this.pendingCount = null; this.businessPending = false; this.error = 'La sesión o tus accesos cambiaron. Reintenta para comprobar los documentos actuales.'; return false; }
-        if(!response || !response.success || !response.data || !Array.isArray(response.data.documents) || !Number.isInteger(response.data.pending_count) || response.data.pending_count < 0) throw new Error();
+        if(!response || !response.success || !response.data || !Number.isInteger(response.data.pending_count) || response.data.pending_count < 0) throw new Error();
         this.syncPending = response.data.central_sync_pending === true;
         this.error = response.data.pending_unknown ? 'No pudimos consultar Legal central. Reintenta para comprobar sus documentos pendientes.' : '';
-        this.pendingCount = response.data.pending_count; this.businessPending = response.data.documents.some(item => item.pending && item.acceptance_scope === 'business'); return true;
+        this.pendingCount = response.data.pending_count; this.businessPending = response.data.business_pending === true; return true;
       } catch(_) { if(current()) this.error = 'Actualiza la consulta para comprobar qué versiones están pendientes. No se registró ninguna aceptación desde este aviso.'; return false; }
       finally {
         if(!this.disposed && request === this.request) {

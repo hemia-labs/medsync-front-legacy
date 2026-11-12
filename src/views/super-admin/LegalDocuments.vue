@@ -4,7 +4,7 @@
       <div>
         <p class="legal-eyebrow">Administración global</p>
         <h1>Documentos legales</h1>
-        <p>Administra los textos de MedSync. Guarda un borrador y publica una versión cuando esté lista para solicitar su aceptación.</p>
+        <p>Edita y publica el contrato que aceptan los administradores de cada consultorio.</p>
       </div>
       <button type="button" class="legal-button" :disabled="busy" @click="requestReload">
         <v-icon small>mdi-refresh</v-icon> Actualizar
@@ -15,16 +15,9 @@
     <v-progress-linear v-if="loading" indeterminate color="primary" aria-label="Cargando documentos legales" />
 
     <div class="legal-workspace">
-      <nav class="legal-document-list" aria-label="Documentos legales globales">
-        <button v-for="definition in definitions" :key="definition.key" type="button" class="legal-document-option"
-          :class="{ 'is-selected': selectedKey === definition.key }" :aria-current="selectedKey === definition.key ? 'page' : null"
-          :disabled="busy" @click="requestSelection(definition.key)">
-          <v-icon size="22">{{ definition.icon }}</v-icon>
-          <span><strong>{{ definition.label }}</strong><small>{{ statusLabel(documentByKey(definition.key)) }}</small></span>
-          <v-icon v-if="selectedKey === definition.key" small>mdi-chevron-right</v-icon>
-        </button>
-        <p class="legal-list-note">Los borradores no cambian los documentos que ven los usuarios. Las versiones publicadas conservan su contenido.</p>
-      </nav>
+      <aside class="legal-document-list">
+        <p class="legal-list-note">Los términos y condiciones y el aviso de privacidad se administran en Hemia Legal.</p>
+      </aside>
 
       <div class="legal-main" v-if="selectedDocument && form">
         <section class="legal-panel">
@@ -117,11 +110,7 @@ import saasLegalService from '@/services/saasLegal.service';
 import { sanitizeHtmlForDocumentSnapshot } from '@/utils/sanitizeHtml';
 import { authorizationContext, authorizationFingerprint, isCurrentAuthorization } from '@/security/authorizationContext';
 
-const definitions = [
-  { key: 'terms_conditions', label: 'Términos y condiciones', icon: 'mdi-file-document-outline', scope: 'user' },
-  { key: 'privacy_notice', label: 'Aviso de privacidad', icon: 'mdi-shield-lock-outline', scope: 'user' },
-  { key: 'license_agreement', label: 'Contrato de licencia', icon: 'mdi-file-sign-outline', scope: 'business' }
-];
+const license = { key: 'license_agreement', label: 'Contrato de licencia', scope: 'business' };
 const editable = draft => ({ title: String(draft.title || ''), description: String(draft.description || ''), content_html: String(draft.content_html || ''), required: Boolean(draft.required), acceptance_scope: draft.acceptance_scope, revision: draft.revision });
 const capture = form => JSON.stringify(form);
 const hasText = html => {
@@ -134,7 +123,7 @@ const serverMessage = (response, fallback) => response && response.message || fa
 export default {
   name: 'SuperAdminLegalDocuments',
   data: function() {
-    return { definitions, documents: [], selectedKey: definitions[0].key, form: null, savedCapture: '', loading: false, saving: false, publishing: false,
+    return { selectedDefinition: license, documents: [], form: null, savedCapture: '', loading: false, saving: false, publishing: false,
       loadError: '', actionError: '', successMessage: '', fieldErrors: {}, syncRequired: false,
       previewOpen: false, publishOpen: false, publishError: '', versionOpen: false, versionLoading: false, versionError: '', frozenVersion: null, versionRequest: 0,
       discardOpen: false, pendingAction: null, cancelAction: null, destroyed: false, contextGeneration: 0 };
@@ -143,11 +132,10 @@ export default {
     authState: function() { return this.$store && this.$store.state && this.$store.state.CORE && this.$store.state.CORE.AUTH || null; },
     hasAdministrativeSession: function() { return Boolean(this.authState && this.authState.authenticated && String(this.authState.role || '').toLowerCase() === 'super_admin'); },
     authorizationKey: function() { return authorizationFingerprint(this.authState) + ':' + (this.authState && this.authState.accessRevision || 0); },
-    selectedDefinition: function() { return this.definitions.find(item => item.key === this.selectedKey) || this.definitions[0]; },
-    selectedDocument: function() { return this.documentByKey(this.selectedKey); },
+    selectedDocument: function() { return this.documents[0] || null; },
     dirty: function() { return Boolean(this.form && capture(this.form) !== this.savedCapture); },
     busy: function() { return this.loading || this.saving || this.publishing; },
-    audienceLabel: function() { return this.selectedDefinition.scope === 'business' ? 'Los administradores de cada negocio' : 'Todos los usuarios de MedSync'; },
+    audienceLabel: function() { return 'Los administradores de cada consultorio'; },
     previewHtml: function() { return sanitizeHtmlForDocumentSnapshot(this.form && this.form.content_html || ''); },
     previewHasText: function() { return hasText(this.previewHtml); },
     frozenHtml: function() { return sanitizeHtmlForDocumentSnapshot(this.frozenVersion && this.frozenVersion.content_html || ''); },
@@ -175,8 +163,6 @@ export default {
       if(continueRoute) continueRoute();
       if(this.hasAdministrativeSession) this.loadDocuments();
     },
-    documentByKey: function(key) { return this.documents.find(item => item.document_key === key) || null; },
-    statusLabel: function(item) { return item && item.current_version ? 'Vigente · Versión ' + item.current_version.version_number : 'Sin publicar'; },
     formatDate: function(value) { if(!value) return 'Sin fecha'; const date = new Date(value); return isNaN(date.getTime()) ? 'Fecha no disponible' : date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }); },
     onBeforeUnload: function(event) { if(this.hasAdministrativeSession && (this.dirty || this.busy)) { event.preventDefault(); event.returnValue = ''; } },
     setSelectedForm: function() {
@@ -192,7 +178,7 @@ export default {
         const response = await saasLegalService.adminList();
         if(!this.isContextCurrent(context)) return;
         if(!response || !response.success || !response.data || !Array.isArray(response.data.documents)) throw new Error(serverMessage(response, 'No se pudieron cargar los documentos legales.'));
-        this.documents = response.data.documents;
+        this.documents = response.data.documents.filter(item => item.document_key === license.key);
         this.setSelectedForm();
       } catch(error) { if(this.isContextCurrent(context)) this.loadError = serverMessage(error.response && error.response.data, error.message || 'No se pudieron cargar los documentos legales.'); }
       finally { if(this.isContextCurrent(context)) this.loading = false; }
@@ -204,7 +190,6 @@ export default {
     },
     cancelDiscard: function() { const cancel = this.cancelAction; this.pendingAction = null; this.cancelAction = null; this.discardOpen = false; if(cancel) cancel(); },
     confirmDiscard: function() { const action = this.pendingAction; this.pendingAction = null; this.cancelAction = null; this.discardOpen = false; this.setSelectedForm(); if(action) action(); },
-    requestSelection: function(key) { if(!this.hasAdministrativeSession || this.busy || key === this.selectedKey) return; this.confirmNavigation(() => { this.selectedKey = key; this.setSelectedForm(); }); },
     requestReload: function() { if(this.hasAdministrativeSession && !this.busy) this.confirmNavigation(() => this.loadDocuments()); },
     validateDraft: function() {
       const errors = {};
@@ -216,7 +201,7 @@ export default {
     },
     applyServerDocument: function(response) {
       const item = response && response.data && response.data.document;
-      if(!item || item.document_key !== this.selectedKey || !item.draft || !Number.isInteger(item.draft.revision)) {
+      if(!item || item.document_key !== license.key || !item.draft || !Number.isInteger(item.draft.revision)) {
         this.syncRequired = true;
         throw new Error('La operación se completó, pero no se pudo confirmar el borrador actualizado. Actualiza para comprobar el resultado.');
       }
@@ -237,7 +222,7 @@ export default {
       this.saving = true; this.actionError = ''; this.successMessage = '';
       const payload = { title: this.form.title.trim(), description: this.form.description.trim(), content_html: this.form.content_html, required: this.form.required, acceptance_scope: this.selectedDefinition.scope, expected_revision: this.form.revision };
       try {
-        const response = await saasLegalService.saveDraft(this.selectedKey, payload);
+        const response = await saasLegalService.saveDraft(license.key, payload);
         if(!this.isContextCurrent(context)) return;
         if(!response || !response.success) { this.showActionFailure(response, 'No se pudo guardar el borrador.'); return; }
         this.applyServerDocument(response); this.successMessage = 'Borrador guardado. La versión publicada se conserva hasta que publiques una nueva.';
@@ -254,7 +239,7 @@ export default {
       const context = this.captureContext();
       this.publishing = true; this.publishError = ''; this.actionError = ''; this.successMessage = '';
       try {
-        const response = await saasLegalService.publish(this.selectedKey, this.form.revision);
+        const response = await saasLegalService.publish(license.key, this.form.revision);
         if(!this.isContextCurrent(context)) return;
         if(!response || !response.success) { this.showActionFailure(response, 'No se pudo publicar la versión.'); this.publishError = this.actionError; return; }
         this.applyServerDocument(response); this.publishOpen = false; this.successMessage = 'Nueva versión publicada. Sus destinatarios tendrán pendiente la aceptación de esta versión.';
@@ -265,7 +250,7 @@ export default {
     openVersion: async function(version) {
       if(!this.hasAdministrativeSession || this.busy || !version || !version.id_version) return;
       const context = this.captureContext();
-      const request = ++this.versionRequest, key = this.selectedKey;
+      const request = ++this.versionRequest, key = license.key;
       this.versionOpen = true; this.frozenVersion = null; this.versionError = ''; this.versionLoading = true;
       try {
         const response = await saasLegalService.version(key, version.id_version);
@@ -289,11 +274,6 @@ export default {
 .legal-eyebrow { color: var(--color-primary-900, #086783); text-transform: uppercase; letter-spacing: .08em; font-size: .7rem; font-weight: 750; margin: 0 0 .35rem; }
 .legal-workspace { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 .legal-document-list { display: grid; gap: .6rem; }
-.legal-document-option { display: flex; align-items: center; gap: .75rem; border: 1px solid var(--legal-border); border-radius: 12px; background: var(--legal-surface); color: var(--legal-text); text-align: left; padding: 1rem; min-width: 0; }
-.legal-document-option span { flex: 1; min-width: 0; }
-.legal-document-option strong { display: block; font-size: .9rem; line-height: 1.4; }
-.legal-document-option small { display: block; color: var(--legal-muted); font-size: .76rem; margin-top: .35rem; }
-.legal-document-option.is-selected { border-color: var(--color-primary-700, #1497bd); background: var(--color-primary-100, #e6f7fb); }
 .legal-list-note,.legal-help,.legal-recovery { color: var(--legal-muted); font-size: .8rem; line-height: 1.55; margin: .65rem 0; }
 .legal-list-note { padding: 0 .5rem; }
 .legal-recovery { font-weight: 600; }
@@ -314,9 +294,9 @@ export default {
 .legal-button { min-height: 40px; display: inline-flex; justify-content: center; align-items: center; gap: .45rem; border: 1px solid var(--legal-border, #dbe3ec); border-radius: 9px; padding: .6rem .9rem; background: var(--legal-surface, #fff); color: var(--legal-text, #1e293b); font-size: .82rem; font-weight: 650; line-height: 1.35; }
 .legal-button-primary { background: var(--color-primary-900, #086783); color: white; border-color: var(--color-primary-900, #086783); }
 .legal-button-danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
-.legal-button:disabled,.legal-document-option:disabled { opacity: .55; cursor: not-allowed; }
-.legal-button:hover:not(:disabled),.legal-document-option:hover:not(:disabled) { filter: brightness(.97); }
-.legal-button:focus-visible,.legal-document-option:focus-visible,.legal-link:focus-visible,.legal-icon-button:focus-visible { outline: 3px solid var(--color-primary-700, #1497bd); outline-offset: 3px; }
+.legal-button:disabled { opacity: .55; cursor: not-allowed; }
+.legal-button:hover:not(:disabled) { filter: brightness(.97); }
+.legal-button:focus-visible,.legal-link:focus-visible,.legal-icon-button:focus-visible { outline: 3px solid var(--color-primary-700, #1497bd); outline-offset: 3px; }
 .legal-button-primary .v-icon { color: inherit; }
 .legal-link { color: var(--color-primary-900, #086783); text-decoration: underline; font-weight: 650; margin-left: auto; }
 .legal-empty { display: grid; justify-items: center; gap: .65rem; padding: 1.5rem; color: var(--legal-muted); text-align: center; }
@@ -339,12 +319,11 @@ export default {
 .legal-rendered-document ::v-deep img { max-width: 100%; height: auto; }
 .legal-html-editor ::v-deep textarea { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; line-height: 1.65; }
 html[data-theme="clinical-night"] .legal-page,html[data-theme="clinical-night"] .legal-dialog { --legal-surface: #1e293b; --legal-muted-surface: #172333; --legal-text: #e2e8f0; --legal-muted: #cbd5e1; --legal-border: #3b4d63; }
-html[data-theme="clinical-night"] .legal-document-option.is-selected { background: #15364d; }
 html[data-theme="clinical-night"] .legal-eyebrow,html[data-theme="clinical-night"] .legal-link { color: #bae6fd; }
 html[data-theme="clinical-night"] .legal-button-primary ::v-deep .v-icon { color: #fff; }
 html[data-theme="clinical-night"] .legal-page ::v-deep .v-label,html[data-theme="clinical-night"] .legal-page ::v-deep .v-input,html[data-theme="clinical-night"] .legal-page ::v-deep .v-icon { color: var(--legal-muted); }
 html[data-theme="clinical-night"] .legal-page ::v-deep fieldset { border-color: var(--legal-border); }
 html[data-theme="clinical-night"] .legal-page ::v-deep input,html[data-theme="clinical-night"] .legal-page ::v-deep textarea { color: var(--legal-text); background: transparent; }
-@media(max-width: 1100px) { .legal-workspace { grid-template-columns: 1fr; }.legal-document-list { grid-template-columns: repeat(3,minmax(0,1fr)); }.legal-list-note { grid-column: 1/-1; }.legal-document-option { padding: .85rem; }.legal-document-option>.v-icon:last-child { display: none; } }
-@media(max-width: 600px) { .legal-intro { flex-direction: column; }.legal-intro h1 { font-size: 1.4rem; }.legal-document-list { grid-template-columns: 1fr; gap: .5rem; }.legal-document-option { min-height: 70px; }.legal-panel { padding: 1rem; }.legal-panel-header { align-items: flex-start; flex-wrap: wrap; }.legal-editor-actions,.legal-dialog-actions { flex-direction: column; align-items: stretch; }.legal-action-spacer { display: none; }.legal-editor-actions>.legal-button { width: 100%; }.legal-version-list li { flex-direction: column; }.legal-version-list .legal-button { width: 100%; }.legal-dialog>.legal-panel-header,.legal-dialog-body,.legal-dialog-actions { padding: 1rem; }.legal-dialog>.legal-panel-header { flex-wrap: nowrap; }.legal-rendered-document { padding: .75rem; }.legal-publication-summary .legal-link { margin-left: 0; } }
+@media(max-width: 1100px) { .legal-workspace { grid-template-columns: 1fr; } }
+@media(max-width: 600px) { .legal-intro { flex-direction: column; }.legal-intro h1 { font-size: 1.4rem; }.legal-panel { padding: 1rem; }.legal-panel-header { align-items: flex-start; flex-wrap: wrap; }.legal-editor-actions,.legal-dialog-actions { flex-direction: column; align-items: stretch; }.legal-action-spacer { display: none; }.legal-editor-actions>.legal-button { width: 100%; }.legal-version-list li { flex-direction: column; }.legal-version-list .legal-button { width: 100%; }.legal-dialog>.legal-panel-header,.legal-dialog-body,.legal-dialog-actions { padding: 1rem; }.legal-dialog>.legal-panel-header { flex-wrap: nowrap; }.legal-rendered-document { padding: .75rem; }.legal-publication-summary .legal-link { margin-left: 0; } }
 </style>

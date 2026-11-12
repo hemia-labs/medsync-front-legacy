@@ -6,6 +6,7 @@ const segment = value => encodeURIComponent(String(value || ''));
 
 export default {
   current() { return DACore.get(tenant); },
+  notice() { return DACore.get(`${tenant}/notice`); },
   history(cursor) { return DACore.get(`${tenant}/history`, { params: cursor ? { cursor } : {} }); },
   centralContext() { return DACore.get(`${tenant}/central/context`); },
   acceptCentral(payload) { return DACore.post(`${tenant}/central/accept`, payload); },
