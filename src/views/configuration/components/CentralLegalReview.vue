@@ -1,13 +1,14 @@
 <template>
   <div class="central-legal">
     <div v-if="available" class="central-legal-prompt">
-      <p>Hay documentos de Legal central que requieren tu revisión personal.</p>
-      <button ref="opener" type="button" :disabled="disabled || loading || saving" @click="start">Revisar y confirmar documentos</button>
+      <p v-if="setName">{{ setName }}</p>
+      <p v-else>Hay documentos de Legal central que requieren tu revisión.</p>
+      <button ref="opener" type="button" :disabled="disabled || loading || saving" @click="start">{{ setName ? 'Revisar ' + setName : 'Revisar y confirmar documentos' }}</button>
     </div>
     <p v-if="result && !open" class="central-legal-status" role="status">{{ result }}</p>
-    <v-dialog :value="open" persistent scrollable max-width="920" aria-labelledby="central-legal-title">
+    <v-dialog :value="open" persistent scrollable max-width="920" :aria-labelledby="dialogTitleId">
       <v-card class="central-legal-panel">
-        <v-card-title><h2 id="central-legal-title">Revisión de documentos de Legal central</h2></v-card-title>
+        <v-card-title><h2 :id="dialogTitleId">Revisión de documentos de Legal central</h2></v-card-title>
         <v-card-text>
           <p>Revisa cada documento y confirma su versión. Las casillas son personales y no se marcan automáticamente.</p>
           <p v-if="loading" role="status">Cargando las versiones para revisar…</p>
@@ -44,10 +45,11 @@ const errorCode = value => {
 };
 export default {
   name: 'CentralLegalReview',
-  props: { available: Boolean, disabled: Boolean, ownerKey: { type: String, required: true } },
+  props: { available: Boolean, disabled: Boolean, documentSetKey: String, setName: String, ownerKey: { type: String, required: true } },
   data: () => ({ open: false, loading: false, saving: false, review: null, checked: {}, submitted: null,
     error: '', result: '', stale: false, request: 0, disposed: false, reviewOwner: null, removeGuard: null }),
   computed: {
+    dialogTitleId() { return 'central-legal-title-' + (this.documentSetKey || 'registration'); },
     documents() { return this.review ? this.review.legalDocuments.map(doc => ({ ...doc, safeHtml: sanitizeHtmlForDocumentSnapshot(doc.contentHtml) })) : []; },
     expiresLabel() { return this.review ? new Date(this.review.legalContextExpiresAt).toLocaleString('es-MX') : ''; },
     canSubmit() { return Boolean(this.open && this.review && !this.loading && !this.saving && !this.stale && !this.result
@@ -63,7 +65,7 @@ export default {
     readable(html) { const node = document.createElement('div'); node.innerHTML = html; return Boolean(String(node.textContent || '').replace(/[\s\u200b-\u200f\ufeff]/g, '') || node.querySelector('img[src]')); },
     confirmationLabel(doc) {
       const action = { accept: 'acepto este documento', acknowledge: 'confirmo haber leído este documento', consent: 'otorgo mi consentimiento para lo descrito en este documento' }[doc.requiredAction];
-      return `Leí la versión ${doc.version} y ${action} de forma personal.`;
+      return `Leí la versión ${doc.version} y ${action} ${this.review?.acceptanceScope === 'business' ? 'en representación del consultorio' : 'de forma personal'}.`;
     },
     async start() { if(this.disabled || this.loading || this.saving) return; this.open = true; if(this.result || !this.submitted) await this.load(); },
     async load() {
@@ -71,7 +73,7 @@ export default {
       const owner = this.owner(), request = ++this.request;
       this.loading = true; this.review = null; this.checked = {}; this.submitted = null; this.result = ''; this.error = ''; this.stale = false;
       try {
-        const response = await SaaSLegalService.centralContext();
+        const response = await SaaSLegalService.centralContext(this.documentSetKey);
         if(request !== this.request || !this.current(owner)) return false;
         const review = response && response.success && response.data;
         if(!usableRegistrationContext({ ...review, enabled: true }) || !Number.isFinite(Date.parse(review.legalContextExpiresAt))
@@ -89,6 +91,7 @@ export default {
       if(status === 401 || status === 403 || code === 'AUTH_CONTEXT_CHANGED') return 'La sesión o tus accesos cambiaron. Actualiza tu sesión antes de continuar.';
       if(status === 429) return 'Has realizado varios intentos. Espera un momento y reintenta.';
       if(code === 'LEGAL_IDEMPOTENCY_CONFLICT') return 'Este envío no coincide con el anterior. Cierra y actualiza los documentos antes de iniciar otra revisión.';
+      if(code === 'LEGAL_REPRESENTATIVE_REJECTED') return 'Legal central rechazó la autorización de esta firma. Inicia una revisión con una sesión autorizada.';
       return this.submitted ? 'No pudimos comprobar el resultado. Puedes reintentar el mismo envío sin duplicar la confirmación.' : 'No pudimos cargar los documentos. Reintenta en unos momentos.';
     },
     async confirm() {
@@ -97,6 +100,7 @@ export default {
       if(!this.submitted) {
         if(Date.parse(this.review.legalContextExpiresAt) <= Date.now()) { this.stale = true; this.checked = {}; this.error = this.message({ code: 'LEGAL_VERSION_STALE' }); return false; }
         this.submitted = { legalContext: this.review.legalContext, idempotencyKey: registrationAttemptId(),
+          ...(this.documentSetKey ? { documentSetKey: this.documentSetKey } : {}),
           legalAcceptances: this.review.legalDocuments.map(doc => ({ documentKey: doc.documentKey, versionId: doc.versionId, acknowledged: true })) };
       }
       this.saving = true; this.error = ''; this.$emit('saving', true);
@@ -112,7 +116,7 @@ export default {
       } catch(error) {
         if(request === this.request && this.current(owner)) {
           this.error = this.message(error);
-          if(errorCode(error) === 'LEGAL_VERSION_STALE') { this.stale = true; this.checked = {}; this.submitted = null; }
+          if(['LEGAL_VERSION_STALE','LEGAL_REPRESENTATIVE_REJECTED'].includes(errorCode(error))) { this.stale = true; this.checked = {}; this.submitted = null; }
         }
         return false;
       } finally { if(request === this.request && !this.disposed) { this.saving = false; this.$emit('saving', false); } }

@@ -12,7 +12,9 @@
     <p v-if="!sessionEligible" class="legal-message" role="status">Inicia sesión con un usuario de tu consultorio para consultar estos documentos.</p>
     <template v-else>
       <p v-if="centralWarning" class="legal-message" role="status">{{ centralWarning }}</p>
-      <CentralLegalReview :owner-key="sessionKey" :available="centralReviewAvailable" :disabled="saving || currentLoading || !!currentError" @saving="reviewSaving = $event" @confirmed="refreshAfterCentral" @refresh="refreshAll" />
+      <CentralLegalReview v-for="set in centralReviewSets" :key="set.key || 'registration'" :owner-key="sessionKey"
+        :available="set.available" :document-set-key="set.key" :set-name="set.name" :disabled="saving || reviewSaving || currentLoading || !!currentError"
+        @saving="reviewSaving = $event" @confirmed="refreshAfterCentral" @refresh="refreshAll" />
       <p v-if="currentLoading" class="legal-message" role="status">Consultando las versiones publicadas…</p>
       <div v-if="currentError" class="legal-message legal-message--error" role="alert">
         <p>{{ currentError }}</p><button type="button" class="legal-link" :disabled="currentLoading || saving" @click="loadCurrent">Reintentar consulta</button>
@@ -22,12 +24,12 @@
         <article v-for="item in documents" :key="item.id_document" class="legal-document-card bg-white border border-gray-200">
           <div class="legal-card-top"><h3>{{ item.title }}</h3><span class="legal-status" :class="statusClass(item)">{{ statusLabel(item) }}</span></div>
           <p v-if="item.description">{{ item.description }}</p>
-          <p class="legal-scope">{{ scopeHelp(item.acceptance_scope) }} · {{ item.source === 'central' ? 'Legal central' : 'Historial local' }}</p>
+          <p class="legal-scope">{{ item.informational ? 'Documento de consulta.' : scopeHelp(item.acceptance_scope) }} · {{ item.source === 'central' ? 'Legal central' : 'Historial local' }}</p>
           <p v-if="!item.current_version">Aún no se ha publicado una versión. No hay una aceptación disponible.</p>
           <template v-else>
             <p class="legal-meta">Versión {{ item.current_version.version_number }}<template v-if="item.current_version.published_at"> · Publicada {{ formatDate(item.current_version.published_at) }}</template></p>
             <p v-if="isAccepted(item)" class="legal-meta">Aceptada por {{ actorName(item.accepted) }} el {{ formatDate(item.accepted.accepted_at) }}.</p>
-            <p v-else-if="item.pending && !item.can_accept && item.acceptance_scope === 'business'" class="legal-responsible">Pide a una persona administradora que revise y acepte esta versión por el consultorio.</p>
+            <p v-else-if="item.pending && !item.can_accept && !item.central_can_review && item.acceptance_scope === 'business'" class="legal-responsible">Pide a una persona administradora que revise y acepte esta versión por el consultorio.</p>
             <button type="button" class="legal-button legal-button--outline" :disabled="saving || reviewSaving || currentLoading" @click="openCurrent(item)">Ver documento<span class="sr-only">: {{ item.title }}, versión {{ item.current_version.version_number }}</span></button>
           </template>
         </article>
@@ -91,7 +93,16 @@ export default {
     dialogOpen: false, dialogSource: '', selectedDocument: null, selectedVersion: null, selectedAcceptance: null,
     acknowledged: false, saving: false, saveError: '', staleVersion: false, confirmedAcceptance: false, reviewContext: null, opener: null, removeSavingGuard: null }),
   computed: {
-    centralReviewAvailable() { return this.documents.some(doc => doc.source === 'central' && doc.pending && !doc.sync_pending); },
+    centralReviewSets() {
+      const sets = new Map();
+      for(const doc of this.documents) {
+        if(doc.source !== 'central' || doc.informational || doc.central_can_review === false) continue;
+        const key = doc.document_set_key === 'registration' ? undefined : doc.document_set_key;
+        const available = Boolean(sets.get(key)?.available || doc.pending && !doc.sync_pending);
+        sets.set(key, { key, name: key ? doc.document_set_name : undefined, available });
+      }
+      return [...sets.values()];
+    },
     authState() { return this.$store && this.$store.state && this.$store.state.CORE && this.$store.state.CORE.AUTH || {}; },
     sessionEligible() { const auth = this.authState; return Boolean(auth.authenticated && (auth.user || {}).id_login && ((auth.business || {}).id_business || (auth.user || {}).id_business) && String(auth.role || '').toLowerCase() !== 'super_admin'); },
     sessionKey() { return authorizationFingerprint(this.authState) + ':' + (this.authState.accessRevision || 0) + ':' + String(this.authState.token || ''); },
@@ -159,8 +170,8 @@ export default {
       finally { if(request === this.historyRequest && !this.disposed) this.historyLoading = false; }
     },
     isAccepted(item) { return Boolean(item.current_version && item.accepted && item.accepted.id_version === item.current_version.id_version); },
-    statusLabel(item) { return item.sync_pending ? 'Sincronización pendiente' : !item.current_version ? 'Sin publicar' : this.isAccepted(item) ? 'Aceptado' : item.source === 'central' && !item.pending ? 'Sin nueva aceptación requerida' : item.pending ? 'Pendiente de aceptación' : 'Disponible para revisar'; },
-    statusClass(item) { return !item.current_version ? 'legal-status--neutral' : this.isAccepted(item) ? 'legal-status--accepted' : 'legal-status--pending'; },
+    statusLabel(item) { return item.informational ? 'Solo lectura' : item.sync_pending ? 'Sincronización pendiente' : !item.current_version ? 'Sin publicar' : this.isAccepted(item) ? 'Aceptado' : item.source === 'central' && !item.pending ? 'Sin nueva aceptación requerida' : item.pending ? 'Pendiente de aceptación' : 'Disponible para revisar'; },
+    statusClass(item) { return item.informational || !item.current_version ? 'legal-status--neutral' : this.isAccepted(item) ? 'legal-status--accepted' : 'legal-status--pending'; },
     scopeLabel(scope) { return scope === 'business' ? 'Aceptación por el consultorio' : 'Aceptación personal'; },
     scopeHelp(scope) { return scope === 'business' ? 'Una persona administradora acepta por el consultorio.' : 'Cada usuario revisa y acepta este documento de forma personal.'; },
     actorName(receipt) { return receipt && receipt.accepted_by_name || 'Usuario registrado'; },
@@ -172,19 +183,19 @@ export default {
     openCurrent(item) {
       if(!this.sessionEligible || this.saving || this.currentLoading || !item || !item.current_version || !item.current_version.id_version) return false;
       this.opener = document.activeElement; this.clearSelection(); this.dialogSource = 'current'; this.selectedDocument = clone(item); this.selectedVersion = clone(item.current_version);
-      this.selectedAcceptance = this.isAccepted(item) ? clone(item.accepted) : null; this.reviewContext = this.captureContext(); this.dialogOpen = true; if(item.source === 'central') this.loadCentralVersion(item.current_version.id_version); return true;
+      this.selectedAcceptance = this.isAccepted(item) ? clone(item.accepted) : null; this.reviewContext = this.captureContext(); this.dialogOpen = true; if(item.source === 'central') this.loadCentralVersion(item.current_version.id_version, undefined, item.document_set_key); return true;
     },
     openReceipt(receipt) {
       if(!this.sessionEligible || this.saving || !receipt || !receipt.version) return false;
       this.opener = document.activeElement; this.clearSelection(); this.dialogSource = 'history';
       this.selectedDocument = { id_document: receipt.id_document, title: receipt.title, acceptance_scope: receipt.acceptance_scope };
       this.selectedVersion = clone(receipt.version); this.selectedAcceptance = clone(receipt); this.dialogOpen = true;
-      if(receipt.source === 'central') this.loadCentralVersion(receipt.id_version, receipt.history_cursor); return true;
+      if(receipt.source === 'central') this.loadCentralVersion(receipt.id_version, receipt.history_cursor, receipt.document_set_key); return true;
     },
-    async loadCentralVersion(id, cursor) {
+    async loadCentralVersion(id, cursor, setKey) {
       const context = this.captureContext(); this.centralDocumentLoading = true;
       try {
-        const response = await SaaSLegalService.centralDocument(id, cursor);
+        const response = await SaaSLegalService.centralDocument(id, cursor, setKey);
         if(!this.isCurrent(context) || !this.dialogOpen || !this.selectedVersion || this.selectedVersion.id_version !== id) return;
         const version = response && response.success && response.data && response.data.version;
         if(!version || version.id_version !== id || version.content_hash !== this.selectedVersion.content_hash) throw new Error();
