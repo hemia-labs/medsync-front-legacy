@@ -11,7 +11,7 @@
         <v-card-title><h2 :id="dialogTitleId">Revisión de documentos de Legal central</h2></v-card-title>
         <v-card-text>
           <p>Revisa cada documento y confirma su versión. Las casillas son personales y no se marcan automáticamente.</p>
-          <p v-if="loading" role="status">Cargando las versiones para revisar…</p>
+          <v-skeleton-loader v-if="loading" class="central-legal-skeleton" type="heading, paragraph@3" loading-text="Cargando los documentos para revisar" />
           <p v-if="error" role="alert" class="central-legal-error">{{ error }}</p>
           <p v-if="result" ref="status" tabindex="-1" role="status" class="central-legal-status">{{ result }}</p>
           <template v-if="review && !result">
@@ -26,7 +26,7 @@
         <v-card-actions>
           <button type="button" :disabled="saving" @click="close">{{ result ? 'Cerrar' : 'Cerrar sin nueva confirmación' }}</button>
           <button v-if="!result && (!review || stale)" type="button" :disabled="loading || saving" @click="load">Volver a cargar documentos</button>
-          <button v-if="review && !result && !stale" type="button" class="central-legal-primary" :disabled="!canSubmit" @click="confirm">{{ saving ? 'Guardando confirmaciones…' : submitted ? 'Reintentar el mismo envío' : 'Confirmar estas versiones' }}</button>
+          <button v-if="review && !result && !stale" type="button" class="central-legal-primary" :disabled="!canSubmit" @click="confirm">{{ confirmLabel }}</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -47,11 +47,16 @@ export default {
   name: 'CentralLegalReview',
   props: { available: Boolean, disabled: Boolean, documentSetKey: String, setName: String, ownerKey: { type: String, required: true } },
   data: () => ({ open: false, loading: false, saving: false, review: null, checked: {}, submitted: null,
-    error: '', result: '', stale: false, request: 0, disposed: false, reviewOwner: null, removeGuard: null }),
+    error: '', result: '', stale: false, request: 0, disposed: false, reviewOwner: null, reviewOpener: null, removeGuard: null }),
   computed: {
     dialogTitleId() { return 'central-legal-title-' + (this.documentSetKey || 'registration'); },
     documents() { return this.review ? this.review.legalDocuments.map(doc => ({ ...doc, safeHtml: sanitizeHtmlForDocumentSnapshot(doc.contentHtml) })) : []; },
     expiresLabel() { return this.review ? new Date(this.review.legalContextExpiresAt).toLocaleString('es-MX') : ''; },
+    confirmLabel() {
+      if(this.saving) return 'Guardando confirmaciones…';
+      if(this.submitted) return 'Reintentar el mismo envío';
+      return this.documents.length === 1 && this.documents[0].requiredAction === 'accept' ? 'Aceptar esta versión' : 'Confirmar estas versiones';
+    },
     canSubmit() { return Boolean(this.open && this.review && !this.loading && !this.saving && !this.stale && !this.result
       && this.current(this.reviewOwner) && this.documents.length && this.documents.every(doc => this.checked[doc.versionId] && this.readable(doc.safeHtml))); }
   },
@@ -67,7 +72,7 @@ export default {
       const action = { accept: 'acepto este documento', acknowledge: 'confirmo haber leído este documento', consent: 'otorgo mi consentimiento para lo descrito en este documento' }[doc.requiredAction];
       return `Leí la versión ${doc.version} y ${action} ${this.review?.acceptanceScope === 'business' ? 'en representación del consultorio' : 'de forma personal'}.`;
     },
-    async start() { if(this.disabled || this.loading || this.saving) return; this.open = true; if(this.result || !this.submitted) await this.load(); },
+    async start() { if(this.disabled || this.loading || this.saving) return; this.reviewOpener = document.activeElement; this.open = true; if(this.result || !this.submitted) await this.load(); },
     async load() {
       if(this.loading || this.saving) return false;
       const owner = this.owner(), request = ++this.request;
@@ -124,12 +129,20 @@ export default {
     close() {
       if(this.saving) return false;
       this.request++; this.loading = false; this.open = false; this.$emit('refresh');
-      this.$nextTick(() => { if(this.$refs.opener) this.$refs.opener.focus(); }); return true;
+      const opener = this.reviewOpener;
+      this.reviewOpener = null;
+      this.$nextTick(() => {
+        if(opener && opener !== document.body && document.contains(opener)) opener.focus();
+        else if(this.$refs.opener) this.$refs.opener.focus();
+      });
+      return true;
     }
   }
 };
 </script>
 <style scoped>
+.central-legal-skeleton{min-height:240px;padding:18px}
+html[data-theme="clinical-night"] .central-legal-skeleton ::v-deep .v-skeleton-loader__bone{background:#334155}
 .central-legal{color:#344b55}.central-legal-prompt{padding:18px 24px;background:#e8f5f6;border-bottom:1px solid #c8e0e3}.central-legal-prompt p{margin:0 0 12px}.central-legal button{border:1px solid #198b95;color:#15535d;border-radius:10px;padding:10px 16px;font-weight:700}.central-legal-panel{color:#344b55!important}.central-legal-panel h2{font-size:23px;line-height:1.35;word-break:normal;margin:0}.central-legal-panel h3{font-size:18px;line-height:1.45;overflow-wrap:anywhere}.central-legal-panel .v-card__text{padding:20px 24px;overscroll-behavior:contain}.central-legal-panel .v-card__title{border-bottom:1px solid #c8e0e3;padding:22px 24px}.central-legal-panel .v-card__actions{gap:12px;padding:18px 24px;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid #c8e0e3}.central-legal-panel button{border:1px solid #198b95;border-radius:10px;padding:10px 16px;font-weight:700;color:#15535d}.central-legal-panel .central-legal-primary{background:#167b86;color:#fff}.central-legal button:disabled,.central-legal-panel button:disabled{opacity:.5;cursor:not-allowed}.central-legal-document{padding:18px 0;border-top:1px solid #c8e0e3}.central-legal-content{background:#fff;color:#25364d;border:1px solid #dce6ec;border-radius:10px;padding:18px;margin:14px 0;line-height:1.75;font-size:15px;overflow-wrap:anywhere;overflow-x:auto}.central-legal-content ::v-deep img{max-width:100%;height:auto}.central-legal-document label{display:flex;align-items:flex-start;gap:12px;line-height:1.65;font-weight:650}.central-legal-document input{width:20px;height:20px;margin-top:3px;flex-shrink:0;accent-color:#167b86}.central-legal-error{background:#fff0f1;color:#a32834;padding:14px;border-radius:10px}.central-legal-status{padding:16px;background:#edf9f2;color:#265d42;line-height:1.6}.central-legal-expiry{font-size:12px}.central-legal button:focus-visible,.central-legal-panel button:focus-visible,.central-legal-panel input:focus-visible,.central-legal-status:focus{outline:3px solid #198b95;outline-offset:3px}
 html[data-theme="clinical-night"] .central-legal-prompt{background:#172f41;color:#e2e8f0;border-color:#3b4d63}html[data-theme="clinical-night"] .central-legal-prompt button{color:#bae6fd;border-color:#6489a9}html[data-theme="clinical-night"] .central-legal-panel{background:#172f41!important;color:#e2e8f0!important}html[data-theme="clinical-night"] .central-legal-panel .v-card__text{color:#e2e8f0}html[data-theme="clinical-night"] .central-legal-panel button{color:#bae6fd;border-color:#6489a9}html[data-theme="clinical-night"] .central-legal-panel .central-legal-primary{background:#0e7490;color:white}
 @media(max-width:700px){.central-legal-prompt{padding:18px}.central-legal-panel h2{font-size:20px}.central-legal-panel .v-card__text,.central-legal-panel .v-card__title{padding:16px}.central-legal-panel .v-card__actions{padding:16px;flex-direction:column;align-items:stretch}.central-legal-prompt button,.central-legal-panel button{width:100%}}
