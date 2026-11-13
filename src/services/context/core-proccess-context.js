@@ -22,7 +22,6 @@ import DABusinessDashboardService   from '../core/business/DABusinessDashboardSe
 import DAPrescriptionService        from '../core/prescription/DAPrescriptionService';
 import DAClinicalHistoryService     from '../core/clinicalHistory/DAClinicalHistoryService';
 import DAClinicalHistoryTemplateService from '../core/clinicalHistoryTemplate/DAClinicalHistoryTemplateService';
-import DASuperAdminService          from '../core/superAdmin/DASuperAdminService';
 
 export {
     DAAuthService,
@@ -49,5 +48,4 @@ export {
     DAPrescriptionService,
     DAClinicalHistoryService,
     DAClinicalHistoryTemplateService,
-    DASuperAdminService
 }
