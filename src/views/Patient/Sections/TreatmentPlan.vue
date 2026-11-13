@@ -21,253 +21,257 @@
     </section>
 
     <template v-else>
-      <section class="treatment-hero">
-        <div>
-          <div class="hero-title-row">
-            <p class="eyebrow">Plan de tratamiento</p>
-            <span v-if="activePlan" class="plan-badge">Plan activo</span>
-          </div>
-          <h3 ref="sectionTitle" tabindex="-1">{{ activePlan ? activePlan.title : 'Sin plan activo' }}</h3>
-          <p>
-            {{ activePlan ? 'Este es el plan activo del paciente. Puedes agregar tratamientos, actualizar su seguimiento y cerrarlo cuando finalice.' : 'Crea un plan para registrar tratamientos y dar seguimiento clínico.' }}
-          </p>
-        </div>
-        <div class="treatment-actions">
-          <button :disabled="isBusy" v-if="!activePlan && canCreate" class="btn-primary tab-create-action" type="button" @click="openCreatePlan()">
-            <v-icon size="18">mdi-plus</v-icon>
-            Nuevo plan
-          </button>
-          <button :disabled="isBusy" v-if="activePlan && canCreate" class="btn-primary" type="button" @click="openTreatmentDialog()">
-            <v-icon size="18">mdi-plus</v-icon>
-            Agregar tratamiento
-          </button>
-          <button :disabled="isBusy" v-if="activePlan && canEdit" class="btn-outline" type="button" @click="openCreatePlan(true)">Editar datos del plan</button>
-          <button :disabled="isBusy" v-if="activePlan && canClose" class="btn-danger-secondary" type="button" @click="openClosePlanDialog">
-            <v-icon size="18">mdi-archive-check-outline</v-icon>
-            Cerrar plan
-          </button>
-        </div>
-      </section>
-      <section v-if="activePlan" class="plan-details">
-        <p v-if="activePlan.diagnosis"><strong>Diagnóstico general:</strong> {{ activePlan.diagnosis }}</p>
-        <p v-if="activePlan.notes" class="preserve-lines"><strong>Notas del plan:</strong> {{ activePlan.notes }}</p>
-        <p class="field-help">Creado por {{ activePlan.created_by_name || 'Usuario no disponible' }} · {{ formatDisplayDate(activePlan.started_at) }}<span v-if="activePlan.updated_by_name"> · Actualizado por {{ activePlan.updated_by_name }}</span></p>
-        <p v-if="!canCreate && !canEdit && !canComplete && !canCancel && !canClose" class="field-help">Tu acceso permite consultar este plan. Las acciones dependen de tus permisos.</p>
+      <section v-if="!activePlan" class="tp-start">
+        <div class="tp-start-icon" aria-hidden="true"><v-icon size="30">mdi-clipboard-text-clock-outline</v-icon></div>
+        <p class="eyebrow">Plan de tratamiento</p>
+        <h3 ref="sectionTitle" tabindex="-1">Sin plan activo</h3>
+        <p>Crea un plan cuando el paciente inicie una etapa de tratamiento para registrar procedimientos, presupuesto y consentimiento. Los planes cerrados se conservan en el histórico.</p>
+        <button v-if="canCreate" :disabled="isBusy" class="btn-primary tp-start-action" type="button" @click="openCreatePlan()">
+          <v-icon size="18">mdi-plus</v-icon>
+          Crear plan
+        </button>
+        <p v-else class="field-help">Tu acceso permite consultar planes, pero no crearlos.</p>
       </section>
 
-      <section class="summary-grid">
-        <article>
-          <span>Total</span>
-          <strong>{{ activeTreatments.length }}</strong>
-        </article>
-        <article>
-          <span>Pendientes</span>
-          <strong>{{ countByStatus('pending') }}</strong>
-        </article>
-        <article>
-          <span>En progreso</span>
-          <strong>{{ countByStatus('in_progress') }}</strong>
-        </article>
-        <article>
-          <span>Pausados</span>
-          <strong>{{ countByStatus('paused') }}</strong>
-        </article>
-        <article>
-          <span>Completados</span>
-          <strong>{{ countByStatus('completed') }}</strong>
-        </article>
-        <article>
-          <span>Cancelados</span>
-          <strong>{{ countByStatus('cancelled') }}</strong>
-        </article>
-        <article v-if="showCosts" class="summary-total-cost">
-          <span>Presupuesto del plan</span>
-          <strong>{{ formatCurrencyValue(totalCost) }}</strong>
-          <small>Incluye tratamientos cancelados. No representa saldo por cobrar.</small>
-        </article>
-      </section>
-
-      <section v-if="activePlan && (canViewConsent || canManageSignature)" class="consent-panel" :class="{ signed: hasActiveConsent }">
-        <div class="consent-icon">
-          <v-icon size="24">{{ hasActiveConsent ? 'mdi-file-check-outline' : 'mdi-file-sign' }}</v-icon>
-        </div>
-        <div class="consent-copy">
-          <div class="consent-status-row">
-            <p class="eyebrow">Consentimiento del plan</p>
-            <span class="consent-status" :class="{ signed: hasActiveConsent }">{{ !canViewConsent ? 'Sin acceso de consulta' : hasActiveConsent ? 'Firmado' : needsConsentConfiguration ? 'Falta configurar' : 'Pendiente de firma' }}</span>
-          </div>
-          <h3>{{ !canViewConsent ? 'Capturar consentimiento del plan' : hasActiveConsent ? 'Consentimiento del plan firmado' : needsConsentConfiguration ? 'Falta el formato de consentimiento del plan' : 'Firma pendiente del paciente' }}</h3>
-          <span v-if="hasActiveConsent">Firmado: {{ formatDateTime(activeConsent.signed_at) }}</span>
-          <p>
-            {{ !canViewConsent ? 'Puedes capturar una nueva versión según tus permisos. El contenido de versiones anteriores no está disponible para consulta con tu acceso.' : hasActiveConsent
-              ? 'Se conservaron el texto del consentimiento, la firma del paciente y los datos del doctor, junto con su firma si estaba registrada.'
-              : needsConsentConfiguration ? 'Antes de solicitar una firma, el consultorio debe guardar un formato activo de tipo «Consentimiento del plan de tratamiento». El consentimiento general de atención es un formato distinto.'
-              : 'El paciente puede revisar el consentimiento y firmar aquí o desde un enlace por QR, correo o WhatsApp.' }}
-          </p>
-          <p v-if="hasPendingConsentDocument" class="field-help">Hay un documento preparado pendiente de firma. Si actualizas el plan, deberás preparar una nueva versión y sus enlaces.</p>
-        </div>
-        <div class="consent-actions">
-          <v-select v-if="canManageSignature" v-model="doctorUserId" :items="eligibleDoctors" item-text="professional_name" item-value="id_login" label="Doctor que firma el consentimiento" outlined dense :disabled="contextLoading || isBusy" hide-details></v-select>
-          <p v-if="canManageSignature && consentPrerequisite" id="plan-consent-prerequisite" class="field-help" role="status">{{ consentPrerequisite }}</p>
-          <router-link v-if="needsConsentConfiguration && canConfigurePlanConsent" class="btn-outline" :to="{ path: '/admin', query: { section: 'documents' } }">Configurar consentimiento</router-link>
-          <button v-if="needsConsentConfiguration" class="btn-outline" type="button" :disabled="contextLoading || isBusy" @click="loadConsentContext()">Actualizar requisitos</button>
-          <button :disabled="isBusy" v-if="canManageSignature && contextError" class="btn-outline" type="button" @click="loadConsentContext()">Reintentar doctores y texto</button>
-          <button :disabled="isBusy" v-if="hasActiveConsent && canViewConsent" class="btn-outline" type="button" @click="openConsentDialog('view')">
-            <v-icon size="17">mdi-eye-outline</v-icon>
-            Ver consentimiento
-          </button>
-          <button v-if="canManageSignature" class="btn-soft" type="button" :disabled="Boolean(consentPrerequisite) || isBusy" :aria-describedby="consentPrerequisite ? 'plan-consent-prerequisite' : null" @click="requestConsentSignature">
-            <v-icon size="17">mdi-draw-pen</v-icon>
-            {{ canReuseConsentDocument ? 'Continuar firma' : !canViewConsent ? 'Preparar firma' : hasActiveConsent ? 'Nueva versión de firma' : 'Solicitar firma' }}
-          </button>
-        </div>
-      </section>
-
-      <section v-if="activePlan" class="treatment-toolbar">
-        <div>
-          <p class="m-0 font-semibold text-gray-700">Tratamientos del plan activo</p>
-          <span>Los cambios solo aplican al plan actual. Los planes cerrados se consultan como histórico.</span>
-        </div>
-        <div class="filter-group" role="group" aria-label="Filtrar tratamientos por estado">
-          <button :disabled="isBusy"
-            v-for="item in filters"
-            :key="item.value"
-            type="button"
-            :class="{ active: filter === item.value }"
-            :aria-pressed="String(filter === item.value)"
-            @click="filter = item.value"
-          >
-            {{ item.label }}
-          </button>
-        </div>
-      </section>
-
-      <section v-if="activePlan && filteredTreatments.length > 0" class="treatment-list">
-        <article v-for="item in filteredTreatments" :key="item.id_patient_treatment" class="treatment-card">
-          <div class="card-main">
-            <div class="title-row">
-              <h4>{{ item.name }}</h4>
-              <span v-if="showStatus" class="status-chip" :class="'status-' + item.status">{{ statusLabel(item.status) }}</span>
+      <template v-else>
+        <section class="tp-plan" aria-labelledby="tp-plan-title">
+          <header class="tp-plan-header">
+            <div class="tp-plan-heading">
+              <div class="tp-plan-kicker">
+                <p class="eyebrow">Plan de tratamiento</p>
+                <span class="tp-plan-state">Activo</span>
+              </div>
+              <h3 id="tp-plan-title" ref="sectionTitle" tabindex="-1">{{ activePlan.title }}</h3>
+              <p class="tp-plan-meta">
+                <span><v-icon size="15">mdi-calendar-start</v-icon>Inicio {{ formatLongDate(activePlan.started_at) }}</span>
+                <span><v-icon size="15">mdi-account-outline</v-icon>{{ activePlan.created_by_name || 'Usuario no disponible' }}</span>
+                <span v-if="activePlan.updated_by_name && activePlan.updated_by_name !== activePlan.created_by_name">Actualizado por {{ activePlan.updated_by_name }}</span>
+              </p>
             </div>
-            <p v-if="item.description" class="description">{{ item.description }}</p>
-            <div class="meta-row">
-              <span v-if="item.category"><v-icon size="15">mdi-tag-outline</v-icon>{{ item.category }}</span>
-              <span v-if="item.estimated_start_date"><v-icon size="15">mdi-calendar-start</v-icon>{{ formatDate(item.estimated_start_date) }}</span>
-              <span v-if="item.estimated_end_date"><v-icon size="15">mdi-calendar-check</v-icon>{{ formatDate(item.estimated_end_date) }}</span>
-              <span v-if="showCosts && item.cost !== null && item.cost !== undefined && item.cost !== ''"><v-icon size="15">mdi-cash</v-icon>{{ formatCurrencyValue(item.cost) }}</span>
+            <div class="tp-plan-actions">
+              <button :disabled="isBusy" v-if="canCreate" class="btn-primary" type="button" @click="openTreatmentDialog()">
+                <v-icon size="18">mdi-plus</v-icon>
+                Agregar tratamiento
+              </button>
+              <button :disabled="isBusy" v-if="canEdit" class="btn-outline" type="button" @click="openCreatePlan(true)">
+                <v-icon size="17">mdi-pencil-outline</v-icon>
+                Editar plan
+              </button>
+              <v-menu v-if="canClose" offset-y left>
+                <template v-slot:activator="{ on, attrs }">
+                  <button :disabled="isBusy" class="tp-icon-button" type="button" aria-label="Más acciones del plan" title="Más acciones del plan" v-bind="attrs" v-on="on">
+                    <v-icon size="20">mdi-dots-horizontal</v-icon>
+                  </button>
+                </template>
+                <v-list dense class="tp-menu">
+                  <v-list-item class="tp-menu-danger" @click="openClosePlanDialog">
+                    <v-list-item-icon><v-icon size="18">mdi-archive-check-outline</v-icon></v-list-item-icon>
+                    <v-list-item-title>Cerrar plan</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
             </div>
-            <div v-if="item.teeth && item.teeth.length" class="tooth-row">
-              <span v-for="tooth in item.teeth" :key="tooth">{{ dentalLabel(item, tooth) }}</span>
+          </header>
+
+          <dl v-if="activePlan.diagnosis || activePlan.notes" class="tp-plan-notes">
+            <div v-if="activePlan.diagnosis">
+              <dt>Diagnóstico general</dt>
+              <dd>{{ activePlan.diagnosis }}</dd>
             </div>
-            <p v-if="item.notes" class="notes">{{ item.notes }}</p>
-          </div>
-          <div class="card-actions">
-            <button :disabled="isBusy" v-if="canEdit && ['pending', 'paused'].includes(item.status)" class="icon-action complete-action" type="button" @click="changeStatus(item, 'in_progress')">{{ item.status === 'paused' ? 'Reanudar' : 'Iniciar' }}</button>
-            <v-menu v-if="statusActions(item).length" offset-y>
-              <template v-slot:activator="{ on, attrs }"><button :disabled="isBusy" class="icon-action" type="button" v-bind="attrs" v-on="on">Cambiar estado</button></template>
-              <v-list><v-list-item v-for="option in statusActions(item)" :key="option.value" @click="option.value === 'cancelled' ? requestCancelTreatment(item) : changeStatus(item, option.value)"><v-list-item-title>{{ option.label }}</v-list-item-title></v-list-item></v-list>
-            </v-menu>
-            <button :disabled="isBusy" v-if="canEdit" class="icon-action" type="button" title="Editar" @click="openTreatmentDialog(item)">
-              <v-icon size="17">mdi-pencil-outline</v-icon>
-              Editar
-            </button>
-            <button :disabled="isBusy" v-if="canComplete && item.status !== 'completed'" class="icon-action complete-action" type="button" title="Completar" @click="changeStatus(item, 'completed')">
-              <v-icon size="17">mdi-check-circle-outline</v-icon>
-              Completar
-            </button>
-            <button :disabled="isBusy" v-if="canCancel && item.status !== 'cancelled'" class="icon-action danger subtle" type="button" title="Cancelar tratamiento" @click="requestCancelTreatment(item)">
-              <v-icon size="17">mdi-cancel</v-icon>
-              Cancelar
-            </button>
-            <button :disabled="isBusy" v-if="canEdit" class="icon-action danger ghost" type="button" title="Eliminar tratamiento" :aria-label="`Eliminar tratamiento ${item.name}`" @click="requestDeleteTreatment(item)">
-              <v-icon size="17">mdi-trash-can-outline</v-icon>
-            </button>
-          </div>
-        </article>
-      </section>
+            <div v-if="activePlan.notes">
+              <dt>Notas del plan</dt>
+              <dd class="preserve-lines">{{ activePlan.notes }}</dd>
+            </div>
+          </dl>
 
-      <section v-if="activePlan && filteredTreatments.length === 0" class="treatment-empty">
-        <v-icon color="var(--color-primary-500)" size="34">mdi-clipboard-plus-outline</v-icon>
-        <h3>{{ emptyStateTitle }}</h3>
-        <p>{{ emptyStateText }}</p>
-        <button :disabled="isBusy" v-if="filter !== 'all'" class="btn-outline" type="button" @click="filter = 'all'">Ver todos los tratamientos</button>
-        <button :disabled="isBusy" v-if="canCreate" class="btn-primary" type="button" @click="openTreatmentDialog()">Agregar tratamiento</button>
-      </section>
-
-      <section v-if="!activePlan" class="treatment-empty">
-        <v-icon color="var(--color-primary-500)" size="34">mdi-clipboard-text-clock-outline</v-icon>
-        <h3>No hay plan activo</h3>
-        <p>Los planes cerrados permanecen como histórico. Crea un nuevo plan cuando el paciente inicie una etapa de tratamiento.</p>
-        <button :disabled="isBusy" v-if="canCreate" class="btn-primary" type="button" @click="openCreatePlan()">Crear plan activo</button>
-      </section>
-
-      <section class="history-section" :class="{ 'history-section--collapsed': !showHistorySection }">
-        <button :disabled="isBusy" class="history-toggle" type="button" :aria-expanded="String(showHistorySection)" @click="showHistorySection = !showHistorySection">
-          <div>
-            <p class="eyebrow">Histórico</p>
-            <h3>Planes cerrados</h3>
+          <div v-if="activeTreatments.length" class="tp-progress">
+            <div class="tp-progress-head">
+              <p class="tp-progress-title">
+                <strong>{{ countByStatus('completed') }} de {{ trackedTreatmentCount }}</strong>
+                {{ trackedTreatmentCount === 1 ? 'tratamiento completado' : 'tratamientos completados' }}
+              </p>
+              <p v-if="showCosts" class="tp-budget">
+                <span>Presupuesto</span>
+                <strong>{{ formatCurrencyValue(totalCost) }}</strong>
+              </p>
+            </div>
+            <div class="tp-progress-bar" role="img" :aria-label="progressLabel">
+              <span v-for="segment in progressSegments" :key="segment.status" class="tp-progress-segment" :class="'tp-tone-' + segment.status" :style="{ flexGrow: segment.count }"></span>
+            </div>
+            <ul class="tp-legend">
+              <li v-for="segment in progressSegments" :key="segment.status">
+                <i class="tp-legend-dot" :class="'tp-tone-' + segment.status" aria-hidden="true"></i>
+                {{ statusGroupLabel(segment.status) }} <strong>{{ segment.count }}</strong>
+              </li>
+            </ul>
+            <p v-if="showCosts" class="tp-footnote">El presupuesto suma todos los tratamientos del plan, incluidos los cancelados. No representa saldo por cobrar.</p>
           </div>
-          <div class="history-toggle-meta">
-            <span>{{ localPlanData && localPlanData.historyPagination ? localPlanData.historyPagination.total : historyPlans.length }} registro(s)</span>
-            <v-icon size="22">{{ showHistorySection ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+          <p v-if="!canCreate && !canEdit && !canComplete && !canCancel && !canClose" class="field-help tp-readonly">Tu acceso permite consultar este plan. Las acciones dependen de tus permisos.</p>
+        </section>
+
+        <section v-if="canViewConsent || canManageSignature" class="tp-consent" :class="{ 'tp-consent--signed': hasActiveConsent, 'tp-consent--blocked': needsConsentConfiguration }">
+          <div class="tp-consent-icon" aria-hidden="true">
+            <v-icon size="22">{{ hasActiveConsent ? 'mdi-file-check-outline' : 'mdi-file-sign' }}</v-icon>
           </div>
+          <div class="tp-consent-copy">
+            <div class="tp-consent-title">
+              <h4>{{ !canViewConsent ? 'Capturar consentimiento del plan' : hasActiveConsent ? 'Consentimiento firmado' : needsConsentConfiguration ? 'Falta el formato de consentimiento' : 'Consentimiento pendiente de firma' }}</h4>
+              <span class="tp-consent-status">{{ !canViewConsent ? 'Sin acceso de consulta' : hasActiveConsent ? 'Firmado' : needsConsentConfiguration ? 'Falta configurar' : 'Pendiente' }}</span>
+            </div>
+            <p v-if="hasActiveConsent">Firmado el {{ formatDisplayDateTime(activeConsent.signed_at) }}. Se conservaron el texto, la firma del paciente y los datos del doctor.</p>
+            <p v-else>
+              {{ !canViewConsent ? 'Puedes capturar una nueva versión según tus permisos. El contenido de versiones anteriores no está disponible para consulta con tu acceso.'
+                : needsConsentConfiguration ? 'Antes de solicitar una firma, el consultorio debe guardar un formato activo de tipo «Consentimiento del plan de tratamiento». El consentimiento general de atención es un formato distinto.'
+                : 'El paciente puede revisar el consentimiento y firmar aquí o desde un enlace por QR, correo o WhatsApp.' }}
+            </p>
+            <p v-if="hasPendingConsentDocument" class="field-help">Hay un documento preparado pendiente de firma. Si actualizas el plan, deberás preparar una nueva versión y sus enlaces.</p>
+            <p v-if="canManageSignature && consentPrerequisite" id="plan-consent-prerequisite" class="field-help" role="status">{{ consentPrerequisite }}</p>
+          </div>
+          <div class="tp-consent-actions">
+            <v-select v-if="canManageSignature && !needsConsentConfiguration" v-model="doctorUserId" :items="eligibleDoctors" item-text="professional_name" item-value="id_login" label="Doctor que firma" outlined dense :disabled="contextLoading || isBusy" hide-details class="tp-doctor-select"></v-select>
+            <div class="tp-consent-buttons">
+              <router-link v-if="needsConsentConfiguration && canConfigurePlanConsent" class="btn-outline" :to="{ path: '/admin', query: { section: 'documents' } }">Configurar consentimiento</router-link>
+              <button v-if="needsConsentConfiguration" class="btn-outline" type="button" :disabled="contextLoading || isBusy" @click="loadConsentContext()">Actualizar requisitos</button>
+              <button :disabled="isBusy" v-if="canManageSignature && contextError" class="btn-outline" type="button" @click="loadConsentContext()">Reintentar doctores y texto</button>
+              <button :disabled="isBusy" v-if="hasActiveConsent && canViewConsent" class="btn-outline" type="button" @click="openConsentDialog('view')">
+                <v-icon size="17">mdi-eye-outline</v-icon>
+                Ver
+              </button>
+              <button v-if="canManageSignature && !needsConsentConfiguration" :class="hasActiveConsent ? 'btn-outline' : 'btn-primary'" type="button" :disabled="Boolean(consentPrerequisite) || isBusy" :aria-describedby="consentPrerequisite ? 'plan-consent-prerequisite' : null" @click="requestConsentSignature">
+                <v-icon size="17">mdi-draw-pen</v-icon>
+                {{ canReuseConsentDocument ? 'Continuar firma' : !canViewConsent ? 'Preparar firma' : hasActiveConsent ? 'Nueva versión' : 'Solicitar firma' }}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="tp-treatments" aria-labelledby="tp-treatments-title">
+          <header class="tp-treatments-header">
+            <h4 id="tp-treatments-title">Tratamientos <span class="tp-count">{{ activeTreatments.length }}</span></h4>
+            <div v-if="activeTreatments.length" class="tp-filters" role="group" aria-label="Filtrar tratamientos por estado">
+              <button
+                v-for="item in visibleFilters"
+                :key="item.value"
+                :disabled="isBusy"
+                type="button"
+                :class="{ active: filter === item.value }"
+                :aria-pressed="String(filter === item.value)"
+                @click="filter = item.value"
+              >
+                {{ item.label }}
+                <span class="tp-filter-count">{{ item.value === 'all' ? activeTreatments.length : countByStatus(item.value) }}</span>
+              </button>
+            </div>
+          </header>
+
+          <ul v-if="filteredTreatments.length > 0" class="tp-list">
+            <li v-for="item in filteredTreatments" :key="item.id_patient_treatment" class="tp-card" :class="'tp-card--' + item.status">
+              <div class="tp-card-body">
+                <div class="tp-card-top">
+                  <h5>{{ item.name }}</h5>
+                  <span v-if="showStatus" class="tp-status" :class="'tp-tone-' + item.status">{{ statusLabel(item.status) }}</span>
+                  <strong v-if="showCosts && hasCost(item)" class="tp-cost">{{ formatCurrencyValue(item.cost) }}</strong>
+                </div>
+                <p v-if="item.description" class="tp-description">{{ item.description }}</p>
+                <div v-if="item.category || dateRange(item) || (item.teeth && item.teeth.length)" class="tp-meta">
+                  <span v-if="item.category"><v-icon size="15">mdi-tag-outline</v-icon>{{ item.category }}</span>
+                  <span v-if="dateRange(item)"><v-icon size="15">mdi-calendar-range</v-icon>{{ dateRange(item) }}</span>
+                  <span v-for="tooth in item.teeth || []" :key="tooth" class="tp-tooth"><v-icon size="14">mdi-tooth-outline</v-icon>{{ dentalLabel(item, tooth) }}</span>
+                </div>
+                <p v-if="item.notes" class="tp-note"><v-icon size="15">mdi-note-text-outline</v-icon><span>{{ item.notes }}</span></p>
+              </div>
+              <div class="tp-card-actions">
+                <button v-if="primaryStatusAction(item)" :disabled="isBusy" class="tp-action tp-action--primary" type="button" @click="changeStatus(item, primaryStatusAction(item).status)">
+                  <v-icon size="17">{{ primaryStatusAction(item).icon }}</v-icon>
+                  {{ primaryStatusAction(item).label }}
+                </button>
+                <button :disabled="isBusy" v-if="canEdit" class="tp-action" type="button" :aria-label="`Editar tratamiento ${item.name}`" @click="openTreatmentDialog(item)">
+                  <v-icon size="17">mdi-pencil-outline</v-icon>
+                  Editar
+                </button>
+                <v-menu v-if="secondaryStatusActions(item).length || canEdit" offset-y left>
+                  <template v-slot:activator="{ on, attrs }">
+                    <button :disabled="isBusy" class="tp-icon-button" type="button" :aria-label="`Más acciones para ${item.name}`" :title="`Más acciones para ${item.name}`" v-bind="attrs" v-on="on">
+                      <v-icon size="20">mdi-dots-horizontal</v-icon>
+                    </button>
+                  </template>
+                  <v-list dense class="tp-menu">
+                    <v-subheader v-if="secondaryStatusActions(item).length">Cambiar estado a</v-subheader>
+                    <v-list-item v-for="option in secondaryStatusActions(item)" :key="option.value" :class="{ 'tp-menu-danger': option.value === 'cancelled' }" @click="option.value === 'cancelled' ? requestCancelTreatment(item) : changeStatus(item, option.value)">
+                      <v-list-item-icon><i class="tp-legend-dot" :class="'tp-tone-' + option.value" aria-hidden="true"></i></v-list-item-icon>
+                      <v-list-item-title>{{ option.label }}</v-list-item-title>
+                    </v-list-item>
+                    <v-divider v-if="canEdit && secondaryStatusActions(item).length"></v-divider>
+                    <v-list-item v-if="canEdit" class="tp-menu-danger" @click="requestDeleteTreatment(item)">
+                      <v-list-item-icon><v-icon size="18">mdi-trash-can-outline</v-icon></v-list-item-icon>
+                      <v-list-item-title>Eliminar tratamiento</v-list-item-title>
+                    </v-list-item>
+                  </v-list>
+                </v-menu>
+              </div>
+            </li>
+          </ul>
+
+          <div v-else class="tp-list-empty">
+            <v-icon size="30">mdi-clipboard-plus-outline</v-icon>
+            <h5>{{ emptyStateTitle }}</h5>
+            <p>{{ emptyStateText }}</p>
+            <div class="tp-list-empty-actions">
+              <button :disabled="isBusy" v-if="filter !== 'all'" class="btn-outline" type="button" @click="filter = 'all'">Ver todos</button>
+              <button :disabled="isBusy" v-if="canCreate && filter === 'all'" class="btn-primary" type="button" @click="openTreatmentDialog()">
+                <v-icon size="18">mdi-plus</v-icon>
+                Agregar tratamiento
+              </button>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <section v-if="historyTotal > 0" class="tp-history" :class="{ 'tp-history--open': showHistorySection }">
+        <button :disabled="isBusy" class="tp-history-toggle" type="button" :aria-expanded="String(showHistorySection)" @click="showHistorySection = !showHistorySection">
+          <span class="tp-history-heading">
+            <v-icon size="20">mdi-history</v-icon>
+            Planes cerrados
+            <span class="tp-count">{{ historyTotal }}</span>
+          </span>
+          <v-icon size="22">{{ showHistorySection ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
         </button>
         <transition name="history-expand">
-          <div v-show="showHistorySection" class="history-content">
-        <div v-if="historyPlans.length === 0" class="history-empty">Aún no hay planes históricos.</div>
-        <article v-for="plan in historyPlans" :key="plan.id_treatment_plan" class="history-card history-card--closed">
-          <div class="history-card-main">
-            <div class="history-card-title">
-              <div>
-                <strong>{{ plan.title || 'Plan de tratamiento' }}</strong>
-                <span>{{ formatDisplayDate(plan.started_at) }} — {{ formatDisplayDate(plan.closed_at) }}</span>
+          <div v-show="showHistorySection" class="tp-history-content">
+            <p v-if="historyPlans.length === 0" class="tp-history-empty">Aún no hay planes cerrados.</p>
+            <article v-for="plan in historyPlans" :key="plan.id_treatment_plan" class="tp-history-card">
+              <div class="tp-history-main">
+                <div class="tp-history-title">
+                  <strong>{{ plan.title || 'Plan de tratamiento' }}</strong>
+                  <span>{{ formatLongDate(plan.started_at) }} – {{ formatLongDate(plan.closed_at) }}</span>
+                </div>
+                <ul class="tp-history-facts">
+                  <li><strong>{{ planTreatments(plan).length }}</strong> {{ planTreatments(plan).length === 1 ? 'tratamiento' : 'tratamientos' }}</li>
+                  <li><strong>{{ planStatusCount(plan, 'completed') }}</strong> completados</li>
+                  <li v-if="planStatusCount(plan, 'cancelled')"><strong>{{ planStatusCount(plan, 'cancelled') }}</strong> cancelados</li>
+                  <li v-if="showCosts">Presupuesto <strong>{{ formatCurrencyValue(planTotalCost(plan)) }}</strong></li>
+                  <li>Consentimiento: <strong>{{ consentStatusLabel(plan) }}</strong></li>
+                </ul>
+                <p v-if="plan.close_reason" class="tp-history-reason">{{ formatCloseReason(plan.close_reason) }}</p>
               </div>
-              <span class="history-state-chip">Cerrado</span>
-            </div>
-            <div class="history-metrics">
-              <div>
-                <small>Tratamientos</small>
-                <strong>{{ planTreatments(plan).length }}</strong>
+              <div class="tp-history-actions">
+                <button :disabled="isBusy" class="tp-action" type="button" @click="openHistory(plan)">
+                  <v-icon size="17">mdi-eye-outline</v-icon>
+                  Ver plan
+                </button>
+                <button :disabled="isBusy" v-if="hasPlanConsent(plan)" class="tp-action" type="button" @click="openHistoryConsent(plan)">
+                  <v-icon size="17">mdi-file-sign</v-icon>
+                  Consentimiento
+                </button>
+                <button :disabled="isBusy" class="tp-action" type="button" :aria-label="`Imprimir ${plan.title || 'plan de tratamiento'}`" @click="printHistory(plan)">
+                  <v-icon size="17">mdi-printer-outline</v-icon>
+                  Imprimir
+                </button>
               </div>
-              <div v-if="showCosts">
-                <small>Presupuesto del plan</small>
-                <strong>{{ formatCurrencyValue(planTotalCost(plan)) }}</strong>
-              </div>
-              <div>
-                <small>Consentimiento</small>
-                <strong>{{ consentStatusLabel(plan) }}</strong>
-              </div>
-            </div>
-            <div class="history-status-summary">
-              <span>Pendientes: {{ planStatusCount(plan, 'pending') }}</span>
-              <span>En progreso: {{ planStatusCount(plan, 'in_progress') }}</span>
-              <span>Pausados: {{ planStatusCount(plan, 'paused') }}</span>
-              <span>Completados: {{ planStatusCount(plan, 'completed') }}</span>
-              <span>Cancelados: {{ planStatusCount(plan, 'cancelled') }}</span>
-            </div>
-            <p v-if="plan.close_reason" class="history-reason-inline">
-              <strong>Resumen de cierre:</strong>
-              {{ formatCloseReason(plan.close_reason) }}
-            </p>
-          </div>
-          <div class="history-card-actions">
-            <button :disabled="isBusy" class="history-action history-action--view" type="button" @click="openHistory(plan)">
-              <v-icon size="17">mdi-clipboard-text-clock-outline</v-icon>
-              Ver histórico
-            </button>
-            <button :disabled="isBusy" v-if="hasPlanConsent(plan)" class="history-action history-action--consent" type="button" @click="openHistoryConsent(plan)">
-              <v-icon size="17">mdi-file-sign</v-icon>
-              Ver consentimiento
-            </button>
-            <button :disabled="isBusy" class="history-action history-action--print" type="button" @click="printHistory(plan)">
-              <v-icon size="17">mdi-printer-outline</v-icon>
-              Imprimir plan
-            </button>
-          </div>
             </article>
+            <list-page-nav v-if="historyPageCount > 1" :pagination="localPlanData && localPlanData.historyPagination" :busy="isLoading || isBusy" label="Páginas de planes anteriores" @change="changeHistoryPage" />
           </div>
         </transition>
-        <list-page-nav :pagination="localPlanData && localPlanData.historyPagination" :busy="isLoading || isBusy" label="Páginas de planes anteriores" @change="changeHistoryPage" />
       </section>
     </template>
 
@@ -979,6 +983,30 @@ export default {
     totalCost: function() {
       return this.activeTreatments.reduce((total, item) => total + Number(item.cost || 0), 0);
     },
+    // Cancelled treatments stay in the plan but do not count toward progress.
+    trackedTreatmentCount: function() {
+      return this.activeTreatments.length - this.countByStatus('cancelled');
+    },
+    progressSegments: function() {
+      return ['completed', 'in_progress', 'paused', 'pending', 'cancelled']
+        .map(status => ({ status, count: this.countByStatus(status) }))
+        .filter(segment => segment.count > 0);
+    },
+    progressLabel: function() {
+      const parts = this.progressSegments.map(segment => `${this.statusGroupLabel(segment.status).toLowerCase()}: ${segment.count}`);
+      return `Avance del plan. ${parts.join(', ')}.`;
+    },
+    visibleFilters: function() {
+      return this.filters.filter(item => item.value === 'all' || item.value === this.filter || this.countByStatus(item.value) > 0);
+    },
+    historyTotal: function() {
+      const pagination = this.localPlanData && this.localPlanData.historyPagination;
+      return pagination && pagination.total !== undefined ? Number(pagination.total) : this.historyPlans.length;
+    },
+    historyPageCount: function() {
+      const pagination = this.localPlanData && this.localPlanData.historyPagination;
+      return pagination && pagination.totalPages ? Number(pagination.totalPages) : 1;
+    },
     emptyStateTitle: function() {
       const messages = {
         all: 'No hay tratamientos en este plan.',
@@ -1604,7 +1632,7 @@ export default {
       else this.treatmentForm.tooth_details.push({ tooth_number: tooth, surfaces: null, manual: true, sources: [] });
     },
     appendDentalContext(text) { this.treatmentForm.notes = [this.treatmentForm.notes, text].filter(Boolean).join('\n'); },
-    dentalLabel(item, tooth) { const detail = (item.tooth_details || []).find(detail => String(detail.tooth_number) === String(tooth)); return 'Diente ' + tooth + (detail && detail.surfaces ? ' · ' + [...detail.surfaces].map(face=>dentalSurfaceLabel(face,Number(tooth))).join('') : ''); },
+    dentalLabel(item, tooth) { const detail = (item.tooth_details || []).find(detail => String(detail.tooth_number) === String(tooth)); return 'Diente ' + tooth + (detail && detail.surfaces && detail.surfaces.length ? ' · ' + [...detail.surfaces].map(face=>dentalSurfaceLabel(face,Number(tooth))).join('') : ''); },
     openHistory: function(plan) {
       this.rememberFocus();
       this.selectedHistory = plan;
@@ -1758,6 +1786,40 @@ export default {
     statusLabel: function(status) {
       const found = this.statusOptions.find((item) => item.value === status);
       return found ? found.label : 'Pendiente';
+    },
+    statusGroupLabel: function(status) {
+      const found = this.filters.find((item) => item.value === status);
+      return found ? found.label : this.statusLabel(status);
+    },
+    // The one next step shown as a button on each card; other moves live in its menu.
+    primaryStatusAction: function(item) {
+      if(this.canEdit && ['pending', 'paused'].includes(item.status)) {
+        return { status: 'in_progress', label: item.status === 'paused' ? 'Reanudar' : 'Iniciar', icon: 'mdi-play-outline' };
+      }
+      if(this.canComplete && item.status === 'in_progress') {
+        return { status: 'completed', label: 'Completar', icon: 'mdi-check' };
+      }
+      return null;
+    },
+    secondaryStatusActions: function(item) {
+      const primary = this.primaryStatusAction(item);
+      return this.statusActions(item).filter(option => !primary || option.value !== primary.status);
+    },
+    hasCost: function(item) {
+      return item.cost !== null && item.cost !== undefined && item.cost !== '';
+    },
+    formatLongDate: function(date) {
+      if(!date) return 'Sin fecha';
+      const parts = String(date).slice(0, 10).split('-').map(Number);
+      if(parts.length !== 3 || parts.some(Number.isNaN)) return this.formatDisplayDate(date);
+      return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    },
+    dateRange: function(item) {
+      const start = item.estimated_start_date, end = item.estimated_end_date;
+      if(start && end) return start.slice(0, 10) === end.slice(0, 10) ? this.formatLongDate(start) : `${this.formatLongDate(start)} – ${this.formatLongDate(end)}`;
+      if(start) return `Desde ${this.formatLongDate(start)}`;
+      if(end) return `Hasta ${this.formatLongDate(end)}`;
+      return '';
     },
     formatDate: function(date) {
       if(!date) {
@@ -2024,36 +2086,13 @@ export default {
 .unsaved-state { display: inline-block; color: #92400e; background: #fffbeb; border-radius: 1rem; padding: .2rem .65rem; font-size: .85rem; }
 button:focus-visible { outline: 3px solid #0e7490; outline-offset: 3px; }
 button:disabled { opacity: .55; cursor: default; }
-.consent-actions { max-width: 360px; width: 100%; }
-.summary-grid small { display: block; color: #475569; font-size: .75rem; margin-top: .3rem; }
-.summary-grid article.summary-total-cost { grid-column: 1 / -1; }
-.treatment-card h4, .treatment-hero h3, .history-card strong { overflow-wrap: anywhere; }
 
-.treatment-hero,
-.treatment-toolbar,
-.history-section,
 .treatment-empty {
   border: 1px solid var(--color-border, rgba(14, 84, 104, 0.16));
   background: var(--color-surface);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
 }
 
-.treatment-hero {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.2rem;
-}
-
-.hero-title-row,
-.consent-status-row {
-  display: flex;
-  align-items: center;
-  gap: .55rem;
-  flex-wrap: wrap;
-}
-
-.plan-badge,
 .consent-status {
   display: inline-flex;
   align-items: center;
@@ -2087,25 +2126,13 @@ button:disabled { opacity: .55; cursor: default; }
   text-transform: uppercase;
 }
 
-.treatment-hero h3,
-.history-toggle h3 {
-  margin: 0;
-  color: var(--color-text, #25364d);
-  font-size: 1.2rem;
-}
-
-.treatment-hero p,
-.treatment-toolbar span,
 .history-empty,
 .description,
 .notes {
   color: var(--color-text-muted, #64748b);
 }
 
-.treatment-actions,
-.card-actions,
-.dialog-actions,
-.filter-group {
+.dialog-actions {
   display: flex;
   align-items: center;
   gap: .55rem;
@@ -2118,11 +2145,9 @@ button {
 }
 
 .btn-primary,
-.btn-soft,
 .btn-outline,
 .btn-danger,
-.btn-danger-secondary,
-.icon-action {
+.btn-danger-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2134,19 +2159,12 @@ button {
 }
 
 .btn-primary {
-  background: #0e7490;
+  background: var(--color-primary-500);
   color: #fff;
   box-shadow: 0 8px 18px var(--shadow-primary, rgba(27, 166, 201, .25));
 }
 
-.btn-soft {
-  background: var(--color-primary-100);
-  color: var(--color-primary-900);
-  border-color: var(--color-primary-200);
-}
-
-.btn-outline,
-.icon-action {
+.btn-outline {
   background: var(--color-surface);
   color: var(--color-primary-900);
   border-color: var(--color-border, #d8e9ef);
@@ -2165,249 +2183,16 @@ button {
   border-color: rgba(248, 113, 113, .36);
 }
 
-.btn-outline.danger,
-.icon-action.danger {
-  color: #b42318;
-  border-color: rgba(248, 113, 113, .32);
-  background: rgba(248, 113, 113, .08);
-}
-
-.icon-action.complete-action {
-  color: #047857 !important;
-  border-color: rgba(34, 197, 94, .3) !important;
-  background: #fff !important;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, .06);
-}
-
-.icon-action.complete-action:hover {
-  color: #047857 !important;
-  border-color: rgba(34, 197, 94, .48) !important;
-  background: rgba(34, 197, 94, .08) !important;
-  box-shadow: 0 10px 22px rgba(34, 197, 94, .13);
-}
-
-.icon-action.subtle {
-  background: var(--color-surface);
-}
-
-.icon-action.ghost {
-  padding: .45rem;
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
-  gap: .8rem;
-  margin: 1rem 0;
-}
-
-.summary-grid article {
-  border: 1px solid var(--color-border, rgba(14, 84, 104, 0.16));
-  background: var(--color-primary-50, rgba(224, 247, 252, .5));
-  padding: .8rem;
-}
-
-.summary-grid article.summary-total-cost {
-  border-color: var(--color-primary-400, #4fc3d7);
-  background: var(--color-surface);
-  box-shadow: 0 10px 22px var(--shadow-primary, rgba(27, 166, 201, .16));
-}
-
-.summary-grid span {
-  display: block;
-  color: var(--color-text-muted, #64748b);
-  font-size: .8rem;
-}
-
-.summary-grid strong {
-  display: block;
-  color: var(--color-text, #25364d);
-  font-size: 1.2rem;
-}
-
 .summary-total-cost strong {
   color: var(--color-primary-900);
   font-size: 1.45rem;
 }
 
-.consent-panel {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-  border: 1px solid rgba(251, 191, 36, .45);
-  background: rgba(251, 191, 36, .10);
-  padding: 1rem;
-  margin: 0 0 1rem;
-}
-
-.consent-panel.signed {
-  border-color: rgba(34, 197, 94, .35);
-  background: rgba(34, 197, 94, .08);
-}
-
-.consent-icon {
-  display: grid;
-  place-items: center;
-  width: 2.7rem;
-  height: 2.7rem;
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-primary-700);
-  border: 1px solid var(--color-border, #d8e9ef);
-}
-
-.consent-copy h3 {
-  margin: 0;
-  color: var(--color-text, #25364d);
-  font-size: 1rem;
-}
-
-.consent-copy p {
-  margin: .15rem 0;
-  color: var(--color-text-muted, #64748b);
-}
-
-.consent-copy span {
-  color: var(--color-text-muted, #64748b);
-  font-size: .84rem;
-  font-weight: 600;
-}
-
-.consent-actions {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.treatment-toolbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-.filter-group button {
-  border: 1px solid var(--color-border, #d8e9ef);
-  background: var(--color-surface);
-  color: var(--color-text-muted, #64748b);
-  border-radius: 999px;
-  padding: .48rem .85rem;
-  box-shadow: 0 7px 16px rgba(15, 23, 42, .055);
-  transition: .18s ease;
-}
-
-.filter-group button.active {
-  color: var(--color-primary-900);
-  border-color: var(--color-primary-400, #4fc3d7);
-  background: var(--color-primary-100);
-  box-shadow: 0 9px 20px var(--shadow-primary, rgba(27, 166, 201, .14));
-}
-
-.filter-group button:hover {
-  transform: translateY(-1px);
-  border-color: var(--color-primary-300);
-}
-
-.treatment-list {
-  display: grid;
-  gap: .9rem;
-}
-
-.treatment-card,
-.history-card,
 .readonly-treatment {
   border: 1px solid var(--color-border, rgba(14, 84, 104, 0.16));
   background: var(--color-surface);
   padding: 1rem;
   box-shadow: 0 8px 20px rgba(15, 23, 42, .06);
-}
-
-.treatment-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1rem;
-  border-left: 4px solid var(--color-primary-500);
-}
-
-.history-card--closed {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
-  gap: 1rem;
-  border-left: 4px solid #64748b;
-}
-
-.history-card-main {
-  display: grid;
-  gap: .8rem;
-}
-
-.history-card-title {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: .75rem;
-}
-
-.history-card-title strong {
-  display: block;
-  color: var(--color-text, #25364d);
-  font-size: 1.02rem;
-}
-
-.history-card-actions {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  flex-direction: column;
-  gap: .5rem;
-  width: 13rem;
-}
-
-.history-card-actions .history-action {
-  width: 100%;
-  min-height: 2.75rem;
-}
-
-.history-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: .38rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border, #d8e9ef);
-  background: #fff;
-  color: var(--color-primary-900);
-  padding: .55rem .9rem;
-  font-weight: 600;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, .055);
-  transition: .18s ease;
-}
-
-.history-action:hover {
-  transform: translateY(-1px);
-}
-
-.history-action--view {
-  color: var(--color-primary-900);
-  border-color: rgba(79, 195, 215, .36);
-  background: rgba(224, 247, 252, .28);
-}
-
-.history-action--consent {
-  color: #047857;
-  border-color: rgba(34, 197, 94, .28);
-  background: rgba(34, 197, 94, .06);
-}
-
-.history-action--print {
-  color: #475569;
-  border-color: rgba(100, 116, 139, .26);
-  background: rgba(248, 250, 252, .9);
 }
 
 .history-state-chip {
@@ -2423,14 +2208,12 @@ button {
   white-space: nowrap;
 }
 
-.history-metrics,
 .history-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: .65rem;
 }
 
-.history-metrics div,
 .history-summary-grid article,
 .document-data-grid div {
   border: 1px solid var(--color-border, #d8e9ef);
@@ -2438,7 +2221,6 @@ button {
   padding: .7rem;
 }
 
-.history-metrics small,
 .history-summary-grid span,
 .document-data-grid strong,
 .history-overview-main small {
@@ -2448,7 +2230,6 @@ button {
   font-weight: 600;
 }
 
-.history-metrics strong,
 .history-summary-grid strong,
 .history-overview-main strong {
   display: block;
@@ -2456,33 +2237,9 @@ button {
   font-size: .98rem;
 }
 
-.history-status-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .4rem;
-}
-
-.history-status-summary span {
-  border: 1px solid var(--color-border, #d8e9ef);
-  background: var(--color-surface);
-  color: var(--color-text-muted, #64748b);
-  padding: .25rem .5rem;
-  font-size: .78rem;
-  font-weight: 600;
-}
-
-.history-reason-inline {
-  margin: 0;
-  color: var(--color-text-muted, #64748b);
-  background: var(--color-bg, #f8fbfd);
-  border-left: 3px solid #64748b;
-  padding: .6rem .75rem;
-}
-
 .title-row,
 .meta-row,
-.tooth-row,
-.history-card {
+.tooth-row {
   display: flex;
   align-items: center;
   gap: .55rem;
@@ -2540,45 +2297,6 @@ button {
   color: var(--color-text, #25364d);
 }
 
-.history-section {
-  margin-top: 1rem;
-  padding: 1rem;
-}
-
-.history-section--collapsed {
-  box-shadow: 0 8px 20px rgba(15, 23, 42, .055);
-}
-
-.history-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-}
-
-.history-toggle-meta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: .45rem;
-  color: var(--color-text-muted, #64748b);
-  white-space: nowrap;
-}
-
-.history-toggle-meta span {
-  font-size: .85rem;
-}
-
-.history-content {
-  margin-top: .85rem;
-}
-
 .history-expand-enter-active,
 .history-expand-leave-active {
   transition: opacity .16s ease, transform .16s ease;
@@ -2588,20 +2306,6 @@ button {
 .history-expand-leave-to {
   opacity: 0;
   transform: translateY(-4px);
-}
-
-.history-card {
-  justify-content: space-between;
-}
-
-.history-card {
-  margin-top: .75rem;
-}
-
-.history-card span {
-  display: block;
-  color: var(--color-text-muted, #64748b);
-  font-size: .85rem;
 }
 
 .history-dialog-header {
@@ -2811,13 +2515,6 @@ button {
   color: #fff;
 }
 
-.history-reason {
-  border-left: 3px solid var(--color-primary-500);
-  background: var(--color-primary-50, #effbfe);
-  color: var(--color-text-muted, #64748b);
-  padding: .75rem;
-}
-
 .info-box {
   border: 1px solid var(--color-border, #d8e9ef);
   background: var(--color-primary-50, #effbfe);
@@ -2838,8 +2535,7 @@ button {
 }
 
 .warning-box,
-.success-box,
-.history-consent {
+.success-box {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2859,10 +2555,6 @@ button {
   justify-content: flex-start;
   border-color: rgba(34, 197, 94, .35);
   background: rgba(34, 197, 94, .10);
-}
-
-.history-consent {
-  margin-bottom: 1rem;
 }
 
 .consent-dialog-body {
@@ -3052,13 +2744,8 @@ button {
 }
 
 @media (max-width: 768px) {
-  .treatment-hero,
-  .treatment-toolbar,
-  .consent-panel,
-  .treatment-card,
-  .history-card--closed,
   .history-consent-block,
-  .document-header {
+.document-header {
     grid-template-columns: 1fr;
     flex-direction: column;
   }
@@ -3069,8 +2756,6 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .card-actions,
-  .history-card-actions,
   .document-status-block {
     justify-content: flex-start;
     align-items: stretch;
@@ -3078,4 +2763,314 @@ button {
     width: 100%;
   }
 }
+</style>
+
+<style scoped>
+/* Treatment plan main view (redesign). Dialogs keep the styles above. */
+.tp-tone-pending { --tone: #f59e0b; --tone-bg: #fff7e0; --tone-text: #92400e; }
+.tp-tone-in_progress { --tone: #3b82f6; --tone-bg: #eaf2ff; --tone-text: #1d4ed8; }
+.tp-tone-paused { --tone: #94a3b8; --tone-bg: #f1f5f9; --tone-text: #475569; }
+.tp-tone-completed { --tone: #10b981; --tone-bg: #e7f7ef; --tone-text: #047857; }
+.tp-tone-cancelled { --tone: #f87171; --tone-bg: #fdecec; --tone-text: #b42318; }
+
+.tp-start,
+.tp-plan,
+.tp-consent,
+.tp-history {
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: #fff;
+}
+
+/* No active plan */
+.tp-start {
+  padding: 40px 24px;
+  text-align: center;
+}
+.tp-start-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: var(--color-primary-100);
+}
+.tp-start-icon .v-icon { color: var(--color-primary-700); }
+.tp-start h3 { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--color-text); }
+.tp-start p:not(.eyebrow) { max-width: 520px; margin: 8px auto 0; color: var(--color-text-muted); font-size: .9rem; line-height: 1.6; }
+.tp-start-action { margin-top: 20px; }
+
+/* Plan header */
+.tp-plan { padding: 20px 24px; }
+.tp-plan-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; }
+.tp-plan-heading { min-width: 0; flex: 1 1 320px; }
+.tp-plan-kicker { display: flex; align-items: center; gap: 8px; }
+.tp-plan-kicker .eyebrow { margin: 0; }
+.tp-plan-state { padding: 2px 10px; border-radius: 999px; background: #e7f7ef; color: #047857; font-size: .75rem; font-weight: 600; }
+.tp-plan-heading h3 { margin: 6px 0 0; font-size: 1.375rem; line-height: 1.3; font-weight: 600; color: var(--color-text); overflow-wrap: anywhere; }
+.tp-plan-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 6px 0 0; color: var(--color-text-muted); font-size: .82rem; }
+.tp-plan-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.tp-plan-meta .v-icon { color: inherit; }
+.tp-plan-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.tp-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--color-text-muted);
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease;
+}
+.tp-icon-button .v-icon { color: inherit; }
+.tp-icon-button:hover:not(:disabled) { background: var(--color-primary-100); color: var(--color-primary-900); }
+
+.tp-plan-notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px 24px;
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--color-bg);
+}
+.tp-plan-notes dt { color: var(--color-text-muted); font-size: .75rem; font-weight: 600; letter-spacing: .02em; }
+.tp-plan-notes dd { margin: 2px 0 0; color: var(--color-text); font-size: .9rem; line-height: 1.5; overflow-wrap: anywhere; }
+
+/* Progress */
+.tp-progress { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--color-border); }
+.tp-progress-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }
+.tp-progress-title { margin: 0; color: var(--color-text-muted); font-size: .9rem; }
+.tp-progress-title strong { color: var(--color-text); font-size: 1rem; font-weight: 600; }
+.tp-budget { display: flex; align-items: baseline; gap: 8px; margin: 0; }
+.tp-budget span { color: var(--color-text-muted); font-size: .82rem; }
+.tp-budget strong { color: var(--color-text); font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tp-progress-bar { display: flex; gap: 2px; height: 10px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: var(--color-bg); }
+.tp-progress-segment { min-width: 6px; background: var(--tone); }
+.tp-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 0; padding: 0; list-style: none; color: var(--color-text-muted); font-size: .82rem; }
+.tp-legend strong { color: var(--color-text); font-weight: 600; }
+.tp-legend-dot { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; background: var(--tone); vertical-align: 0; }
+.tp-footnote { margin: 8px 0 0; color: var(--color-text-muted); font-size: .75rem; }
+.tp-readonly { margin-top: 12px; }
+
+/* Consent */
+.tp-consent {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px 20px;
+  border-color: #f6e2b0;
+  background: #fffaf0;
+}
+.tp-consent--signed { border-color: #bfe6cf; background: #f3fbf6; }
+.tp-consent--blocked { border-color: var(--color-border); background: var(--color-bg); }
+.tp-consent-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 1px solid currentColor; color: #b7791f; }
+.tp-consent--signed .tp-consent-icon { color: #047857; }
+.tp-consent--blocked .tp-consent-icon { color: var(--color-text-muted); }
+.tp-consent-icon .v-icon { color: inherit; }
+.tp-consent-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.tp-consent-title h4 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-text); }
+.tp-consent-status { padding: 2px 10px; border-radius: 999px; background: #fff3cd; color: #8a5a00; font-size: .75rem; font-weight: 600; }
+.tp-consent--signed .tp-consent-status { background: #cdeed6; color: #0f5132; }
+.tp-consent--blocked .tp-consent-status { background: #fff; color: var(--color-text-muted); border: 1px solid var(--color-border); }
+.tp-consent-copy p { margin: 4px 0 0; color: var(--color-text-muted); font-size: .85rem; line-height: 1.5; }
+.tp-consent-copy .field-help { margin-top: 6px; }
+.tp-consent-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 240px; }
+.tp-doctor-select { width: 260px; max-width: 100%; flex: 0 0 auto; }
+.tp-consent-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+/* Treatments */
+.tp-treatments { margin-top: 24px; }
+.tp-treatments-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.tp-treatments-header h4 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--color-text); }
+.tp-count { padding: 1px 8px; border-radius: 999px; background: var(--color-primary-100); color: var(--color-primary-900); font-size: .75rem; font-weight: 600; }
+.tp-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.tp-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-text-muted);
+  font-size: .82rem;
+  letter-spacing: 0;
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease;
+}
+.tp-filters button:hover:not(:disabled) { border-color: var(--color-primary-500); color: var(--color-primary-900); }
+.tp-filters button.active { border-color: var(--color-primary-900); background: var(--color-primary-900); color: #fff; }
+.tp-filter-count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--color-bg); color: var(--color-text); font-size: .72rem; text-align: center; }
+.tp-filters button.active .tp-filter-count { background: rgba(255, 255, 255, .18); color: #fff; }
+
+.tp-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.tp-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: #fff;
+  transition: box-shadow .16s ease, border-color .16s ease;
+}
+.tp-card:hover { border-color: #c5dde6; box-shadow: 0 6px 18px rgba(15, 23, 42, .06); }
+.tp-card--cancelled { background: var(--color-bg); }
+.tp-card--cancelled h5,
+.tp-card--cancelled .tp-cost { color: var(--color-text-muted); }
+.tp-card-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.tp-card-top h5 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--color-text); overflow-wrap: anywhere; }
+.tp-status { padding: 2px 10px; border-radius: 999px; background: var(--tone-bg); color: var(--tone-text); font-size: .75rem; font-weight: 600; }
+.tp-cost { margin-left: auto; color: var(--color-text); font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tp-description { margin: 4px 0 0; color: var(--color-text-muted); font-size: .88rem; line-height: 1.5; }
+.tp-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; color: var(--color-text-muted); font-size: .82rem; }
+.tp-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.tp-meta .v-icon { color: inherit; }
+.tp-meta .tp-tooth { padding: 1px 8px; border-radius: 999px; background: var(--color-primary-100); color: var(--color-primary-900); }
+.tp-note { display: flex; gap: 6px; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--color-bg); color: var(--color-text); font-size: .85rem; line-height: 1.5; }
+.tp-note .v-icon { flex-shrink: 0; margin-top: 1px; color: var(--color-text-muted); }
+
+.tp-card-actions { display: flex; align-items: center; gap: 6px; }
+.tp-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary-900);
+  font-size: .85rem;
+  letter-spacing: 0;
+  white-space: nowrap;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+.tp-action .v-icon { color: inherit; }
+.tp-action:hover:not(:disabled) { background: var(--color-primary-100); }
+.tp-action--primary { border-color: var(--color-primary-500); background: var(--color-primary-500); color: #fff; }
+.tp-action--primary:hover:not(:disabled) { border-color: var(--color-primary-700); background: var(--color-primary-700); }
+
+.tp-list-empty { padding: 32px 20px; border: 1px dashed var(--color-border); border-radius: 14px; text-align: center; }
+.tp-list-empty .v-icon { color: var(--color-primary-500); }
+.tp-list-empty h5 { margin: 8px 0 0; font-size: 1rem; font-weight: 600; color: var(--color-text); }
+.tp-list-empty p { margin: 4px 0 0; color: var(--color-text-muted); font-size: .88rem; }
+.tp-list-empty-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+
+/* Menus (rendered by Vuetify outside the card) */
+.tp-menu .v-list-item__icon { align-self: center; margin: 0 12px 0 0 !important; }
+.tp-menu .v-subheader { height: 32px; font-size: .75rem; font-weight: 600; }
+.tp-menu-danger .v-list-item__title,
+.tp-menu-danger .v-icon { color: #b42318 !important; }
+
+/* History */
+.tp-history { margin-top: 24px; overflow: hidden; }
+.tp-history-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 14px 18px; background: transparent; color: var(--color-text); letter-spacing: 0; text-align: left; }
+.tp-history-toggle .v-icon { color: var(--color-text-muted); }
+.tp-history-heading { display: inline-flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 600; }
+.tp-history-content { padding: 0 18px 8px; }
+.tp-history-empty { margin: 0 0 12px; color: var(--color-text-muted); font-size: .88rem; }
+.tp-history-card { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px 16px; padding: 14px 0; border-top: 1px solid var(--color-border); }
+.tp-history-main { flex: 1 1 320px; min-width: 0; }
+.tp-history-title strong { display: block; color: var(--color-text); font-size: .95rem; font-weight: 600; overflow-wrap: anywhere; }
+.tp-history-title span { color: var(--color-text-muted); font-size: .82rem; }
+.tp-history-facts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 0; padding: 0; list-style: none; color: var(--color-text-muted); font-size: .82rem; }
+.tp-history-facts strong { color: var(--color-text); font-weight: 600; }
+.tp-history-reason { margin: 8px 0 0; color: var(--color-text-muted); font-size: .82rem; }
+.tp-history-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+@media (max-width: 760px) {
+  .tp-plan { padding: 16px; }
+  .tp-plan-actions { width: 100%; }
+  .tp-consent { grid-template-columns: auto minmax(0, 1fr); }
+  .tp-consent-actions { grid-column: 1 / -1; align-items: stretch; min-width: 0; }
+  .tp-doctor-select { width: 100%; }
+  .tp-consent-buttons { justify-content: flex-start; }
+  .tp-card { grid-template-columns: minmax(0, 1fr); }
+  .tp-card-actions { flex-wrap: wrap; }
+  .tp-filters { flex-wrap: nowrap; width: 100%; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+  .tp-filters button { flex-shrink: 0; }
+}
+
+/* Clinical night */
+html[data-theme="clinical-night"] .tp-tone-pending { --tone-bg: #3b301a; --tone-text: #fcd779; }
+html[data-theme="clinical-night"] .tp-tone-in_progress { --tone-bg: #1e2b4a; --tone-text: #93c5fd; }
+html[data-theme="clinical-night"] .tp-tone-paused { --tone-bg: #263449; --tone-text: #cbd5e1; }
+html[data-theme="clinical-night"] .tp-tone-completed { --tone-bg: #193b2b; --tone-text: #9fe3b3; }
+html[data-theme="clinical-night"] .tp-tone-cancelled { --tone-bg: #442523; --tone-text: #ffb8b2; }
+html[data-theme="clinical-night"] .tp-start,
+html[data-theme="clinical-night"] .tp-plan,
+html[data-theme="clinical-night"] .tp-history,
+html[data-theme="clinical-night"] .tp-card,
+html[data-theme="clinical-night"] .tp-filters button,
+html[data-theme="clinical-night"] .tp-action,
+html[data-theme="clinical-night"] .tp-icon-button { border-color: #334155; background: #1e293b; }
+html[data-theme="clinical-night"] .tp-start h3,
+html[data-theme="clinical-night"] .tp-plan-heading h3,
+html[data-theme="clinical-night"] .tp-plan-notes dd,
+html[data-theme="clinical-night"] .tp-progress-title strong,
+html[data-theme="clinical-night"] .tp-budget strong,
+html[data-theme="clinical-night"] .tp-legend strong,
+html[data-theme="clinical-night"] .tp-consent-title h4,
+html[data-theme="clinical-night"] .tp-treatments-header h4,
+html[data-theme="clinical-night"] .tp-card-top h5,
+html[data-theme="clinical-night"] .tp-cost,
+html[data-theme="clinical-night"] .tp-note,
+html[data-theme="clinical-night"] .tp-list-empty h5,
+html[data-theme="clinical-night"] .tp-history-toggle,
+html[data-theme="clinical-night"] .tp-history-title strong,
+html[data-theme="clinical-night"] .tp-history-facts strong { color: #e5e7eb; }
+html[data-theme="clinical-night"] .tp-start p:not(.eyebrow),
+html[data-theme="clinical-night"] .tp-plan-meta,
+html[data-theme="clinical-night"] .tp-plan-notes dt,
+html[data-theme="clinical-night"] .tp-progress-title,
+html[data-theme="clinical-night"] .tp-budget span,
+html[data-theme="clinical-night"] .tp-legend,
+html[data-theme="clinical-night"] .tp-footnote,
+html[data-theme="clinical-night"] .tp-consent-copy p,
+html[data-theme="clinical-night"] .tp-description,
+html[data-theme="clinical-night"] .tp-meta,
+html[data-theme="clinical-night"] .tp-list-empty p,
+html[data-theme="clinical-night"] .tp-history-title span,
+html[data-theme="clinical-night"] .tp-history-facts,
+html[data-theme="clinical-night"] .tp-history-reason,
+html[data-theme="clinical-night"] .tp-history-empty,
+html[data-theme="clinical-night"] .tp-filters button,
+html[data-theme="clinical-night"] .tp-icon-button { color: #cbd5e1; }
+html[data-theme="clinical-night"] .tp-plan-notes,
+html[data-theme="clinical-night"] .tp-progress-bar,
+html[data-theme="clinical-night"] .tp-note,
+html[data-theme="clinical-night"] .tp-card--cancelled,
+html[data-theme="clinical-night"] .tp-filter-count { background: #0f172a; color: #e5e7eb; }
+html[data-theme="clinical-night"] .tp-progress,
+html[data-theme="clinical-night"] .tp-history-card { border-color: #334155; }
+html[data-theme="clinical-night"] .tp-list-empty { border-color: #334155; }
+html[data-theme="clinical-night"] .tp-plan-state { background: #193b2b; color: #9fe3b3; }
+html[data-theme="clinical-night"] .tp-count,
+html[data-theme="clinical-night"] .tp-meta .tp-tooth { background: rgba(56, 189, 248, .14); color: #bae6fd; }
+html[data-theme="clinical-night"] .tp-action { color: #bae6fd; }
+html[data-theme="clinical-night"] .tp-action:hover:not(:disabled),
+html[data-theme="clinical-night"] .tp-icon-button:hover:not(:disabled) { background: rgba(56, 189, 248, .12); color: #f8fafc; }
+html[data-theme="clinical-night"] .tp-action--primary,
+html[data-theme="clinical-night"] .tp-filters button.active { border-color: #38bdf8; background: #38bdf8; color: #0f172a; }
+html[data-theme="clinical-night"] .tp-action--primary:hover:not(:disabled) { border-color: #7dd3fc; background: #7dd3fc; color: #0f172a; }
+html[data-theme="clinical-night"] .tp-filters button.active .tp-filter-count { background: rgba(15, 23, 42, .18); color: #0f172a; }
+html[data-theme="clinical-night"] .tp-card:hover { border-color: #475569; box-shadow: 0 10px 24px rgba(2, 6, 23, .28); }
+html[data-theme="clinical-night"] .tp-consent { border-color: rgba(251, 191, 36, .35); background: rgba(251, 191, 36, .08); }
+html[data-theme="clinical-night"] .tp-consent--signed { border-color: rgba(34, 197, 94, .32); background: rgba(34, 197, 94, .08); }
+html[data-theme="clinical-night"] .tp-consent--blocked { border-color: #334155; background: #111827; }
+html[data-theme="clinical-night"] .tp-consent-icon { background: #0f172a; color: #fcd779; }
+html[data-theme="clinical-night"] .tp-consent--signed .tp-consent-icon { color: #9fe3b3; }
+html[data-theme="clinical-night"] .tp-consent-status { background: #3b301a; color: #fcd779; }
+html[data-theme="clinical-night"] .tp-consent--signed .tp-consent-status { background: #193b2b; color: #9fe3b3; }
+html[data-theme="clinical-night"] .tp-start-icon { background: rgba(56, 189, 248, .14); }
+html[data-theme="clinical-night"] .tp-start-icon .v-icon,
+html[data-theme="clinical-night"] .tp-list-empty .v-icon { color: #38bdf8; }
 </style>
