@@ -46,7 +46,7 @@ export default {
   margin: 0 0 0.3rem;
   color: #0f766e;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -70,7 +70,7 @@ p:not(.eyebrow) {
   border: 1px solid #0f766e;
   color: #0f766e;
   background: #ffffff;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 html[data-theme="clinical-night"] .enterprise-locked-widget {

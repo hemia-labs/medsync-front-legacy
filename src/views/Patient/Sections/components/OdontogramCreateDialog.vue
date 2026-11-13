@@ -2,7 +2,7 @@
   <v-dialog :value="value" max-width="580" scrollable :persistent="busy" @input="close">
     <v-card v-dialog-name="'Crear odontograma'" class="odontogram-create">
       <div class="create-header">
-        <span class="create-icon"><v-icon color="var(--color-primary-700, #1b6b6f)" size="26">mdi-tooth-outline</v-icon></span>
+        <span class="create-icon"><v-icon color="var(--color-primary-700)" size="26">mdi-tooth-outline</v-icon></span>
         <div class="create-heading">
           <p class="create-eyebrow">Expediente clínico</p>
           <h2>Crear odontograma</h2>
@@ -31,8 +31,8 @@
         <span v-if="busy" role="status" class="create-saving">Guardando odontograma…</span>
         <v-spacer></v-spacer>
         <v-btn text :disabled="busy" class="create-cancel" @click="close">Ahora no</v-btn>
-        <v-btn v-if="requiresReload" depressed color="var(--color-primary-900, #086783)" :disabled="busy" class="create-submit" @click="$emit('reload')">Volver a cargar</v-btn>
-        <v-btn v-else depressed color="var(--color-primary-900, #086783)" :disabled="!selectedType || busy || !types.some(item => item.code === selectedType)" :loading="busy" class="create-submit" @click="submit">Crear odontograma</v-btn>
+        <v-btn v-if="requiresReload" depressed color="var(--color-primary-900)" :disabled="busy" class="create-submit" @click="$emit('reload')">Volver a cargar</v-btn>
+        <v-btn v-else depressed color="var(--color-primary-900)" :disabled="!selectedType || busy || !types.some(item => item.code === selectedType)" :loading="busy" class="create-submit" @click="submit">Crear odontograma</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -79,19 +79,19 @@ export default {
 <style scoped>
 .odontogram-create { border-radius: 12px; overflow: hidden; }
 .create-header { display: flex; align-items: flex-start; gap: 14px; padding: 24px; border-bottom: 1px solid var(--color-border, #d8e9ef); }
-.create-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; height: 48px; border-radius: 12px; background: var(--color-primary-100, #e0f7fc); }
+.create-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; height: 48px; border-radius: 12px; background: var(--color-primary-100); }
 .create-heading { flex: 1; min-width: 0; }
-.create-eyebrow { margin: 0 0 4px; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--color-text-muted, #64748b); }
-.create-heading h2 { margin: 0; font-size: 22px; line-height: 1.3; font-weight: 700; color: var(--color-text, #25364d); }
+.create-eyebrow { margin: 0 0 4px; font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--color-text-muted, #64748b); }
+.create-heading h2 { margin: 0; font-size: 22px; line-height: 1.3; font-weight: 600; color: var(--color-text, #25364d); }
 .create-patient { margin: 5px 0 0; color: var(--color-text-muted, #64748b); font-size: 13px; overflow-wrap: anywhere; }
 .odontogram-create .create-body { padding: 22px 24px; background: var(--color-bg, #f8fbfd); }
 .create-intro { margin: 0 0 20px; color: var(--color-text-muted, #64748b); font-size: 14px; line-height: 1.6; }
 .dentition-options { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 10px; }
-.dentition-options legend { margin-bottom: 10px; color: var(--color-text, #25364d); font-size: 13px; font-weight: 700; }
-.dentition-option { display: flex; align-items: center; gap: 14px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 8px; padding: 15px 16px; background: var(--color-surface, #fff); cursor: pointer; }
-.dentition-option.selected { border-color: var(--color-primary-700, #1b6b6f); background: var(--color-primary-100, #e0f7fc); box-shadow: inset 0 0 0 1px var(--color-primary-700, #1b6b6f); }
-.dentition-option:focus-within { outline: 2px solid var(--color-primary-700, #1b6b6f); outline-offset: 3px; }
-.dentition-option input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--color-primary-700, #1b6b6f); }
+.dentition-options legend { margin-bottom: 10px; color: var(--color-text, #25364d); font-size: 13px; font-weight: 600; }
+.dentition-option { display: flex; align-items: center; gap: 14px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 8px; padding: 15px 16px; background: var(--color-surface); cursor: pointer; }
+.dentition-option.selected { border-color: var(--color-primary-700); background: var(--color-primary-100); box-shadow: inset 0 0 0 1px var(--color-primary-700); }
+.dentition-option:focus-within { outline: 2px solid var(--color-primary-700); outline-offset: 3px; }
+.dentition-option input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--color-primary-700); }
 .dentition-option strong, .dentition-option small { display: block; overflow-wrap: anywhere; }
 .dentition-option strong { font-size: 14px; color: var(--color-text, #25364d); font-weight: 600; }
 .dentition-option small { margin-top: 3px; font-size: 12px; line-height: 1.5; color: var(--color-text-muted, #64748b); }

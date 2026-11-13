@@ -1180,8 +1180,8 @@ export default {
   justify-content: space-between;
   align-items: flex-start;
   padding: 1.35rem 1.5rem;
-  border-bottom: 1px solid var(--color-primary-200, #d8e9ef);
-  background: linear-gradient(180deg, var(--color-primary-100, #eefbff) 0%, #ffffff 100%);
+  border-bottom: 1px solid var(--color-primary-200);
+  background: linear-gradient(180deg, var(--color-primary-100) 0%, #ffffff 100%);
 }
 
 .header-copy {
@@ -1199,7 +1199,7 @@ export default {
 
 .section-header h2 {
   font-size: 1.55rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -1225,9 +1225,9 @@ export default {
 
 .eyebrow {
   margin: 0 0 .25rem;
-  color: var(--color-primary-900, #006077);
+  color: var(--color-primary-900);
   font-size: .72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: .1em;
   text-transform: uppercase;
 }
@@ -1253,7 +1253,7 @@ export default {
   border-radius: 6px;
   padding: .38rem .55rem;
   font-size: .76rem;
-  font-weight: 800;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -1285,7 +1285,7 @@ export default {
   display: block;
   color: #64748b;
   font-size: .68rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -1337,7 +1337,7 @@ export default {
   display: block;
   color: #64748b;
   font-size: .68rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -1373,7 +1373,7 @@ export default {
   padding: .65rem .8rem;
   color: #334155;
   font-size: .86rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .guide-toggle span {
@@ -1408,7 +1408,7 @@ export default {
   padding: .5rem .6rem;
   color: #475569;
   font-size: .78rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .notice-card,
@@ -1444,7 +1444,7 @@ export default {
   border: 1px solid #0f766e;
   color: #0f766e;
   background: #ffffff;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .editor-grid {
@@ -1500,7 +1500,7 @@ export default {
 .pane-header h3,
 .detail-head h3 {
   font-size: 1rem;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .pane-header p {
@@ -1530,7 +1530,7 @@ export default {
 }
 
 .section-list-item.is-selected {
-  box-shadow: inset 3px 0 0 var(--color-primary-500, #19a6c9);
+  box-shadow: inset 3px 0 0 var(--color-primary-500);
 }
 
 .section-list-item.is-inactive {
@@ -1607,7 +1607,7 @@ export default {
 .section-title-line h4 {
   min-width: 0;
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.25;
   overflow-wrap: break-word;
   word-break: normal;
@@ -1616,7 +1616,7 @@ export default {
 .section-title-line h3 {
   min-width: 0;
   font-size: 1.08rem;
-  font-weight: 850;
+  font-weight: 600;
   line-height: 1.25;
   overflow-wrap: break-word;
   word-break: normal;
@@ -1735,7 +1735,7 @@ export default {
   border-radius: 999px;
   padding: .14rem .42rem;
   font-size: .68rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .fields-list {
@@ -1799,7 +1799,7 @@ export default {
 
 .preview-section-head h4 {
   font-size: .88rem;
-  font-weight: 800;
+  font-weight: 600;
   overflow-wrap: break-word;
   word-break: normal;
 }
@@ -1816,7 +1816,7 @@ export default {
   border: 1px solid #d8e9ef;
   color: #64748b;
   font-size: .72rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .preview-section p {
@@ -1845,7 +1845,7 @@ export default {
   min-width: 0;
   color: #334155;
   font-size: .78rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
   overflow-wrap: break-word;
   word-break: normal;
@@ -1856,8 +1856,8 @@ export default {
 }
 
 .preview-fields small {
-  color: var(--color-primary-900, #006077);
-  font-weight: 800;
+  color: var(--color-primary-900);
+  font-weight: 600;
   font-size: .68rem;
   white-space: nowrap;
 }
@@ -1936,14 +1936,14 @@ export default {
   min-height: 2.25rem;
   padding: .48rem .78rem;
   font-size: .84rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
   transition: box-shadow .14s ease, background .14s ease, border-color .14s ease;
 }
 
 .btn-primary {
   color: #fff;
-  background: var(--color-primary-500, #19a6c9);
+  background: var(--color-primary-500);
 }
 
 .btn-primary.cta {
@@ -1951,15 +1951,15 @@ export default {
 }
 
 .btn-outline {
-  color: var(--color-primary-900, #006077);
+  color: var(--color-primary-900);
   background: #fff;
   border-color: #d8e9ef;
 }
 
 .btn-soft {
-  color: var(--color-primary-900, #006077);
-  background: var(--color-primary-100, #e0f7fc);
-  border-color: var(--color-primary-200, #b8edf7);
+  color: var(--color-primary-900);
+  background: var(--color-primary-100);
+  border-color: var(--color-primary-200);
 }
 
 .btn-ghost {
@@ -1999,7 +1999,7 @@ export default {
   height: 2rem;
   min-height: 2rem;
   padding: 0;
-  color: var(--color-primary-900, #006077);
+  color: var(--color-primary-900);
   background: #fff;
   border-color: #d8e9ef;
 }

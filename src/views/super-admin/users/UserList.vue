@@ -2,7 +2,7 @@
   <div class="users-page">
     <section class="intro-panel">
       <div>
-        <p class="eyebrow">Administracion global</p>
+        <p class="eyebrow">Administración global</p>
         <h1>Usuarios</h1>
         <span>Consulta administrativa de cuentas de acceso al sistema.</span>
       </div>
@@ -71,7 +71,7 @@
       <v-select
         v-model="pagination.pageSize"
         :items="pageSizeOptions"
-        label="Por pagina"
+        label="Por página"
         outlined
         dense
         hide-details
@@ -144,7 +144,7 @@
                 <div class="empty-state">
                   <v-icon size="36">mdi-account-search-outline</v-icon>
                   <strong>No hay cuentas para mostrar</strong>
-                  <span>Ajusta la busqueda o los filtros para consultar otros resultados.</span>
+                  <span>Ajusta la búsqueda o los filtros para consultar otros resultados.</span>
                 </div>
               </td>
             </tr>
@@ -153,7 +153,7 @@
       </div>
 
       <div class="pagination-bar">
-        <span>Pagina {{ pagination.page }} de {{ safeTotalPages }}</span>
+        <span>Página {{ pagination.page }} de {{ safeTotalPages }}</span>
 
         <v-pagination
           v-if="safeTotalPages > 1"
@@ -241,7 +241,7 @@ export default {
         { text: 'Negocio', value: 'business_name', sortable: true },
         { text: 'Activo', value: 'active', sortable: true },
         { text: 'Bloqueado', value: 'locked', sortable: true },
-        { text: 'Ultima actividad', value: 'last_activity_at', sortable: true },
+        { text: 'Última actividad', value: 'last_activity_at', sortable: true },
         { text: 'Creado', value: 'created_at', sortable: true },
         { text: 'Actualizado', value: 'updated_at', sortable: true }
       ]
@@ -340,12 +340,12 @@ export default {
       const status = response && Number(response.status);
 
       if(status === 401) {
-        this.errorMessage = 'Tu sesion expiro. Vuelve a iniciar sesion para continuar.';
+        this.errorMessage = 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.';
         return;
       }
 
       if(status === 403) {
-        this.errorMessage = 'No tienes permiso para consultar la administracion global.';
+        this.errorMessage = 'No tienes permiso para consultar la administración global.';
         window.setTimeout(() => this.$router.push({ name: 'dashboard' }).catch(() => {}), 1200);
         return;
       }
@@ -467,7 +467,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #047857;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -476,7 +476,7 @@ export default {
   color: #111827;
   font-size: 1.65rem;
   line-height: 2rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -495,7 +495,7 @@ export default {
 .soon-label {
   margin-left: 0.5rem;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .filters-panel {
@@ -553,13 +553,13 @@ export default {
   background: #f9fafb;
   color: #111827;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
 .name-cell {
   color: #111827;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .sort-button {
@@ -585,7 +585,7 @@ export default {
   color: #374151;
   background: #f9fafb;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .state-chip.is-active,

@@ -572,7 +572,7 @@
             <da-sweet-confirm 
             :title="'Foto de Perfil'" 
             :message="'Para continuar, es necesario agregar una foto de perfil del paciente o puedes continuar sin foto...'"
-            :calcelbtntext="'CONTINUAR SIN FOTO'" 
+            :calcelbtntext="'Continuar sin foto'" 
             :lottiepath="PROFILE"
             :iconwidth="150"
             :iconheight="150"

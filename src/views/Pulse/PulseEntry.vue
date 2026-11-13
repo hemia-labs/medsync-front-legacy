@@ -40,10 +40,10 @@ export default { computed: { allowed() { const a = this.$store.state.CORE.AUTH; 
 .pulse-entry-symbol { display: grid; place-items: center; width: 72px; height: 72px; border: 1px solid #d4e7e8; border-radius: 22px; background: rgba(255, 255, 255, .8); color: #247781; }
 .pulse-entry-symbol svg { width: 58px; height: 58px; }
 .pulse-entry-copy { min-width: 0; }
-.pulse-entry-eyebrow { margin: 0 0 6px; font-size: 10px; line-height: 1.5; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; color: #486b78; }
-.pulse-entry h2 { margin: 0; font-size: 19px; line-height: 1.35; font-weight: 750; color: inherit; }
+.pulse-entry-eyebrow { margin: 0 0 6px; font-size: 10px; line-height: 1.5; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: #486b78; }
+.pulse-entry h2 { margin: 0; font-size: 19px; line-height: 1.35; font-weight: 600; color: inherit; }
 .pulse-entry-description { margin: 8px 0 16px; font-size: 14px; line-height: 1.6; color: #526778; }
-.pulse-entry-link { display: inline-flex; align-items: center; justify-content: center; gap: 18px; min-height: 44px; padding: 9px 14px; border: 1px solid #bdd6db; border-radius: 11px; background: rgba(255, 255, 255, .8); color: #175b66; font-size: 13px; line-height: 1.5; font-weight: 750; text-decoration: none; }
+.pulse-entry-link { display: inline-flex; align-items: center; justify-content: center; gap: 18px; min-height: 44px; padding: 9px 14px; border: 1px solid #bdd6db; border-radius: 11px; background: rgba(255, 255, 255, .8); color: #175b66; font-size: 13px; line-height: 1.5; font-weight: 600; text-decoration: none; }
 .pulse-entry-link:hover { border-color: #71a8af; background: #e4f2f3; }
 .pulse-entry-link:focus-visible { outline: 3px solid #287588; outline-offset: 4px; }
 .theme--dark .pulse-entry, html[data-theme="clinical-night"] .pulse-entry { background: linear-gradient(120deg, #182e36, #1c283d); border-color: #384e61; color: #deedf5; }

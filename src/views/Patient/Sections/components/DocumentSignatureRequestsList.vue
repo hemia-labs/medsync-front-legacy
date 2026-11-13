@@ -166,7 +166,7 @@ export default {
   margin: 0 0 2px;
   color: #1b6b6f;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -187,7 +187,7 @@ export default {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .mini-action:disabled {
@@ -244,7 +244,7 @@ export default {
   background: #edf2f7;
   color: #425466;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .status-pending,

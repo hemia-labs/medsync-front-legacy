@@ -16,7 +16,7 @@ export default Vue.extend({
        // rounded-sm  rounded-lg, rounded-xl rounded-2xl
         roundeableClass() {
             return {
-                'rounded-sm': this.rms,
+                'rounded-sm': this.rsm,
                 'rounded-md': this.rmd,
                 'rounded-lg': this.rlg,
                 'rounded-xl': this.rxl,

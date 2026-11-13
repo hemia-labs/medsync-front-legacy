@@ -1796,7 +1796,7 @@ export default {
 .agenda-day-name { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .agenda-day-header-today { background: #edf9f7; box-shadow: inset 0 -3px 0 #80bfb8; }
 .agenda-day-header-today .agenda-day-name { color: #115e59; }
-.agenda-today-badge { padding: 2px 6px; border-radius: 999px; background: #d4eeea; color: #115e59; font-size: 10px; line-height: 1.4; font-weight: 700; }
+.agenda-today-badge { padding: 2px 6px; border-radius: 999px; background: #d4eeea; color: #115e59; font-size: 10px; line-height: 1.4; font-weight: 600; }
 html[data-theme="clinical-night"] .agenda-day-header-today { background: #193735; box-shadow: inset 0 -3px 0 #548e88; }
 html[data-theme="clinical-night"] .agenda-day-header-today .agenda-day-name { color: #b7e5df; }
 html[data-theme="clinical-night"] .agenda-day-header-today > p:last-child { color: #a8c8c4; }
@@ -1811,7 +1811,7 @@ html[data-theme="clinical-night"] .agenda-today-badge { background: #2c534f; col
 .agenda-now-label { position: absolute; right: 4px; transform: translateY(-50%); z-index: 3; padding: 1px 5px; border-radius: 4px; background: #be345a; color: #fff; font-size: 11px; line-height: 18px; pointer-events: none; }
 .agenda-event-row { display: grid; min-width: 0; }
 .agenda-event-row-timed { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: stretch; }
-.agenda-event-time { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 3px; padding: 10px 12px 10px 0; border-right: 2px solid var(--color-primary-200, #b8edf7); font-variant-numeric: tabular-nums; color: var(--color-text, #25364d); }
+.agenda-event-time { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 3px; padding: 10px 12px 10px 0; border-right: 2px solid var(--color-primary-200); font-variant-numeric: tabular-nums; color: var(--color-text, #25364d); }
 .agenda-event-time strong { font-size: .95rem; }
 .agenda-event-time span { font-size: .8rem; color: var(--color-text-muted, #64748b); }
 html[data-theme="clinical-night"] .agenda-clock-note { color: #f7a9c0; }
@@ -1820,9 +1820,9 @@ html[data-theme="clinical-night"] .agenda-clock-note { color: #f7a9c0; }
 .appointment-status-action.appointment-status-current { border-color: var(--status-text) !important; box-shadow: inset 0 0 0 1px var(--status-text); }
 .appointment-status-action:focus-visible { outline: 2px solid var(--status-text); outline-offset: 3px; }
 .appointment-status-action:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
-.agenda-view-toggle.v-btn-toggle { border: 1px solid var(--color-primary-200, #b8edf7); border-radius: 8px; overflow: hidden; }
-.agenda-view-toggle.v-btn-toggle > .v-btn { background: var(--color-primary-50, #effbfe); color: var(--color-primary-900, #086783); border-color: var(--color-primary-200, #b8edf7) !important; text-transform: none; letter-spacing: normal; font-weight: 600; opacity: 1; }
-.agenda-view-toggle.v-btn-toggle > .v-btn.v-btn--active { background: var(--color-primary-100, #dff6fa); box-shadow: inset 0 -3px 0 var(--color-primary-700, #0e7490); }
+.agenda-view-toggle.v-btn-toggle { border: 1px solid var(--color-primary-200); border-radius: 8px; overflow: hidden; }
+.agenda-view-toggle.v-btn-toggle > .v-btn { background: var(--color-primary-50, #effbfe); color: var(--color-primary-900); border-color: var(--color-primary-200) !important; text-transform: none; letter-spacing: normal; font-weight: 600; opacity: 1; }
+.agenda-view-toggle.v-btn-toggle > .v-btn.v-btn--active { background: var(--color-primary-100); box-shadow: inset 0 -3px 0 var(--color-primary-700); }
 .agenda-event-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .agenda-event-status { border: 1px solid currentColor; border-radius: 999px; padding: 2px 9px; font-size: .75rem; font-weight: 600; }
 .agenda-event-create { display: inline-flex; align-items: center; gap: 6px; font-size: .875rem; }
@@ -1830,8 +1830,8 @@ html[data-theme="clinical-night"] .agenda-clock-note { color: #f7a9c0; }
 .agenda-event:disabled { cursor: not-allowed; }
 .agenda-event:not(:disabled):hover { box-shadow: 0 2px 8px #25364d14; }
 .agenda-toolbar-button.v-btn { min-height: 36px; padding: 0 16px; font-size: .875rem; font-weight: 600; letter-spacing: normal; text-transform: none; }
-.agenda-toolbar-follow-up.v-btn { background-color: var(--color-primary-900, #086783) !important; color: #fff; }
-.agenda-toolbar-button:focus-visible { outline: 2px solid var(--color-primary-900, #086783); outline-offset: 3px; }
+.agenda-toolbar-follow-up.v-btn { background-color: var(--color-primary-900) !important; color: #fff; }
+.agenda-toolbar-button:focus-visible { outline: 2px solid var(--color-primary-900); outline-offset: 3px; }
 .agenda-events { padding: 20px; display: grid; gap: 10px; }
 .agenda-event { padding: 14px; border: 1px solid #cbd5e1; border-left-width: 4px; border-radius: 8px; display: grid; gap: 8px; text-align: left; overflow-wrap: anywhere; background: #fff; transition: box-shadow .15s ease; }
 .agenda-event:focus-visible { outline: 3px solid #0e7490; outline-offset: 2px; }
@@ -1840,7 +1840,7 @@ html[data-theme="clinical-night"] .agenda-clock-note { color: #f7a9c0; }
 .appointment-context-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 24px; border-bottom: 1px solid #e5e7eb; }
 .appointment-context-actions .v-btn { min-height: 36px; }
 .agenda-slot-past { background-image: repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(100,116,139,.1) 8px, rgba(100,116,139,.1) 10px) !important; }
-.agenda-past-label { display: block; font-size: 11px; font-weight: 700; margin-top: 4px; }
+.agenda-past-label { display: block; font-size: 11px; font-weight: 600; margin-top: 4px; }
 .appointment-card .appointment-close-action { background: #f1f5f9 !important; color: #334155 !important; border: 1px solid #94a3b8; }
 .appointment-card .appointment-close-action:hover { background: #e2e8f0 !important; }
 .appointment-card .appointment-save-action { background: var(--color-primary-900) !important; color: white !important; }
@@ -1864,13 +1864,13 @@ html[data-theme="clinical-night"] .appointment-card ::v-deep .v-select__selectio
 .appointment-card > .v-card__text { min-height: 0; overflow-y: auto; flex: 1 1 auto; }
 .appointment-card .appointment-dialog-actions { flex: 0 0 auto; background: white; }
 
-.agenda-setup-state { display: flex; align-items: flex-start; gap: 14px; margin: 24px; padding: 20px; border: 1px solid var(--color-primary-200, #b8edf7); border-radius: 12px; color: var(--color-text, #25364d); background: var(--color-primary-50, #effbfe); }
-.agenda-setup-state > .v-icon { color: var(--color-primary-700, #0e7490); flex-shrink: 0; }
-.agenda-setup-state h3 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 700; }
+.agenda-setup-state { display: flex; align-items: flex-start; gap: 14px; margin: 24px; padding: 20px; border: 1px solid var(--color-primary-200); border-radius: 12px; color: var(--color-text, #25364d); background: var(--color-primary-50, #effbfe); }
+.agenda-setup-state > .v-icon { color: var(--color-primary-700); flex-shrink: 0; }
+.agenda-setup-state h3 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 600; }
 .agenda-setup-state p { margin: 0 0 12px; line-height: 1.6; font-size: .88rem; }
 .agenda-setup-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-.agenda-setup-actions a, .agenda-setup-actions button { display: inline-flex; align-items: center; min-height: 40px; padding: 9px 12px; border: 1px solid var(--color-primary-200, #b8edf7); border-radius: 8px; font-weight: 600; font-size: .82rem; color: var(--color-primary-900, #086783); background: var(--color-surface, #fff); }
-.agenda-slot:focus-visible, .agenda-setup-actions a:focus-visible, .agenda-setup-actions button:focus-visible { outline: 3px solid var(--color-primary-500, #0e7490); outline-offset: -3px; }
+.agenda-setup-actions a, .agenda-setup-actions button { display: inline-flex; align-items: center; min-height: 40px; padding: 9px 12px; border: 1px solid var(--color-primary-200); border-radius: 8px; font-weight: 600; font-size: .82rem; color: var(--color-primary-900); background: var(--color-surface); }
+.agenda-slot:focus-visible, .agenda-setup-actions a:focus-visible, .agenda-setup-actions button:focus-visible { outline: 3px solid var(--color-primary-500); outline-offset: -3px; }
 @media (max-width: 600px) { .agenda-setup-state { margin: 16px; padding: 16px; flex-direction: column; } .agenda-setup-actions { flex-direction: column; } }
 .agenda-config-card{max-height:90vh;display:flex;flex-direction:column}.agenda-config-card>div{flex-shrink:0}.agenda-config-editor{overflow-y:auto;min-height:0}.agenda-config-card .agenda-config-editor{flex:1}
 .follow-up-card {
@@ -1929,7 +1929,7 @@ html[data-theme="clinical-night"] .appointment-card ::v-deep .v-select__selectio
   color: #0f766e;
   background: #f1fbfa;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   text-align: left;
   white-space: nowrap;
@@ -1957,7 +1957,7 @@ html[data-theme="clinical-night"] .appointment-card ::v-deep .v-select__selectio
 .follow-up-name {
   display: block;
   color: #12313a;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .follow-up-actions {
@@ -1981,7 +1981,7 @@ html[data-theme="clinical-night"] .appointment-card ::v-deep .v-select__selectio
   color: #0f766e;
   background: #f0fdfa;
   font-size: 0.82rem;
-  font-weight: 900;
+  font-weight: 600;
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
@@ -2031,7 +2031,7 @@ html[data-theme="clinical-night"] .appointment-card ::v-deep .v-select__selectio
 .follow-up-empty p {
   margin: 0;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .completed-appointment-alert {
@@ -2055,7 +2055,7 @@ html[data-theme="clinical-night"] .appointment-card ::v-deep .v-select__selectio
   display: block;
   color: #4f4634;
   font-size: 0.9rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .completed-appointment-alert p {
@@ -2108,7 +2108,7 @@ html[data-theme="clinical-night"] .appointment-card ::v-deep .v-select__selectio
   padding: 0 0.95rem;
   border-radius: 8px;
   font-size: 0.84rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .completed-confirm-secondary {

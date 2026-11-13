@@ -89,12 +89,12 @@ export default {
 .legal-update-icon { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: #fef3c7; color: #92400e; }
 .legal-update-icon svg { width: 25px; height: 25px; }
 .legal-update-copy { min-width: 0; }.legal-update-copy summary{font-size:13px;cursor:pointer;min-height:32px;padding-top:6px}.legal-update-copy summary:focus-visible{outline:3px solid #b45309;outline-offset:3px}
-.legal-update-copy h2 { font-size: 16px; font-weight: 750; line-height: 1.4; margin: 0 0 5px; color: inherit; }
+.legal-update-copy h2 { font-size: 16px; font-weight: 600; line-height: 1.4; margin: 0 0 5px; color: inherit; }
 .legal-update-copy p { font-size: 14px; line-height: 1.55; margin: 5px 0 0; color: inherit; }
 .legal-update-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.legal-update-primary { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 750; background: #92400e; color: #fff; text-decoration: none; text-align: center; white-space: normal; }
+.legal-update-primary { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; background: #92400e; color: #fff; text-decoration: none; text-align: center; white-space: normal; }
 .legal-update-primary:hover { background: #78350f; }
-.legal-update-retry { font-weight: 700; text-decoration: underline; color: inherit; }
+.legal-update-retry { font-weight: 600; text-decoration: underline; color: inherit; }
 .legal-update-retry:disabled { opacity: .5; cursor: not-allowed; }
 .legal-update-notice a:focus-visible, .legal-update-notice button:focus-visible { outline: 3px solid #b45309; outline-offset: 3px; }
 @media (max-width: 900px) {

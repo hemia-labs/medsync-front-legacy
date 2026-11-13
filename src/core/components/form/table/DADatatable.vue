@@ -5,7 +5,7 @@
       <v-text-field
         v-model="search"
         append-icon="mdi-magnify"
-        label="Termino de búsqueda"
+        label="Término de búsqueda"
         hide-details
 
       ></v-text-field>
