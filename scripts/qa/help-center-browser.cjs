@@ -125,10 +125,11 @@ async function mount(browser, width, role) {
   await page.evaluate(async ({ sources, dataCode, navigationCode, focusCode, role }) => {
     const empty = { render: h => h('span') };
     Object.assign(window, { VuexMixin: {}, mapActions: () => ({}), mapGetters: () => ({}), fnTypes: {}, moduleTypes: { AUTH: {} },
-      PulseReturn: empty, OnboardingCoordinator: empty, ReLogin: empty, LegalUpdateNotice: empty, MEDSYNC_SUPPORT_EMAIL: '',
+      PulseReturn: empty, OnboardingCoordinator: empty, ReLogin: empty, LegalUpdateNotice: empty, TrialNotice: empty, MEDSYNC_SUPPORT_EMAIL: '',
       isD2AuthMode: () => true, require: () => '', canAccessPulse: () => role === 'business_admin', canAccessSettings: () => true });
     Object.assign(window, new Function(dataCode)(), new Function('process', navigationCode)({ env: { NODE_ENV: 'development' } }));
     const { Vue, VueRouter, Vuetify, tenantNavigationItems } = window;
+    Vue.component('medsync-brand', empty);
     window.containNavigationFocus = new Function(focusCode)();
     const rail = new Function(sources.rail.script)(); rail.template = sources.rail.template; window.TenantNavigationRail = rail;
     Vue.prototype.$swal = { fire: () => {} };
@@ -173,7 +174,7 @@ async function mount(browser, width, role) {
       assert.equal(await page.locator('.help-entry-list a').count(), data.helpEntries.filter(e => e.type === 'guide').length);
       assert.equal(await page.locator('.help-row-link').count(), data.helpEntries.filter(e => e.type === 'guide').length);
       assert.equal(await page.locator('.help-row-summary').count(), data.helpEntries.filter(e => e.type === 'guide').length, 'Each guide shows its summary');
-      assert.equal(await page.locator('.help-topic-count').first().textContent(), '4 guías');
+      assert.equal(await page.locator('.help-topic-count').first().textContent(), '6 guías');
       assert.equal(await page.locator('.help-entry-list button').count(), 0);
       assert.equal(await page.evaluate(() => document.querySelector('.help-center').innerText.includes('«')), false);
       // Search replaces the index with results and clears back to it.
@@ -191,7 +192,7 @@ async function mount(browser, width, role) {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
       assert.equal(await page.locator('.help-center h1').count(), 1);
       assert.equal(await page.locator('.help-center h2').count(), 1);
-      assert.equal(await page.locator('.help-center h3').count(), 7);
+      assert.equal(await page.locator('.help-center h3').count(), 8);
       assert.equal(await page.locator('.help-center h4, .help-center details, .help-center img').count(), 0);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
       const sectionLinks = page.locator('.help-sections a');
