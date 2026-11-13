@@ -2,11 +2,11 @@
   <div class="businesses-page">
     <section class="intro-panel">
       <div>
-        <p class="eyebrow">Administracion global</p>
+        <p class="eyebrow">Administración global</p>
         <h1>Negocios</h1>
         <span>
-          Consulta administrativa de negocios, consultorios y clinicas registrados en el SaaS.
-          La paginacion y filtros se resuelven desde backend.
+          Consulta administrativa de negocios, consultorios y clínicas registrados en el SaaS.
+          La paginación y filtros se resuelven desde backend.
         </span>
       </div>
 
@@ -42,7 +42,7 @@
       <v-select
         v-model="filters.status"
         :items="statusOptions"
-        label="Estado tecnico"
+        label="Estado técnico"
         outlined
         dense
         hide-details
@@ -82,7 +82,7 @@
       <v-select
         v-model="pagination.pageSize"
         :items="pageSizeOptions"
-        label="Por pagina"
+        label="Por página"
         outlined
         dense
         hide-details
@@ -141,7 +141,7 @@
               <td>
                 <div class="plan-cell">
                   <strong>{{ getPlanLabel(business.plan, business) }}</strong>
-                  <span>{{ business.plan || 'Sin codigo' }}</span>
+                  <span>{{ business.plan || 'Sin código' }}</span>
                 </div>
               </td>
               <td>{{ getTrialEndLabel(business) }}</td>
@@ -200,7 +200,7 @@
                 <div class="empty-state">
                   <v-icon size="36">mdi-domain-off</v-icon>
                   <strong>No hay negocios para mostrar</strong>
-                  <span>Ajusta la busqueda o los filtros para consultar otros resultados.</span>
+                  <span>Ajusta la búsqueda o los filtros para consultar otros resultados.</span>
                 </div>
               </td>
             </tr>
@@ -210,7 +210,7 @@
 
       <div class="pagination-bar">
         <span>
-          Pagina {{ pagination.page }} de {{ safeTotalPages }}
+          Página {{ pagination.page }} de {{ safeTotalPages }}
         </span>
 
         <v-pagination
@@ -239,7 +239,7 @@
               <v-icon color="primary">mdi-domain</v-icon>
               <div>
                 <strong>Datos del negocio</strong>
-                <span>Informacion administrativa del nuevo consultorio o tenant.</span>
+                <span>Información administrativa del nuevo consultorio o tenant.</span>
               </div>
             </div>
 
@@ -256,20 +256,20 @@
                 label="Slug"
                 outlined
                 dense
-                hint="Opcional. Si lo dejas vacio, backend lo generara."
+                hint="Opcional. Si lo dejas vacío, backend lo generará."
                 persistent-hint
                 :disabled="createDialog.isSaving"
               />
               <v-text-field
                 v-model.trim="createForm.business.legalName"
-                label="Razon social"
+                label="Razón social"
                 outlined
                 dense
                 :disabled="createDialog.isSaving"
               />
               <v-text-field
                 v-model.trim="createForm.business.phone"
-                label="Telefono"
+                label="Teléfono"
                 outlined
                 dense
                 :disabled="createDialog.isSaving"
@@ -284,7 +284,7 @@
               <v-textarea
                 v-model.trim="createForm.business.address"
                 class="form-grid-full"
-                label="Direccion"
+                label="Dirección"
                 outlined
                 dense
                 rows="2"
@@ -323,7 +323,7 @@
               <v-text-field
                 v-if="createForm.business.subscriptionStatus === 'trial'"
                 v-model.number="createForm.business.trialDays"
-                label="Dias de prueba"
+                label="Días de prueba"
                 outlined
                 dense
                 type="number"
@@ -334,7 +334,7 @@
               <div class="license-help form-grid-full">
                 <v-icon small color="primary">mdi-information-outline</v-icon>
                 <span v-if="createForm.business.subscriptionStatus === 'trial'">
-                  El negocio tendra acceso completo durante el periodo de prueba. Al vencer, el acceso tenant sera bloqueado hasta cambiar su estado comercial.
+                  El negocio tendrá acceso completo durante el periodo de prueba. Al vencer, el acceso tenant será bloqueado hasta cambiar su estado comercial.
                 </span>
                 <span v-else>
                   Usa este estado si el negocio ya es cliente pagado o debe operar sin periodo de prueba.
@@ -369,7 +369,7 @@
               />
               <v-text-field
                 v-model.trim="createForm.adminUser.telephone"
-                label="Telefono de acceso *"
+                label="Teléfono de acceso *"
                 outlined
                 dense
                 :disabled="createDialog.isSaving"
@@ -398,7 +398,7 @@
               />
               <v-text-field
                 v-model="createForm.adminUser.password"
-                label="Contrasena temporal *"
+                label="Contraseña temporal *"
                 outlined
                 dense
                 type="password"
@@ -407,7 +407,7 @@
               />
               <v-text-field
                 v-model="createForm.adminUser.confirmPassword"
-                label="Confirmar contrasena *"
+                label="Confirmar contraseña *"
                 outlined
                 dense
                 type="password"
@@ -421,7 +421,7 @@
           <v-spacer />
           <v-btn text :disabled="createDialog.isSaving" @click="closeCreateDialog">Cancelar</v-btn>
           <v-btn color="primary" depressed :loading="createDialog.isSaving" @click="openCreateConfirmDialog">
-            Revisar creacion
+            Revisar creación
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -436,12 +436,12 @@
             <span>Estado inicial: {{ getSubscriptionStatusLabel(createForm.business.subscriptionStatus) }}</span>
             <span>Plan: {{ getPlanLabel(createForm.business.plan) }}</span>
             <span v-if="createForm.business.subscriptionStatus === 'trial'">
-              Trial: {{ createForm.business.trialDays || 60 }} dias, vence aprox. {{ estimatedTrialEndDate }}
+              Trial: {{ createForm.business.trialDays || 60 }} días, vence aprox. {{ estimatedTrialEndDate }}
             </span>
-            <span>Admin inicial: {{ createForm.adminUser.create ? createForm.adminUser.name : 'No se creara en esta accion' }}</span>
+            <span>Admin inicial: {{ createForm.adminUser.create ? createForm.adminUser.name : 'No se creará en esta acción' }}</span>
           </div>
           <p class="confirm-message">
-            Se creara el negocio y, si esta activado, un usuario administrador inicial. El usuario podra iniciar sesion con las credenciales definidas.
+            Se creará el negocio y, si está activado, un usuario administrador inicial. El usuario podrá iniciar sesión con las credenciales definidas.
           </p>
         </v-card-text>
         <v-card-actions>
@@ -469,7 +469,7 @@
               <v-icon color="primary">mdi-domain-edit</v-icon>
               <div>
                 <strong>Datos administrativos</strong>
-                <span>Esta edicion no modifica estado SaaS, plan, trial, suspension ni estado tecnico.</span>
+                <span>Esta edición no modifica estado SaaS, plan, trial, suspensión ni estado técnico.</span>
               </div>
             </div>
 
@@ -486,20 +486,20 @@
                 label="Slug *"
                 outlined
                 dense
-                hint="Minusculas, numeros y guiones. Sin espacios."
+                hint="Minusculas, números y guiones. Sin espacios."
                 persistent-hint
                 :disabled="editDialog.isSaving"
               />
               <v-text-field
                 v-model.trim="editForm.legalName"
-                label="Razon social"
+                label="Razón social"
                 outlined
                 dense
                 :disabled="editDialog.isSaving"
               />
               <v-text-field
                 v-model.trim="editForm.phone"
-                label="Telefono"
+                label="Teléfono"
                 outlined
                 dense
                 :disabled="editDialog.isSaving"
@@ -514,7 +514,7 @@
               <v-textarea
                 v-model.trim="editForm.address"
                 class="form-grid-full"
-                label="Direccion"
+                label="Dirección"
                 outlined
                 dense
                 rows="2"
@@ -536,7 +536,7 @@
 
     <v-dialog v-model="editConfirmDialog.show" persistent max-width="560">
       <v-card>
-        <v-card-title>Confirmar edicion</v-card-title>
+        <v-card-title>Confirmar edición</v-card-title>
         <v-card-text>
           <div class="confirm-summary">
             <strong>{{ editForm.name || 'Negocio seleccionado' }}</strong>
@@ -545,7 +545,7 @@
             </span>
           </div>
           <p class="confirm-message">
-            Se actualizaran solo datos administrativos del negocio. Esta accion no cambia estado SaaS, plan, trial ni bloqueo tecnico.
+            Se actualizarán solo datos administrativos del negocio. Esta acción no cambia estado SaaS, plan, trial ni bloqueo técnico.
           </p>
         </v-card-text>
         <v-card-actions>
@@ -593,7 +593,7 @@
           <v-text-field
             v-if="commercialDialog.type === 'extend_trial'"
             v-model.number="commercialForm.days"
-            label="Dias de extension *"
+            label="Días de extensión *"
             type="number"
             min="1"
             :max="MAX_MANUAL_TRIAL_EXTENSION_DAYS"
@@ -661,12 +661,12 @@
                 <h2>{{ licenseSummary.plan.name }}</h2>
                 <span>{{ licenseSummary.plan.description }}</span>
               </div>
-              <span v-if="licenseSummary.plan.recommended" class="recommended-chip">Mas recomendado</span>
+              <span v-if="licenseSummary.plan.recommended" class="recommended-chip">Más recomendado</span>
             </section>
 
             <section class="license-grid" aria-label="Precios del plan">
               <div class="license-metric">
-                <span>Precio publico</span>
+                <span>Precio público</span>
                 <strong>{{ licenseSummary.plan.publicLabel || formatMoney(licenseSummary.plan.monthlyPriceMxn) }}</strong>
               </div>
               <div class="license-metric">
@@ -688,7 +688,7 @@
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
                 <small v-if="item.key !== 'patients'">
-                  Base {{ item.baseLimit }} + extra {{ item.extra }} = limite efectivo {{ item.limit }}
+                  Base {{ item.baseLimit }} + extra {{ item.extra }} = límite efectivo {{ item.limit }}
                 </small>
               </div>
             </section>
@@ -697,7 +697,7 @@
               <div class="license-overrides-header">
                 <div>
                   <strong>Extras manuales</strong>
-                  <span>Administrados solo por Super Admin. No generan cobro automatico.</span>
+                  <span>Administrados solo por Super Admin. No generan cobro automático.</span>
                 </div>
                 <v-btn small color="primary" depressed @click="openLicenseOverrideDialog">
                   <v-icon left small>mdi-plus-box-multiple-outline</v-icon>
@@ -719,15 +719,15 @@
                 </div>
               </div>
               <v-alert v-if="licenseSummary.overrides && licenseSummary.overrides.expired" type="warning" dense text class="mt-3">
-                Los extras existen, pero su vigencia ya vencio y no se suman al limite efectivo.
+                Los extras existen, pero su vigencia ya venció y no se suman al límite efectivo.
               </v-alert>
             </section>
 
             <v-alert v-if="hasExceededLicenseLimit" type="warning" dense text>
-              Este negocio supera los limites incluidos de su plan. La operacion existente no se bloquea, pero nuevas altas pueden quedar detenidas.
+              Este negocio supera los límites incluidos de su plan. La operación existente no se bloquea, pero nuevas altas pueden quedar detenidas.
               <ul class="exceeded-limit-list">
                 <li v-for="item in exceededLicenseLimitItems" :key="item.key">
-                  {{ item.label }}: {{ item.used }} usados, limite {{ item.limit }}, restante {{ item.remaining }}.
+                  {{ item.label }}: {{ item.used }} usados, límite {{ item.limit }}, restante {{ item.remaining }}.
                 </li>
               </ul>
             </v-alert>
@@ -761,7 +761,7 @@
           <div class="license-help mb-4">
             <v-icon small color="primary">mdi-information-outline</v-icon>
             <span>
-              Estos extras son manuales e informativos. No conectan pagos, no borran usuarios y no modifican datos clinicos.
+              Estos extras son manuales e informativos. No conectan pagos, no borran usuarios y no modifican datos clínicos.
             </span>
           </div>
 
@@ -842,7 +842,7 @@ const MAX_MANUAL_TRIAL_EXTENSION_DAYS = 30;
 const PLAN_LABELS = {
   basic: 'Individual',
   pro: 'Profesional',
-  enterprise: 'Clinica'
+  enterprise: 'Clínica'
 };
 
 const ALLOWED_SORTS = [
@@ -962,21 +962,21 @@ export default {
         { text: 'Todos', value: '' },
         { text: 'Individual', value: 'basic' },
         { text: 'Profesional', value: 'pro' },
-        { text: 'Clinica', value: 'enterprise' }
+        { text: 'Clínica', value: 'enterprise' }
       ],
       commercialPlanOptions: [
         { text: 'Individual', value: 'basic' },
         { text: 'Profesional', value: 'pro' },
-        { text: 'Clinica', value: 'enterprise' }
+        { text: 'Clínica', value: 'enterprise' }
       ],
       pageSizeOptions: [10, 20, 50, 100],
       headers: [
         { text: 'Nombre', value: 'name', sortable: true },
-        { text: 'Estado tecnico', value: 'status', sortable: true },
+        { text: 'Estado técnico', value: 'status', sortable: true },
         { text: 'Estado SaaS', value: 'subscription_status', sortable: true },
         { text: 'Plan', value: 'plan', sortable: true },
         { text: 'Trial vence', value: 'trial_ends_at', sortable: true },
-        { text: 'Dias restantes', value: 'trial_days_remaining', sortable: false },
+        { text: 'Días restantes', value: 'trial_days_remaining', sortable: false },
         { text: 'Operativo', value: 'is_operational', sortable: false },
         { text: 'Activo', value: 'active', sortable: true },
         { text: 'Profesionales', value: 'license_professionals', sortable: false },
@@ -984,7 +984,7 @@ export default {
         { text: 'Pacientes', value: 'license_patients', sortable: false },
         { text: 'Usuarios totales', value: 'total_users', sortable: true },
         { text: 'Usuarios activos', value: 'active_users', sortable: true },
-        { text: 'Ultima actividad', value: 'last_activity_at', sortable: true },
+        { text: 'Última actividad', value: 'last_activity_at', sortable: true },
         { text: 'Creado', value: 'created_at', sortable: true },
         { text: 'Actualizado', value: 'updated_at', sortable: true },
         { text: 'Acciones', value: 'actions', sortable: false }
@@ -1182,7 +1182,7 @@ export default {
       }
 
       if(business.email && !this.isValidEmail(business.email)) {
-        errors.push('El correo del negocio no tiene un formato valido.');
+        errors.push('El correo del negocio no tiene un formato válido.');
       }
 
       if(!['trial', 'active'].includes(business.subscriptionStatus)) {
@@ -1190,14 +1190,14 @@ export default {
       }
 
       if(!['basic', 'pro', 'enterprise'].includes(business.plan)) {
-        errors.push('Selecciona un plan valido.');
+        errors.push('Selecciona un plan válido.');
       }
 
       if(business.subscriptionStatus === 'trial') {
         const trialDays = Number(business.trialDays);
 
         if(!Number.isInteger(trialDays) || trialDays < 1 || trialDays > 365) {
-          errors.push('Los dias de prueba deben ser un entero entre 1 y 365.');
+          errors.push('Los días de prueba deben ser un entero entre 1 y 365.');
         }
       }
 
@@ -1207,27 +1207,27 @@ export default {
         }
 
         if(!adminUser.telephone || !adminUser.telephone.trim()) {
-          errors.push('El telefono de acceso del administrador es obligatorio.');
+          errors.push('El teléfono de acceso del administrador es obligatorio.');
         }
 
         if(!adminUser.email || !adminUser.email.trim()) {
           errors.push('El correo del administrador es obligatorio como dato de contacto.');
         } else if(adminUser.email.trim().length > 254 || !this.isValidEmail(adminUser.email)) {
-          errors.push('El correo del administrador no tiene un formato valido.');
+          errors.push('El correo del administrador no tiene un formato válido.');
         }
 
         if(!adminUser.password) {
-          errors.push('La contrasena temporal del administrador es obligatoria.');
+          errors.push('La contraseña temporal del administrador es obligatoria.');
         }
 
         if(adminUser.password && adminUser.password.length < 8) {
-          errors.push('La contrasena temporal debe tener al menos 8 caracteres.');
+          errors.push('La contraseña temporal debe tener al menos 8 caracteres.');
         }
 
         if(!adminUser.confirmPassword) {
-          errors.push('La confirmacion de contrasena es obligatoria.');
+          errors.push('La confirmación de contraseña es obligatoria.');
         } else if(adminUser.password !== adminUser.confirmPassword) {
-          errors.push('La confirmacion de contrasena no coincide.');
+          errors.push('La confirmación de contraseña no coincide.');
         }
 
         if(adminUser.role !== 'admin') {
@@ -1336,7 +1336,7 @@ export default {
         const createdAdmin = response.data && response.data.adminUser;
         const createdBusiness = response.data && response.data.business ? response.data.business : {};
         const licenseMessage = createdBusiness.subscription_status === 'trial'
-          ? ` Trial configurado por ${this.createForm.business.trialDays || 60} dias.`
+          ? ` Trial configurado por ${this.createForm.business.trialDays || 60} días.`
           : ' Negocio creado como activo.';
         this.showSnackbar(
           'success',
@@ -1366,7 +1366,7 @@ export default {
       }
 
       if(status === 401) {
-        this.createDialog.errors = ['Tu sesion expiro. Vuelve a iniciar sesion para continuar.'];
+        this.createDialog.errors = ['Tu sesión expiró. Vuelve a iniciar sesión para continuar.'];
         window.setTimeout(() => this.$router.push({ name: 'login' }).catch(() => {}), 1200);
         return;
       }
@@ -1451,15 +1451,15 @@ export default {
       if(!form.slug) {
         errors.push('El slug es obligatorio.');
       } else if(!this.isValidSlug(form.slug)) {
-        errors.push('El slug debe estar en minusculas, sin espacios y usar solo letras, numeros y guiones.');
+        errors.push('El slug debe estar en minusculas, sin espacios y usar solo letras, números y guiones.');
       }
 
       if(form.email && !this.isValidEmail(form.email)) {
-        errors.push('El correo del negocio no tiene un formato valido.');
+        errors.push('El correo del negocio no tiene un formato válido.');
       }
 
       if(form.phone && !this.isValidPhone(form.phone)) {
-        errors.push('El telefono debe tener entre 6 y 50 caracteres y usar solo numeros, espacios o signos telefonicos.');
+        errors.push('El teléfono debe tener entre 6 y 50 caracteres y usar solo números, espacios o signos telefónicos.');
       }
 
       if(!this.editChangedFields.length) {
@@ -1529,7 +1529,7 @@ export default {
       const status = response && Number(response.status);
 
       if(status === 401) {
-        this.editDialog.errors = ['Tu sesion expiro. Vuelve a iniciar sesion para continuar.'];
+        this.editDialog.errors = ['Tu sesión expiró. Vuelve a iniciar sesión para continuar.'];
         window.setTimeout(() => this.$router.push({ name: 'login' }).catch(() => {}), 1200);
         return;
       }
@@ -1560,10 +1560,10 @@ export default {
       const labels = {
         name: 'Nombre',
         slug: 'Slug',
-        legalName: 'Razon social',
+        legalName: 'Razón social',
         email: 'Correo',
-        phone: 'Telefono',
-        address: 'Direccion'
+        phone: 'Teléfono',
+        address: 'Dirección'
       };
 
       return labels[field] || field;
@@ -1736,7 +1736,7 @@ export default {
       const status = response && Number(response.status);
 
       if(status === 401) {
-        return 'Tu sesion expiro. Vuelve a iniciar sesion para continuar.';
+        return 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.';
       }
 
       if(status === 403) {
@@ -1758,7 +1758,7 @@ export default {
       }
 
       if(limit.limit === null || limit.limit === undefined) {
-        return limit.fairUse ? 'Ilimitados con uso razonable' : 'Sin limite configurado';
+        return limit.fairUse ? 'Ilimitados con uso razonable' : 'Sin límite configurado';
       }
 
       return `${Number(limit.used || 0)} / ${Number(limit.limit || 0)}`;
@@ -1922,21 +1922,21 @@ export default {
         change_plan: 'Cambiar plan'
       };
 
-      return titles[this.commercialDialog.type] || 'Accion comercial';
+      return titles[this.commercialDialog.type] || 'Acción comercial';
     },
 
     getCommercialDialogDescription: function() {
       const descriptions = {
-        extend_trial: 'Agrega dias al periodo de prueba. No se crean datos clinicos ni se modifica informacion de pacientes.',
-        activate: 'El negocio quedara como cliente activo y podra operar mientras tambien este tecnicamente activo.',
-        past_due: 'El negocio quedara marcado con pago pendiente. Actualmente este estado bloquea la operacion tenant.',
-        suspend: 'El tenant quedara bloqueado para operar. No se borra el negocio, no se borran usuarios y no se borran datos.',
-        reactivate: 'El negocio volvera a estado comercial activo y podra operar si tambien esta tecnicamente activo.',
-        cancel: 'El tenant quedara bloqueado comercialmente. No se borra el negocio, no se borran usuarios y no se borran datos.',
-        change_plan: 'Cambia solo el plan comercial. No modifica el estado SaaS ni el estado tecnico.'
+        extend_trial: 'Agrega días al periodo de prueba. No se crean datos clínicos ni se modifica información de pacientes.',
+        activate: 'El negocio quedará como cliente activo y podrá operar mientras también esté técnicamente activo.',
+        past_due: 'El negocio quedará marcado con pago pendiente. Actualmente este estado bloquea la operación tenant.',
+        suspend: 'El tenant quedará bloqueado para operar. No se borra el negocio, no se borran usuarios y no se borran datos.',
+        reactivate: 'El negocio volverá a estado comercial activo y podrá operar si también está técnicamente activo.',
+        cancel: 'El tenant quedará bloqueado comercialmente. No se borra el negocio, no se borran usuarios y no se borran datos.',
+        change_plan: 'Cambia solo el plan comercial. No modifica el estado SaaS ni el estado técnico.'
       };
 
-      return descriptions[this.commercialDialog.type] || 'Confirma la accion comercial.';
+      return descriptions[this.commercialDialog.type] || 'Confirma la acción comercial.';
     },
 
     getCommercialConfirmLabel: function() {
@@ -2002,18 +2002,18 @@ export default {
       }
 
       if(this.requiresReason(type) && !this.commercialForm.reason.trim()) {
-        errors.push('El motivo es obligatorio para esta accion.');
+        errors.push('El motivo es obligatorio para esta acción.');
       }
 
       if(type === 'cancel' && this.commercialForm.confirmText !== 'CANCELAR') {
-        errors.push('Debes escribir CANCELAR para confirmar la cancelacion.');
+        errors.push('Debes escribir CANCELAR para confirmar la cancelación.');
       }
 
       if(type === 'extend_trial') {
         const days = Number(this.commercialForm.days);
 
         if(!Number.isInteger(days) || days < 1 || days > MAX_MANUAL_TRIAL_EXTENSION_DAYS) {
-          errors.push(`Los dias de extension deben ser un entero entre 1 y ${MAX_MANUAL_TRIAL_EXTENSION_DAYS}.`);
+          errors.push(`Los días de extensión deben ser un entero entre 1 y ${MAX_MANUAL_TRIAL_EXTENSION_DAYS}.`);
         }
 
         if(business && business.subscription_status !== 'trial') {
@@ -2022,7 +2022,7 @@ export default {
       }
 
       if(type === 'change_plan' && !['basic', 'pro', 'enterprise'].includes(this.commercialForm.plan)) {
-        errors.push('Selecciona un plan valido.');
+        errors.push('Selecciona un plan válido.');
       }
 
       this.commercialDialog.errors = errors;
@@ -2093,20 +2093,20 @@ export default {
         change_plan: 'Plan actualizado correctamente.'
       };
 
-      return messages[type] || 'Accion comercial completada.';
+      return messages[type] || 'Acción comercial completada.';
     },
 
     handleCommercialError: function(response) {
       const status = response && Number(response.status);
 
       if(status === 401) {
-        this.commercialDialog.errors = ['Tu sesion expiro. Vuelve a iniciar sesion para continuar.'];
+        this.commercialDialog.errors = ['Tu sesión expiró. Vuelve a iniciar sesión para continuar.'];
         window.setTimeout(() => this.$router.push({ name: 'login' }).catch(() => {}), 1200);
         return;
       }
 
       if(status === 403) {
-        this.commercialDialog.errors = ['No tienes permiso para ejecutar esta accion comercial.'];
+        this.commercialDialog.errors = ['No tienes permiso para ejecutar esta acción comercial.'];
         return;
       }
 
@@ -2124,7 +2124,7 @@ export default {
 
       this.commercialDialog.errors = [response && response.message
         ? response.message
-        : 'No fue posible completar la accion comercial.'];
+        : 'No fue posible completar la acción comercial.'];
     },
 
     fetchBusinesses: async function() {
@@ -2158,13 +2158,13 @@ export default {
       const status = response && Number(response.status);
 
       if(status === 401) {
-        this.errorMessage = 'Tu sesion expiro. Vuelve a iniciar sesion para continuar.';
+        this.errorMessage = 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.';
         window.setTimeout(() => this.$router.push({ name: 'login' }).catch(() => {}), 1200);
         return;
       }
 
       if(status === 403) {
-        this.errorMessage = 'No tienes permiso para consultar la administracion global.';
+        this.errorMessage = 'No tienes permiso para consultar la administración global.';
         window.setTimeout(() => this.$router.push({ name: 'dashboard' }).catch(() => {}), 1200);
         return;
       }
@@ -2280,7 +2280,7 @@ export default {
         return 'Sin registro';
       }
 
-      return `${days} dias restantes`;
+      return `${days} días restantes`;
     },
 
     formatDate: function(value) {
@@ -2348,7 +2348,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #047857;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -2357,7 +2357,7 @@ export default {
   color: #111827;
   font-size: 1.65rem;
   line-height: 2rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -2428,13 +2428,13 @@ export default {
   background: #f9fafb;
   color: #111827;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
 .name-cell {
   color: #111827;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .plan-cell {
@@ -2486,7 +2486,7 @@ export default {
   color: #374151;
   background: #f9fafb;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .subscription-chip.is-trial {
@@ -2517,7 +2517,7 @@ export default {
 
 .trial-text {
   color: #374151;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .trial-text.is-expired {
@@ -2690,7 +2690,7 @@ export default {
   background: #d1fae5;
   border: 1px solid #6ee7b7;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   white-space: nowrap;
 }
 

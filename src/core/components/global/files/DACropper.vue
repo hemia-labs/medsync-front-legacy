@@ -1,7 +1,7 @@
 <template>
     <div>
         <div v-if="!image" class="bg-primary-100 px-5 text-primary-700 font-sans rounded-sm">
-             Selecciona un imagen para continuar
+             Selecciona una imagen para continuar
          </div>
         <small v-if="errorMessage" class="error-text">{{ errorMessage }}</small>
         <cropper
@@ -16,7 +16,7 @@
         </cropper>
         <div class="mt-2 flex gap-5 justify-center items-center">
             <v-btn
-            color="#F83D3D"
+            color="var(--color-secondary-500)"
             dark
             fab
             @click="removeFile"
@@ -24,7 +24,7 @@
             <v-icon>mdi-delete</v-icon>
            </v-btn>
            <v-btn
-            color="#E7AC18"
+            color="var(--color-primary-500)"
             dark
             fab
              @click="$refs.file.click()"
@@ -33,7 +33,7 @@
             <v-icon>mdi-cloud-upload</v-icon>
            </v-btn>
            <v-btn
-            color="green"
+            color="var(--color-success)"
             dark
             fab
             @click="save"

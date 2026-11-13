@@ -106,7 +106,7 @@ export default {
 .allergy-label {
     margin: 0;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
@@ -126,7 +126,7 @@ export default {
     border-radius: 999px;
     background: #fff;
     font-size: 0.75rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.04em;
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1);
 }

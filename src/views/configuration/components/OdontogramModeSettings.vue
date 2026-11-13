@@ -87,6 +87,6 @@ export default {
 };
 </script>
 <style scoped>
-.odontogram-mode-settings { margin-top:16px; }.odontogram-mode-settings label { display:block; }.odontogram-mode-settings select,.odontogram-mode-settings input,.odontogram-mode-settings textarea,.odontogram-mode-settings button { min-height:44px; border:1px solid var(--color-border,#d8e9ef); border-radius:6px; padding:8px; margin-top:8px; }.odontogram-mode-settings select,.odontogram-mode-settings textarea { width:100%; background:var(--color-surface,#fff); color:var(--color-text,#25364d); }.odontogram-mode-settings p { margin-top:8px; font-size:13px; }
+.odontogram-mode-settings { margin-top:16px; }.odontogram-mode-settings label { display:block; }.odontogram-mode-settings select,.odontogram-mode-settings input,.odontogram-mode-settings textarea,.odontogram-mode-settings button { min-height:44px; border:1px solid var(--color-border,#d8e9ef); border-radius:6px; padding:8px; margin-top:8px; }.odontogram-mode-settings select,.odontogram-mode-settings textarea { width:100%; background:var(--color-surface); color:var(--color-text,#25364d); }.odontogram-mode-settings p { margin-top:8px; font-size:13px; }
 .operator-steps { padding-left:20px;margin:12px 0; }.operator-steps li { margin:8px 0; }
 </style>

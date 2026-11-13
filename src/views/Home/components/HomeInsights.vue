@@ -73,10 +73,10 @@ export default {
 .insight-card:only-child { grid-column: 1 / -1; }
 .insight-symbol { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 16px; border: 1px solid #d4e7e8; border-radius: 16px; background: rgba(255, 255, 255, .8); color: #247781; }
 .insight-symbol svg { width: 42px; height: 42px; }
-.insight-eyebrow { margin: 0 0 6px; font-size: 10px; line-height: 1.5; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; color: #486b78; }
-.insight-card h2 { margin: 0; font-size: 18px; line-height: 1.4; font-weight: 750; color: inherit; }
+.insight-eyebrow { margin: 0 0 6px; font-size: 10px; line-height: 1.5; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: #486b78; }
+.insight-card h2 { margin: 0; font-size: 18px; line-height: 1.4; font-weight: 600; color: inherit; }
 .insight-description { margin: 8px 0 18px; font-size: 14px; line-height: 1.6; color: #526778; }
-.insight-link { display: inline-flex; align-items: center; justify-content: center; gap: 14px; min-height: 44px; margin-top: auto; padding: 9px 14px; border: 1px solid #bdd6db; border-radius: 11px; background: rgba(255, 255, 255, .8); color: #175b66; font-size: 13px; line-height: 1.5; font-weight: 750; text-decoration: none; }
+.insight-link { display: inline-flex; align-items: center; justify-content: center; gap: 14px; min-height: 44px; margin-top: auto; padding: 9px 14px; border: 1px solid #bdd6db; border-radius: 11px; background: rgba(255, 255, 255, .8); color: #175b66; font-size: 13px; line-height: 1.5; font-weight: 600; text-decoration: none; }
 .insight-link:hover { border-color: #71a8af; background: #e4f2f3; }
 .insight-link:focus-visible { outline: 3px solid #287588; outline-offset: 4px; }
 .theme--dark .insight-card, html[data-theme="clinical-night"] .insight-card { background: linear-gradient(120deg, #182e36, #1c283d); border-color: #384e61; color: #deedf5; }
@@ -90,7 +90,7 @@ export default {
   .insight-card { padding: 20px; }
 }
 .insight-pulse-icon { font-size: 34px !important; color: inherit !important; }
-.insight-status { margin: -6px 0 14px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.5; background: #eef2f8; color: #34475f; }
+.insight-status { margin: -6px 0 14px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.5; background: #eef2f8; color: #34475f; }
 .insight-status-priority { background: #fbe9dc; color: #8a4a1c; }
 .insight-status-attention { background: #fff3dc; color: #7a5310; }
 .insight-status-clear { background: #e5f5ee; color: #1d6b55; }

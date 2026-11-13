@@ -2,20 +2,20 @@
   <div class="sessions-page">
     <section class="intro-panel">
       <div>
-        <p class="eyebrow">Administracion global</p>
+        <p class="eyebrow">Administración global</p>
         <h1>Sesiones activas</h1>
         <span>Consulta y cierre seguro de sesiones activas del sistema.</span>
       </div>
     </section>
 
     <v-alert type="info" dense text class="info-alert">
-      El cierre de sesion invalida la sesion activa en backend. Para efecto inmediato, el backend debe operar con REQUIRE_ACTIVE_SESSION=true.
+      El cierre de sesión invalida la sesión activa en backend. Para efecto inmediato, el backend debe operar con REQUIRE_ACTIVE_SESSION=true.
     </v-alert>
 
     <section class="filters-panel" aria-label="Filtros de sesiones activas">
       <v-text-field
         v-model="filters.search"
-        label="Buscar sesion"
+        label="Buscar sesión"
         prepend-inner-icon="mdi-magnify"
         outlined
         dense
@@ -59,7 +59,7 @@
       <v-select
         v-model="pagination.pageSize"
         :items="pageSizeOptions"
-        label="Por pagina"
+        label="Por página"
         outlined
         dense
         hide-details
@@ -127,7 +127,7 @@
               <td>{{ formatDate(session.forced_at) }}</td>
               <td>{{ session.forced_by || 'Sin registro' }}</td>
               <td class="actions-cell">
-                <span v-if="isOwnSession(session)" class="own-session-chip">Sesion propia</span>
+                <span v-if="isOwnSession(session)" class="own-session-chip">Sesión propia</span>
                 <span v-else-if="!session.active" class="closed-chip">Cerrada</span>
                 <template v-else>
                   <v-btn
@@ -138,7 +138,7 @@
                     @click="openCloseSessionDialog(session)"
                   >
                     <v-icon left small>mdi-logout-variant</v-icon>
-                    Cerrar sesion
+                    Cerrar sesión
                   </v-btn>
                   <v-btn
                     small
@@ -159,7 +159,7 @@
                 <div class="empty-state">
                   <v-icon size="36">mdi-monitor-off</v-icon>
                   <strong>No hay sesiones para mostrar</strong>
-                  <span>Ajusta la busqueda o los filtros para consultar otros resultados.</span>
+                  <span>Ajusta la búsqueda o los filtros para consultar otros resultados.</span>
                 </div>
               </td>
             </tr>
@@ -168,7 +168,7 @@
       </div>
 
       <div class="pagination-bar">
-        <span>Pagina {{ pagination.page }} de {{ safeTotalPages }}</span>
+        <span>Página {{ pagination.page }} de {{ safeTotalPages }}</span>
 
         <v-pagination
           v-if="safeTotalPages > 1"
@@ -183,7 +183,7 @@
 
     <v-dialog v-model="closeSessionDialog.show" max-width="560">
       <v-card>
-        <v-card-title>Cerrar sesion activa</v-card-title>
+        <v-card-title>Cerrar sesión activa</v-card-title>
         <v-card-text>
           <div class="confirm-summary">
             <strong>{{ getUserName(closeSessionDialog.session) }}</strong>
@@ -191,7 +191,7 @@
             <span>{{ getBusinessName(closeSessionDialog.session) }}</span>
           </div>
           <p class="confirm-message">
-            Esta accion cerrara la sesion activa del usuario. Si el backend esta con REQUIRE_ACTIVE_SESSION=true, el access token dejara de funcionar inmediatamente.
+            Esta acción cerrará la sesión activa del usuario. Si el backend está con REQUIRE_ACTIVE_SESSION=true, el access token dejará de funcionar inmediatamente.
           </p>
         </v-card-text>
         <v-card-actions>
@@ -214,7 +214,7 @@
             <span>{{ getBusinessName(closeUserDialog.session) }}</span>
           </div>
           <p class="confirm-message">
-            Esta accion cerrara todas las sesiones activas de este usuario e invalidara sus refresh tokens activos. El usuario tendra que iniciar sesion nuevamente.
+            Esta acción cerrará todas las sesiones activas de este usuario e invalidará sus refresh tokens activos. El usuario tendrá que iniciar sesión nuevamente.
           </p>
           <v-text-field
             v-model="closeUserDialog.confirmText"
@@ -318,7 +318,7 @@ export default {
         { text: 'Rol', value: 'role', sortable: true },
         { text: 'Negocio', value: 'business_name', sortable: true },
         { text: 'Activa', value: 'active', sortable: true },
-        { text: 'Ultima', value: 'last', sortable: true },
+        { text: 'Última', value: 'last', sortable: true },
         { text: 'Inicio', value: 'created_at', sortable: true },
         { text: 'Actualizacion', value: 'updated_at', sortable: true },
         { text: 'Cierre forzado', value: 'forced_at', sortable: false },
@@ -434,17 +434,17 @@ export default {
       const status = response && Number(response.status);
 
       if(status === 401) {
-        this.errorMessage = 'Tu sesion expiro. Vuelve a iniciar sesion para continuar.';
+        this.errorMessage = 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.';
         return;
       }
 
       if(status === 403) {
-        this.errorMessage = 'No tienes permiso para realizar esta accion o consultar esta informacion.';
+        this.errorMessage = 'No tienes permiso para realizar esta acción o consultar esta información.';
         return;
       }
 
       if(status === 404) {
-        this.errorMessage = 'La sesion o usuario solicitado ya no esta disponible.';
+        this.errorMessage = 'La sesión o usuario solicitado ya no está disponible.';
         return;
       }
 
@@ -455,21 +455,21 @@ export default {
       const status = response && Number(response.status);
 
       if(status === 401) {
-        this.showSnackbar('error', 'Tu sesion expiro. Vuelve a iniciar sesion para continuar.');
+        this.showSnackbar('error', 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.');
         return;
       }
 
       if(status === 403) {
-        this.showSnackbar('error', 'No puedes cerrar tu propia sesion desde este modulo o no tienes permiso para esta accion.');
+        this.showSnackbar('error', 'No puedes cerrar tu propia sesión desde este módulo o no tienes permiso para esta acción.');
         return;
       }
 
       if(status === 404) {
-        this.showSnackbar('error', 'La sesion o usuario ya no esta disponible.');
+        this.showSnackbar('error', 'La sesión o usuario ya no está disponible.');
         return;
       }
 
-      this.showSnackbar('error', 'No fue posible cerrar la sesion. Intenta nuevamente.');
+      this.showSnackbar('error', 'No fue posible cerrar la sesión. Intenta nuevamente.');
     },
 
     openCloseSessionDialog: function(session) {
@@ -505,7 +505,7 @@ export default {
       const response = await DASuperAdminService.closeSession(session.id_session);
 
       if(response && response.success) {
-        this.showSnackbar('success', 'Sesion cerrada correctamente.');
+        this.showSnackbar('success', 'Sesión cerrada correctamente.');
         this.resetDialogs();
         await this.fetchSessions();
       } else {
@@ -686,7 +686,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #047857;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -695,7 +695,7 @@ export default {
   color: #111827;
   font-size: 1.65rem;
   line-height: 2rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -766,13 +766,13 @@ export default {
   background: #f9fafb;
   color: #111827;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
 .name-cell {
   color: #111827;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .actions-cell {
@@ -808,7 +808,7 @@ export default {
   color: #374151;
   background: #f9fafb;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .state-chip.is-active,

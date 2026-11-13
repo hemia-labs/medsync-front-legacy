@@ -1611,7 +1611,7 @@ export default {
   margin: 0 0 0.2rem;
   color: var(--color-primary-900);
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -1620,7 +1620,7 @@ export default {
   margin: 0;
   color: #334155;
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .monitoring-intro p:last-child {
@@ -1660,7 +1660,7 @@ export default {
   margin: 0;
   color: #334155;
   font-size: 0.98rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -1683,7 +1683,7 @@ export default {
   background: #ffffff;
   color: #475569;
   font-size: 0.76rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1;
   transition: transform 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
@@ -1700,8 +1700,8 @@ export default {
 .appointment-history-refresh:hover,
 .appointment-history-more:hover {
   transform: translateY(-1px);
-  border-color: var(--color-primary-300, #a6e1f0);
-  color: var(--color-primary-900, #086783);
+  border-color: var(--color-primary-300);
+  color: var(--color-primary-900);
 }
 
 .appointment-history-refresh:disabled,
@@ -1727,11 +1727,11 @@ export default {
 
 .appointment-history-state strong {
   color: #334155;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .appointment-history-state .v-icon {
-  color: var(--color-primary-700, #1497bd);
+  color: var(--color-primary-700);
 }
 
 .appointment-history-state--error .v-icon,
@@ -1752,20 +1752,20 @@ export default {
 .appointment-history-next span {
   color: #166534;
   font-size: 0.7rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
 .appointment-history-next strong {
   color: #12313a;
   font-size: 0.92rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .appointment-history-next small {
   color: #475569;
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .appointment-history-table-wrap {
@@ -1785,7 +1785,7 @@ export default {
   color: #64748b;
   background: #ffffff;
   font-size: 0.7rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   text-align: left;
   text-transform: uppercase;
@@ -1812,14 +1812,14 @@ export default {
 
 .appointment-history-table td strong {
   color: #12313a;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .appointment-history-table td small {
   margin-top: 0.18rem;
   color: #64748b;
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2rem;
 }
 
@@ -1831,7 +1831,7 @@ export default {
   border: 1px solid;
   border-radius: 999px;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
 }
@@ -1841,7 +1841,7 @@ export default {
   margin-top: 0.32rem;
   color: #166534 !important;
   font-size: 0.68rem !important;
-  font-weight: 900 !important;
+  font-weight: 600 !important;
   text-transform: uppercase;
 }
 
@@ -1868,11 +1868,11 @@ export default {
 
 .monitoring-table th {
   padding: 0.95rem 1rem;
-  border-bottom: 1px solid var(--color-primary-200, #cdeef7);
-  color: var(--color-primary-900, #086783);
-  background: var(--color-primary-100, #e6f7fb);
+  border-bottom: 1px solid var(--color-primary-200);
+  color: var(--color-primary-900);
+  background: var(--color-primary-100);
   font-size: 0.74rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1rem;
   text-align: left;
@@ -1919,8 +1919,8 @@ export default {
   width: 2.45rem;
   height: 2.45rem;
   border-radius: 8px;
-  color: var(--color-primary-900, #086783);
-  background: var(--color-primary-100, #e6f7fb);
+  color: var(--color-primary-900);
+  background: var(--color-primary-100);
 }
 
 .monitoring-date-icon .v-icon {
@@ -1932,7 +1932,7 @@ export default {
 .monitoring-mobile-head strong {
   display: block;
   color: #12313a;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -1943,7 +1943,7 @@ export default {
   margin-top: 0.12rem;
   color: #64748b;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.15rem;
 }
 
@@ -1966,7 +1966,7 @@ export default {
   padding: 0 0.75rem;
   border-radius: 999px;
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .monitoring-pill {
@@ -1999,12 +1999,12 @@ export default {
 }
 
 .monitoring-empty-state .v-icon {
-  color: var(--color-primary-700, #1497bd);
+  color: var(--color-primary-700);
 }
 
 .monitoring-empty-state strong {
   color: #12313a;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .monitoring-empty-state p {
@@ -2022,9 +2022,9 @@ export default {
   border-radius: 8px;
 }
 
-.monitoring-treatment-toggle { margin-bottom: 8px; padding: 7px 4px; color: var(--color-primary-900, #086783); font-weight: 600; font-size: .82rem; }
+.monitoring-treatment-toggle { margin-bottom: 8px; padding: 7px 4px; color: var(--color-primary-900); font-weight: 600; font-size: .82rem; }
 .monitoring-dialog-header > .v-btn { color: var(--color-text-muted, #64748b); flex-shrink: 0; }
-.monitoring-dialog-card button:focus-visible { outline: 3px solid var(--color-primary-500, #0e7490); outline-offset: 3px; }
+.monitoring-dialog-card button:focus-visible { outline: 3px solid var(--color-primary-500); outline-offset: 3px; }
 
 .monitoring-dialog-card {
   overflow: hidden;
@@ -2041,7 +2041,7 @@ export default {
   gap: 1rem;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--color-border, #d8e9ef);
-  background: linear-gradient(180deg, var(--color-primary-100, #e6f7fb), #ffffff);
+  background: linear-gradient(180deg, var(--color-primary-100), #ffffff);
 }
 
 .monitoring-dialog-header > div:first-child {
@@ -2053,7 +2053,7 @@ export default {
   margin: 0;
   color: #12313a;
   font-size: 1.1rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.35;
 }
 
@@ -2061,9 +2061,9 @@ export default {
   content: 'Seguimiento clinico';
   display: block;
   margin-bottom: 0.18rem;
-  color: var(--color-primary-900, #086783);
+  color: var(--color-primary-900);
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -2072,7 +2072,7 @@ export default {
   margin: 0;
   color: #12313a;
   font-size: 1.12rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -2108,9 +2108,9 @@ export default {
 
 .monitoring-dialog-kicker::after {
   content: 'Seguimiento clinico';
-  color: var(--color-primary-900, #086783);
+  color: var(--color-primary-900);
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -2147,7 +2147,7 @@ export default {
 .monitoring-dialog-close:hover {
   transform: translateY(-1px);
   border-color: rgba(20, 151, 189, 0.35);
-  color: var(--color-primary-700, #1497bd);
+  color: var(--color-primary-700);
 }
 
 .monitoring-dialog-body {
@@ -2172,12 +2172,12 @@ export default {
   align-items: center;
   min-height: 2rem;
   padding: 0.25rem 0.7rem;
-  border: 1px solid var(--color-primary-200, #bdebf5);
+  border: 1px solid var(--color-primary-200);
   border-radius: 999px;
   background: var(--color-primary-50, #eef9fc);
-  color: var(--color-primary-900, #086783) !important;
+  color: var(--color-primary-900) !important;
   font-size: 0.76rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .monitoring-dialog-body::v-deep .v-input {
@@ -2207,7 +2207,7 @@ export default {
 .monitoring-schedule-panel > div:first-child p:first-child {
   color: #12313a !important;
   font-size: 0.92rem;
-  font-weight: 900 !important;
+  font-weight: 600 !important;
 }
 
 .monitoring-schedule-panel > div:first-child p:last-child {
@@ -2260,7 +2260,7 @@ export default {
   gap: 0.4rem;
   border: 1px solid transparent;
   border-radius: 999px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.03em;
   line-height: 1;
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1);
@@ -2392,14 +2392,14 @@ export default {
 
   .appointment-history-mobile-head strong {
     color: #12313a;
-    font-weight: 900;
+    font-weight: 600;
   }
 
   .appointment-history-mobile-head small {
     margin-top: 0.15rem;
     color: #64748b;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .appointment-history-mobile-meta {
@@ -2416,7 +2416,7 @@ export default {
     margin: 0 0 0.15rem;
     color: #64748b;
     font-size: 0.7rem;
-    font-weight: 900;
+    font-weight: 600;
     text-transform: uppercase;
   }
 
@@ -2425,7 +2425,7 @@ export default {
     margin: 0;
     color: #12313a;
     font-size: 0.84rem;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1.25rem;
   }
 
@@ -2467,7 +2467,7 @@ export default {
     margin: 0 0 0.25rem;
     color: #64748b;
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: 600;
     text-transform: uppercase;
   }
 
@@ -2476,7 +2476,7 @@ export default {
     margin: 0;
     color: #12313a;
     font-size: 0.86rem;
-    font-weight: 800;
+    font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -2490,7 +2490,7 @@ export default {
   .monitoring-mobile-note {
     margin: 0;
     padding: 0.75rem;
-    border-left: 3px solid var(--color-primary-300, #a6e1f0);
+    border-left: 3px solid var(--color-primary-300);
     color: #475569;
     background: #fbfdfe;
     font-size: 0.86rem;

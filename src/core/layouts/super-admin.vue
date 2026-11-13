@@ -6,7 +6,7 @@
         <h1>Super Admin</h1>
       </div>
 
-      <nav class="nav-list" aria-label="Menu Super Admin">
+      <nav class="nav-list" aria-label="Menú Super Admin">
         <button
           v-for="item in menuItems"
           :key="item.key"
@@ -23,14 +23,14 @@
 
       <button type="button" class="logout-button" @click="onLogout">
         <v-icon size="20">mdi-logout</v-icon>
-        <span>Cerrar sesion</span>
+        <span>Cerrar sesión</span>
       </button>
     </aside>
 
     <main class="super-admin-main">
       <header class="super-admin-header">
         <div>
-          <p class="header-kicker">Administracion global</p>
+          <p class="header-kicker">Administración global</p>
           <h2>{{ pageTitle }}</h2>
         </div>
         <div class="session-pill">
@@ -68,7 +68,7 @@ export default {
         { key: 'users', label: 'Usuarios', icon: 'mdi-account-group-outline', route: 'superAdminUsers' },
         { key: 'sessions', label: 'Sesiones activas', icon: 'mdi-monitor-account', route: 'superAdminSessions' },
         { key: 'legal-documents', label: 'Documentos legales', icon: 'mdi-file-document-edit-outline', route: 'superAdminLegalDocuments' },
-        { key: 'audit', label: 'Auditoria', icon: 'mdi-clipboard-search-outline', route: 'superAdminAudit' }
+        { key: 'audit', label: 'Auditoría', icon: 'mdi-clipboard-search-outline', route: 'superAdminAudit' }
       ]
     };
   },
@@ -151,13 +151,13 @@ export default {
   line-height: 1rem;
   text-transform: uppercase;
   color: #6ee7b7;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .brand-block h1,
 .super-admin-header h2 {
   margin: 0;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
 }
 

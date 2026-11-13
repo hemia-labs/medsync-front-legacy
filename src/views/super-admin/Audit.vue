@@ -2,8 +2,8 @@
   <div class="audit-page">
     <section class="intro-panel">
       <div>
-        <p class="eyebrow">Administracion global</p>
-        <h1>Auditoria administrativa</h1>
+        <p class="eyebrow">Administración global</p>
+        <h1>Auditoría administrativa</h1>
         <span>Consulta acciones realizadas por Super Admin sobre negocios, usuarios y sesiones.</span>
       </div>
 
@@ -13,7 +13,7 @@
       </v-btn>
     </section>
 
-    <section class="filters-panel" aria-label="Filtros de auditoria">
+    <section class="filters-panel" aria-label="Filtros de auditoría">
       <v-text-field
         v-model="filters.search"
         label="Buscar"
@@ -29,7 +29,7 @@
       <v-select
         v-model="filters.action"
         :items="actionOptions"
-        label="Accion"
+        label="Acción"
         outlined
         dense
         hide-details
@@ -81,7 +81,7 @@
       <v-select
         v-model="pagination.limit"
         :items="limitOptions"
-        label="Por pagina"
+        label="Por página"
         outlined
         dense
         hide-details
@@ -94,7 +94,7 @@
       </v-btn>
     </section>
 
-    <section class="table-panel" aria-label="Listado paginado de auditoria">
+    <section class="table-panel" aria-label="Listado paginado de auditoría">
       <div class="table-toolbar">
         <div>
           <strong>{{ pagination.total }}</strong>
@@ -117,7 +117,7 @@
           <thead>
             <tr>
               <th>Fecha</th>
-              <th>Accion</th>
+              <th>Acción</th>
               <th>Actor</th>
               <th>Negocio</th>
               <th>Usuario objetivo</th>
@@ -156,7 +156,7 @@
                 <div class="empty-state">
                   <v-icon size="36">mdi-clipboard-search-outline</v-icon>
                   <strong>No hay eventos para mostrar</strong>
-                  <span>Ajusta la busqueda o filtros para consultar otros resultados.</span>
+                  <span>Ajusta la búsqueda o filtros para consultar otros resultados.</span>
                 </div>
               </td>
             </tr>
@@ -165,7 +165,7 @@
       </div>
 
       <div class="pagination-bar">
-        <span>Pagina {{ pagination.page }} de {{ safeTotalPages }}</span>
+        <span>Página {{ pagination.page }} de {{ safeTotalPages }}</span>
 
         <v-pagination
           v-if="safeTotalPages > 1"
@@ -246,11 +246,11 @@ const ACTION_LABELS = {
   SUPER_ADMIN_BUSINESS_PLAN_CHANGE: 'Plan actualizado',
   SUPER_ADMIN_TRIAL_EXPIRED_TO_PAST_DUE: 'Trial vencido a pago pendiente',
   SUPER_ADMIN_LICENSE_OVERRIDES_UPDATE: 'Extras de licencia actualizados',
-  LICENSE_LIMIT_BLOCKED: 'Limite de licencia bloqueo una alta',
+  LICENSE_LIMIT_BLOCKED: 'Límite de licencia bloqueó una alta',
   PLAN_FEATURE_BLOCKED: 'Funcionalidad no incluida bloqueada',
   ROLE_PERMISSIONS_UPDATE: 'Permisos de rol actualizados',
   ROLE_PERMISSIONS_BLOCKED: 'Permisos de rol bloqueados',
-  SUPER_ADMIN_SESSION_CLOSE: 'Sesion cerrada',
+  SUPER_ADMIN_SESSION_CLOSE: 'Sesión cerrada',
   SUPER_ADMIN_USER_SESSIONS_CLOSE: 'Sesiones de usuario cerradas'
 };
 
@@ -396,13 +396,13 @@ export default {
       const status = response && Number(response.status);
 
       if(status === 401) {
-        this.errorMessage = 'Tu sesion expiro. Vuelve a iniciar sesion para continuar.';
+        this.errorMessage = 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.';
         window.setTimeout(() => this.$router.push({ name: 'login' }).catch(() => {}), 1200);
         return;
       }
 
       if(status === 403) {
-        this.errorMessage = 'No tienes permiso para consultar auditoria administrativa.';
+        this.errorMessage = 'No tienes permiso para consultar auditoría administrativa.';
         window.setTimeout(() => this.$router.push({ name: 'dashboard' }).catch(() => {}), 1200);
         return;
       }
@@ -414,7 +414,7 @@ export default {
 
       this.errorMessage = response && response.message
         ? response.message
-        : 'No fue posible cargar la auditoria administrativa.';
+        : 'No fue posible cargar la auditoría administrativa.';
     },
 
     onSearchInput: function() {
@@ -471,7 +471,7 @@ export default {
     },
 
     getActionLabel: function(action) {
-      return ACTION_LABELS[action] || action || 'Accion desconocida';
+      return ACTION_LABELS[action] || action || 'Acción desconocida';
     },
 
     getActionChipClass: function(action) {
@@ -506,7 +506,7 @@ export default {
       }
 
       if(metadata.days) {
-        return `Extension: ${metadata.days} dias`;
+        return `Extensión: ${metadata.days} días`;
       }
 
       if(metadata.reason) {
@@ -595,7 +595,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #047857;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -604,7 +604,7 @@ export default {
   color: #111827;
   font-size: 1.65rem;
   line-height: 2rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -671,7 +671,7 @@ export default {
   background: #f9fafb;
   color: #111827;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -695,7 +695,7 @@ export default {
   color: #1d4ed8;
   background: #eff6ff;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 

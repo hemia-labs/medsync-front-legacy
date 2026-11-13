@@ -2,10 +2,10 @@
   <div class="super-dashboard">
     <section class="intro-panel">
       <div>
-        <p class="eyebrow">Administracion global</p>
+        <p class="eyebrow">Administración global</p>
         <h1>Dashboard Super Admin</h1>
         <router-link :to="{ name: 'superAdminOdontogramAliases' }">Administrar abreviaturas dentales globales</router-link>
-        <span>Resumen operativo del sistema SaaS con metricas agregadas y sin datos clinicos privados.</span>
+        <span>Resumen operativo del sistema SaaS con metricas agregadas y sin datos clínicos privados.</span>
         <small>{{ rangeLabel }}</small>
       </div>
 
@@ -89,7 +89,7 @@
         <article class="job-card">
           <span>Job de trial</span>
           <strong>{{ saasJobsStatus.trialExpirationJobEnabled ? 'Activo' : 'Inactivo' }}</strong>
-          <small>Controla deteccion y conversion de trials vencidos.</small>
+          <small>Controla detección y conversión de trials vencidos.</small>
         </article>
         <article class="job-card">
           <span>Modo</span>
@@ -104,12 +104,12 @@
         <article class="job-card">
           <span>Por vencer</span>
           <strong>{{ formatNumber(saasJobsStatus.trialsExpiringSoon) }}</strong>
-          <small>Ventana: {{ formatNumber(saasJobsStatus.expiringSoonDays) }} dias.</small>
+          <small>Ventana: {{ formatNumber(saasJobsStatus.expiringSoonDays) }} días.</small>
         </article>
       </div>
 
       <div v-if="lastDryRun" class="dry-run-summary">
-        <strong>Ultimo dry-run</strong>
+        <strong>Último dry-run</strong>
         <span>
           Vencidos: {{ formatNumber(lastDryRun.expiredTrials) }}.
           Por vencer: {{ formatNumber(lastDryRun.trialsExpiringSoon) }}.
@@ -152,9 +152,9 @@
       <div class="section-heading">
         <div>
           <p class="eyebrow">Uso agregado del sistema</p>
-          <h2>Conteos clinicos agregados</h2>
+          <h2>Conteos clínicos agregados</h2>
         </div>
-        <span class="privacy-note">Solo conteos, sin detalle clinico.</span>
+        <span class="privacy-note">Solo conteos, sin detalle clínico.</span>
       </div>
 
       <div class="compact-grid">
@@ -218,8 +218,8 @@
               <th>Pacientes</th>
               <th>Citas</th>
               <th>Recetas</th>
-              <th>Historias clinicas</th>
-              <th>Ultima actividad</th>
+              <th>Historias clínicas</th>
+              <th>Última actividad</th>
             </tr>
           </thead>
           <tbody>
@@ -253,7 +253,7 @@
       <div class="section-heading">
         <div>
           <p class="eyebrow">Alertas operativas</p>
-          <h2>Riesgos de operacion</h2>
+          <h2>Riesgos de operación</h2>
         </div>
       </div>
 
@@ -324,7 +324,7 @@ export default {
 
   computed: {
     rangeLabel: function() {
-      const from = this.appliedFilters.from || 'ultimos 30 dias';
+      const from = this.appliedFilters.from || 'últimos 30 días';
       const to = this.appliedFilters.to || 'hoy';
       const business = this.selectedBusinessName;
 
@@ -348,13 +348,13 @@ export default {
       const totals = this.summary.totals || {};
       return [
         { key: 'businesses', title: 'Total negocios', value: totals.businesses, description: 'Negocios registrados', icon: 'mdi-domain', tone: 'tone-green' },
-        { key: 'activeBusinesses', title: 'Negocios activos', value: totals.activeBusinesses, description: 'Operacion habilitada', icon: 'mdi-store-check-outline', tone: 'tone-blue' },
+        { key: 'activeBusinesses', title: 'Negocios activos', value: totals.activeBusinesses, description: 'Operación habilitada', icon: 'mdi-store-check-outline', tone: 'tone-blue' },
         { key: 'inactiveBusinesses', title: 'Negocios inactivos', value: totals.inactiveBusinesses, description: 'Sin actividad operativa', icon: 'mdi-store-off-outline', tone: 'tone-gray' },
         { key: 'suspendedBusinesses', title: 'Suspendidos', value: totals.suspendedBusinesses, description: 'Requieren seguimiento', icon: 'mdi-store-alert-outline', tone: 'tone-red' },
         { key: 'trialBusinesses', title: 'Negocios en prueba', value: totals.trialBusinesses, description: 'Trial comercial', icon: 'mdi-timer-sand', tone: 'tone-blue' },
-        { key: 'activeSubscriptionBusinesses', title: 'Clientes activos', value: totals.activeSubscriptionBusinesses, description: 'Suscripcion activa', icon: 'mdi-handshake-outline', tone: 'tone-green' },
+        { key: 'activeSubscriptionBusinesses', title: 'Clientes activos', value: totals.activeSubscriptionBusinesses, description: 'Suscripción activa', icon: 'mdi-handshake-outline', tone: 'tone-green' },
         { key: 'expiredTrials', title: 'Trials vencidos', value: totals.expiredTrials, description: 'Acceso tenant bloqueable', icon: 'mdi-calendar-alert', tone: 'tone-red' },
-        { key: 'trialsExpiringSoon', title: 'Trials por vencer', value: totals.trialsExpiringSoon, description: 'Vencen en 7 dias', icon: 'mdi-calendar-clock', tone: 'tone-amber' },
+        { key: 'trialsExpiringSoon', title: 'Trials por vencer', value: totals.trialsExpiringSoon, description: 'Vencen en 7 días', icon: 'mdi-calendar-clock', tone: 'tone-amber' },
         { key: 'pastDueBusinesses', title: 'Pago pendiente', value: totals.pastDueBusinesses, description: 'Estado past_due', icon: 'mdi-credit-card-clock-outline', tone: 'tone-amber' },
         { key: 'suspendedSubscriptionBusinesses', title: 'Suspendidos SaaS', value: totals.suspendedSubscriptionBusinesses, description: 'Estado comercial suspendido', icon: 'mdi-pause-octagon-outline', tone: 'tone-red' },
         { key: 'cancelledBusinesses', title: 'Cancelados', value: totals.cancelledBusinesses, description: 'Estado comercial cancelado', icon: 'mdi-cancel', tone: 'tone-gray' },
@@ -371,7 +371,7 @@ export default {
         { key: 'newBusinesses', title: 'Nuevos negocios', value: recent.newBusinesses, description: 'Creados en el rango' },
         { key: 'newTrialBusinesses', title: 'Nuevos trials', value: recent.newTrialBusinesses, description: 'Pruebas creadas en el rango' },
         { key: 'newActiveSubscriptionBusinesses', title: 'Nuevos activos SaaS', value: recent.newActiveSubscriptionBusinesses, description: 'Clientes activos creados en el rango' },
-        { key: 'convertedToActive', title: 'Conversiones a activo', value: recent.convertedToActive, description: 'Requiere historico comercial' },
+        { key: 'convertedToActive', title: 'Conversiones a activo', value: recent.convertedToActive, description: 'Requiere histórico comercial' },
         { key: 'newUsers', title: 'Nuevos usuarios', value: recent.newUsers, description: 'Cuentas creadas en el rango' },
         { key: 'businessesWithoutRecentActivity', title: 'Sin actividad reciente', value: recent.businessesWithoutRecentActivity, description: 'Negocios que requieren seguimiento' }
       ];
@@ -383,7 +383,7 @@ export default {
         { key: 'patientsCreated', title: 'Pacientes creados', value: usage.patientsCreated, description: 'Conteo agregado' },
         { key: 'appointmentsCreated', title: 'Citas creadas', value: usage.appointmentsCreated, description: 'Conteo agregado' },
         { key: 'prescriptionsCreated', title: 'Recetas creadas', value: usage.prescriptionsCreated, description: 'Conteo agregado' },
-        { key: 'clinicalHistoriesCreated', title: 'Historias clinicas creadas', value: usage.clinicalHistoriesCreated, description: 'Conteo agregado' }
+        { key: 'clinicalHistoriesCreated', title: 'Historias clínicas creadas', value: usage.clinicalHistoriesCreated, description: 'Conteo agregado' }
       ];
     },
 
@@ -395,7 +395,7 @@ export default {
         { key: 'patients', title: 'Pacientes' },
         { key: 'appointments', title: 'Citas' },
         { key: 'prescriptions', title: 'Recetas' },
-        { key: 'clinicalHistories', title: 'Historias clinicas' }
+        { key: 'clinicalHistories', title: 'Historias clínicas' }
       ];
 
       return labels
@@ -428,10 +428,10 @@ export default {
       const alerts = this.summary.alerts || {};
       return [
         { key: 'businessesWithoutAdmin', title: 'Negocios sin admin', value: Number(alerts.businessesWithoutAdmin || 0) },
-        { key: 'businessesWithoutActivityLast30Days', title: 'Sin actividad ultimos 30 dias', value: Number(alerts.businessesWithoutActivityLast30Days || 0) },
+        { key: 'businessesWithoutActivityLast30Days', title: 'Sin actividad últimos 30 días', value: Number(alerts.businessesWithoutActivityLast30Days || 0) },
         { key: 'lockedUsers', title: 'Usuarios bloqueados', value: Number(alerts.lockedUsers || 0) },
         { key: 'expiredTrials', title: 'Trials vencidos', value: Number(alerts.expiredTrials || 0) },
-        { key: 'trialsExpiringNext7Days', title: 'Trials por vencer en 7 dias', value: Number(alerts.trialsExpiringNext7Days || 0) },
+        { key: 'trialsExpiringNext7Days', title: 'Trials por vencer en 7 días', value: Number(alerts.trialsExpiringNext7Days || 0) },
         { key: 'suspendedBusinesses', title: 'Negocios suspendidos', value: Number(alerts.suspendedBusinesses || 0) },
         { key: 'pastDueBusinesses', title: 'Negocios con pago pendiente', value: Number(alerts.pastDueBusinesses || 0) },
         { key: 'cancelledBusinesses', title: 'Negocios cancelados', value: Number(alerts.cancelledBusinesses || 0) }
@@ -579,7 +579,7 @@ export default {
       const status = response && Number(response.status);
 
       if(status === 401) {
-        this.errorMessage = 'Tu sesion expiro. Vuelve a iniciar sesion para continuar.';
+        this.errorMessage = 'Tu sesión expiró. Vuelve a iniciar sesión para continuar.';
         return;
       }
 
@@ -640,7 +640,7 @@ export default {
       const days = Number(business.trial_days_remaining);
 
       if(Number.isFinite(days)) {
-        return `${days} dias restantes`;
+        return `${days} días restantes`;
       }
 
       return this.formatDate(business.trial_ends_at);
@@ -695,7 +695,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #047857;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -703,7 +703,7 @@ export default {
 .section-heading h2 {
   margin: 0;
   color: #111827;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -815,7 +815,7 @@ export default {
   margin: 0;
   color: #6b7280;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -825,7 +825,7 @@ export default {
   color: #111827;
   font-size: 1.75rem;
   line-height: 2.1rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .metric-card span,
@@ -857,7 +857,7 @@ export default {
 .privacy-note {
   color: #047857;
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .compact-grid,
@@ -888,14 +888,14 @@ export default {
   color: #111827;
   font-size: 1.5rem;
   line-height: 1.9rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .job-card span {
   margin: 0;
   color: #6b7280;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -994,13 +994,13 @@ export default {
   background: #f9fafb;
   color: #111827;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
 .name-cell {
   color: #111827;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .subscription-chip {
@@ -1012,7 +1012,7 @@ export default {
   color: #374151;
   background: #f9fafb;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .subscription-chip.is-trial {
@@ -1053,7 +1053,7 @@ export default {
   color: #111827;
   font-size: 1.35rem;
   line-height: 1.7rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .alert-card.has-alert {

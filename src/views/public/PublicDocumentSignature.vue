@@ -340,7 +340,7 @@ export default {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  font-weight: 800;
+  font-weight: 600;
   color: #1b6b6f;
 }
 
@@ -360,7 +360,7 @@ export default {
   margin: 2px 0;
   font-size: 22px;
   line-height: 1.2;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .public-signature-header span {
@@ -438,7 +438,7 @@ export default {
 .form-header p {
   margin: 0;
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .form-header span {
@@ -474,7 +474,7 @@ export default {
 .privacy-brief a {
   color: #145f63;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -506,7 +506,7 @@ export default {
   min-height: 44px;
   border-radius: 8px;
   border: 1px solid transparent;
-  font-weight: 700;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -543,7 +543,7 @@ export default {
 .public-signature-state h1 {
   margin: 0;
   font-size: 24px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .public-signature-state p {

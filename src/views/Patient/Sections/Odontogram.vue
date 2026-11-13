@@ -31,7 +31,7 @@
 
     <div v-if="feedback && !loadError" class="odontogram-feedback" role="status"><v-icon size="18">mdi-check-circle-outline</v-icon><span>{{ feedback }}</span></div>
     <section v-if="loading" class="odontogram-empty" role="status">
-      <v-progress-circular indeterminate size="28" width="3" color="var(--color-primary-700, #0e7490)"></v-progress-circular>
+      <v-progress-circular indeterminate size="28" width="3" color="var(--color-primary-700)"></v-progress-circular>
       <p>Cargando odontograma…</p>
     </section>
     <section v-else-if="loadError" class="odontogram-empty odontogram-error" role="alert">
@@ -51,7 +51,7 @@
       <odontogram-clinical-chart :key="patientId + ':' + id_odontogram" :teeth="odontogram" :busy="saving || sectionBusy" @edit="onEditOdontogramTreatment" />
       <div class="odontogram-record-header">
         <div><h3>Regiones dentales</h3><p>{{ activeDentition }}<span v-if="activeDentition"> · </span>{{ diagnosedCount }} de {{ odontogram.length }} con diagnóstico</p></div>
-        <v-text-field v-model="search" class="odontogram-search" label="Buscar región o diagnóstico" prepend-inner-icon="mdi-magnify" outlined dense hide-details clearable :color="'var(--color-primary-700, #0e7490)'"></v-text-field>
+        <v-text-field v-model="search" class="odontogram-search" label="Buscar región o diagnóstico" prepend-inner-icon="mdi-magnify" outlined dense hide-details clearable :color="'var(--color-primary-700)'"></v-text-field>
       </div>
       <div v-if="filteredOdontogram.length" class="odontogram-table-wrap">
         <table class="odontogram-table">
@@ -294,32 +294,32 @@ export default {
 </script>
 
 <style scoped>
-.odontogram-preview-entry { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 20px; margin-bottom: 18px; border: 1px dashed var(--color-primary-500, #0e7490); border-radius: 12px; background: var(--color-surface, #fff); }
+.odontogram-preview-entry { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 20px; margin-bottom: 18px; border: 1px dashed var(--color-primary-500); border-radius: 12px; background: var(--color-surface); }
 .odontogram-preview-entry strong { font-size: 13px; }
 .odontogram-preview-entry p { font-size: 12px; margin: 5px 0 0; color: var(--color-text-muted, #64748b); }
 .patient-odontogram { padding: 20px; color: var(--color-text, #25364d); }
-.odontogram-hero, .odontogram-record, .odontogram-empty { border: 1px solid var(--color-border, #d8e9ef); border-radius: 12px; background: var(--color-surface, #fff); }
+.odontogram-hero, .odontogram-record, .odontogram-empty { border: 1px solid var(--color-border, #d8e9ef); border-radius: 12px; background: var(--color-surface); }
 .odontogram-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 22px 24px; margin-bottom: 18px; }
 .odontogram-heading { min-width: 0; }
-.odontogram-eyebrow { margin: 0 0 7px; color: var(--color-primary-900, #086783); text-transform: uppercase; font-size: 11px; font-weight: 700; letter-spacing: .09em; }
+.odontogram-eyebrow { margin: 0 0 7px; color: var(--color-primary-900); text-transform: uppercase; font-size: 11px; font-weight: 600; letter-spacing: .09em; }
 .odontogram-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.odontogram-title-row h2 { margin: 0; font-size: 23px; font-weight: 700; line-height: 1.3; color: var(--color-text, #25364d); }
+.odontogram-title-row h2 { margin: 0; font-size: 23px; font-weight: 600; line-height: 1.3; color: var(--color-text, #25364d); }
 .odontogram-heading > p:last-child { margin: 10px 0 0; color: var(--color-text-muted, #64748b); font-size: 14px; line-height: 1.6; }
-.odontogram-status { padding: 3px 9px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 999px; color: var(--color-text-muted, #64748b); background: var(--color-bg, #f8fbfd); font-size: 11px; font-weight: 700; }
+.odontogram-status { padding: 3px 9px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 999px; color: var(--color-text-muted, #64748b); background: var(--color-bg, #f8fbfd); font-size: 11px; font-weight: 600; }
 .odontogram-status.active { color: #047857; border-color: #a7e2c8; background: #ecfdf5; }
 .odontogram-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; padding-top: 4px; }
-.odontogram-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 9px 14px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 8px; font-size: 13px; line-height: 1.4; font-weight: 700; white-space: nowrap; }
+.odontogram-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 9px 14px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 8px; font-size: 13px; line-height: 1.4; font-weight: 600; white-space: nowrap; }
 .odontogram-button .v-icon, .odontogram-edit-button .v-icon { color: inherit; }
-.odontogram-button--primary { color: #fff; background: var(--color-primary-900, #086783); border-color: transparent; }
-.odontogram-button--secondary { color: var(--color-text, #25364d); background: var(--color-surface, #fff); }
-.odontogram-button--danger { color: #a53b31; border-color: #ecd0cd; background: var(--color-surface, #fff); }
+.odontogram-button--primary { color: #fff; background: var(--color-primary-900); border-color: transparent; }
+.odontogram-button--secondary { color: var(--color-text, #25364d); background: var(--color-surface); }
+.odontogram-button--danger { color: #a53b31; border-color: #ecd0cd; background: var(--color-surface); }
 .odontogram-button:disabled, .odontogram-edit-button:disabled { opacity: .5; cursor: default; }
-button:focus-visible { outline: 3px solid var(--color-primary-500, #0e7490); outline-offset: 3px; }
+button:focus-visible { outline: 3px solid var(--color-primary-500); outline-offset: 3px; }
 .odontogram-feedback { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 12px 16px; border: 1px solid #a7e2c8; border-radius: 8px; background: #ecfdf5; color: #066244; font-size: 13px; line-height: 1.6; }
 .odontogram-feedback .v-icon { color: inherit; }
 .odontogram-record { overflow: hidden; }
 .odontogram-record-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px 24px; border-bottom: 1px solid var(--color-border, #d8e9ef); }
-.odontogram-record-header h3 { margin: 0; font-size: 16px; font-weight: 700; }
+.odontogram-record-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
 .odontogram-record-header p { margin: 6px 0 0; color: var(--color-text-muted, #64748b); font-size: 12px; }
 .odontogram-search { max-width: 320px; }
 .odontogram-search ::v-deep input:focus { outline: none; }
@@ -328,19 +328,19 @@ button:focus-visible { outline: 3px solid var(--color-primary-500, #0e7490); out
 .odontogram-table th:first-child { width: 150px; min-width: 150px; }
 .odontogram-table td { padding: 15px 24px; border-top: 1px solid var(--color-border, #d8e9ef); vertical-align: middle; font-size: 13px; }
 .odontogram-region { width: 150px; white-space: nowrap; }
-.region-number { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 36px; border: 1px solid var(--color-primary-200, #b8edf7); border-radius: 8px; background: var(--color-primary-100, #e0f7fc); color: var(--color-primary-900, #006077); font-size: 14px; font-weight: 700; }
+.region-number { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 36px; border: 1px solid var(--color-primary-200); border-radius: 8px; background: var(--color-primary-100); color: var(--color-primary-900); font-size: 14px; font-weight: 600; }
 .region-label { display: none; }
 .odontogram-diagnosis { width: 100%; }
 .diagnosis-copy { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
 .diagnosis-empty { color: var(--color-text-muted, #64748b); font-size: 13px; }
 .odontogram-row-actions { text-align: right; }
-.odontogram-edit-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 8px; color: var(--color-primary-900, #086783); background: var(--color-surface, #fff); font-size: 12px; font-weight: 700; white-space: nowrap; }
-.odontogram-edit-button:hover:not(:disabled) { background: var(--color-primary-100, #e0f7fc); }
+.odontogram-edit-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 8px; color: var(--color-primary-900); background: var(--color-surface); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.odontogram-edit-button:hover:not(:disabled) { background: var(--color-primary-100); }
 .odontogram-record-footer { padding: 12px 24px; border-top: 1px solid var(--color-border, #d8e9ef); color: var(--color-text-muted, #64748b); font-size: 12px; }
 .odontogram-empty, .odontogram-no-results { display: flex; flex-direction: column; align-items: center; padding: 48px 24px; text-align: center; color: var(--color-text-muted, #64748b); }
 .odontogram-empty h3, .odontogram-no-results h3 { margin: 0 0 8px; color: var(--color-text, #25364d); font-size: 18px; font-weight: 600; }
 .odontogram-empty p, .odontogram-no-results p { max-width: 440px; margin: 12px 0 20px; font-size: 14px; line-height: 1.7; }
-.odontogram-empty-icon { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 16px; background: var(--color-primary-100, #e0f7fc); color: var(--color-primary-700, #0e7490); margin-bottom: 18px; }
+.odontogram-empty-icon { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 16px; background: var(--color-primary-100); color: var(--color-primary-700); margin-bottom: 18px; }
 .odontogram-empty-icon .v-icon { color: inherit; }
 .odontogram-no-results > .v-icon { margin-bottom: 16px; color: var(--color-text-muted, #64748b); }
 .odontogram-error > .v-icon { margin-bottom: 16px; }
