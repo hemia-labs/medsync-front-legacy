@@ -1,5 +1,5 @@
 <template>
-  <section v-if="error || (showCompleted && loading) || (status && (status.pending || showCompleted || !completionDismissed))" class="preparation-card" aria-labelledby="preparation-title">
+  <section v-if="error || (showCompleted && loading) || (status && (status.pending || showCompleted))" class="preparation-card" aria-labelledby="preparation-title">
     <template v-if="status && !status.pending && showCompleted && !error">
       <header class="preparation-heading complete-summary">
         <div><h2 id="preparation-title">Preparación inicial completa</h2><p>{{ status.completed }} de {{ status.steps.length }} completos. Tus ajustes están guardados.</p></div>
@@ -19,17 +19,6 @@
           </li>
         </ol>
       </details>
-    </template>
-    <template v-else-if="status && !status.pending && !showCompleted && !error">
-      <p class="preparation-eyebrow">Preparación inicial completa</p>
-      <h2 id="preparation-title" class="completion-title">Tu consultorio está preparado</h2>
-      <p>La configuración inicial está guardada. Ya puedes dar de alta pacientes y organizar citas según tus accesos. Cada receta y documento seguirá comprobando sus requisitos.</p>
-      <div class="completion-actions">
-        <router-link v-if="hasPermission('px.new')" class="preparation-primary" to="/px/new">Registrar mi primer paciente</router-link>
-        <router-link v-if="hasPermission('px.dates')" class="preparation-link" to="/px/dates">Ir a Citas</router-link>
-        <router-link class="preparation-link" to="/admin">Revisar configuración</router-link>
-        <button type="button" class="preparation-link" @click="dismissCompletion">Ocultar este mensaje</button>
-      </div>
     </template>
     <template v-else>
     <header class="preparation-heading">
@@ -103,7 +92,7 @@ import { resumableGuides } from '../../../domain/onboarding/resumeGuides';
 
 export default {
   props: { showCompleted: Boolean },
-  data: () => ({ status:null, loading:false, error:'', request:0, disposed:false, completionDismissed:false, guideCollapsed:false, helpStep:'', resumptions:[] }),
+  data: () => ({ status:null, loading:false, error:'', request:0, disposed:false, guideCollapsed:false, helpStep:'', resumptions:[] }),
   computed: {
     ...mapGetters(moduleTypes.AUTH, { user:fnTypes.getUser, role:fnTypes.getRole, hasPermission:fnTypes.hasPermission }),
     completionKey(){const auth=this.$store.state.CORE.AUTH;return `hemia:preparation-complete:v1:${encodeURIComponent((auth.business || {}).id_business || (this.user || {}).id_business || '')}:${encodeURIComponent((this.user || {}).id_login || '')}`;},
@@ -119,14 +108,13 @@ export default {
     canGuide(){return getSettingsSections(this.role,this.hasPermission).some(section=>section.key==='agenda');},
     guideDeferred(){const state=this.$store && this.$store.state.CORE.ONBOARDING;return state && ['paused','deferred'].includes(state.guide);}
   },
-  watch: { sessionKey: { immediate:true, handler(){ this.status=null;this.resumptions=[];this.helpStep='';this.guideCollapsed=false;this.completionDismissed=false;try{this.completionDismissed=localStorage.getItem(this.completionKey)==='1';this.guideCollapsed=localStorage.getItem(this.completionKey+':welcome')==='1';}catch(_){/* Session-only dismissal when storage is unavailable. */} this.load(); } } },
+  watch: { sessionKey: { immediate:true, handler(){ this.status=null;this.resumptions=[];this.helpStep='';this.guideCollapsed=false;try{this.guideCollapsed=localStorage.getItem(this.completionKey+':welcome')==='1';}catch(_){/* Session-only dismissal when storage is unavailable. */} this.load(); } } },
   mounted() { window.addEventListener('focus',this.load); },
   beforeDestroy() { this.disposed=true;this.request++;window.removeEventListener('focus',this.load); },
   methods: {
     preparationPath,
     setCollapsed(value){this.guideCollapsed=value;try{localStorage.setItem(this.completionKey+':welcome',value?'1':'0');}catch(_){/* Keep dismissal usable in this session. */}},
     readResumptions(){this.resumptions=[];try{const auth=this.$store.state.CORE.AUTH;this.resumptions=resumableGuides(localStorage,guideContext(this.user,this.role,this.hasPermission,auth.accessRevision,auth.business),getSettingsSections(this.role,this.hasPermission),this.isAdminGuide);}catch(_){/* The screen itself still offers resume when storage is unavailable. */}},
-    dismissCompletion(){this.completionDismissed=true;try{localStorage.setItem(this.completionKey,'1');}catch(_){/* Keep the current view dismissible. */}},
     async startGuide(otherDoctor=false){
       const key=this.sessionKey;
       await this.load();
@@ -154,8 +142,7 @@ export default {
         if(!response || !response.success || !response.data || !Array.isArray(response.data.steps)) throw new Error();
         const allowed=new Set(getSettingsSections(this.role,this.hasPermission).map(item=>item.key));
         this.status={...response.data,steps:response.data.steps.map(step=>({...step,action:step.action && allowed.has(String(step.action.path).split('section=')[1]) ? step.action:null}))};
-        // Pending steps always show the checklist; a dismissed completion message stays dismissed, so a
-        // momentary pending (an agenda being edited, a template being versioned) cannot bring it back.
+        // Home only shows pending preparation; completed details remain available in Settings.
       } catch(_) { if(!this.disposed && request===this.request && key===this.sessionKey) {this.status=null;this.error='No pudimos revisar los pasos de preparación. Pulsa Actualizar preparación para reintentar.';} }
       finally {if(!this.disposed && request===this.request && key===this.sessionKey)this.loading=false;}
     }
@@ -166,7 +153,6 @@ export default {
 <style scoped>
 .task-actions{display:flex;flex-direction:column;align-items:flex-start;flex-shrink:0;gap:4px}.complete-summary h2{font-size:22px!important}.preparation-details>summary{min-height:44px;padding:10px 0}.other-guides a{display:inline-flex;align-items:center}
 
-.completion-title{font-size:24px;font-weight:700;line-height:1.3;margin:8px 0 12px}
 .completion-actions{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-top:16px}.completion-actions a,.completion-actions button{min-height:44px;display:inline-flex;align-items:center}.preparation-card{background:linear-gradient(125deg,#e7f6ee,#eff9ff)!important;box-shadow:0 15px 45px #18483c14!important}.preparation-eyebrow{color:#087563}.preparation-heading h2{font-size:30px!important;letter-spacing:-.025em}.welcome-stages{display:flex;flex-wrap:wrap;gap:16px;padding:0;margin:20px 0;list-style:none}.welcome-stages li{display:flex;align-items:center;gap:8px;color:#456763;font-size:14px}.welcome-stages span{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#e8f2ef}.welcome-stages [aria-current] span{background:#07645f;color:white}.welcome-stages [aria-current]{font-weight:700;color:#154a43}
 .preparation-invitation{padding:18px;margin:16px 0;background:white;border-radius:12px}.preparation-invitation h3{font-size:21px}.preparation-invitation p{line-height:1.6}.preparation-invitation button{min-height:44px}
 .preparation-card{margin-bottom:24px;padding:24px;border:1px solid var(--color-primary-200,#b2d8d9);border-radius:20px;background:var(--color-primary-50,#f0f9fa);color:#213f48;box-shadow:0 8px 24px #18384a0a}.preparation-heading,.preparation-next{display:flex;gap:20px;justify-content:space-between;align-items:center}.preparation-heading h2{margin:4px 0 10px;font-size:24px;font-weight:750}.preparation-heading p{margin:0;line-height:1.6}.preparation-eyebrow{text-transform:uppercase;font-size:12px;font-weight:750;letter-spacing:.08em}.preparation-link{color:var(--color-primary-800,#075a62);text-decoration:underline;font-weight:650;background:transparent;border:0;white-space:normal}.preparation-progress{margin:18px 0}.preparation-primary{display:inline-block;padding:12px 18px;border-radius:12px;background:var(--color-primary-800,#075a62);color:white;font-weight:700;text-decoration:none}.preparation-next{padding:16px;background:white;border-radius:14px}.preparation-details{margin-top:18px}.preparation-details summary{cursor:pointer;font-weight:700}.preparation-details ol{padding-left:24px}.preparation-tasks li,.preparation-details li{padding:14px 0;display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid #c5dadd}.preparation-tasks li p,.preparation-details li p{margin:6px 0;line-height:1.5}.preparation-done strong{color:#23764c}.preparation-note{font-size:13px;margin:18px 0 0;line-height:1.6}.preparation-error{color:#a1272a}.preparation-card a:focus-visible,.preparation-card button:focus-visible,.preparation-card summary:focus-visible{outline:3px solid #087f80;outline-offset:4px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media(max-width:600px){.preparation-card{padding:18px}.preparation-heading,.preparation-next,.preparation-details li{align-items:stretch;flex-direction:column;gap:12px}.preparation-heading h2{font-size:22px!important}.preparation-invitation{padding:12px;margin:12px 0}.preparation-invitation h3{font-size:18px}.welcome-stages{gap:8px;margin:12px 0;font-size:12px}.preparation-heading>button{align-self:flex-start}.preparation-primary{text-align:center}}

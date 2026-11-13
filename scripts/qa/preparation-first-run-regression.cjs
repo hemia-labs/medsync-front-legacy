@@ -111,9 +111,10 @@ const state = (options, extras) => {
     const firstLoad = card.load();
     assert.equal(visible(), false, 'Home does not mount preparation before its response');
     delayed.resolve({ success: true, data: { pending: 0, completed: 0, steps: [] } }); await firstLoad;
-    assert.equal(visible(), true, 'A configured clinic receives a confirmed completion message');
-    card.dismissCompletion();
-    assert.equal(visible(), false, 'Completion can be dismissed');
+    assert.equal(visible(), false, 'A configured clinic is hidden automatically without a stored dismissal');
+    card.showCompleted = true;
+    assert.equal(visible(), true, 'Completed preparation remains available in Settings');
+    card.showCompleted = false;
     const refresh = deferred(); response = () => refresh.promise;
     const refreshing = card.load();
     assert.equal(visible(), false, 'Refreshing a configured clinic does not flash the card');
@@ -122,8 +123,7 @@ const state = (options, extras) => {
     const settled = deferred(); response = () => settled.promise;
     const resettling = card.load();
     settled.resolve({ success: true, data: { pending: 0, completed: 1, steps: [{ id: 'pending', ready: true }] } }); await resettling;
-    assert.equal(visible(), false, 'A dismissed completion stays hidden after a temporary pending step is resolved');
-    assert.equal(card.completionDismissed, true);
+    assert.equal(visible(), false, 'Completed preparation disappears automatically after a pending step is resolved');
     card.status = null; card.loading = true; card.showCompleted = true;
     assert.equal(visible(), true, 'Settings retains its explicit loading feedback');
     card.showCompleted = false; card.loading = false; card.error = 'Error de consulta';
