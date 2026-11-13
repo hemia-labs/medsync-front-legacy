@@ -187,7 +187,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #0f766e;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -212,7 +212,7 @@ h2 {
   padding: 0 0.8rem;
   color: #0f766e;
   background: #ffffff;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .granularity-button.is-active,
@@ -277,7 +277,7 @@ h2 {
 .trend-total small {
   display: block;
   color: #64748b;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .trend-total strong {

@@ -236,7 +236,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #0f766e;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
 }
@@ -245,7 +245,7 @@ export default {
   margin: 0;
   font-size: 1.6rem;
   line-height: 1.2;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -279,7 +279,7 @@ export default {
   background: linear-gradient(135deg, #0f766e, #0891b2);
   color: #fff;
   border-radius: 14px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
 }

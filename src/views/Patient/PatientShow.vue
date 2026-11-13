@@ -546,10 +546,10 @@ export default {
     border-radius: 999px;
     color: #475569 !important;
     text-transform: none !important;
-    font-family: sans-serif;
+    font-family: inherit;
     font-size: 0.86rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-weight: 600;
+    letter-spacing: 0.03em;
     transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 

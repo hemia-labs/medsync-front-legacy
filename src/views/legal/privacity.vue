@@ -300,7 +300,7 @@ export default {
   color: #075f67;
   background: #e9fbfb;
   font-size: 0.86rem;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -323,7 +323,7 @@ export default {
   margin: 0 0 0.55rem;
   color: #0f766e;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -359,7 +359,7 @@ export default {
   color: #29485c;
   background: rgba(255, 255, 255, 0.74);
   font-size: 0.86rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .legal-review,
@@ -392,7 +392,7 @@ export default {
 .production-blocker p:last-child {
   margin: 0.45rem 0 0;
   color: #7f1d1d;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.6;
 }
 
@@ -487,7 +487,7 @@ export default {
   margin: 0 0 0.45rem;
   color: #0f766e;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -499,7 +499,7 @@ export default {
   padding: 0.28rem 0.5rem;
   color: #43596c;
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -586,7 +586,7 @@ th {
   color: #17364b;
   background: #eef8fa;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -629,7 +629,7 @@ tr:last-child td {
   color: #dffafa;
   background: rgba(255, 255, 255, 0.08);
   font-size: 0.9rem;
-  font-weight: 800;
+  font-weight: 600;
   text-decoration: none;
   overflow-wrap: anywhere;
 }
@@ -640,7 +640,7 @@ tr:last-child td {
 
 .sources-panel a {
   color: #0f766e;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 @media (max-width: 1100px) {

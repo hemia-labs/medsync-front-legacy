@@ -571,9 +571,9 @@ export default {
   justify-content: space-between;
   gap: 1.25rem;
   padding: clamp(1.15rem, 2vw, 1.6rem);
-  border-color: var(--color-primary-200, rgba(8, 103, 131, 0.16));
+  border-color: var(--color-primary-200);
   background:
-    linear-gradient(135deg, var(--color-primary-100, #e6f7fb) 0%, rgba(255, 255, 255, 0.94) 68%);
+    linear-gradient(135deg, var(--color-primary-100) 0%, rgba(255, 255, 255, 0.94) 68%);
 }
 
 .staff-hero-copy {
@@ -582,9 +582,9 @@ export default {
 
 .staff-eyebrow {
   margin: 0 0 0.35rem;
-  color: var(--color-primary-900, #086783);
+  color: var(--color-primary-900);
   font-size: 0.74rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1rem;
   text-transform: uppercase;
@@ -599,7 +599,7 @@ export default {
 
 .staff-hero h1 {
   font-size: clamp(1.65rem, 3vw, 2.25rem);
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.08;
 }
 
@@ -629,7 +629,7 @@ export default {
   gap: 0.45rem;
   min-height: 2.55rem;
   border-radius: 8px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
   text-decoration: none;
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
@@ -638,9 +638,9 @@ export default {
 .staff-primary-action {
   min-width: 11rem;
   padding: 0 1rem;
-  border: 1px solid var(--color-primary-700, #1497bd);
+  border: 1px solid var(--color-primary-700);
   color: #ffffff;
-  background: var(--color-primary-700, #1497bd);
+  background: var(--color-primary-700);
   box-shadow: 0 10px 20px rgba(8, 103, 131, 0.16);
 }
 
@@ -651,8 +651,8 @@ export default {
 
 .staff-primary-action:hover,
 .staff-primary-action:focus {
-  background: var(--color-primary-900, #086783);
-  border-color: var(--color-primary-900, #086783);
+  background: var(--color-primary-900);
+  border-color: var(--color-primary-900);
   color: #ffffff;
   outline: none;
   transform: translateY(-1px);
@@ -690,9 +690,9 @@ export default {
 .staff-icon-button:focus,
 .staff-secondary-action:not(:disabled):hover,
 .staff-secondary-action:not(:disabled):focus {
-  border-color: var(--color-primary-300, #a6e1f0);
-  color: var(--color-primary-900, #086783);
-  background: var(--color-primary-100, #e6f7fb);
+  border-color: var(--color-primary-300);
+  color: var(--color-primary-900);
+  background: var(--color-primary-100);
   outline: none;
 }
 
@@ -723,8 +723,8 @@ export default {
   width: 2.65rem;
   height: 2.65rem;
   border-radius: 8px;
-  color: var(--color-primary-900, #086783);
-  background: var(--color-primary-100, #e6f7fb);
+  color: var(--color-primary-900);
+  background: var(--color-primary-100);
 }
 
 .summary-icon .v-icon {
@@ -735,7 +735,7 @@ export default {
   display: block;
   color: #12313a;
   font-size: 1.45rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.65rem;
 }
 
@@ -744,7 +744,7 @@ export default {
   margin-top: 0.18rem;
   color: #64748b;
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25rem;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -775,7 +775,7 @@ export default {
 
 .staff-panel-header h2 {
   font-size: 1.2rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.55rem;
 }
 
@@ -784,12 +784,12 @@ export default {
   align-items: center;
   min-height: 2rem;
   padding: 0 0.75rem;
-  border: 1px solid var(--color-primary-200, #cdeef7);
+  border: 1px solid var(--color-primary-200);
   border-radius: 999px;
-  color: var(--color-primary-900, #086783);
-  background: var(--color-primary-100, #e6f7fb);
+  color: var(--color-primary-900);
+  background: var(--color-primary-100);
   font-size: 0.8rem;
-  font-weight: 900;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -829,11 +829,11 @@ export default {
 
 .staff-table th {
   padding: 0.95rem 1rem;
-  border-bottom: 1px solid var(--color-primary-200, #cdeef7);
-  color: var(--color-primary-900, #086783);
-  background: var(--color-primary-100, #e6f7fb);
+  border-bottom: 1px solid var(--color-primary-200);
+  color: var(--color-primary-900);
+  background: var(--color-primary-100);
   font-size: 0.76rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1rem;
   text-align: left;
@@ -880,9 +880,9 @@ export default {
   height: 2.65rem;
   border-radius: 8px;
   color: #ffffff;
-  background: var(--color-primary-700, #1497bd);
+  background: var(--color-primary-700);
   font-size: 0.82rem;
-  font-weight: 900;
+  font-weight: 600;
   flex-shrink: 0;
 }
 
@@ -896,7 +896,7 @@ export default {
   display: block;
   overflow: hidden;
   color: #12313a;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -916,7 +916,7 @@ export default {
 
 .staff-muted {
   color: #64748b;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .staff-pill,
@@ -927,7 +927,7 @@ export default {
   padding: 0 0.7rem;
   border-radius: 999px;
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .staff-pill {
@@ -958,16 +958,16 @@ export default {
 .staff-action-button {
   min-width: 0;
   padding: 0 0.85rem;
-  border: 1px solid var(--color-primary-700, #1497bd);
-  color: var(--color-primary-900, #086783);
+  border: 1px solid var(--color-primary-700);
+  color: var(--color-primary-900);
   background: #ffffff;
 }
 
 .staff-action-button:hover,
 .staff-action-button:focus {
   color: #ffffff;
-  background: var(--color-primary-900, #086783);
-  border-color: var(--color-primary-900, #086783);
+  background: var(--color-primary-900);
+  border-color: var(--color-primary-900);
   outline: none;
   transform: translateY(-1px);
 }
@@ -1011,12 +1011,12 @@ export default {
 }
 
 .staff-state .v-icon {
-  color: var(--color-primary-700, #1497bd);
+  color: var(--color-primary-700);
 }
 
 .staff-state strong {
   color: #12313a;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .staff-state p {
@@ -1139,7 +1139,7 @@ html[data-theme="clinical-night"] .staff-action-button {
   margin: 0 0 0.25rem;
   color: #64748b;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
   overflow-wrap: anywhere;
 }
@@ -1149,7 +1149,7 @@ html[data-theme="clinical-night"] .staff-action-button {
   margin: 0;
   color: #12313a;
   font-size: 0.86rem;
-  font-weight: 800;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

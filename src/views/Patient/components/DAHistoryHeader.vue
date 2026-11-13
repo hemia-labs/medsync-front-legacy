@@ -139,7 +139,7 @@ export default {
 
 .patient-avatar-initials {
     font-size: 1.35rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.04em;
 }
 
@@ -171,7 +171,7 @@ export default {
     margin: 0 0 0.2rem;
     color: var(--color-primary-900);
     font-size: 0.72rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
 }
@@ -187,7 +187,7 @@ export default {
     margin: 0;
     color: #334155;
     font-size: 1.35rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.05em;
     line-height: 1.2;
 }
@@ -202,7 +202,7 @@ export default {
     background: var(--color-primary-100);
     color: var(--color-primary-900);
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .patient-meta {
@@ -238,7 +238,7 @@ export default {
     padding: 0.28rem 0.65rem;
     border-radius: 999px;
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .patient-badge .v-icon {

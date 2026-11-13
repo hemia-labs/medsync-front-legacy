@@ -310,7 +310,7 @@ export default {
   border-radius: 0.8rem;
   background: #0f766e;
   color: #ffffff;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -384,7 +384,7 @@ export default {
   background: #eff6ff;
   color: #1d4ed8;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -412,7 +412,7 @@ export default {
   padding: 0 0.85rem;
   background: #0f766e;
   color: #ffffff;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .primary-action:hover,
@@ -450,7 +450,7 @@ export default {
   padding: 0 0.65rem;
   color: #64748b;
   font-size: 0.68rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1rem;
   text-transform: uppercase;
 }
@@ -461,7 +461,7 @@ export default {
   padding: 0 0.75rem;
   color: #334155;
   background: transparent;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .navigation-item:hover,
@@ -556,7 +556,7 @@ export default {
   background: var(--account-avatar-bg);
   color: var(--account-avatar-text);
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
 }
 

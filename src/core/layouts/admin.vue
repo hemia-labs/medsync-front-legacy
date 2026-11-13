@@ -8,7 +8,7 @@
             ref="mobileMenuButton"
             icon
             color="primary"
-            aria-label="Abrir navegacion principal"
+            aria-label="Abrir navegación principal"
             :aria-expanded="String(isMobileNavigationOpen)"
             aria-controls="tenant-mobile-navigation"
             @click="isMobileNavigationOpen = true"
@@ -678,9 +678,9 @@ html[data-theme="clinical-night"] .app-background {
 }
 
 .tenant-footer-brand strong {
-  color: var(--color-primary-900, #086783);
+  color: var(--color-primary-900);
   font-size: 0.9rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .tenant-footer-brand span:not(.tenant-footer-copy) {
@@ -700,7 +700,7 @@ html[data-theme="clinical-night"] .app-background {
 .tenant-footer a,
 .tenant-footer-contact-pending {
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
 }
 

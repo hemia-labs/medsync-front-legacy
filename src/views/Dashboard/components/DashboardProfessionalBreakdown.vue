@@ -186,7 +186,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #0f766e;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -213,7 +213,7 @@ h2 {
   color: #0f766e;
   background: #ecfdf5;
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -257,7 +257,7 @@ h2 {
   padding: 0 0.8rem;
   color: #0f766e;
   background: #ffffff;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .widget-action:hover {
@@ -291,7 +291,7 @@ h2 {
 .total-card small {
   display: block;
   color: #64748b;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .total-card strong {
@@ -327,7 +327,7 @@ h2 {
   border-radius: 0.85rem;
   color: #0f766e;
   background: #dff7f4;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .professional-copy strong,
@@ -354,7 +354,7 @@ h2 {
   color: #0f766e;
   background: #f3fbf9;
   font-size: 0.74rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .activity-bar {
@@ -389,7 +389,7 @@ h2 {
   color: #334155;
   background: #ffffff;
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .metric-chips .v-icon {

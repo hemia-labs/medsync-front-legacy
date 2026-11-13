@@ -991,7 +991,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #0f766e;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -1035,7 +1035,7 @@ export default {
   padding: 0 0.7rem;
   border-radius: 999px;
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .hero-meta span {
@@ -1056,7 +1056,7 @@ export default {
   padding: 0 0.95rem;
   color: #0f766e;
   background: #ffffff;
-  font-weight: 900;
+  font-weight: 600;
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
@@ -1347,7 +1347,7 @@ export default {
 
 .license-copy span {
   color: #334155;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .license-copy strong {
@@ -1418,7 +1418,7 @@ export default {
 .activity-card span {
   display: block;
   color: #334155;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.2rem;
   overflow-wrap: anywhere;
 }

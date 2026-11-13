@@ -242,7 +242,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #0f766e;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -275,7 +275,7 @@ h3 {
   color: #0f766e;
   background: #ecfdf5;
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -319,7 +319,7 @@ h3 {
   padding: 0 0.8rem;
   color: #0f766e;
   background: #ffffff;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .widget-action:hover {
@@ -373,7 +373,7 @@ h3 {
   min-width: 0;
   color: #64748b;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.05rem;
   overflow-wrap: anywhere;
 }

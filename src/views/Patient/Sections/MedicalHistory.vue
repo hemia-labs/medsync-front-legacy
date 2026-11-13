@@ -2705,10 +2705,10 @@ export default {
               .header { display: flex; justify-content: space-between; gap: 18px; border-bottom: 2px solid #d8e9ef; padding-bottom: 14px; margin-bottom: 14px; break-inside: avoid; }
               .brand-row { display: flex; gap: 12px; align-items: flex-start; }
               .logo { max-width: 82px; max-height: 58px; object-fit: contain; }
-              .brand { margin: 0 0 4px; color: #00728c; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+              .brand { margin: 0 0 4px; color: #00728c; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
               h1 { margin: 0 0 6px; font-size: 22px; color: #101828; }
               h2 { margin: 24px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #d8e9ef; color: #0f172a; font-size: 15px; break-after: avoid; }
-              .status { display: inline-block; border: 1px solid #b8edf7; background: #f0fbff; color: #006487; padding: 5px 9px; font-weight: 800; text-align: center; }
+              .status { display: inline-block; border: 1px solid #b8edf7; background: #f0fbff; color: #006487; padding: 5px 9px; font-weight: 600; text-align: center; }
               .status.draft { border-color: #fbbf24; background: #fffbeb; color: #92400e; }
               .status.incomplete { border-color: #f59e0b; background: #fff7ed; color: #9a3412; }
               .status.finalized { border-color: #86efac; background: #f0fdf4; color: #047857; }
@@ -3133,14 +3133,14 @@ export default {
   color: #047857 !important;
   padding: .35rem .7rem;
   font-size: .78rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .initial-subtitle {
   margin: 0;
   color: #0f172a !important;
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .initial-summary {
@@ -3161,7 +3161,7 @@ export default {
   display: block;
   color: #64748b;
   font-size: .72rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .initial-summary strong {
@@ -3202,7 +3202,7 @@ export default {
   color: #006487;
   padding: .25rem .15rem;
   font-size: .88rem;
-  font-weight: 900;
+  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
   transition: color .14s ease, text-decoration-color .14s ease;
@@ -3284,7 +3284,7 @@ export default {
   padding: .25rem .7rem;
   white-space: nowrap;
   font-size: .78rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .consent-status-badge.pending {
@@ -3315,7 +3315,7 @@ export default {
   border-radius: 999px;
   background: #f0fbff;
   color: #006487;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .status-main {
@@ -3330,7 +3330,7 @@ export default {
   margin: 0 0 .25rem;
   color: var(--color-primary-900);
   font-size: .72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: .12em;
   text-transform: uppercase;
 }
@@ -3363,7 +3363,7 @@ h3 {
 .permission-note {
   margin: .45rem 0 0;
   color: #92400e !important;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .status-grid,
@@ -3409,7 +3409,7 @@ h3 {
   display: block;
   color: #64748b;
   font-size: .72rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .status-item strong,
@@ -3429,7 +3429,7 @@ h3 {
   border-radius: 999px;
   padding: .35rem .7rem;
   font-size: .75rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .status-pill.neutral {
@@ -3539,7 +3539,7 @@ h3 {
   background: #fff;
   color: #006487;
   font-size: .72rem;
-  font-weight: 900;
+  font-weight: 600;
   padding: .28rem .55rem;
 }
 
@@ -3560,7 +3560,7 @@ h3 {
   display: block;
   color: #64748b;
   font-size: .7rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .version-meta-grid strong {
@@ -3681,7 +3681,7 @@ h3 {
   border-radius: 999px;
   border: 1px solid #cfe7f3;
   padding: .55rem 1rem;
-  font-weight: 900;
+  font-weight: 600;
   color: var(--color-primary-900);
   background: #fff !important;
   box-shadow: 0 8px 18px rgba(15, 23, 42, .05);
@@ -3834,12 +3834,12 @@ h3 {
 
 .capture-template-inline span {
   color: #64748b;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .capture-template-inline strong {
   color: #0f172a;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .capture-template-inline em {
@@ -3848,7 +3848,7 @@ h3 {
   color: #006487;
   padding: .14rem .42rem;
   font-style: normal;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .capture-progress-topline,
@@ -3872,7 +3872,7 @@ h3 {
   color: #006487;
   padding: .22rem .55rem;
   font-size: .76rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .capture-progress-track {
@@ -3892,7 +3892,7 @@ h3 {
 
 .capture-progress-footer small {
   color: #64748b;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .capture-guide-panel {
@@ -3929,7 +3929,7 @@ h3 {
   color: #92400e;
   padding: .28rem .6rem;
   font-size: .78rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .clinical-form {
@@ -4007,13 +4007,13 @@ h3 {
 .section-nav-item span {
   color: #0f172a;
   font-size: .86rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .section-nav-item small {
   color: #64748b;
   font-size: .75rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .section-nav-item.missing small {
@@ -4075,7 +4075,7 @@ h3 {
   border-radius: 999px;
   padding: .28rem .62rem;
   font-size: .76rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .section-state-pill.complete {
@@ -4103,7 +4103,7 @@ h3 {
   color: #006487;
   padding: .28rem .62rem;
   font-size: .76rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .section-inline-warning {
@@ -4117,7 +4117,7 @@ h3 {
   padding: .34rem .68rem;
   margin: 0 0 .75rem;
   font-size: .82rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .section-warning-legacy {
@@ -4138,7 +4138,7 @@ h3 {
   color: #006487;
   padding: .38rem .72rem;
   font-size: .8rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .field-required-note {
@@ -4146,7 +4146,7 @@ h3 {
   margin-top: -.35rem;
   color: #b45309 !important;
   font-size: .76rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .section-step-footer {
@@ -4190,7 +4190,7 @@ h3 {
 .pending-dialog-list span {
   color: #64748b;
   font-size: .76rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -4214,7 +4214,7 @@ h3 {
 
 .doctor-summary span {
   font-size: .72rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .08em;
 }
@@ -4229,7 +4229,7 @@ h3 {
   color: #92400e !important;
   padding: .7rem;
   margin: .5rem 0 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .form-grid {
@@ -4274,7 +4274,7 @@ h3 {
 .readonly-field span {
   color: #52637a;
   font-size: .76rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .readonly-field strong {
@@ -4298,7 +4298,7 @@ h3 {
 .dialog-card header h3 {
   margin: .3rem 0 .6rem;
   font-size: 1.25rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .dialog-card header p:not(.section-kicker) {
@@ -4337,7 +4337,7 @@ h3 {
 .block-reason {
   margin: 1rem 0 0;
   color: #b42318;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .dialog-actions {
@@ -4476,7 +4476,7 @@ h3 {
   }
 }
 
-.save-state { font-weight: 700; color: var(--color-primary-900); }
+.save-state { font-weight: 600; color: var(--color-primary-900); }
 .quick-action-feedback { padding: .6rem; background: #f0f9ff; color: #334155; }
 .dynamic-field { scroll-margin-top: 10rem; }
 .clinical-history-page button:focus-visible, .dialog-card button:focus-visible { outline: 3px solid var(--color-primary-900); outline-offset: 3px; }

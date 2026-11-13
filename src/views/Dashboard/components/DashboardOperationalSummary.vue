@@ -511,7 +511,7 @@ export default {
   margin: 0 0 0.35rem;
   color: #0f766e;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -532,7 +532,7 @@ h3 {
   color: #0f766e;
   background: #ecfdf5;
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .widget-state {
@@ -575,7 +575,7 @@ h3 {
   padding: 0 0.8rem;
   color: #0f766e;
   background: #ffffff;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .widget-action:hover {
@@ -739,7 +739,7 @@ h3 {
 .priority-card span {
   color: #64748b;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .priority-card strong {
@@ -759,7 +759,7 @@ h3 {
   color: #0f766e;
   font-size: 0.8rem;
   font-style: normal;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.25rem;
 }
 
@@ -810,7 +810,7 @@ h3 {
 .economics-card span {
   color: #64748b;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .economics-card strong {
@@ -844,7 +844,7 @@ h3 {
 .decision-heading small {
   color: #0f766e;
   font-size: 0.8rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .decision-grid {
@@ -864,7 +864,7 @@ h3 {
 .decision-card span {
   color: #64748b;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .decision-card strong {
