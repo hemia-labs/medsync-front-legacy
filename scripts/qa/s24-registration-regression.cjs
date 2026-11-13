@@ -45,7 +45,7 @@ function load(file,bindings={},component=false) {
     for(const name of ['home','admin','AllPatients','ShowPx','tenantRestricted','login','register'])assert.equal((await navigate(name,{requireAuth:!['login','register'].includes(name)})).name,'accountActivation');
     assert.equal(await navigate('accountActivation',{requireAuth:true,allowTenantRestricted:true}),undefined);
     pending=false;assert.equal((await navigate('accountActivation')).name,'home');
-    superAdmin=true;assert.equal((await navigate('accountActivation')).name,'superAdminDashboard');superAdmin=false;
+    superAdmin=true;assert.equal((await navigate('accountActivation')).name,'accessUnavailable');superAdmin=false;
     authorized=false;assert.equal((await navigate('accountActivation')).name,'auth');authorized=true;pending=true;
   }
   const App=load('src/App.vue',{mapActions:()=>({}),moduleTypes:{AUTH:'CORE/AUTH',CONFIGURATION:'CORE/CONFIGURATION'},fnTypes:{},
