@@ -35,7 +35,6 @@ const files = {
     authStorageCleanup: 'src/utils/authStorageCleanup.js',
     rememberedIdentifier: 'src/utils/authRememberedIdentifier.js',
     adminLayout: 'src/core/layouts/admin.vue',
-    superAdminLayout: 'src/core/layouts/super-admin.vue',
     loginView: 'src/views/Auth/Login.vue',
     homeView: 'src/views/Home/Home.vue',
     tenantRestrictedView: 'src/views/error/TenantRestricted.vue',
@@ -190,7 +189,6 @@ const d2LogoutBranch = logoutAction;
 const adminSessionUserD2 = getD2GuardBlock(sources.adminLayout, 'sessionUser: function()');
 const adminBusinessD2 = getD2GuardBlock(sources.adminLayout, 'businessName: function()');
 const adminUnauthorizedD2 = getBlock(getBlock(sources.adminLayout, 'unauthorized: async function()'), 'if(isD2AuthMode())');
-const superAdminUnauthorizedD2 = getBlock(getBlock(sources.superAdminLayout, 'unauthorized: async function()'), 'if(isD2AuthMode())');
 const loginPostRouteD2 = getD2GuardBlock(sources.loginView, 'getPostLoginRoute: function()');
 const homeSessionUserD2 = getD2GuardBlock(sources.homeView, 'sessionUser: function()');
 const tenantOperationalD2 = getD2GuardBlock(sources.tenantRestrictedView, 'tenantOperational()');
@@ -198,7 +196,6 @@ const coreD2Blocks = [
     adminSessionUserD2,
     adminBusinessD2,
     adminUnauthorizedD2,
-    superAdminUnauthorizedD2,
     loginPostRouteD2,
     homeSessionUserD2,
     tenantOperationalD2

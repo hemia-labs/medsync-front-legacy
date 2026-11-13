@@ -13,7 +13,7 @@ const { buildClient } = require('./odontogram-ui-preview.cjs');
     await page.route('**/*', route => route.abort());
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     page.on('dialog',dialog=>{errors.push('Unexpected native dialog: '+dialog.type());dialog.dismiss();});
-    const built = buildClient({ includeEditors: true,extraModules:['src/views/super-admin/OdontogramAliases.vue','src/views/Patient/Sections/components/TreatmentDentalDetails.vue'] });
+    const built = buildClient({ includeEditors: true,extraModules:['src/views/Patient/Sections/components/TreatmentDentalDetails.vue'] });
     await page.setContent('<html><body style="margin:0"><div id="app"></div></body></html>');
     await page.addStyleTag({ path: require.resolve('vuetify/dist/vuetify.min.css') });
     await page.addStyleTag({path:require.resolve('sweetalert2/dist/sweetalert2.min.css')});
@@ -101,10 +101,9 @@ const { buildClient } = require('./odontogram-ui-preview.cjs');
       for(const [name,width,height]of [['desktop',1440,1000],['mobile',390,844]]){
         await page.setViewportSize({width,height});assert.equal(await page.locator('.co26-history-card').count(),2);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.locator('.co26-history').screenshot({path:path.join(output,'history-'+name+'.png')});
       }
-      for(const [id,filename]of [['src/views/super-admin/OdontogramAliases.vue','global-aliases'],['src/views/Patient/Sections/components/TreatmentDentalDetails.vue','plan-contributions']]){
+      for(const [id,filename]of [['src/views/Patient/Sections/components/TreatmentDentalDetails.vue','plan-contributions']]){
         await page.evaluate(({id})=>{
           const qa=window.__odontogramQA;qa.app.$destroy();document.body.innerHTML='<div id="extra"></div>';
-          qa.v2service.globalAliases=async()=>({success:true,data:{global_aliases:{caries:'car',globalcustom:'res'},catalog:[{code:'car',label:'Caries'},{code:'res',label:'Resina'}],alias_version:'qa-version'}});
           const component=qa.require(id).default;
           qa.app=new window.Vue({data:()=>({details:[{tooth_number:'16',manual:true,manual_surfaces:'D',surfaces:'MOD',sources:[{source_key:'qa-source',id_chart:'chart',finding_id:'finding',revision:2,context:{label:'Caries',surfaces:'MO'}}]}]}),render(h){return h(component,{props:{value:this.details,teeth:['16'],patientId:'synthetic',canRead:true},on:{input:value=>{this.details=value;}}});}}).$mount('#extra');
         },{id});

@@ -31,7 +31,7 @@ function load(file,bindings={},sfc=false) {
   assert.equal((await navigate('accountActivation')).name,'home');
   welcome=true;restricted=true;assert.equal((await navigate('home')).name,'tenantRestricted');restricted=false;
   pending=true;assert.equal((await navigate('home')).name,'accountActivation');pending=false;
-  superAdmin=true;assert.equal((await navigate('home')).name,'superAdminDashboard');superAdmin=false;
+  superAdmin=true;assert.equal((await navigate('home')).name,'accessUnavailable');superAdmin=false;
   authorized=false;assert.equal((await navigate('home')).name,'auth');authorized=true;
   for(const value of [null,{...status,paid:true,nextAction:'unavailable'},{...status,nextAction:'home',destination:'https://evil.invalid'},
     {...status,nextAction:'home',destination:'home',commercialState:'unavailable'}])assert.equal(activationDestination(value),null);

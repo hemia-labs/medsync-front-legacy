@@ -1,5 +1,10 @@
 export default [
     {
+        path: '/acceso-no-disponible', name: 'accessUnavailable',
+        component: () => import('../../views/error/AccessUnavailable.vue'),
+        meta: { title: 'Acceso no disponible - medsync', requireAuth: false, layout: 'default' }
+    },
+    {
         path:'/500',
         name:'500',
         component: () => import('../../views/error/500.vue'),
