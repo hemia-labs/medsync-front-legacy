@@ -60,8 +60,8 @@ const settle=async()=>{for(let n=0;n<20;n++)await Vue.nextTick();};
  const links=[...checklist.$el.querySelectorAll('ol a')];assert.equal(links.length,12);
  for(let i=0;i<links.length;i+=2){assert.equal(links[i].getAttribute('href').includes('guide='),false);assert.match(links[i+1].getAttribute('href'),/guide=1&resume=1/);}
  assert.match(checklist.$el.textContent,/Retomar agenda/);checklist.$destroy();
- const home=new Vue({...Checklist,router}).$mount();await settle();home.dismissCompletion();await settle();assert.equal(home.$el.nodeType,8,'An optional paused review cannot bring completed onboarding back to Home');home.$destroy();
+ const home=new Vue({...Checklist,router}).$mount();await settle();assert.equal(home.$el.nodeType,8,'An optional paused review cannot bring completed onboarding back to Home');home.$destroy();
  assert.equal(navigation.isGuideOnlyNavigation({path:'/admin',query:{section:'agenda',doctor:'other'}},{path:'/admin',query:{section:'agenda',doctor:'own',guide:'1'}}),false,'Doctor changes still require discard guard');
  assert.deepEqual(errors.map(e=>e.message),[]);
- console.log('PASS UX26: real router normal/explicit entry, exact-step resume/reload, same-menu exit, draft preservation, cancelled navigation, late responses, compact 6/6, separate review links and completed Home dismissal. Services doubled.');
+ console.log('PASS UX26: real router normal/explicit entry, exact-step resume/reload, same-menu exit, draft preservation, cancelled navigation, late responses, compact 6/6, separate review links and automatically hidden completed Home preparation. Services doubled.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
