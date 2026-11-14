@@ -19,6 +19,7 @@
         <strong>Revisa los datos antes de crear el paciente.</strong>
         <button v-for="(message, field) in formErrors" :key="field" type="button" @click="focusField(field)">{{ message }}</button>
       </div>
+      <identity-fields v-model="identity" :names="false" required-sex :disabled="isSaving" />
       <article class="patient-create-section">
         <div class="section-heading">
           <p>Datos personales</p>
@@ -81,6 +82,7 @@
 </template>
 
 <script>
+import IdentityFields from '../../components/identity/IdentityFields.vue';
 import { mapGetters } from 'vuex';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
@@ -93,10 +95,12 @@ import { peekAgendaReturn, setAgendaCreatedPatient } from '../../domain/appointm
 import { authorizationContext, isCurrentAuthorization } from '../../security/authorizationContext';
 
 export default {
+  components: { IdentityFields },
   directives: { fieldError },
   mixins: [VuexMixin],
   data() {
     return {
+      identity: {},
       isSaving: false,
       pendingCreate: null, retryAllowed: false, createdPatient: null, creationMessage: '', accessChanged: false,
       creationContext: authorizationContext(this.$store), alive: true, leaving: false, removeCreationGuard: null,
@@ -134,7 +138,7 @@ export default {
     creationAccessKey() { return JSON.stringify(authorizationContext(this.$store)); },
     fromAgenda() { const entry = peekAgendaReturn(this.$store); return entry && entry.kind === 'create-patient'; },
     today() { return localDateString(); },
-    formErrors() { return patientAdministrativeErrors(this.form); }
+    formErrors() { const errors=patientAdministrativeErrors(this.form); if(!this.identity.biologicalSex) errors.biologicalSex='Selecciona el sexo biológico.'; return errors; }
   },
   watch: {
     creationAccessKey() { this.accessChanged = true; this.pendingCreate = null; this.createdPatient = null; Object.keys(this.form).forEach(key => { this.form[key] = '' }); this.creationMessage = 'Cambió tu acceso. Recarga para continuar.'; },
@@ -190,6 +194,7 @@ export default {
     buildPayload() {
       const surname = [this.form.firstSurname, this.form.secondSurname].filter(Boolean).join(' ');
       return {
+        identity: {...this.identity, givenNames:this.form.name, firstSurname:this.form.firstSurname, firstSurnameStatus:'present', secondSurname:this.form.secondSurname||null, secondSurnameStatus:this.form.secondSurname?'present':'unknown',birthDate:this.form.birthDate},
         person: {
           name: this.form.name,
           surname,

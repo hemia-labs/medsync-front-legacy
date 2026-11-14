@@ -1793,7 +1793,7 @@ export default {
         full_name: fullName || 'No registrado',
         age: this.calculateAge(person.birthday) || person.age || 'No registrado',
         birth_date: person.birthday || 'No registrado',
-        sex: person.sex || person.gender || 'No registrado',
+        sex: ({'1':'Hombre','2':'Mujer','3':'Intersexual'})[(this.px.identity || {}).biologicalSex] || 'No registrado',
         phone: person.telephone || person.local_telephone || 'No registrado',
         email: person.email || 'No registrado',
         address: addressText || 'No registrado',
