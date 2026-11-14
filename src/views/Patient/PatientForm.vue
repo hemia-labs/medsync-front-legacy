@@ -2,6 +2,8 @@
   <div class="shadow-md rounded-md  bg-white">
     <da-loader v-bind:overlay="isLoading"></da-loader>
     <da-header-title :title="'Datos Personales'" class=" font-medium tracking-wider" rtlcornerlg/>
+    <identity-fields v-if="!id" v-model="nc1Identity" :names="false" required-sex :disabled="isLoading" />
+    <identity-editor v-else :subject="id" @saved="refreshIdentity" />
     <div class="px-5 py-5">
         <div class="grid grid-cols-1 md:grid-cols-2 px-1 py-1 gap-5" >
             
@@ -599,6 +601,8 @@
 </template>
 
 <script>
+import IdentityFields from "../../components/identity/IdentityFields.vue";
+import IdentityEditor from "../../components/identity/IdentityEditor.vue";
 import DAFamilyModel from '../../models/patient/DAFamily.model';
 import AllergyFields from './components/AllergyFields.vue';
 import AllergyEditor from './components/AllergyEditor.vue';
@@ -635,12 +639,14 @@ export default {
     }
   },
   components: {
+    IdentityFields, IdentityEditor,
     AllergyFields, AllergyEditor,
     'da-upload-file': DAUploadFile,
     'da-sweet-confirm': DASweetConfirm,
   },
   data: function() {
           return {
+            nc1Identity: {},
               patient: new PatientModel(),
               showAllergyEditor: false,
               mother: new DAFamilyModel(),
@@ -816,6 +822,7 @@ export default {
         this.patient.social_media = checkboxesData;
 
         const patientData = buildPatientPayload(this.patient, this.patologic, checkboxesData, this.formatFecha)
+        if(!this.id) { patientData.identity = this.nc1Identity; if(!this.nc1Identity.biologicalSex) { this.$swal.fire({icon:"error",text:"Selecciona el sexo biológico."}); return; } }
 
         this.$v.$touch();
         if(!this.$v.$anyError) {
@@ -839,6 +846,15 @@ export default {
             }
            }
         }
+    },
+    async refreshIdentity() {
+      const before = mapPatientResponseToForm(this.px, this.revertFormatFecha).person;
+      await this.ActionWrapp(moduleTypes.PX, fnTypes.getById, this.id);
+      const after = mapPatientResponseToForm(this.px, this.revertFormatFecha).person;
+      // Refresh the revision in px, retaining unsaved clinical/contact edits.
+      for (const key of ['name', 'surname', 'birthday', 'age']) {
+        if (this.patient.person[key] === before[key]) this.$set(this.patient.person, key, after[key]);
+      }
     },
     getPatient: async function(id) {
       await this.ActionWrapp(moduleTypes.PX, fnTypes.getById, id );
@@ -918,6 +934,7 @@ export default {
           this.addSocialMediaOther
         );
         const patientData = buildPatientPayload(this.patient, this.patologic, socialMedia, this.formatFecha)
+        patientData.expectedRevision = (this.px.identity || {}).revision || 0
         await this.ActionWrapp(moduleTypes.PX, fnTypes.update, patientData)
         if(this.hasPxErrorInService == false) {
           this.onCancel()
