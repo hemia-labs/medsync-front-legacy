@@ -11,15 +11,14 @@
             text
             @click="$emit('close', $attrs.value)"
         >
-            {{ calcelbtntext ? calcelbtntext : 'CANCELAR' }}
+            {{ calcelbtntext ? calcelbtntext : 'Cancelar' }}
         </v-btn>
         <v-btn
             :color="confirmcolor"
-            class="text-green-500"
             text
             @click="$emit('confirm', $attrs.value)"
         >
-            {{  confirmbtntext? confirmbtntext : 'ACEPTAR' }}
+            {{  confirmbtntext? confirmbtntext : 'Aceptar' }}
         </v-btn>
         </v-card-actions>
     </v-card>
@@ -35,11 +34,11 @@ export default {
     props: {
         confirmcolor: {
             type: String,
-            default: '#10B981'
+            default: 'var(--color-primary-700)'
         },
         cancelcolor: {
             type: String,
-            default: '#9CA3AF'
+            default: 'var(--color-grey)'
         },
         title: {
             type: String,
@@ -51,11 +50,11 @@ export default {
         },
         calcelbtntext: {
             type: String,
-            default: 'CANCELAR'
+            default: 'Cancelar'
         },
         confirmbtntext: {
             type: String,
-            default: 'ACEPTAR'
+            default: 'Aceptar'
         }
     }
 }

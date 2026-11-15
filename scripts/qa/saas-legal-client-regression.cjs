@@ -19,9 +19,10 @@ const strip=source=>source.replace(/^import[\s\S]*?from ['"][^'"]+['"];?\r?\n/gm
 const copy=value=>JSON.parse(JSON.stringify(value));
 const deferred=()=>{let resolve;return {promise:new Promise(done=>{resolve=done;}),resolve:value=>resolve(value)};};
 const flush=async()=>{await new Promise(resolve=>setImmediate(resolve));await Vue.nextTick();};
-const service={};let currentReply,historyReply,acceptReply,currentCalls,historyCalls,acceptCalls;
-function resetMocks(){currentReply={success:true,data:{documents:[],pending_count:0}};historyReply={success:true,data:{acceptances:[]}};acceptReply={success:false};currentCalls=0;historyCalls=0;acceptCalls=[];}
+const service={};let currentReply,noticeReply,historyReply,acceptReply,currentCalls,noticeCalls,historyCalls,acceptCalls;
+function resetMocks(){currentReply={success:true,data:{documents:[],pending_count:0}};noticeReply={success:true,data:{pending_count:0}};historyReply={success:true,data:{acceptances:[]}};acceptReply={success:false};currentCalls=0;noticeCalls=0;historyCalls=0;acceptCalls=[];}
 service.current=async()=>{currentCalls++;return typeof currentReply==='function'?currentReply():currentReply;};
+service.notice=async()=>{noticeCalls++;return noticeReply;};
 service.history=async()=>{historyCalls++;return typeof historyReply==='function'?historyReply():historyReply;};
 service.accept=async id=>{acceptCalls.push(id);return typeof acceptReply==='function'?acceptReply(id):acceptReply;};
 const sanitizer={module:{exports:{}},DOMPurify,window:dom.window};
@@ -36,21 +37,63 @@ async function check(name,run){resetMocks();try{await run();results.push({name,o
 
 (async()=>{
  const pure=async file=>import(`data:text/javascript;base64,${Buffer.from(read(file)).toString('base64')}`);
- const authorization=await pure('src/security/authorizationContext.js'),navigation=await pure('src/domain/settings/settings.navigation.js');
- function load(file){
+ const authorization=await pure('src/security/authorizationContext.js'),navigation=await pure('src/domain/settings/settings.navigation.js'),registration=await pure('src/utils/registration.js');
+ function load(file,components={}){
   const sfc=compiler.parseComponent(read(file)),compiled=compiler.compile(sfc.template.content);
   assert.deepEqual(compiled.errors,[],file+' compiles');
-  const context={component:null,CentralLegalReview:{render:h=>h('div')},SaaSLegalService:service,...sanitizer.module.exports,...authorization,...navigation,window:dom.window,document:dom.window.document,Date};
+  const context={component:null,SaaSLegalService:service,...sanitizer.module.exports,...authorization,...navigation,...registration,...components,window:dom.window,document:dom.window.document,Date};
   vm.runInNewContext(strip(sfc.script.content).replace('export default','component ='),context,{filename:file});
   return {options:context.component,sfc,render:new Function(compiled.render),staticRenderFns:compiled.staticRenderFns.map(source=>new Function(source))};
  }
- const account=load('src/views/configuration/components/AccountLegalDocuments.vue'),notice=load('src/core/components/legal/LegalUpdateNotice.vue');
+ const centralReview=load('src/views/configuration/components/CentralLegalReview.vue');
+ const CentralLegalReview={...centralReview.options,render:centralReview.render,staticRenderFns:centralReview.staticRenderFns};
+ const account=load('src/views/configuration/components/AccountLegalDocuments.vue',{CentralLegalReview}),notice=load('src/core/components/legal/LegalUpdateNotice.vue');
  function state(component,extras={}){
   const guards=[];const view={$refs:{},$store:{state:{CORE:{AUTH:auth()}}},$router:{beforeEach(fn){guards.push(fn);return()=>{guards.splice(guards.indexOf(fn),1);};}},$swal:{fire:async()=>({isConfirmed:false})},$nextTick:callback=>callback?callback():Promise.resolve(),...extras};
   Object.entries(component.options.methods).forEach(([key,method])=>{view[key]=method.bind(view);});Object.assign(view,component.options.data.call(view));
   Object.entries(component.options.computed).forEach(([key,getter])=>Object.defineProperty(view,key,{get:getter.bind(view),configurable:true}));view.guards=guards;return view;
  }
  function reviewing(){const view=state(account);view.documents=[documentItem()];view.currentLoaded=true;view.openCurrent(view.documents[0]);return view;}
+
+ await check('contract card and review prompt share acceptance, with skeletons and read-only access for other members',async()=>{
+  const key='contrato-saas';
+  const contract=documentItem(1,{source:'central',title:'Contrato SaaS',document_key:'contrato_de_servicios_saas',
+   acceptance_scope:'business',central_can_review:true,can_accept:false,document_set_key:key,document_set_name:'Contrato SaaS',
+   current_version:{...version(),content_html:''}});
+  const gate=deferred(),readGate=deferred(),reviewCalls=[];
+  service.centralContext=async set=>{reviewCalls.push(set);return gate.promise;};
+  service.centralDocument=async()=>readGate.promise;
+  currentReply={success:true,data:{documents:[contract]}};
+  const store={state:{CORE:{AUTH:Vue.observable(auth())}}};
+  const router=new VueRouter({mode:'abstract'});
+  const view=new Vue({...account.options,router,vuetify:new Vuetify(),render:account.render,staticRenderFns:account.staticRenderFns,beforeCreate(){this.$store=store;}});
+  const inheritStore=function(){this.$store=store;};
+  CentralLegalReview.beforeCreate=inheritStore;
+  try{
+   view.$mount();document.querySelector('[data-app]').appendChild(view.$el);await flush();
+   const card=view.$el.querySelector('.legal-document-card button');
+   card.focus();card.click();await flush();
+   const review=view.$refs.centralReviews[0];
+   assert.equal(view.dialogOpen,false);assert.equal(review.open,true);assert.deepEqual(reviewCalls,[key]);
+   assert.ok(document.querySelector('.central-legal-skeleton .v-skeleton-loader__bone'));
+   gate.resolve({success:true,data:{acceptanceScope:'business',legalContext:'signed-context',legalContextExpiresAt:new Date(Date.now()+60000).toISOString(),
+    legalDocuments:[{documentKey:contract.document_key,versionId:version().id_version,version:'1.0.0',title:contract.title,contentHash:'a'.repeat(64),requiredAction:'accept',contentHtml:version().content_html}]}});
+   await flush();
+   const submit=document.querySelector('.central-legal-primary');
+   assert.equal(submit.textContent,'Aceptar esta versión');assert.equal(submit.disabled,true);
+   assert.equal(review.close(),true);await flush();
+   view.$el.querySelector('.central-legal-prompt button').click();await flush();
+   assert.deepEqual(reviewCalls,[key,key]);assert.equal(review.open,true);
+   review.close();await flush();
+   currentReply={success:true,data:{documents:[{...contract,central_can_review:false}]}};
+   await view.loadCurrent();await flush();
+   view.$el.querySelector('.legal-document-card button').click();await flush();
+   assert.equal(view.dialogOpen,true);assert.ok(document.querySelector('.legal-document-skeleton .v-skeleton-loader__bone'));
+   readGate.resolve({success:true,data:{version:version()}});await flush();
+   assert.ok(document.querySelector('.legal-document-content'));assert.equal(view.mayAcceptSelected,false);
+   assert.equal(acceptCalls.length,0);assert.deepEqual(reviewCalls,[key,key]);
+  }finally{view.$destroy();view.$el.remove();delete CentralLegalReview.beforeCreate;}
+ });
 
  await check('current/history loading failures remain unknown and independently retry into real empty or populated results',async()=>{
   const view=state(account);view.reviewSaving=true;view.resetSession();assert.equal(view.reviewSaving,false);currentReply={success:false,message:'SQL private failure'};historyReply={success:false};
@@ -125,30 +168,31 @@ async function check(name,run){resetMocks();try{await run();results.push({name,o
   }
   const view=reviewing();view.acceptances=[historyItem()];view.authState.user.id_login='other';currentReply={success:true,data:{documents:[],pending_count:0}};historyReply={success:true,data:{acceptances:[]}};account.options.watch.sessionKey.handler.call(view);assert.equal(view.dialogOpen,false);assert.equal(view.documents.length,0);assert.equal(view.acceptances.length,0);await flush();
  });
- await check('notice checks login/current data, throttles route/focus refresh for 45 seconds and keeps business responsibility visible',async()=>{
+ await check('notice reads only the summary, throttles route/focus refresh for 45 seconds and keeps business responsibility visible',async()=>{
   const originalNow=Date.now;let now=100000;Date.now=()=>now;
   try{
-   const view=state(notice);currentReply={success:true,data:{documents:[documentItem(1,{acceptance_scope:'business'})],pending_count:1}};
-   assert.equal(await view.load(true),true);assert.equal(view.pendingCount,1);assert.equal(view.businessPending,true);const count=currentCalls;
-   assert.equal(await view.load(),false);notice.options.watch['$route.fullPath'].call(view);view.onVisible();await flush();assert.equal(currentCalls,count);
-   now+=46000;view.onVisible();await flush();assert.equal(currentCalls,count+1);
-   await view.load(true);assert.equal(currentCalls,count+2,'Acceptance event/manual retry can bypass throttling');
-   view.authState.authenticated=false;assert.equal(await view.load(true),false);assert.equal(currentCalls,count+2);
+   const view=state(notice);noticeReply={success:true,data:{pending_count:1,business_pending:true}};
+   assert.equal(await view.load(true),true);assert.equal(view.pendingCount,1);assert.equal(view.businessPending,true);const count=noticeCalls;
+   assert.equal(await view.load(),false);notice.options.watch['$route.fullPath'].call(view);view.onVisible();await flush();assert.equal(noticeCalls,count);
+   now+=46000;view.onVisible();await flush();assert.equal(noticeCalls,count+1);
+   await view.load(true);assert.equal(noticeCalls,count+2,'Acceptance event/manual retry can bypass throttling');
+   view.authState.authenticated=false;assert.equal(await view.load(true),false);assert.equal(noticeCalls,count+2);
+   assert.equal(currentCalls,0);assert.equal(historyCalls,0);
   }finally{Date.now=originalNow;}
  });
  await check('accepted event queues one fresh check during an existing read and notice failures never invent an accepted state',async()=>{
-  const view=state(notice),gate=deferred();currentReply=gate.promise;const pending=view.load(true);view.onAccepted();view.onAccepted();assert.equal(currentCalls,1);assert.equal(view.queuedRefresh,true);
-  currentReply={success:true,data:{documents:[],pending_count:0}};gate.resolve({success:true,data:{documents:[documentItem()],pending_count:1}});await pending;await flush();assert.equal(currentCalls,2);assert.equal(view.pendingCount,0);assert.equal(view.loading,false);
-  currentReply={success:false};await view.load(true);assert.ok(view.error);assert.equal(view.pendingCount,0,'Failure retains known state and exposes its uncertainty');
+  const view=state(notice),gate=deferred();noticeReply=gate.promise;const pending=view.load(true);view.onAccepted();view.onAccepted();assert.equal(noticeCalls,1);assert.equal(view.queuedRefresh,true);
+  noticeReply={success:true,data:{pending_count:0}};gate.resolve({success:true,data:{pending_count:1}});await pending;await flush();assert.equal(noticeCalls,2);assert.equal(view.pendingCount,0);assert.equal(view.loading,false);
+  noticeReply={success:false};await view.load(true);assert.ok(view.error);assert.equal(view.pendingCount,0,'Failure retains known state and exposes its uncertainty');
   const unknown=state(notice);await unknown.load(true);assert.equal(unknown.pendingCount,null);assert.ok(unknown.error);
  });
  await check('notice drops stale context, ignores hidden visibility and removes all lifecycle listeners',async()=>{
   for(const change of [view=>{view.authState.user.id_login='other';},view=>{view.authState.token='other';},()=>authorization.invalidatePendingRequests(),view=>{view.disposed=true;}]){
-   const view=state(notice),gate=deferred();currentReply=gate.promise;const pending=view.load(true);change(view);gate.resolve({success:true,data:{documents:[documentItem()],pending_count:1}});await pending;assert.equal(view.pendingCount,null);assert.equal(view.businessPending,false);
+   const view=state(notice),gate=deferred();noticeReply=gate.promise;const pending=view.load(true);change(view);gate.resolve({success:true,data:{pending_count:1}});await pending;assert.equal(view.pendingCount,null);assert.equal(view.businessPending,false);
   }
-  const hidden=state(notice),visibility=Object.getOwnPropertyDescriptor(document,'visibilityState'),beforeHidden=currentCalls;Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});hidden.onVisible();assert.equal(currentCalls,beforeHidden);if(visibility)Object.defineProperty(document,'visibilityState',visibility);else delete document.visibilityState;
-  const view=state(notice);notice.options.mounted.call(view);notice.options.beforeDestroy.call(view);const count=currentCalls;window.dispatchEvent(new dom.window.Event('focus'));document.dispatchEvent(new dom.window.Event('visibilitychange'));window.dispatchEvent(new dom.window.CustomEvent('saas-legal-accepted'));await flush();assert.equal(currentCalls,count);
-  const anonymous=state(notice);anonymous.authState.authenticated=false;notice.options.watch.sessionKey.handler.call(anonymous);assert.equal(anonymous.pendingCount,null);assert.equal(anonymous.error,'');assert.equal(currentCalls,count);
+  const hidden=state(notice),visibility=Object.getOwnPropertyDescriptor(document,'visibilityState'),beforeHidden=noticeCalls;Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});hidden.onVisible();assert.equal(noticeCalls,beforeHidden);if(visibility)Object.defineProperty(document,'visibilityState',visibility);else delete document.visibilityState;
+  const view=state(notice);notice.options.mounted.call(view);notice.options.beforeDestroy.call(view);const count=noticeCalls;window.dispatchEvent(new dom.window.Event('focus'));document.dispatchEvent(new dom.window.Event('visibilitychange'));window.dispatchEvent(new dom.window.CustomEvent('saas-legal-accepted'));await flush();assert.equal(noticeCalls,count);
+  const anonymous=state(notice);anonymous.authState.authenticated=false;notice.options.watch.sessionKey.handler.call(anonymous);assert.equal(anonymous.pendingCount,null);assert.equal(anonymous.error,'');assert.equal(noticeCalls,count);
  });
  await check('central failures keep local receipts visible and notices never report a complete legal state',async()=>{
   const view=state(account);
@@ -156,6 +200,7 @@ async function check(name,run){resetMocks();try{await run();results.push({name,o
   historyReply={success:true,data:{acceptances:[historyItem()],central_available:false}};
   await view.refreshAll();assert.equal(view.documents.length,1);assert.equal(view.acceptances.length,1);
   assert.ok(view.centralWarning);assert.ok(view.historyWarning);assert.equal(view.currentError,'');
+  noticeReply={success:true,data:{pending_count:1,pending_unknown:true}};
   const alert=state(notice);await alert.load(true);assert.ok(alert.error.includes('Legal central'));
  });
  await check('central receipts use verified exact-version text; queued evidence never asks for local acceptance',async()=>{
@@ -165,7 +210,7 @@ async function check(name,run){resetMocks();try{await run();results.push({name,o
   assert.equal(view.selectedVersion.content_html,version().content_html);assert.equal(view.selectedAcceptance.evidence_id,'central-proof');
   const central=documentItem(1,{source:'central',pending:false,can_accept:false,sync_pending:true});
   view.documents=[central];view.openCurrent(central);await flush();assert.equal(view.statusLabel(central),'Sincronización pendiente');assert.equal(view.mayAcceptSelected,false);
-  currentReply={success:true,data:{documents:[central],pending_count:0,central_sync_pending:true}};
+  noticeReply={success:true,data:{pending_count:0,central_sync_pending:true}};
   const alert=state(notice);await alert.load(true);assert.equal(alert.syncPending,true);assert.equal(alert.error,'');
   const gate=deferred();service.centralDocument=()=>gate.promise;view.openReceipt(proof);view.authState.user.id_login='another';
   gate.resolve({success:true,data:{version:{...version(),content_html:'<p>late</p>'}}});await flush();assert.notEqual(view.selectedVersion.content_html,'<p>late</p>');

@@ -23,7 +23,7 @@ export default {
 </script>
 <style scoped>
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
-legend, .detail-label { font-weight: 700; color: #334155; }
+legend, .detail-label { font-weight: 600; color: #334155; }
 p { color: #475569; font-size: .88rem; margin: .5rem 0 .8rem; }
 fieldset label { display: flex; align-items: center; gap: .7rem; border: 1px solid #cbd5e1; border-radius: 10px; padding: .8rem; margin: .5rem 0; min-height: 44px; cursor: pointer; color: #334155; }
 fieldset label.selected { border-color: var(--color-primary-700); background: var(--color-primary-50, #ecfeff); }

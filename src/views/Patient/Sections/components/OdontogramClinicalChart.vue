@@ -70,15 +70,15 @@ export default {
 .clinical-chart-scroll { overflow-x: auto; padding: 4px; }
 .clinical-chart-teeth { display: flex; gap: 6px; width: max-content; }
 .clinical-chart-teeth button { display: flex; flex-direction: column; align-items: center; width: 60px; min-height: 110px; padding: 6px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 8px; }
-.clinical-chart-teeth button[aria-pressed="true"] { border-color: var(--color-primary-700, #0e7490); background: var(--color-primary-50, #effbfe); }
+.clinical-chart-teeth button[aria-pressed="true"] { border-color: var(--color-primary-700); background: var(--color-primary-50, #effbfe); }
 .clinical-chart-teeth button span { font-size: 10px; }
-.clinical-chart-teeth button:focus-visible, .clinical-chart-edit:focus-visible { outline: 2px solid var(--color-primary-700, #0e7490); outline-offset: 2px; }
+.clinical-chart-teeth button:focus-visible, .clinical-chart-edit:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
 .clinical-chart-teeth button:disabled, .clinical-chart-edit:disabled { opacity: .5; cursor: wait; }
 .clinical-chart ::v-deep svg { width: 44px; height: 66px; }
 .clinical-chart ::v-deep .co26-root-line { fill: none; stroke: currentColor; }
-.clinical-chart ::v-deep .co26-fill-empty { fill: var(--color-surface, #fff); }
+.clinical-chart ::v-deep .co26-fill-empty { fill: var(--color-surface); }
 .clinical-chart-detail { margin-top: 16px; padding: 16px; border: 1px solid var(--color-border, #d8e9ef); border-radius: 8px; }
 .clinical-chart-detail p { white-space: pre-wrap; overflow-wrap: anywhere; }
-.clinical-chart-edit { padding: 10px 16px; min-height: 44px; border-radius: 8px; background: var(--color-primary-900, #086783); color: #fff; }
+.clinical-chart-edit { padding: 10px 16px; min-height: 44px; border-radius: 8px; background: var(--color-primary-900); color: #fff; }
 @media (max-width: 600px) { .clinical-chart { padding: 12px; } }
 </style>

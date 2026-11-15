@@ -317,11 +317,11 @@ export default {
 .help-hero-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 56px; height: 56px;
   border-radius: 16px; background: #0f766e; }
 .help-hero-icon .v-icon { color: #fff; }
-.help-center h1 { font-size: 1.8rem; line-height: 1.25; font-weight: 700; margin: 0; }
+.help-center h1 { font-size: 1.8rem; line-height: 1.25; font-weight: 600; margin: 0; }
 .help-hero-lead { margin: 4px 0 0; color: #334155; font-size: 1.02rem; line-height: 1.5; }
 .help-preview { display: inline-block; margin: 16px 0 0; padding: 2px 10px; border: 1px solid #cbd5e1; border-radius: 999px;
   background: rgba(255, 255, 255, .7); color: #475569; font-size: .8rem; }
-.help-search-label { display: block; font-weight: 700; margin-bottom: 8px; }
+.help-search-label { display: block; font-weight: 600; margin-bottom: 8px; }
 .help-search-field { position: relative; display: flex; align-items: center; }
 .help-search-icon { position: absolute; left: 14px; color: #64748b; pointer-events: none; }
 .help-search input { width: 100%; min-height: 52px; padding: 12px 48px 12px 46px; border: 2px solid #cbd5e1; border-radius: 14px;
@@ -340,20 +340,20 @@ export default {
 .help-sections a { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px 20px; border: 2px solid #cbd5e1; border-radius: 12px; background: #fff; color: #334155; text-decoration: none; }
 .help-sections a .v-icon { color: inherit; }
 .help-sections a:hover { border-color: #94a3b8; }
-.help-sections a[aria-current] { border-color: #0f766e; background: #e6f4f1; color: #0f766e; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+.help-sections a[aria-current] { border-color: #0f766e; background: #e6f4f1; color: #0f766e; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
 
 /* Layout and topic index */
 .help-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 32px; align-items: start; }
 .help-topics { position: sticky; top: 96px; }
-.help-index-label { font-weight: 700; margin: 0 0 8px; }
+.help-index-label { font-weight: 600; margin: 0 0 8px; }
 .help-topics ol { list-style: none; padding: 0; margin: 0; }
 .help-topics a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 10px; border-left: 3px solid transparent;
   border-radius: 0 8px 8px 0; color: #334155; text-decoration: underline; text-underline-offset: 3px; line-height: 1.4; }
 .help-topics a .v-icon { color: #0f766e; flex: none; }
 .help-topics a:hover { background: #f1f5f9; }
-.help-topics a.is-active { border-left-color: #0f766e; background: #e6f4f1; color: #0f3d44; font-weight: 700; }
-.help-center h2 { font-size: 1.4rem; font-weight: 700; margin: 0 0 8px; }
-.help-center h3 { font-size: 1.1rem; font-weight: 700; line-height: 1.5; margin: 0 0 8px; color: #12313a; }
+.help-topics a.is-active { border-left-color: #0f766e; background: #e6f4f1; color: #0f3d44; font-weight: 600; }
+.help-center h2 { font-size: 1.4rem; font-weight: 600; margin: 0 0 8px; }
+.help-center h3 { font-size: 1.1rem; font-weight: 600; line-height: 1.5; margin: 0 0 8px; color: #12313a; }
 .help-section-intro { margin: 0 0 20px; color: #475569; line-height: 1.6; }
 
 .help-topic-card { padding: 24px; margin-bottom: 16px; border-radius: 16px; border-color: #dbe5ea; }
@@ -412,27 +412,27 @@ export default {
 .help-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 20px 0 8px; padding: 16px 18px;
   border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
 .help-facts:empty { display: none; }
-.help-facts dt { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-weight: 700; font-size: .9rem; color: #334155; }
+.help-facts dt { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-weight: 600; font-size: .9rem; color: #334155; }
 .help-facts dt .v-icon { color: #0f766e; }
 .help-facts dd { margin: 0; }
 .help-facts ul { list-style: none; padding: 0; margin: 0; }
 .help-facts li { padding: 0; }
 .help-facts a { display: inline-flex; align-items: center; min-height: 36px; color: #0f766e; text-decoration: underline; text-underline-offset: 3px; line-height: 1.4; }
 .help-toc { margin: 16px 0 0; }
-.help-toc-label { margin: 0 0 4px !important; font-weight: 700; font-size: .9rem; color: #334155; }
+.help-toc-label { margin: 0 0 4px !important; font-weight: 600; font-size: .9rem; color: #334155; }
 .help-toc ol { list-style: none; padding: 0; margin: 0; }
 .help-toc li { padding: 0; }
 .help-toc a { display: inline-flex; align-items: center; min-height: 36px; color: #0f766e; text-decoration: underline; text-underline-offset: 3px; }
 .help-steps { list-style: none; padding: 0; margin: 0 0 16px; counter-reset: help-step; }
 .help-steps li { position: relative; counter-increment: help-step; padding: 6px 0 10px 44px; }
 .help-steps li::before { content: counter(help-step); position: absolute; left: 0; top: 6px; display: flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border-radius: 50%; background: #0f766e; color: #fff; font-weight: 700; font-size: .85rem; line-height: 1; }
+  width: 28px; height: 28px; border-radius: 50%; background: #0f766e; color: #fff; font-weight: 600; font-size: .85rem; line-height: 1; }
 .help-items { list-style: disc; padding-left: 24px; margin-bottom: 16px; }
 .help-items li { padding: 6px 0 6px 4px; }
 .help-items li::marker { color: #0f766e; }
 .help-note { margin: 8px 0 16px; padding: 14px 16px 2px; border: 1px solid #b7e0d9; border-left: 4px solid #0f766e; border-radius: 10px; background: #f0faf8; }
 .help-note.is-problem { border-color: #f3d9a4; border-left-color: #b45309; background: #fffaeb; }
-.help-note-title { display: flex; align-items: center; gap: 6px; margin: 0 0 6px !important; font-weight: 700; color: #0f5e57; }
+.help-note-title { display: flex; align-items: center; gap: 6px; margin: 0 0 6px !important; font-weight: 600; color: #0f5e57; }
 .help-note-title .v-icon { color: inherit; }
 .help-note.is-problem .help-note-title { color: #92400e; }
 .help-next { margin-top: 16px; padding: 20px 24px; border: 1px solid #dbe5ea; border-radius: 16px; background: #f8fafc; }

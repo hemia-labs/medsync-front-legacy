@@ -1095,7 +1095,7 @@ export default {
   margin: 0 0 0.4rem;
   color: #b9f1e8;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -1104,7 +1104,7 @@ export default {
   margin: 0;
   color: #ffffff;
   font-size: clamp(1.9rem, 4vw, 2.8rem);
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.05;
 }
@@ -1113,7 +1113,7 @@ export default {
   margin: 0.55rem 0 0;
   color: #d9fbf5;
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .hero-lead {
@@ -1142,7 +1142,7 @@ export default {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.12);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .hero-meta .v-icon {
@@ -1166,7 +1166,7 @@ export default {
 .an-filter-label {
   color: var(--an-muted);
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -1220,7 +1220,7 @@ export default {
   flex: 0 0 auto;
   font-size: 0.82rem;
   font-style: normal;
-  font-weight: 800;
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -1241,7 +1241,7 @@ export default {
   margin: 0;
   color: var(--an-ink);
   font-size: 1.45rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 
@@ -1305,7 +1305,7 @@ export default {
   color: var(--an-ink-2);
   background: var(--an-surface-2);
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -1322,7 +1322,7 @@ export default {
 .activity-card strong {
   color: var(--an-ink);
   font-size: clamp(2rem, 3.4vw, 2.6rem);
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.05;
   overflow-wrap: anywhere;
@@ -1330,7 +1330,7 @@ export default {
 
 .kpi-label {
   color: var(--an-ink);
-  font-weight: 750;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -1342,7 +1342,7 @@ export default {
 
 .kpi-previous {
   margin-top: 0.2rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Widgets avanzados */
@@ -1404,7 +1404,7 @@ export default {
   border: 1px solid transparent;
   border-radius: 999px;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .status-chip.is-success {
@@ -1597,7 +1597,7 @@ export default {
 
 .license-copy span {
   color: var(--an-ink);
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .license-copy .an-meter {
@@ -1607,7 +1607,7 @@ export default {
 .license-item > strong {
   color: var(--an-ink);
   font-size: 1.15rem;
-  font-weight: 800;
+  font-weight: 600;
   white-space: nowrap;
 }
 

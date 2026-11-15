@@ -2,8 +2,6 @@ import { DACore } from '../../config/axios.context';
 const base = 'api/odontogram/v2/';
 const key = value => encodeURIComponent(value);
 export default {
-  globalAliases: () => DACore.get('api/super-admin/odontogram-aliases'),
-  saveGlobalAlias: body => DACore.put('api/super-admin/odontogram-aliases',body),
   capabilities: () => DACore.get(base + 'capabilities'),
   setMode: mode => DACore.put(base + 'mode', { mode }),
   aliases: () => DACore.get(base + 'aliases'),

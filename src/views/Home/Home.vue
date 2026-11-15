@@ -957,7 +957,7 @@ export default {
   margin: 0 0 0.4rem;
   color: #0f766e;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1rem;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -973,7 +973,7 @@ export default {
 .home-hero h1 {
   max-width: 42rem;
   font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.06;
 }
 
@@ -1028,7 +1028,7 @@ export default {
 
 .section-heading h2 {
   font-size: 1.2rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.55rem;
 }
 
@@ -1054,7 +1054,7 @@ export default {
   gap: 0.45rem;
   min-height: 2.75rem;
   border-radius: 0.85rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
@@ -1125,7 +1125,7 @@ export default {
 .form-message {
   margin: 0.75rem 0 0;
   font-size: 0.88rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .form-message.is-warning {
@@ -1142,7 +1142,7 @@ export default {
 .empty-state strong {
   display: block;
   color: #12313a;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -1233,7 +1233,7 @@ export default {
   border-radius: 0.85rem;
   background: #0f766e;
   color: #ffffff;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .patient-avatar {
@@ -1258,7 +1258,7 @@ export default {
   gap: 0.25rem;
   color: #0f766e;
   font-size: 0.86rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .empty-state,
@@ -1305,7 +1305,7 @@ export default {
 
 .inline-state a {
   color: #0f766e;
-  font-weight: 900;
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 0.2rem;
 }
@@ -1341,7 +1341,7 @@ export default {
   color: #0f766e;
   background: #e7f6f4;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .continuity-card {
@@ -1387,7 +1387,7 @@ export default {
   color: #12313a;
   background: #ffffff;
   font-size: 0.88rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .continuity-select:focus {
@@ -1430,7 +1430,7 @@ export default {
   display: block;
   color: #12313a;
   font-size: 0.98rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.25rem;
 }
 
@@ -1459,7 +1459,7 @@ export default {
   display: block;
   color: #12313a;
   font-size: 1.2rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.2rem;
 }
 
@@ -1468,7 +1468,7 @@ export default {
   margin-top: 0.28rem;
   color: #64748b;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 0.95rem;
 }
 
@@ -1549,7 +1549,7 @@ export default {
 .continuity-item strong {
   color: #12313a;
   font-size: 0.85rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .continuity-item small {
@@ -1570,7 +1570,7 @@ export default {
   border-radius: 0.5rem;
   color: #0f766e;
   background: #f0fdfa;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .continuity-action:hover,

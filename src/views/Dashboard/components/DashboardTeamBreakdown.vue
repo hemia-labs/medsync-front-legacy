@@ -269,14 +269,14 @@ export default {
 .team-metric strong {
   color: var(--an-ink);
   font-size: 1.4rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.15;
 }
 
 .team-metric small {
   color: var(--an-muted);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .team-block {
@@ -289,7 +289,7 @@ export default {
 .block-aside {
   color: var(--an-muted);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .role-list,
@@ -340,7 +340,7 @@ export default {
   border-radius: 50%;
   color: var(--an-accent);
   font-size: 1.5rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .license-copy {
@@ -352,6 +352,6 @@ export default {
 .license-copy span {
   color: var(--an-ink);
   font-size: 1.15rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 </style>

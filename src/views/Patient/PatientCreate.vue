@@ -277,7 +277,7 @@ html[data-theme="clinical-night"] .patient-create-page > p { color:#e2e8f0; }
   margin: 0;
   color: var(--color-primary-900);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -286,7 +286,7 @@ html[data-theme="clinical-night"] .patient-create-page > p { color:#e2e8f0; }
   margin: 0.15rem 0;
   color: #0f172a;
   font-size: 1.55rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .patient-create-hero p,
@@ -337,7 +337,7 @@ html[data-theme="clinical-night"] .patient-create-page > p { color:#e2e8f0; }
   min-height: 2.55rem;
   border-radius: 999px;
   padding: 0 1.15rem;
-  font-weight: 800;
+  font-weight: 600;
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 

@@ -3,7 +3,6 @@ import LottieAnimation from 'lottie-vuejs/src/LottieAnimation.vue';
 
 import AdminLayout from '@/core/layouts/admin.vue';
 import DefaultLayout from '@/core/layouts/default.vue';
-import SuperAdminLayout from '@/core/layouts/super-admin.vue';
 import DAActionsButton from '@/core/components/form/buttons/DAActionsButton.vue';
 import DACancelButton from '@/core/components/form/buttons/DACancelButton.vue';
 import DADatatable from '@/core/components/form/table/DADatatable.vue';
@@ -46,7 +45,6 @@ const components = {
   'da-button-cancel': DACancelButton,
   'default-layout': DefaultLayout,
   'admin-layout': AdminLayout,
-  'super-admin-layout': SuperAdminLayout,
 };
 
 export default function registerGlobalComponents(Vue) {

@@ -1,4 +1,3 @@
-export const LEGAL_KEYS = ['terms_conditions', 'privacy_notice'];
 export function usableRegistrationContext(context) {
   return Boolean(context && context.enabled && typeof context.legalContext === 'string' && context.legalContext
     && Array.isArray(context.legalDocuments) && context.legalDocuments.length > 0 && context.legalDocuments.length <= 10

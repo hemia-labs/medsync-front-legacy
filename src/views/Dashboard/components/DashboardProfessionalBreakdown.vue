@@ -194,14 +194,14 @@ export default {
 .total-card strong {
   color: var(--an-ink);
   font-size: 1.35rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.2;
 }
 
 .total-card small {
   color: var(--an-muted);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -231,7 +231,7 @@ export default {
   color: #ffffff;
   background: #0f766e;
   font-size: 0.86rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .professional-avatar.avatar-1 { background: #1f5f9c; }
@@ -261,7 +261,7 @@ export default {
 .professional-total {
   color: var(--an-ink);
   font-size: 1.5rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 
@@ -281,7 +281,7 @@ export default {
   color: var(--an-ink-2);
   background: var(--an-surface-2);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .metric-chips .v-icon {

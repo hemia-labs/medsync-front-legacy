@@ -248,7 +248,7 @@ export default {
 
 .trend-readout span {
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -282,7 +282,7 @@ export default {
 .trend-metric header small {
   color: var(--an-ink-2);
   font-size: 0.82rem;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .metric-figures {
@@ -296,7 +296,7 @@ export default {
 .metric-figures strong {
   color: var(--an-ink);
   font-size: 1.7rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.1;
 }
@@ -308,7 +308,7 @@ export default {
 
 .metric-figures b {
   color: var(--an-ink);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .metric-columns {
@@ -388,13 +388,13 @@ export default {
 .trend-table thead th {
   color: var(--an-muted);
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: 600;
   white-space: normal;
 }
 
 .trend-table tbody th {
   color: var(--an-ink);
-  font-weight: 750;
+  font-weight: 600;
 }
 
 @media (prefers-reduced-motion: reduce) {

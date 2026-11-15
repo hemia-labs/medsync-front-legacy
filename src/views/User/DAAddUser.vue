@@ -374,16 +374,16 @@ export default {
     justify-content: space-between;
     gap: 1rem;
     padding: clamp(1.15rem, 2vw, 1.45rem);
-    border-bottom: 1px solid var(--color-primary-200, #cdeef7);
-    background: linear-gradient(135deg, var(--color-primary-100, #e6f7fb) 0%, rgba(255, 255, 255, 0.94) 72%);
+    border-bottom: 1px solid var(--color-primary-200);
+    background: linear-gradient(135deg, var(--color-primary-100) 0%, rgba(255, 255, 255, 0.94) 72%);
 }
 
 .staff-editor-eyebrow,
 .staff-section-title p {
     margin: 0;
-    color: var(--color-primary-900, #086783);
+    color: var(--color-primary-900);
     font-size: 0.74rem;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0;
     line-height: 1rem;
     text-transform: uppercase;
@@ -393,7 +393,7 @@ export default {
     margin: 0.25rem 0 0;
     color: #12313a;
     font-size: 1.55rem;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0;
     line-height: 1.15;
 }
@@ -410,7 +410,7 @@ export default {
     width: 3rem;
     height: 3rem;
     border-radius: 8px;
-    color: var(--color-primary-900, #086783);
+    color: var(--color-primary-900);
     background: #ffffff;
     box-shadow: 0 10px 20px rgba(8, 103, 131, 0.10);
 }
@@ -434,7 +434,7 @@ export default {
 }
 
 .role-permissions-note {
-    border: 1px solid var(--color-primary-200, #cdeef7);
+    border: 1px solid var(--color-primary-200);
     border-radius: 8px;
     background: #ffffff;
     padding: 1rem;
@@ -449,7 +449,7 @@ export default {
     margin-top: 0.25rem;
     color: #64748b;
     font-size: 0.84rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .license-context-grid {
@@ -476,7 +476,7 @@ export default {
 
 .license-context-grid small {
     color: #0f766e;
-    font-weight: 800;
+    font-weight: 600;
 }
 
 .staff-editor-actions {
@@ -496,16 +496,16 @@ export default {
     min-height: 2.55rem;
     border-radius: 8px;
     padding: 0 1rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0;
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .staff-save-button {
     min-width: 10rem;
-    border: 1px solid var(--color-primary-700, #1497bd);
+    border: 1px solid var(--color-primary-700);
     color: #ffffff;
-    background: var(--color-primary-700, #1497bd);
+    background: var(--color-primary-700);
     box-shadow: 0 10px 20px rgba(8, 103, 131, 0.16);
 }
 
@@ -523,18 +523,18 @@ export default {
 
 .staff-save-button:hover,
 .staff-save-button:focus {
-    border-color: var(--color-primary-900, #086783);
+    border-color: var(--color-primary-900);
     color: #ffffff;
-    background: var(--color-primary-900, #086783);
+    background: var(--color-primary-900);
     outline: none;
     transform: translateY(-1px);
 }
 
 .staff-cancel-button:hover,
 .staff-cancel-button:focus {
-    border-color: var(--color-primary-300, #a6e1f0);
-    color: var(--color-primary-900, #086783);
-    background: var(--color-primary-100, #e6f7fb);
+    border-color: var(--color-primary-300);
+    color: var(--color-primary-900);
+    background: var(--color-primary-100);
     outline: none;
 }
 

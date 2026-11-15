@@ -628,7 +628,7 @@ export default {
 .heading-aside {
   color: var(--an-muted);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Lectura del periodo */
@@ -659,7 +659,7 @@ export default {
 .reading-card strong {
   color: var(--an-ink);
   font-size: 1.5rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
@@ -667,7 +667,7 @@ export default {
 .reading-card span {
   color: var(--an-ink);
   font-size: 0.9rem;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .reading-card small {
@@ -684,7 +684,7 @@ export default {
   color: var(--an-accent-strong);
   font-size: 0.78rem;
   font-style: normal;
-  font-weight: 750;
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -700,7 +700,7 @@ export default {
   margin: 0;
   color: var(--an-accent-strong);
   font-size: 0.82rem;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .reading-next .v-icon {
@@ -765,7 +765,7 @@ export default {
 .group-heading b {
   color: var(--an-ink);
   font-size: 1.5rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.1;
   text-align: right;
 }
@@ -775,7 +775,7 @@ export default {
   max-width: 7rem;
   color: var(--an-muted);
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -804,7 +804,7 @@ export default {
 
 .legend-list strong {
   color: var(--an-ink);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .an-dot.is-hollow {
@@ -840,7 +840,7 @@ export default {
   display: block;
   color: var(--an-muted);
   font-size: 0.78rem;
-  font-weight: 750;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -848,7 +848,7 @@ export default {
   display: block;
   color: var(--an-ink);
   font-size: 1.6rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
@@ -895,7 +895,7 @@ export default {
 .economics-card strong {
   color: var(--an-ink);
   font-size: 1.4rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
@@ -922,7 +922,7 @@ export default {
 .comparison-value strong {
   color: var(--an-ink);
   font-size: 1.8rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
@@ -958,7 +958,7 @@ export default {
   color: var(--an-muted);
   font-size: 0.72rem;
   font-style: normal;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
 }
 

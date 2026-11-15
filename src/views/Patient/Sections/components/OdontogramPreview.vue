@@ -1216,12 +1216,12 @@ export default {
 }
 .co26 h2 {
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.5px;
 }
 .co26 h3 {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
 }
 .co26 p {
   line-height: 1.6;
@@ -1231,7 +1231,7 @@ export default {
 }
 .co26 .co26-eyebrow {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.12em;
   color: var(--co-accent);
   margin-bottom: 6px;
@@ -1270,7 +1270,7 @@ export default {
   color: var(--co-ink);
   background: var(--co-surface);
   font-size: 12px !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1292,7 +1292,7 @@ export default {
   padding: 8px;
   border: 1px solid transparent;
   font-size: 12px !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
 }
 .co26-full {
   width: 100%;
@@ -1354,7 +1354,7 @@ export default {
   background: var(--co-tint);
   color: var(--co-accent);
   padding: 3px 9px;
-  font-weight: 700;
+  font-weight: 600;
 }
 .co26-green {
   background: #e6f5ed;
@@ -1455,7 +1455,7 @@ export default {
   text-align: center;
   padding: 12px 5px;
   border-radius: 6px;
-  font-weight: 800;
+  font-weight: 600;
 }
 .co26-command input {
   border: 0 !important;
@@ -1492,7 +1492,7 @@ export default {
 }
 .co26-progress > strong {
   font-size: 32px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--co-accent);
 }
 .co26-progress small {
@@ -1645,7 +1645,7 @@ export default {
 }
 .co26-tooth-number {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--co-ink);
 }
 .co26-tick {
@@ -1715,7 +1715,7 @@ export default {
 }
 .co26-detail-title > strong {
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--co-accent);
   background: var(--co-tint);
   border-radius: 10px;
@@ -1751,7 +1751,7 @@ export default {
   min-height: 44px;
   border: 1px solid var(--co-border);
   border-radius: 8px;
-  font-weight: 700;
+  font-weight: 600;
 }
 .co26-finding-list {
   padding: 14px 0;
@@ -1902,7 +1902,7 @@ export default {
   min-height: 44px;
   border: 1px solid var(--co-border);
   border-radius: 7px;
-  font-weight: 700;
+  font-weight: 600;
   background: var(--co-surface);
 }
 .co26-associated-row {
