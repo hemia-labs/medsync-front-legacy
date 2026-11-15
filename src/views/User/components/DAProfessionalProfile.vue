@@ -1,5 +1,7 @@
 <template>
     <section class="mt-6 border border-gray-200 bg-white p-5">
+        <identity-editor v-if="idLogin" kind="professional" :subject="idLogin" :can-manage="showAdminControls || adminControlsOnly" @saved="onIdentitySaved" />
+        <p v-if="identityConflict" role="alert">Tu nombre pendiente se conserva. Para continuar, concílialo con Identidad. <button type="button" @click="useSavedIdentityName">Usar identidad guardada</button></p>
         <preparation-guide ref="profileGuide" v-if="!adminControlsOnly" branch="doctor-identity" :subject="idLogin" :signature-open="signaturePadVisible" :signature-has-ink="signatureHasInk" :signature-capture-label="signatureCaptureLabel" :action-label="saveButtonLabel" :save-state="guideSaveState" :dirty="hasUnsavedChanges" :busy="loading || saving" @focus-control="focusGuideControl" @skip-signature="signaturePadVisible=false" />
         <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
             <div>
@@ -7,7 +9,7 @@
                 <h3 class="m-0 mt-1 text-gray-700 text-lg font-semibold">{{ adminControlsOnly ? 'Autorizaciones del doctor' : 'Datos del doctor' }}</h3>
                 <p class="m-0 mt-1 text-gray-500 text-sm">{{ adminControlsOnly ? 'Controla si este doctor puede actuar como emisor o firmante profesional.' : 'Tu nombre identifica tu agenda. La cédula y la firma se utilizan al preparar recetas y documentos clínicos.' }}</p>
             </div>
-            <da-button-primary ref="guideSave" v-if="!hideSaveButton" :disabled="loading || saving || !!loadError" @click.native="save" :label="saveButtonLabel" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+            <da-button-primary ref="guideSave" v-if="!hideSaveButton" :disabled="loading || saving || !!loadError || identityConflict" @click.native="save" :label="saveButtonLabel" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
         </div>
         <p v-if="loading" role="status">Consultando perfil profesional…</p>
         <p v-if="loadError" role="alert" class="text-red-800">{{ loadError }} <button type="button" class="underline" @click="load">Reintentar</button></p>
@@ -83,6 +85,7 @@
 </template>
 
 <script>
+import IdentityEditor from "../../../components/identity/IdentityEditor.vue";
 import PreparationGuide from '../../configuration/components/PreparationGuide.vue';
 import { focusControl } from '../../../domain/onboarding/focusControl';
 import { DAUserService } from '../../../services/context/core-proccess-context';
@@ -124,7 +127,7 @@ const validateProfessionalPhone = value => {
 };
 
 export default {
-    components:{PreparationGuide},
+    components:{PreparationGuide,IdentityEditor},
     props: {
         idLogin: {
             type: String,
@@ -145,7 +148,7 @@ export default {
     },
     data() {
         return {
-            form: emptyForm(),
+            form: emptyForm(), identityConflict:false, savedIdentityName:null,
             warning: '',
             signaturePadVisible: false, signatureHasInk:false,
             hasProfile:false, loading:false, loadError:'', saving:false, checkingProfile:false, loadRequest:0,
@@ -208,6 +211,17 @@ export default {
         if(this.removeSettingsGuard) this.removeSettingsGuard();
     },
     methods: {
+        onIdentitySaved(identity) {
+            if(identity.givenNames && identity.firstSurnameStatus !== 'unknown' && identity.secondSurnameStatus !== 'unknown') {
+                const name = [identity.givenNames, identity.firstSurname, identity.secondSurname].filter(Boolean).join(' ');
+                const baseline = this.baseline ? JSON.parse(this.baseline) : {};
+                this.savedIdentityName = name;
+                this.identityConflict = this.form.professional_name !== baseline.professional_name && this.form.professional_name !== name;
+                if(!this.identityConflict) this.form.professional_name = name;
+                if(this.baseline) this.baseline = JSON.stringify({...baseline, professional_name:name});
+            }
+        },
+        useSavedIdentityName() { this.form.professional_name=this.savedIdentityName;this.identityConflict=false; },
         removeSignature() { if(!this.saving){this.form.signature_image='';this.saveError='';this.warning=this.validationMessage();} },
         async refreshSignature() {
             const id=this.idLogin,key=this.profileSessionKey,source=this.form.signature_image;
@@ -274,6 +288,7 @@ export default {
             }
             this.warning = this.validationMessage();
             this.signaturePadVisible = false;
+            this.identityConflict=false;this.savedIdentityName=null;
             this.baseline = profileSnapshot(this.form);
             } catch(_) {if(!this.disposed && request===this.loadRequest && id===this.idLogin && key===this.profileSessionKey){this.loadError='No se pudo cargar el perfil profesional. Reintenta para consultar su estado.';this.hasProfile=false;}}
             finally {if(!this.disposed && request===this.loadRequest && key===this.profileSessionKey)this.loading=false;}
@@ -288,7 +303,7 @@ export default {
             return '';
         },
         async save() {
-            if(this.loading || this.saving || this.loadError)return;
+            if(this.loading || this.saving || this.loadError || this.identityConflict)return;
             if(this.uncertainProfile)return this.checkProfileSave();
             if(this.signaturePadVisible) {
                 this.saveError = 'Aplica la firma que estás capturando o pulsa Cancelar firma antes de guardar el perfil.';
