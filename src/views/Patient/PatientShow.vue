@@ -23,6 +23,9 @@
     <div class="mb-4">
         <da-history-header :px="px" :can-edit="canManagePatient" :archive-pending="archivePending" :show-clinical="canViewClinical" v-model="isEditProfile" v-on:edit="requestProfileEdit" @archive="requestArchive"></da-history-header>
     </div>
+    <div v-if="canManagePatient && !isEdit" class="mb-4">
+        <v-btn outlined @click="requestAdministrativeEdit">Editar datos e identidad</v-btn>
+    </div>
     <div v-if="canViewClinical" class="mb-4">
         <da-alergy-alert :px="px" :can-edit="canEditAllergies" v-on:edit="openAllergyEditor"></da-alergy-alert>
         <p v-if="allergyFeedback" role="status" class="text-sm mt-2">{{ allergyFeedback }}</p>
@@ -36,7 +39,6 @@
             <p>Domicilio: {{ px.address && px.address.direction || 'Sin registrar' }}</p>
         </template>
         <div v-if="canManagePatient" class="flex flex-wrap gap-3 mt-3">
-            <v-btn v-if="!isEdit" outlined @click="requestPatientEdit">Editar datos administrativos</v-btn>
             <v-btn v-if="isArchived" outlined :disabled="archivePending" @click="restorePatient">Restaurar paciente</v-btn>
             <v-btn v-else outlined :disabled="archivePending" @click="requestArchive">Archivar paciente</v-btn>
         </div>
@@ -95,7 +97,7 @@
     <AllergyEditor v-if="canEditAllergies" v-model="showAllergyEditor" :patient-id="activePatientId" :patient-name="px.person.fullname" :record="px.allergy || {}" :legacy-text="allergyLegacyText" @saved="onAllergySaved" />
     
     <div v-if="isEdit" class="py-5" :class="{'animate-fade-in-left ease-in-out': isEdit}">
-        <da-patient-form v-if="canEditClinical" :id="id" v-on:cancel="onCancelEdit"></da-patient-form>
+        <da-patient-form v-if="canEditClinical && !administrativeEdit" :id="id" v-on:cancel="onCancelEdit"></da-patient-form>
         <PatientAdministrativeForm v-else-if="canManagePatient" :patient="px" @cancel="onCancelEdit" @saved="onAdministrativeSaved" />
     </div>
 
@@ -158,6 +160,7 @@ export default {
     data() {
         return {
             isEdit: false,
+            administrativeEdit: false,
             isDelete: false,
             archivePending: false,
             showAllergyEditor: false,
@@ -297,7 +300,17 @@ export default {
     registerSectionGuard(guard) { this.sectionLeaveGuard = guard },
     async requestPatientEdit() {
         if(!this.canManagePatient) return
-        if(await this.confirmSectionLeave()) this.isEdit = true
+        if(await this.confirmSectionLeave()) {
+            this.administrativeEdit = false
+            this.isEdit = true
+        }
+    },
+    async requestAdministrativeEdit() {
+        if(!this.canManagePatient) return
+        if(await this.confirmSectionLeave()) {
+            this.administrativeEdit = true
+            this.isEdit = true
+        }
     },
     async requestTabChange(component) {
         if(component === this.tab || this.tabNavigationPending) return false
