@@ -2,72 +2,82 @@
   <section class="tenant-dashboard-page">
     <div class="dashboard-container">
       <header class="dashboard-hero">
+        <svg class="hero-art" viewBox="0 0 320 220" fill="none" aria-hidden="true">
+          <circle cx="250" cy="60" r="150" stroke="currentColor" stroke-opacity=".12" />
+          <circle cx="250" cy="60" r="105" stroke="currentColor" stroke-opacity=".16" />
+          <circle cx="250" cy="60" r="62" stroke="currentColor" stroke-opacity=".22" />
+          <path d="M20 190 L80 150 L130 168 L190 110 L240 128 L300 70" stroke="currentColor" stroke-opacity=".35" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="190" cy="110" r="5" fill="currentColor" fill-opacity=".6" />
+          <circle cx="300" cy="70" r="5" fill="currentColor" fill-opacity=".6" />
+        </svg>
         <div class="hero-copy">
-          <p class="eyebrow">Panel del consultorio</p>
-          <h1>Análisis del consultorio</h1><p>{{ scopeLabel }}</p>
-          <p>Revisa los indicadores disponibles para tus permisos en este periodo, sin datos personales de pacientes.</p>
+          <p class="hero-eyebrow">Panel del consultorio</p>
+          <h1>Análisis del consultorio</h1>
+          <p class="hero-scope">{{ scopeLabel }}</p>
+          <p class="hero-lead">Revisa los indicadores disponibles para tus permisos en este periodo, sin datos personales de pacientes.</p>
           <div class="hero-meta">
             <span v-if="businessName">
-              <v-icon size="17">mdi-domain</v-icon>
+              <v-icon size="16">mdi-domain</v-icon>
               Consultorio: {{ businessName }}
             </span>
             <span v-if="planLabel">
-              <v-icon size="17">mdi-shield-check-outline</v-icon>
+              <v-icon size="16">mdi-shield-check-outline</v-icon>
               {{ planLabel }}
             </span>
             <span>
-              <v-icon size="17">mdi-calendar-range-outline</v-icon>
+              <v-icon size="16">mdi-calendar-range-outline</v-icon>
               {{ rangeLabel }}
             </span>
             <span v-if="scopeDoctorLabel">
-              <v-icon size="17">mdi-account-tie-outline</v-icon>
+              <v-icon size="16">mdi-account-tie-outline</v-icon>
               {{ scopeDoctorLabel }}
             </span>
+          </div>
+        </div>
+      </header>
+
+      <section class="filters-panel an-card" aria-label="Filtros del resumen">
+        <div class="an-filter">
+          <span id="dashboard-range-label" class="an-filter-label">Elige que periodo revisar</span>
+          <div class="an-segment" role="group" aria-labelledby="dashboard-range-label">
+            <button
+              v-for="preset in rangePresets"
+              :key="preset.key"
+              type="button"
+              :class="{ 'is-active': selectedPreset === preset.key }"
+              :aria-pressed="selectedPreset === preset.key"
+              :disabled="isDashboardBusy"
+              @click="applyPreset(preset.key)"
+            >
+              {{ preset.label }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="canChangeScope" class="an-filter">
+          <span id="dashboard-scope-label" class="an-filter-label">Alcance</span>
+          <div class="an-segment" role="group" aria-labelledby="dashboard-scope-label">
+            <button
+              v-for="option in scopeOptions"
+              :key="option.key"
+              type="button"
+              :class="{ 'is-active': dashboardScope.mode === option.key }"
+              :aria-pressed="dashboardScope.mode === option.key"
+              :disabled="isDashboardBusy"
+              @click="changeScope(option.key)"
+            >{{ option.label }}</button>
           </div>
         </div>
 
         <button
           type="button"
-          class="refresh-button"
+          class="an-button refresh-button"
           :disabled="isDashboardBusy"
           @click="fetchDashboard"
         >
           <v-icon size="19">mdi-refresh</v-icon>
           <span>{{ isDashboardBusy ? 'Actualizando...' : 'Actualizar' }}</span>
         </button>
-      </header>
-      <pulse-entry />
-
-      <section class="filters-panel" aria-label="Filtros del resumen">
-        <div>
-          <p class="eyebrow">Periodo</p>
-          <h2>Elige que periodo revisar</h2>
-        </div>
-
-        <div class="range-actions">
-          <template v-if="canChangeScope">
-            <button
-              v-for="option in scopeOptions"
-              :key="option.key"
-              type="button"
-              :class="['range-button', { 'is-active': dashboardScope.mode === option.key }]"
-              :aria-pressed="dashboardScope.mode === option.key"
-              :disabled="isDashboardBusy"
-              @click="changeScope(option.key)"
-            >{{ option.label }}</button>
-          </template>
-          <button
-            v-for="preset in rangePresets"
-            :key="preset.key"
-            type="button"
-            :class="['range-button', { 'is-active': selectedPreset === preset.key }]"
-            :aria-pressed="selectedPreset === preset.key"
-            :disabled="isDashboardBusy"
-            @click="applyPreset(preset.key)"
-          >
-            {{ preset.label }}
-          </button>
-        </div>
       </section>
 
       <v-progress-linear
@@ -78,155 +88,66 @@
         class="dashboard-progress"
       ></v-progress-linear>
 
-      <section v-if="errorMessage" class="state-panel is-error" aria-live="polite">
+      <section v-if="errorMessage" class="an-state is-error page-state" aria-live="polite">
         <v-icon size="34">mdi-alert-circle-outline</v-icon>
         <div>
           <strong>No pudimos cargar el resumen.</strong>
           <p>{{ errorMessage }}</p>
         </div>
-        <button type="button" class="state-action" @click="fetchDashboard">Reintentar</button>
+        <button type="button" class="an-button" @click="fetchDashboard">Reintentar</button>
       </section>
 
       <template v-if="summary">
-        <section
-          v-if="canShowPlanStatus || canShowAdministrativeAlerts"
-          class="overview-grid"
-          aria-label="Estado del negocio"
+        <button
+          v-if="canShowAdministrativeAlerts && dashboardAlerts.length"
+          type="button"
+          class="alert-strip"
+          @click="goToAccount"
         >
-          <article v-if="canShowPlanStatus" class="summary-card plan-card">
-            <div class="card-heading">
-              <div>
-                <p class="eyebrow">Plan contratado</p>
-                <h2>{{ planName }}</h2>
-              </div>
-              <span :class="['status-chip', subscriptionTone]">{{ subscriptionLabel }}</span>
-            </div>
-
-            <div class="plan-details">
-              <span>
-                <small>Tipo de plan</small>
-                <strong>{{ planName }}</strong>
-              </span>
-              <span>
-                <small>Estado del consultorio</small>
-                <strong>{{ businessStatusLabel }}</strong>
-              </span>
-              <span>
-                <small>Periodo revisado</small>
-                <strong>{{ rangeLabel }}</strong>
-              </span>
-            </div>
-          </article>
-
-          <article v-if="canShowAdministrativeAlerts" class="summary-card alerts-card">
-            <div class="card-heading">
-              <div>
-                <p class="eyebrow">Avisos del consultorio</p>
-                <h2>{{ dashboardAlerts.length ? 'Revisar' : 'Todo en orden' }}</h2>
-              </div>
-              <v-icon size="26">{{ dashboardAlerts.length ? 'mdi-bell-alert-outline' : 'mdi-check-circle-outline' }}</v-icon>
-            </div>
-
-            <div v-if="dashboardAlerts.length" class="alert-list">
-              <div
-                v-for="alert in dashboardAlerts"
-                :key="alert.key"
-                :class="['alert-item', alert.tone || 'warning']"
-              >
-                <strong>{{ alert.title }}</strong>
-                <span>{{ alert.message }}</span>
-              </div>
-            </div>
-
-            <div v-else class="positive-state">
-              <strong>Sin alertas importantes por ahora.</strong>
-              <span>Aqui apareceran avisos de configuracion o capacidad de tu cuenta.</span>
-            </div>
-          </article>
-        </section>
-
-        <section v-if="canShowPlanStatus" class="summary-card plan-scope-card is-compact" aria-labelledby="plan-scope-title">
-          <div class="card-heading">
-            <div>
-              <p class="eyebrow">Lo que incluye tu plan</p>
-              <h2 id="plan-scope-title">{{ dashboardLevelLabel }}</h2>
-            </div>
-            <span class="privacy-note">{{ dashboardPlanLabel }}</span>
-          </div>
-
-          <p>{{ planScopeMessage }}</p>
-
-          <div v-if="planScopeNotes.length" class="scope-note-grid">
-            <article v-for="note in planScopeNotes" :key="note.key" :class="['scope-note', note.tone]">
-              <v-icon size="22">{{ note.icon }}</v-icon>
-              <div>
-                <strong>{{ note.title }}</strong>
-                <span>{{ note.message }}</span>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section v-if="canShowLicenseUsage" class="summary-card license-card" aria-labelledby="license-title">
-          <div class="card-heading">
-            <div>
-              <p class="eyebrow">Capacidad de tu cuenta</p>
-              <h2 id="license-title">Usuarios incluidos</h2>
-            </div>
-            <span class="privacy-note">Pacientes ilimitados</span>
-          </div>
-
-          <div class="license-grid">
-            <article
-              v-for="item in licenseCards"
-              :key="item.key"
-              :class="[
-                'license-item',
-                {
-                  'is-complete': !item.exceeded && item.remaining === 0,
-                  'is-exceeded': item.exceeded
-                }
-              ]"
-            >
-              <div class="license-icon">
-                <v-icon size="22">{{ item.icon }}</v-icon>
-              </div>
-              <div class="license-copy">
-                <span>{{ item.label }}</span>
-                <strong v-if="item.key === 'patients'">{{ item.limitLabel }}</strong>
-                <strong v-else>{{ item.usedLabel }} / {{ item.limitLabel }}</strong>
-                <small>{{ item.remainingLabel }}</small>
-              </div>
-              <div v-if="!item.unlimited" class="license-progress" aria-hidden="true">
-                <span :style="{ width: item.progress + '%' }"></span>
-              </div>
-            </article>
-          </div>
-        </section>
+          <v-icon size="22">mdi-bell-alert-outline</v-icon>
+          <span>
+            <strong>{{ dashboardAlerts.length === 1 ? 'Hay 1 aviso del consultorio por revisar' : 'Hay ' + dashboardAlerts.length + ' avisos del consultorio por revisar' }}</strong>
+            <small>{{ dashboardAlerts[0].title }}{{ dashboardAlerts.length > 1 ? ' y más' : '' }}</small>
+          </span>
+          <em>Ver avisos <span aria-hidden="true">↓</span></em>
+        </button>
 
         <section v-if="canShowBasicActivity" class="activity-section" aria-labelledby="activity-title">
-          <div class="section-heading">
+          <div class="an-heading section-heading">
             <div>
-              <p class="eyebrow">Actividad del periodo</p>
+              <p class="an-eyebrow">Actividad del periodo</p>
               <h2 id="activity-title">{{ scopeLabel }}</h2>
             </div>
-            <span class="privacy-note">Sin datos personales</span>
+            <span class="an-chip"><v-icon size="15">mdi-shield-lock-outline</v-icon>Sin datos personales</span>
           </div>
 
           <div class="activity-grid">
-            <article v-for="card in activityCards" :key="card.key" class="activity-card">
-              <span class="activity-icon">
-                <v-icon size="24">{{ card.icon }}</v-icon>
-              </span>
-              <div>
-                <strong>{{ formatNumber(card.value) }}</strong>
-                <span>{{ card.label }}</span>
-                <small>{{ card.description }}</small>
+            <article
+              v-for="card in kpiCards"
+              :key="card.key"
+              class="activity-card an-card"
+              :style="{ '--kpi-color': card.color }"
+            >
+              <div class="kpi-top">
+                <span class="activity-icon">
+                  <v-icon size="22">{{ card.icon }}</v-icon>
+                </span>
+                <span
+                  v-if="card.trend"
+                  :class="['kpi-delta', 'is-' + card.trend.direction]"
+                  :title="card.trend.title"
+                >
+                  <span aria-hidden="true">{{ card.trend.arrow }}</span> {{ card.trend.text }}
+                </span>
               </div>
+              <strong>{{ formatNumber(card.value) }}</strong>
+              <span class="kpi-label">{{ card.label }}</span>
+              <small>{{ card.description }}</small>
+              <small v-if="card.trend" class="kpi-previous">{{ card.trend.previousText }}</small>
             </article>
           </div>
 
-          <div v-if="hasMeasuredActivity && !hasActivity && !isDashboardBusy" class="state-panel is-empty">
+          <div v-if="hasMeasuredActivity && !hasActivity && !isDashboardBusy" class="an-state is-empty">
             <v-icon size="32">mdi-chart-box-outline</v-icon>
             <div>
               <strong>No hay actividad registrada en este periodo.</strong>
@@ -234,6 +155,8 @@
             </div>
           </div>
         </section>
+
+        <pulse-entry />
 
         <dashboard-locked-widget v-if="showProLockedPanel" />
 
@@ -251,34 +174,31 @@
             @retry="fetchOperationalSummary"
           />
 
+          <dashboard-activity-trends
+            v-if="canShowTrends"
+            :loading="trendsLoading"
+            :error="trendsError"
+            :data="trendsData"
+            :granularity="trendsGranularity"
+            class="dashboard-widget-wide"
+            @granularity-change="changeTrendsGranularity"
+            @retry="fetchTrends"
+          />
+
           <div
-            v-if="canShowTrends || canShowProfessionalBreakdown || canShowTeamBreakdown"
+            v-if="canShowProfessionalBreakdown || canShowTeamBreakdown"
             :class="[
               'dashboard-secondary-grid',
-              {
-                'is-single': !canShowTeamBreakdown || !(canShowTrends || canShowProfessionalBreakdown)
-              }
+              { 'is-single': !canShowTeamBreakdown || !canShowProfessionalBreakdown }
             ]"
           >
-            <div v-if="canShowTrends || canShowProfessionalBreakdown" class="dashboard-secondary-stack">
-              <dashboard-activity-trends
-                v-if="canShowTrends"
-                :loading="trendsLoading"
-                :error="trendsError"
-                :data="trendsData"
-                :granularity="trendsGranularity"
-                @granularity-change="changeTrendsGranularity"
-                @retry="fetchTrends"
-              />
-
-              <dashboard-professional-breakdown
-                v-if="canShowProfessionalBreakdown"
-                :loading="professionalBreakdownLoading"
-                :error="professionalBreakdownError"
-                :data="professionalBreakdownData"
-                @retry="fetchProfessionalBreakdown"
-              />
-            </div>
+            <dashboard-professional-breakdown
+              v-if="canShowProfessionalBreakdown"
+              :loading="professionalBreakdownLoading"
+              :error="professionalBreakdownError"
+              :data="professionalBreakdownData"
+              @retry="fetchProfessionalBreakdown"
+            />
 
             <dashboard-team-breakdown
               v-if="canShowTeamBreakdown"
@@ -291,9 +211,142 @@
         </section>
 
         <dashboard-enterprise-locked-widget v-if="showEnterpriseLockedPanel" />
+
+        <section
+          v-if="canShowPlanStatus || canShowAdministrativeAlerts || canShowLicenseUsage"
+          id="dashboard-account"
+          ref="account"
+          class="account-section"
+          aria-labelledby="account-title"
+          tabindex="-1"
+        >
+          <div class="an-heading section-heading">
+            <div>
+              <p class="an-eyebrow">Tu cuenta</p>
+              <h2 id="account-title">Plan, avisos y capacidad</h2>
+            </div>
+          </div>
+
+          <div
+            v-if="canShowPlanStatus || canShowAdministrativeAlerts"
+            :class="['overview-grid', { 'is-single': !(canShowPlanStatus && canShowAdministrativeAlerts) }]"
+          >
+            <article v-if="canShowPlanStatus" class="an-card plan-card">
+              <div class="an-heading">
+                <div>
+                  <p class="an-eyebrow">Plan contratado</p>
+                  <h3>{{ planName }}</h3>
+                </div>
+                <span :class="['status-chip', subscriptionTone]">{{ subscriptionLabel }}</span>
+              </div>
+
+              <div class="plan-details">
+                <span>
+                  <small>Tipo de plan</small>
+                  <strong>{{ planName }}</strong>
+                </span>
+                <span>
+                  <small>Estado del consultorio</small>
+                  <strong>{{ businessStatusLabel }}</strong>
+                </span>
+                <span>
+                  <small>Periodo revisado</small>
+                  <strong>{{ rangeLabel }}</strong>
+                </span>
+              </div>
+            </article>
+
+            <article v-if="canShowAdministrativeAlerts" class="an-card alerts-card">
+              <div class="an-heading">
+                <div>
+                  <p class="an-eyebrow">Avisos del consultorio</p>
+                  <h3>{{ dashboardAlerts.length ? 'Revisar' : 'Todo en orden' }}</h3>
+                </div>
+                <v-icon size="26" :class="dashboardAlerts.length ? 'alerts-icon is-pending' : 'alerts-icon'">{{ dashboardAlerts.length ? 'mdi-bell-alert-outline' : 'mdi-check-circle-outline' }}</v-icon>
+              </div>
+
+              <div v-if="dashboardAlerts.length" class="alert-list">
+                <div
+                  v-for="alert in dashboardAlerts"
+                  :key="alert.key"
+                  :class="['alert-item', alert.tone || 'warning']"
+                >
+                  <strong>{{ alert.title }}</strong>
+                  <span>{{ alert.message }}</span>
+                </div>
+              </div>
+
+              <div v-else class="positive-state">
+                <strong>Sin alertas importantes por ahora.</strong>
+                <span>Aqui apareceran avisos de configuracion o capacidad de tu cuenta.</span>
+              </div>
+            </article>
+          </div>
+
+          <div :class="['account-grid', { 'is-single': !(canShowPlanStatus && canShowLicenseUsage) }]">
+            <section v-if="canShowPlanStatus" class="an-card plan-scope-card" aria-labelledby="plan-scope-title">
+              <div class="an-heading">
+                <div>
+                  <p class="an-eyebrow">Lo que incluye tu plan</p>
+                  <h3 id="plan-scope-title">{{ dashboardLevelLabel }}</h3>
+                </div>
+                <span class="an-chip">{{ dashboardPlanLabel }}</span>
+              </div>
+
+              <p>{{ planScopeMessage }}</p>
+
+              <div v-if="planScopeNotes.length" class="scope-note-list">
+                <article v-for="note in planScopeNotes" :key="note.key" :class="['scope-note', note.tone]">
+                  <v-icon size="20">{{ note.icon }}</v-icon>
+                  <div>
+                    <strong>{{ note.title }}</strong>
+                    <span>{{ note.message }}</span>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section v-if="canShowLicenseUsage" class="an-card license-card" aria-labelledby="license-title">
+              <div class="an-heading">
+                <div>
+                  <p class="an-eyebrow">Capacidad de tu cuenta</p>
+                  <h3 id="license-title">Usuarios incluidos</h3>
+                </div>
+                <span class="an-chip">Pacientes ilimitados</span>
+              </div>
+
+              <div class="license-list">
+                <article
+                  v-for="item in licenseCards"
+                  :key="item.key"
+                  :class="[
+                    'license-item',
+                    {
+                      'is-complete': !item.exceeded && item.remaining === 0,
+                      'is-exceeded': item.exceeded
+                    }
+                  ]"
+                >
+                  <div class="license-icon">
+                    <v-icon size="20">{{ item.icon }}</v-icon>
+                  </div>
+                  <div class="license-copy">
+                    <span>{{ item.label }}</span>
+                    <small>{{ item.remainingLabel }}</small>
+                    <div v-if="!item.unlimited" class="an-meter" aria-hidden="true">
+                      <span :style="{ width: item.progress + '%' }"></span>
+                    </div>
+                  </div>
+                  <strong v-if="item.key === 'patients'">{{ item.limitLabel }}</strong>
+                  <strong v-else>{{ item.usedLabel }} / {{ item.limitLabel }}</strong>
+                </article>
+              </div>
+            </section>
+          </div>
+        </section>
       </template>
 
-      <section v-else-if="!isDashboardBusy && !errorMessage" class="state-panel is-empty">
+      <section v-else-if="!isDashboardBusy && !errorMessage" class="an-state is-empty page-state">
         <v-icon size="34">mdi-view-dashboard-outline</v-icon>
         <div>
           <strong>Aun no hay informacion para mostrar.</strong>
@@ -668,7 +721,7 @@ export default {
           key: 'appointmentsCreated',
           label: 'Citas registradas',
           description: 'Citas creadas en el rango.',
-          icon: 'mdi-calendar-plus-outline',
+          icon: 'mdi-calendar-plus',
           value: this.activity.appointmentsCreated
         },
         {
@@ -689,6 +742,21 @@ export default {
         const definition = (this.summary && this.summary.metricDefinitions || {})[card.key] || {};
         return { ...card, description: definition.reason || card.description };
       });
+    },
+    kpiCards: function() {
+      // Cada indicador conserva el mismo color que en la tendencia de actividad.
+      const colors = {
+        patientsCreated: 'var(--an-series-1)',
+        appointmentsCreated: 'var(--an-series-2)',
+        prescriptionsIssued: 'var(--an-series-4)',
+        clinicalHistoriesFinalized: 'var(--an-series-5)'
+      };
+      const comparison = (this.operationalData && this.operationalData.periodComparison) || {};
+      return this.activityCards.map(card => ({
+        ...card,
+        color: colors[card.key],
+        trend: this.buildKpiTrend(comparison[card.key])
+      }));
     },
     hasActivity: function() {
       return this.activityCards.some((card) => normalizeNumber(card.value) > 0);
@@ -914,6 +982,28 @@ export default {
         progress
       };
     },
+    buildKpiTrend: function(item) {
+      const delta = metricNumber(item && item.delta);
+      const previous = metricNumber(item && item.previous);
+      if(delta === null || previous === null) return null;
+      const percent = metricNumber(item.deltaPercent);
+      const sign = delta > 0 ? '+' : '';
+      const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+      return {
+        direction,
+        arrow: { up: '▲', down: '▼', flat: '=' }[direction],
+        text: delta === 0 ? 'Sin cambio' : percent === null
+          ? `${sign}${this.formatNumber(delta)}` : `${sign}${this.formatNumber(percent)}%`,
+        title: `${sign}${this.formatNumber(delta)} respecto al periodo anterior`,
+        previousText: `Periodo anterior: ${this.formatNumber(previous)}`
+      };
+    },
+    goToAccount: function() {
+      const target = this.$refs.account;
+      if(!target) return;
+      target.scrollIntoView({ block: 'start' });
+      target.focus({ preventScroll: true });
+    },
     capacityCompleteMessage: function(item) {
       if(item.key === 'patients') {
         return 'Tu plan mantiene pacientes ilimitados.';
@@ -955,217 +1045,423 @@ export default {
 };
 </script>
 
+<style src="./analysis.css"></style>
+
 <style scoped>
 .tenant-dashboard-page {
   min-height: 100%;
-  padding: 1.6rem 1rem 2rem;
+  padding: 1.6rem 1rem 2.4rem;
 }
 
 .dashboard-container {
+  display: grid;
+  gap: 1.1rem;
   width: min(100%, 78rem);
   margin: 0 auto;
 }
 
-.dashboard-hero,
-.filters-panel,
-.summary-card,
-.state-panel {
-  border: 1px solid rgba(14, 116, 144, 0.12);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07);
+.dashboard-container > * {
+  min-width: 0;
+  margin: 0;
 }
 
+/* Encabezado */
 .dashboard-hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1.2rem;
-  padding: clamp(1.35rem, 3vw, 2.1rem);
+  position: relative;
+  overflow: hidden;
+  padding: clamp(1.4rem, 3.4vw, 2.3rem);
+  border-radius: 24px;
+  color: #ffffff;
+  background: linear-gradient(125deg, #0b4f4a 0%, #0f766e 48%, #1c5f8c 100%);
+  box-shadow: 0 18px 44px rgba(11, 79, 74, 0.22);
+}
+
+.hero-art {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(46%, 24rem);
+  height: 100%;
+  color: #ffffff;
+  pointer-events: none;
 }
 
 .hero-copy {
-  max-width: 48rem;
+  position: relative;
+  max-width: 46rem;
 }
 
-.eyebrow {
-  margin: 0 0 0.35rem;
-  color: #0f766e;
+.hero-eyebrow {
+  margin: 0 0 0.4rem;
+  color: #b9f1e8;
   font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
-.dashboard-hero h1,
-.filters-panel h2,
-.summary-card h2,
-.section-heading h2 {
-  margin: 0;
-  color: #12313a;
-  letter-spacing: 0;
-}
-
 .dashboard-hero h1 {
-  font-size: clamp(2rem, 4vw, 3.1rem);
-  line-height: 1.02;
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.9rem, 4vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
 }
 
-.dashboard-hero p:not(.eyebrow) {
-  max-width: 44rem;
-  margin: 0.8rem 0 0;
-  color: #475569;
-  font-size: 1rem;
+.hero-scope {
+  margin: 0.55rem 0 0;
+  color: #d9fbf5;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.hero-lead {
+  max-width: 40rem;
+  margin: 0.45rem 0 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.96rem;
   line-height: 1.55;
 }
 
 .hero-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem;
-  margin-top: 1rem;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
 }
 
-.hero-meta span,
-.privacy-note,
-.status-chip {
+.hero-meta span {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   min-height: 2rem;
-  padding: 0 0.7rem;
+  padding: 0 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.hero-meta span {
-  color: #0f766e;
-  background: #ecfdf5;
-}
-
-.refresh-button,
-.range-button,
-.state-action {
-  min-height: 2.6rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  border: 1px solid #b7e4df;
-  border-radius: 999px;
-  padding: 0 0.95rem;
-  color: #0f766e;
-  background: #ffffff;
-  font-weight: 900;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.refresh-button:hover,
-.range-button:hover,
-.state-action:hover,
-.range-button.is-active {
-  border-color: #0f766e;
   color: #ffffff;
-  background: #0f766e;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
+.hero-meta .v-icon {
+  color: #b9f1e8 !important;
+}
+
+/* Filtros */
 .filters-panel {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 1rem;
-  padding: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.9rem 1.4rem;
+  padding: 0.9rem 1.1rem;
 }
 
-.range-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
+.an-filter {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.an-filter-label {
+  color: var(--an-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.refresh-button {
+  margin-left: auto;
 }
 
 .dashboard-progress {
-  margin-top: 1rem;
   border-radius: 999px;
 }
 
-.overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.72fr);
-  gap: 1rem;
-  margin-top: 1rem;
+.page-state {
+  margin-top: 0;
 }
 
-.summary-card {
-  padding: 1.15rem;
-}
-
-.card-heading,
-.section-heading {
+/* Aviso superior */
+.alert-strip {
   display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--an-warn-border);
+  border-radius: var(--an-radius-sm);
+  color: var(--an-warn-ink);
+  background: var(--an-warn-bg);
+  text-align: left;
+}
+
+.alert-strip .v-icon {
+  color: inherit !important;
+}
+
+.alert-strip > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-strip strong,
+.alert-strip small {
+  display: block;
+}
+
+.alert-strip small {
+  font-size: 0.82rem;
+  opacity: 0.9;
+}
+
+.alert-strip em {
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.alert-strip:focus-visible,
+.account-section:focus-visible {
+  outline: 3px solid var(--an-accent);
+  outline-offset: 3px;
+}
+
+/* Titulares del periodo */
+.section-heading {
+  align-items: flex-end;
+  margin-bottom: 0.9rem;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: var(--an-ink);
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.activity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.9rem;
+}
+
+.activity-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0.15rem;
+  overflow: hidden;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.activity-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--kpi-color);
+}
+
+.activity-card:hover {
+  transform: translateY(-2px);
+}
+
+.kpi-top {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.activity-icon {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.85rem;
+  color: var(--an-ink);
+  background: var(--an-surface-2);
+  box-shadow: inset 0 0 0 1.5px var(--kpi-color);
+}
+
+.activity-icon .v-icon {
+  color: inherit !important;
+}
+
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.6rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  color: var(--an-ink-2);
+  background: var(--an-surface-2);
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.kpi-delta.is-up {
+  color: var(--an-good-ink);
+  background: var(--an-accent-soft);
+}
+
+.kpi-delta.is-down {
+  color: var(--an-warn-ink);
+  background: var(--an-warn-bg);
+}
+
+.activity-card strong {
+  color: var(--an-ink);
+  font-size: clamp(2rem, 3.4vw, 2.6rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.kpi-label {
+  color: var(--an-ink);
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.activity-card small {
+  color: var(--an-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.kpi-previous {
+  margin-top: 0.2rem;
+  font-weight: 700;
+}
+
+/* Widgets avanzados */
+.dashboard-widget-layout {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.dashboard-secondary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(20rem, 0.88fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+
+.dashboard-secondary-grid.is-single {
+  grid-template-columns: 1fr;
+}
+
+.dashboard-secondary-grid > *,
+.dashboard-widget-wide {
+  min-width: 0;
+}
+
+/* Cuenta */
+.account-section {
+  display: grid;
+  gap: 0.9rem;
+  padding-top: 0.6rem;
+  scroll-margin-top: 5rem;
+}
+
+.account-section .section-heading {
+  margin-bottom: 0;
+}
+
+.overview-grid,
+.account-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.8fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.account-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.overview-grid.is-single,
+.account-grid.is-single {
+  grid-template-columns: 1fr;
 }
 
 .status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.85rem;
+  padding: 0 0.7rem;
   border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .status-chip.is-success {
-  color: #047857;
-  background: #ecfdf5;
-  border-color: #a7f3d0;
+  color: var(--an-good-ink);
+  background: var(--an-accent-soft);
 }
 
 .status-chip.is-info {
-  color: #0369a1;
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  color: var(--an-info-ink);
+  border-color: var(--an-info-border);
+  background: var(--an-info-bg);
 }
 
 .status-chip.is-danger {
-  color: #b91c1c;
-  background: #fef2f2;
-  border-color: #fecaca;
+  color: var(--an-danger-ink);
+  border-color: var(--an-danger-border);
+  background: var(--an-danger-bg);
 }
 
 .plan-details {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.7rem;
-  margin-top: 1.2rem;
+  gap: 0.6rem;
+  margin-top: 1rem;
 }
 
 .plan-details span {
   min-width: 0;
-  padding: 0.85rem;
-  border: 1px solid #e2edf0;
-  background: #f8fbfc;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--an-radius-sm);
+  background: var(--an-surface-2);
 }
 
 .plan-details small,
 .license-copy small,
-.activity-card small,
 .positive-state span,
-.alert-item span {
-  color: #64748b;
+.alert-item span,
+.scope-note span {
+  display: block;
+  color: var(--an-muted);
   font-size: 0.82rem;
-  line-height: 1.25rem;
+  line-height: 1.4;
 }
 
 .plan-details strong {
   display: block;
-  margin-top: 0.18rem;
-  color: #12313a;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-top: 0.15rem;
+  color: var(--an-ink);
+  overflow-wrap: anywhere;
 }
 
-.privacy-note {
-  color: #0f766e;
-  background: #ecfdf5;
+.alerts-icon {
+  color: var(--an-accent) !important;
+}
+
+.alerts-icon.is-pending {
+  color: var(--an-warn-ink) !important;
 }
 
 .positive-state,
@@ -1175,371 +1471,210 @@ export default {
 
 .positive-state {
   display: grid;
-  gap: 0.25rem;
-  padding: 0.95rem;
-  border: 1px dashed #b7e4df;
-  background: #f8fdfc;
+  gap: 0.2rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--an-radius-sm);
+  background: var(--an-accent-soft);
+}
+
+.positive-state strong,
+.alert-item strong,
+.scope-note strong {
+  display: block;
+  color: var(--an-ink);
 }
 
 .alert-list {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.5rem;
 }
 
 .alert-item {
   display: grid;
-  gap: 0.2rem;
-  padding: 0.85rem;
-  border: 1px solid #fde68a;
-  background: #fffbeb;
+  gap: 0.15rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--an-warn-border);
+  border-radius: var(--an-radius-sm);
+  background: var(--an-warn-bg);
 }
 
 .alert-item.danger {
-  border-color: #fecaca;
-  background: #fef2f2;
+  border-color: var(--an-danger-border);
+  background: var(--an-danger-bg);
 }
 
 .alert-item.soft {
-  border-color: #bfdbfe;
-  background: #eff6ff;
+  border-color: var(--an-info-border);
+  background: var(--an-info-bg);
 }
 
-.plan-scope-card,
-.license-card,
-.activity-section,
-.dashboard-widget-layout {
-  margin-top: 1rem;
-}
-
-.plan-scope-card.is-compact {
-  padding: 1rem;
-}
-
-.dashboard-widget-layout {
-  display: grid;
-  gap: 1rem;
-}
-
-.dashboard-secondary-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(22rem, 0.88fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-.dashboard-secondary-grid.is-single {
-  grid-template-columns: 1fr;
-}
-
-.dashboard-secondary-stack {
-  display: grid;
-  gap: 1rem;
-  min-width: 0;
-}
-
-.dashboard-secondary-grid > * {
-  min-width: 0;
-}
-
-.dashboard-widget-wide {
-  min-width: 0;
-}
-
-.plan-scope-card p {
-  margin: 0.85rem 0 0;
-  color: #475569;
+.plan-scope-card > p {
+  margin: 0.75rem 0 0;
+  color: var(--an-ink-2);
+  font-size: 0.92rem;
   line-height: 1.55;
 }
 
-.scope-note-grid {
+.scope-note-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
-  margin-top: 0.8rem;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
 }
 
 .scope-note {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.65rem;
-  padding: 0.75rem;
-  border: 1px solid #dbeafe;
-  background: #f8fbff;
-}
-
-.scope-note.included {
-  border-color: #b7e4df;
-  background: #f8fdfc;
-}
-
-.scope-note.locked {
-  border-color: #e2e8f0;
-  background: #f8fafc;
+  align-items: start;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--an-radius-sm);
+  background: var(--an-accent-soft);
 }
 
 .scope-note .v-icon {
-  color: #0f766e;
+  margin-top: 0.1rem;
+  color: var(--an-accent) !important;
 }
 
-.scope-note strong,
-.scope-note span {
-  display: block;
+.scope-note.locked {
+  background: var(--an-surface-2);
 }
 
-.scope-note strong {
-  color: #12313a;
+.scope-note.locked .v-icon {
+  color: var(--an-muted) !important;
 }
 
-.scope-note span {
-  margin-top: 0.12rem;
-  color: #64748b;
-  font-size: 0.84rem;
-  line-height: 1.25rem;
-}
-
-.license-grid {
+.license-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem;
+  gap: 0.55rem;
   margin-top: 1rem;
 }
 
 .license-item {
-  position: relative;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.75rem;
-  min-height: 7.4rem;
-  padding: 0.95rem;
-  border: 1px solid #e2edf0;
-  background: #f8fbfc;
-  overflow: hidden;
+  align-items: center;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: var(--an-radius-sm);
+  background: var(--an-surface-2);
 }
 
 .license-item.is-complete {
-  border-color: #bfdbfe;
-  background: #f8fbff;
+  border-color: var(--an-info-border);
+  background: var(--an-info-bg);
 }
 
 .license-item.is-exceeded {
-  border-color: #fecaca;
-  background: #fef2f2;
+  border-color: var(--an-danger-border);
+  background: var(--an-danger-bg);
 }
 
-.license-icon,
-.activity-icon {
-  display: grid;
-  place-items: center;
-  border-radius: 0.8rem;
-  color: #0f766e;
-  background: #dff7f4;
+.license-item.is-exceeded .an-meter span {
+  background: var(--an-danger-ink);
 }
 
 .license-icon {
-  width: 2.55rem;
-  height: 2.55rem;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 0.8rem;
+  color: var(--an-accent);
+  background: var(--an-accent-soft);
+}
+
+.license-icon .v-icon {
+  color: inherit !important;
 }
 
 .license-copy {
   display: grid;
-  gap: 0.1rem;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .license-copy span {
-  color: #334155;
-  font-weight: 900;
+  color: var(--an-ink);
+  font-weight: 750;
 }
 
-.license-copy strong {
-  color: #12313a;
-  font-size: 1.2rem;
+.license-copy .an-meter {
+  margin-top: 0.3rem;
 }
 
-.license-progress {
-  position: absolute;
-  left: 0.95rem;
-  right: 0.95rem;
-  bottom: 0.85rem;
-  height: 0.38rem;
-  border-radius: 999px;
-  background: #e2e8f0;
-  overflow: hidden;
-}
-
-.license-progress span {
-  display: block;
-  height: 100%;
-  max-width: 100%;
-  border-radius: inherit;
-  background: #0f766e;
-}
-
-.activity-section {
-  padding: 1.15rem;
-  border: 1px solid rgba(14, 116, 144, 0.12);
-  background: rgba(255, 255, 255, 0.74);
-}
-
-.activity-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
-  margin-top: 1rem;
-}
-
-.activity-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.9rem;
-  min-width: 0;
-  padding: 1rem;
-  border: 1px solid #dfecef;
-  background: #ffffff;
-}
-
-.activity-icon {
-  flex: 0 0 2.7rem;
-  width: 2.7rem;
-  height: 2.7rem;
-  margin-top: 0.12rem;
-}
-
-.activity-card > div {
-  min-width: 0;
-}
-
-.activity-card strong {
-  display: block;
-  color: #0f2f38;
-  font-size: 2rem;
-  line-height: 1.95rem;
-}
-
-.activity-card span {
-  display: block;
-  color: #334155;
-  font-weight: 900;
-  line-height: 1.2rem;
-  overflow-wrap: anywhere;
-}
-
-.state-panel {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  margin-top: 1rem;
-  padding: 1rem;
-}
-
-.state-panel.is-error {
-  border-color: #fecaca;
-  background: #fff7f7;
-}
-
-.state-panel.is-empty {
-  border-style: dashed;
-}
-
-.state-panel strong {
-  display: block;
-  color: #12313a;
-}
-
-.state-panel p {
-  margin: 0.2rem 0 0;
-  color: #64748b;
-}
-
-html[data-theme="clinical-night"] .dashboard-hero,
-html[data-theme="clinical-night"] .filters-panel,
-html[data-theme="clinical-night"] .summary-card,
-html[data-theme="clinical-night"] .state-panel,
-html[data-theme="clinical-night"] .activity-section {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.88);
-}
-
-html[data-theme="clinical-night"] .dashboard-hero h1,
-html[data-theme="clinical-night"] .filters-panel h2,
-html[data-theme="clinical-night"] .summary-card h2,
-html[data-theme="clinical-night"] .section-heading h2,
-html[data-theme="clinical-night"] .plan-details strong,
-html[data-theme="clinical-night"] .activity-card strong,
-html[data-theme="clinical-night"] .state-panel strong {
-  color: #e2e8f0;
-}
-
-html[data-theme="clinical-night"] .dashboard-hero p:not(.eyebrow),
-html[data-theme="clinical-night"] .plan-details small,
-html[data-theme="clinical-night"] .license-copy small,
-html[data-theme="clinical-night"] .activity-card small,
-html[data-theme="clinical-night"] .state-panel p,
-html[data-theme="clinical-night"] .plan-scope-card p,
-html[data-theme="clinical-night"] .scope-note span {
-  color: #94a3b8;
-}
-
-html[data-theme="clinical-night"] .plan-details span,
-html[data-theme="clinical-night"] .license-item,
-html[data-theme="clinical-night"] .activity-card,
-html[data-theme="clinical-night"] .positive-state,
-html[data-theme="clinical-night"] .scope-note {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(30, 41, 59, 0.76);
-}
-
-html[data-theme="clinical-night"] .alert-item.soft,
-html[data-theme="clinical-night"] .license-item.is-complete {
-  border-color: rgba(96, 165, 250, 0.32);
-  background: rgba(30, 64, 175, 0.16);
-}
-
-html[data-theme="clinical-night"] .scope-note strong {
-  color: #e2e8f0;
-}
-
-@media (max-width: 1180px) {
-  .activity-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.license-item > strong {
+  color: var(--an-ink);
+  font-size: 1.15rem;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {
-  .dashboard-hero,
-  .filters-panel,
-  .card-heading,
-  .section-heading {
-    flex-direction: column;
-  }
-
   .overview-grid,
-  .license-grid,
-  .plan-details,
-  .scope-note-grid,
+  .account-grid,
   .dashboard-secondary-grid {
     grid-template-columns: 1fr;
   }
 
-  .refresh-button,
-  .range-actions,
-  .range-button {
-    width: 100%;
+  .hero-art {
+    opacity: 0.6;
   }
 }
 
 @media (max-width: 640px) {
   .tenant-dashboard-page {
-    padding: 1rem 0.75rem 1.5rem;
+    padding: 1rem 0.75rem 1.6rem;
   }
 
-  .activity-grid {
+  .dashboard-hero {
+    border-radius: 18px;
+  }
+
+  .filters-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filters-panel .an-segment {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border-radius: 14px;
+  }
+
+  .filters-panel .an-segment button {
+    padding: 0 0.4rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
+  }
+
+  .refresh-button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .plan-details {
     grid-template-columns: 1fr;
   }
 
-  .state-panel,
-  .activity-card,
-  .license-item {
-    grid-template-columns: 1fr;
+  .alert-strip {
+    flex-wrap: wrap;
+  }
+
+  .alert-strip em {
+    margin-left: 2.2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-card {
+    transition: none;
+  }
+
+  .activity-card:hover {
+    transform: none;
   }
 }
 </style>

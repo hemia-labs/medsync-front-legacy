@@ -1,17 +1,17 @@
 <template>
-  <section class="dashboard-widget trends-widget" aria-labelledby="activity-trends-title">
-    <div class="widget-heading">
+  <section class="an-card trends-widget" aria-labelledby="activity-trends-title">
+    <div class="an-heading">
       <div>
-        <p class="eyebrow">Tendencia</p>
+        <p class="an-eyebrow">Tendencia</p>
         <h2 id="activity-trends-title">Tendencia de actividad</h2>
       </div>
 
-      <div class="granularity-control" aria-label="Granularidad de tendencia">
+      <div class="an-segment" role="group" aria-label="Granularidad de tendencia">
         <button
           v-for="option in granularityOptions"
           :key="option.value"
           type="button"
-          :class="['granularity-button', { 'is-active': granularity === option.value }]"
+          :class="{ 'is-active': granularity === option.value }"
           :aria-pressed="granularity === option.value"
           :disabled="loading"
           @click="$emit('granularity-change', option.value)"
@@ -21,18 +21,18 @@
       </div>
     </div>
 
-    <div v-if="loading" class="widget-state">
+    <div v-if="loading" class="an-state">
       <v-progress-circular indeterminate color="#0f766e" size="28"></v-progress-circular>
       <span>Cargando tendencia...</span>
     </div>
 
-    <div v-else-if="error" class="widget-state is-error">
+    <div v-else-if="error" class="an-state is-error">
       <v-icon size="28">mdi-alert-circle-outline</v-icon>
       <span>No pudimos cargar la tendencia de actividad.</span>
-      <button type="button" class="widget-action" @click="$emit('retry')">Reintentar</button>
+      <button type="button" class="an-button" @click="$emit('retry')">Reintentar</button>
     </div>
 
-    <div v-else-if="isEmpty" class="widget-state is-empty">
+    <div v-else-if="isEmpty" class="an-state is-empty">
       <v-icon size="30">mdi-chart-line-variant</v-icon>
       <div>
         <strong>Aun no hay datos para graficar en este periodo.</strong>
@@ -41,38 +41,68 @@
     </div>
 
     <div v-else class="trend-content">
-      <div class="trend-totals">
-        <article v-for="metric in metricTotals" :key="metric.key" class="trend-total">
-          <small>{{ metric.label }}</small>
-          <strong>{{ formatNumber(metric.value) }}</strong>
+      <p class="trend-readout" aria-live="polite">
+        <span>Periodo destacado</span>
+        <strong>{{ activeItem.period }}</strong>
+        <em>Suma de indicadores: {{ formatNumber(periodTotal(activeItem)) }}</em>
+      </p>
+
+      <div class="trend-multiples" @mouseleave="hoverIndex = null">
+        <article v-for="metric in metricCharts" :key="metric.key" class="an-tile trend-metric">
+          <header>
+            <i class="an-dot" :style="{ background: metric.color }" aria-hidden="true"></i>
+            <small>{{ metric.label }}</small>
+          </header>
+          <div class="metric-figures">
+            <strong>{{ formatNumber(metric.value) }}</strong>
+            <span>{{ activeItem.period }}: <b>{{ formatNumber(activeItem[metric.key]) }}</b></span>
+          </div>
+          <div class="metric-columns" role="group" :aria-label="metric.label + ' por periodo'">
+            <button
+              v-for="(bar, index) in metric.bars"
+              :key="bar.period"
+              type="button"
+              :class="['metric-column', { 'is-active': index === activeIndex }]"
+              :title="bar.title"
+              :aria-label="bar.title"
+              @mouseenter="hoverIndex = index"
+              @focus="pinnedIndex = index"
+              @click="pinnedIndex = index"
+            >
+              <span :style="{ height: bar.height + '%', background: metric.color }"></span>
+            </button>
+          </div>
+          <footer>
+            <span>{{ firstPeriod }}</span>
+            <span>máx. {{ formatNumber(metric.max) }}</span>
+            <span>{{ lastPeriod }}</span>
+          </footer>
         </article>
       </div>
 
-      <div class="trend-periods" aria-label="Series de actividad por periodo">
-        <article v-for="item in limitedSeries" :key="item.period" class="trend-row">
-          <div class="period-label">
-            <strong>{{ item.period }}</strong>
-            <span>Suma de indicadores: {{ formatNumber(periodTotal(item)) }}</span>
-          </div>
+      <details class="an-details trend-table">
+        <summary>Ver cifras por periodo</summary>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Periodo</th>
+                <th v-for="metric in metricDefinitions" :key="metric.key" scope="col">{{ metric.label }}</th>
+                <th scope="col">Suma de indicadores</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in limitedSeries" :key="item.period">
+                <th scope="row">{{ item.period }}</th>
+                <td v-for="metric in metricDefinitions" :key="metric.key">{{ formatNumber(item[metric.key]) }}</td>
+                <td>{{ formatNumber(periodTotal(item)) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
 
-          <div class="period-bars">
-            <span
-              v-for="metric in metricDefinitions"
-              :key="metric.key"
-              class="period-bar"
-              :style="{ width: metricWidth(item, metric.key) + '%', background: metric.color }"
-              :title="`${metric.label}: ${formatNumber(item[metric.key])}`"
-            ></span>
-          </div>
-
-          <div class="period-values">
-            <span v-for="metric in metricDefinitions" :key="metric.key">
-              {{ metric.short }} {{ formatNumber(item[metric.key]) }}
-            </span>
-          </div>
-        </article>
-      </div>
-      <p>Un mismo registro puede aparecer en mas de un indicador; la suma no representa consultas distintas.</p>
+      <p class="an-note">Un mismo registro puede aparecer en mas de un indicador; la suma no representa consultas distintas.</p>
     </div>
   </section>
 </template>
@@ -107,19 +137,28 @@ export default {
   },
   data: function() {
     return {
+      hoverIndex: null,
+      pinnedIndex: null,
       granularityOptions: [
         { value: 'day', label: 'Dia' },
         { value: 'week', label: 'Semana' },
         { value: 'month', label: 'Mes' }
       ],
+      // El color pertenece al indicador: es el mismo en las tarjetas del periodo.
       allMetricDefinitions: [
-        { key: 'patientsCreated', label: 'Pacientes creados', short: 'Pac.', color: '#0f766e' },
-        { key: 'appointmentsCreated', label: 'Citas registradas', short: 'Citas', color: '#4f9d99' },
-        { key: 'appointmentsScheduled', label: 'Citas programadas', short: 'Prog.', color: '#7fa7a3' },
-        { key: 'prescriptionsIssued', label: 'Recetas emitidas', short: 'Rec.', color: '#b57f8d' },
-        { key: 'clinicalHistoriesFinalized', label: 'Historias finalizadas', short: 'Hist.', color: '#b49b71' }
+        { key: 'patientsCreated', label: 'Pacientes creados', short: 'Pac.', color: 'var(--an-series-1)' },
+        { key: 'appointmentsCreated', label: 'Citas registradas', short: 'Citas', color: 'var(--an-series-2)' },
+        { key: 'appointmentsScheduled', label: 'Citas programadas', short: 'Prog.', color: 'var(--an-series-3)' },
+        { key: 'prescriptionsIssued', label: 'Recetas emitidas', short: 'Rec.', color: 'var(--an-series-4)' },
+        { key: 'clinicalHistoriesFinalized', label: 'Historias finalizadas', short: 'Hist.', color: 'var(--an-series-5)' }
       ]
     };
+  },
+  watch: {
+    data: function() {
+      this.hoverIndex = null;
+      this.pinnedIndex = null;
+    }
   },
   computed: {
     metricDefinitions: function() {
@@ -131,14 +170,44 @@ export default {
     limitedSeries: function() {
       return this.series.slice(-12);
     },
-    maxPeriodTotal: function() {
-      return Math.max.apply(null, this.series.map((item) => this.periodTotal(item)).concat([1]));
+    activeIndex: function() {
+      const last = this.limitedSeries.length - 1;
+      const index = this.hoverIndex !== null ? this.hoverIndex : this.pinnedIndex !== null ? this.pinnedIndex : last;
+      return Math.min(Math.max(index, 0), last);
+    },
+    activeItem: function() {
+      return this.limitedSeries[this.activeIndex] || {};
+    },
+    firstPeriod: function() {
+      return this.limitedSeries.length ? this.limitedSeries[0].period : '';
+    },
+    lastPeriod: function() {
+      return this.limitedSeries.length > 1 ? this.limitedSeries[this.limitedSeries.length - 1].period : '';
     },
     metricTotals: function() {
       return this.metricDefinitions.map((metric) => ({
         ...metric,
         value: sumMetric(this.series, metric.key)
       }));
+    },
+    metricCharts: function() {
+      return this.metricTotals.map((metric) => {
+        const max = Math.max.apply(null, this.limitedSeries.map(item => normalizeNumber(item[metric.key])).concat([0]));
+        return {
+          ...metric,
+          max,
+          summary: `${metric.label} por periodo: ` + this.limitedSeries
+            .map(item => `${item.period}, ${this.formatNumber(item[metric.key])}`).join('; '),
+          bars: this.limitedSeries.map((item) => {
+            const value = normalizeNumber(item[metric.key]);
+            return {
+              period: item.period,
+              title: `${item.period} · ${metric.label}: ${this.formatNumber(item[metric.key])}`,
+              height: value <= 0 || max <= 0 ? 0 : Math.max(6, Math.round((value / max) * 100))
+            };
+          })
+        };
+      });
     },
     isEmpty: function() {
       if(!this.series.length) {
@@ -153,14 +222,6 @@ export default {
       if(!this.metricDefinitions.some(metric => metricNumber(item[metric.key]) !== null)) return null;
       return this.metricDefinitions.reduce((acc, metric) => acc + normalizeNumber(item[metric.key]), 0);
     },
-    metricWidth: function(item, key) {
-      const value = normalizeNumber(item[key]);
-      if(value <= 0) {
-        return 0;
-      }
-
-      return Math.max(6, Math.round((value / this.maxPeriodTotal) * 100));
-    },
     formatNumber: function(value) {
       return formatMetric(value);
     }
@@ -169,222 +230,176 @@ export default {
 </script>
 
 <style scoped>
-.dashboard-widget {
-  padding: 1.15rem;
-  border: 1px solid rgba(14, 116, 144, 0.12);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07);
+.trend-content {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1.1rem;
 }
 
-.widget-heading {
+.trend-readout {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.7rem;
+  margin: 0;
+  color: var(--an-muted);
+  font-size: 0.84rem;
 }
 
-.eyebrow {
-  margin: 0 0 0.35rem;
-  color: #0f766e;
+.trend-readout span {
   font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0;
+  font-weight: 800;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
-h2 {
-  margin: 0;
-  color: #12313a;
-  letter-spacing: 0;
+.trend-readout strong {
+  color: var(--an-ink);
+  font-size: 1.05rem;
 }
 
-.granularity-control {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+.trend-readout em {
+  font-style: normal;
 }
 
-.granularity-button,
-.widget-action {
-  min-height: 2.25rem;
-  border: 1px solid #b7e4df;
-  border-radius: 999px;
-  padding: 0 0.8rem;
-  color: #0f766e;
-  background: #ffffff;
-  font-weight: 900;
+.trend-multiples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.75rem;
 }
 
-.granularity-button.is-active,
-.granularity-button:hover,
-.widget-action:hover {
-  color: #ffffff;
-  border-color: #0f766e;
-  background: #0f766e;
+.trend-metric {
+  display: grid;
+  gap: 0.45rem;
 }
 
-.widget-state {
+.trend-metric header {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px dashed #b7e4df;
-  color: #475569;
-  background: #f8fdfc;
+  gap: 0.45rem;
 }
 
-.widget-state.is-error {
-  border-color: #fecaca;
-  background: #fff7f7;
+.trend-metric header small {
+  color: var(--an-ink-2);
+  font-size: 0.82rem;
+  font-weight: 750;
 }
 
-.widget-state.is-empty {
-  justify-content: center;
-  min-height: 9rem;
-  text-align: center;
+.metric-figures {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.widget-state strong {
-  display: block;
-  color: #12313a;
+.metric-figures strong {
+  color: var(--an-ink);
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
-.widget-state p {
-  margin: 0.25rem 0 0;
-  color: #64748b;
-  line-height: 1.45;
+.metric-figures span {
+  color: var(--an-muted);
+  font-size: 0.78rem;
 }
 
-.trend-content {
-  display: grid;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.trend-totals {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.65rem;
-}
-
-.trend-total {
-  padding: 0.75rem;
-  border: 1px solid #e2edf0;
-  background: #f8fbfc;
-}
-
-.trend-total small {
-  display: block;
-  color: #64748b;
+.metric-figures b {
+  color: var(--an-ink);
   font-weight: 800;
 }
 
-.trend-total strong {
-  display: block;
-  margin-top: 0.2rem;
-  color: #12313a;
-  font-size: 1.45rem;
-}
-
-.trend-periods {
-  display: grid;
-  gap: 0.7rem;
-}
-
-.trend-row {
-  display: grid;
-  grid-template-columns: minmax(7rem, 0.36fr) minmax(10rem, 1fr) minmax(12rem, 0.8fr);
-  gap: 0.8rem;
-  align-items: center;
-  padding: 0.8rem;
-  border: 1px solid #e2edf0;
-  background: #ffffff;
-}
-
-.period-label strong,
-.period-label span {
-  display: block;
-}
-
-.period-label strong {
-  color: #12313a;
-}
-
-.period-label span,
-.period-values span {
-  color: #64748b;
-  font-size: 0.8rem;
-}
-
-.period-bars {
+.metric-columns {
   display: flex;
-  align-items: center;
-  gap: 0.22rem;
-  min-height: 0.75rem;
+  align-items: stretch;
+  gap: 2px;
+  height: 5rem;
+  border-bottom: 1px solid var(--an-border);
 }
 
-.period-bar {
-  display: block;
-  height: 0.72rem;
+.metric-column {
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
   min-width: 0;
-  border-radius: 999px;
+  padding: 0 1px;
+  border-radius: 6px 6px 0 0;
+  cursor: default;
 }
 
-.period-values {
+.metric-column span {
+  display: block;
+  width: 100%;
+  max-width: 1.5rem;
+  margin: 0 auto;
+  border-radius: 4px 4px 0 0;
+  opacity: 0.55;
+  transition: opacity 140ms ease, height 400ms ease;
+}
+
+.metric-column.is-active {
+  background: var(--an-surface-2);
+}
+
+.metric-column.is-active span,
+.metric-column:hover span {
+  opacity: 1;
+}
+
+.metric-column:focus-visible {
+  outline: 2px solid var(--an-accent);
+  outline-offset: 1px;
+}
+
+.trend-metric footer {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.7rem;
+  justify-content: space-between;
+  gap: 0.4rem;
+  color: var(--an-muted);
+  font-size: 0.7rem;
 }
 
-html[data-theme="clinical-night"] .dashboard-widget {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.88);
+.table-scroll {
+  margin-top: 0.6rem;
+  overflow-x: auto;
 }
 
-html[data-theme="clinical-night"] h2,
-html[data-theme="clinical-night"] .widget-state strong,
-html[data-theme="clinical-night"] .trend-total strong,
-html[data-theme="clinical-night"] .period-label strong {
-  color: #e2e8f0;
+.trend-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
 }
 
-html[data-theme="clinical-night"] .trend-total,
-html[data-theme="clinical-night"] .trend-row {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(30, 41, 59, 0.76);
+.trend-table th,
+.trend-table td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--an-border);
+  color: var(--an-ink-2);
+  text-align: right;
+  white-space: nowrap;
 }
 
-html[data-theme="clinical-night"] .trend-total small,
-html[data-theme="clinical-night"] .period-label span,
-html[data-theme="clinical-night"] .period-values span,
-html[data-theme="clinical-night"] .widget-state p,
-html[data-theme="clinical-night"] .widget-state {
-  color: #94a3b8;
+.trend-table th:first-child {
+  text-align: left;
 }
 
-@media (max-width: 1100px) {
-  .trend-totals {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .trend-row {
-    grid-template-columns: 1fr;
-  }
+.trend-table thead th {
+  color: var(--an-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: normal;
 }
 
-@media (max-width: 720px) {
-  .widget-heading {
-    flex-direction: column;
-  }
+.trend-table tbody th {
+  color: var(--an-ink);
+  font-weight: 750;
+}
 
-  .granularity-control,
-  .granularity-button {
-    width: 100%;
-  }
-
-  .trend-totals {
-    grid-template-columns: 1fr;
+@media (prefers-reduced-motion: reduce) {
+  .metric-column span {
+    transition: none;
   }
 }
 </style>
