@@ -28,6 +28,7 @@ export default {
   gap: 0.95rem;
   margin-top: 1rem;
   padding: 1.1rem;
+  border-radius: 18px;
   border: 1px solid #dbeafe;
   background: rgba(248, 251, 255, 0.94);
 }

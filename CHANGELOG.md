@@ -1,5 +1,17 @@
 # hmdentalassistant_front
 
+## 0.3.1
+
+### Patch Changes
+
+- 052c5c0: Automatiza la publicación y el despliegue del frontend por digest en QA y producción. Unifica las validaciones y releases en un workflow, verifica el frontend servido antes de crear el RC y reutiliza el acceso restringido de cada VPS al registry.
+
+## 0.3.0
+
+### Minor Changes
+
+- 8fb482e: Agrega analítica de uso con Umami self-hosted en `analytics.hemia.cloud`. En producción registra las pantallas visitadas por patrón de ruta y las acciones guardadas con éxito, sin IDs, datos clínicos ni datos personales. El panel de super admin no se mide.
+
 ## 0.2.0
 
 ### Minor Changes

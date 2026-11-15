@@ -1,26 +1,26 @@
 <template>
-  <section class="dashboard-widget professional-widget" aria-labelledby="professional-breakdown-title">
-    <div class="widget-heading">
+  <section class="an-card professional-widget" aria-labelledby="professional-breakdown-title">
+    <div class="an-heading">
       <div>
-        <p class="eyebrow">Actividad clinica documentada</p>
+        <p class="an-eyebrow">Actividad clinica documentada</p>
         <h2 id="professional-breakdown-title">Actividad por profesional</h2>
-        <span class="widget-description">Actividad general por profesional, sin datos de pacientes.</span>
+        <span class="an-description">Actividad general por profesional, sin datos de pacientes.</span>
       </div>
-      <span class="privacy-note">Sin nombres de pacientes</span>
+      <span class="an-chip"><v-icon size="15">mdi-shield-lock-outline</v-icon>Sin nombres de pacientes</span>
     </div>
 
-    <div v-if="loading" class="widget-state">
+    <div v-if="loading" class="an-state">
       <v-progress-circular indeterminate color="#0f766e" size="28"></v-progress-circular>
       <span>Cargando actividad por profesional...</span>
     </div>
 
-    <div v-else-if="error" class="widget-state is-error">
+    <div v-else-if="error" class="an-state is-error">
       <v-icon size="28">mdi-alert-circle-outline</v-icon>
       <span>No pudimos cargar la actividad por profesional.</span>
-      <button type="button" class="widget-action" @click="$emit('retry')">Reintentar</button>
+      <button type="button" class="an-button" @click="$emit('retry')">Reintentar</button>
     </div>
 
-    <div v-else-if="isEmpty" class="widget-state is-empty">
+    <div v-else-if="isEmpty" class="an-state is-empty">
       <v-icon size="30">mdi-account-tie-outline</v-icon>
       <div>
         <strong>No hay actividad profesional registrada en este periodo.</strong>
@@ -31,27 +31,28 @@
     <div v-else class="professional-content">
       <div class="total-grid" aria-label="Resumen por profesional">
         <article v-for="metric in totalMetrics" :key="metric.key" class="total-card">
-          <small>{{ metric.label }}</small>
           <strong>{{ formatNumber(metric.value) }}</strong>
+          <small>{{ metric.label }}</small>
         </article>
       </div>
 
       <div class="professional-list" aria-label="Actividad general por profesional">
-        <article v-for="item in limitedItems" :key="item.professionalKey || item.label" class="professional-row">
+        <article v-for="(item, index) in limitedItems" :key="item.professionalKey || item.label" class="an-tile professional-row">
           <div class="professional-main">
-            <div class="professional-avatar" aria-hidden="true">
+            <div class="professional-avatar" :class="'avatar-' + (index % 4)" aria-hidden="true">
               {{ initialsFor(item.label) }}
             </div>
             <div class="professional-copy">
               <strong>{{ item.label || 'Profesional sin alias' }}</strong>
               <span class="professional-role">{{ item.roleLabel || 'Rol sin etiqueta' }}</span>
-              <span>{{ formatNumber(totalActivity(item)) }} recetas emitidas e historias finalizadas</span>
             </div>
+            <b class="professional-total">{{ formatNumber(totalActivity(item)) }}</b>
           </div>
 
-          <div class="activity-bar" aria-hidden="true">
+          <div class="an-meter" aria-hidden="true">
             <span :style="{ width: widthFor(item) + '%' }"></span>
           </div>
+          <span class="professional-caption">{{ formatNumber(totalActivity(item)) }} recetas emitidas e historias finalizadas</span>
 
           <div class="metric-chips">
             <span v-if="hasMetric(item, 'prescriptionsIssued')">
@@ -77,7 +78,7 @@
           </div>
         </article>
       </div>
-      <p>Las cifras se atribuyen al doctor responsable cuando esta registrado; los registros sin atribucion se muestran por separado. La captura o edicion de un asistente no se considera un acto medico propio. Los indicadores no medidos aparecen como No disponible.</p>
+      <p class="an-note">Las cifras se atribuyen al doctor responsable cuando esta registrado; los registros sin atribucion se muestran por separado. La captura o edicion de un asistente no se considera un acto medico propio. Los indicadores no medidos aparecen como No disponible.</p>
     </div>
   </section>
 </template>
@@ -168,284 +169,122 @@ export default {
 </script>
 
 <style scoped>
-.dashboard-widget {
-  padding: 1.15rem;
-  border: 1px solid rgba(14, 116, 144, 0.12);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07);
-}
-
-.widget-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.eyebrow {
-  margin: 0 0 0.35rem;
-  color: #0f766e;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-h2 {
-  margin: 0;
-  color: #12313a;
-  letter-spacing: 0;
-}
-
-.widget-description {
-  display: block;
-  margin-top: 0.28rem;
-  color: #64748b;
-  line-height: 1.4;
-}
-
-.privacy-note {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2rem;
-  padding: 0 0.7rem;
-  border-radius: 999px;
-  color: #0f766e;
-  background: #ecfdf5;
-  font-size: 0.8rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.widget-state {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px dashed #b7e4df;
-  color: #475569;
-  background: #f8fdfc;
-}
-
-.widget-state.is-error {
-  border-color: #fecaca;
-  background: #fff7f7;
-}
-
-.widget-state.is-empty {
-  justify-content: center;
-  min-height: 9rem;
-  text-align: center;
-}
-
-.widget-state strong {
-  display: block;
-  color: #12313a;
-}
-
-.widget-state p {
-  margin: 0.25rem 0 0;
-  color: #64748b;
-  line-height: 1.45;
-}
-
-.widget-action {
-  min-height: 2.25rem;
-  border: 1px solid #b7e4df;
-  border-radius: 999px;
-  padding: 0 0.8rem;
-  color: #0f766e;
-  background: #ffffff;
-  font-weight: 600;
-}
-
-.widget-action:hover {
-  color: #ffffff;
-  border-color: #0f766e;
-  background: #0f766e;
-}
-
 .professional-content {
   display: grid;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: 1.1rem;
 }
 
 .total-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7.4rem, 1fr));
-  gap: 0.65rem;
-}
-
-.total-card,
-.professional-row {
-  border: 1px solid #e2edf0;
-  background: #f8fbfc;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border-radius: var(--an-radius-sm);
+  background: var(--an-surface-2);
 }
 
 .total-card {
-  padding: 0.78rem;
-}
-
-.total-card small {
-  display: block;
-  color: #64748b;
-  font-weight: 600;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0 0.4rem;
+  border-left: 2px solid var(--an-border);
 }
 
 .total-card strong {
-  display: block;
-  margin-top: 0.2rem;
-  color: #12313a;
-  font-size: 1.45rem;
+  color: var(--an-ink);
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.total-card small {
+  color: var(--an-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .professional-list {
   display: grid;
-  gap: 0.72rem;
+  gap: 0.6rem;
 }
 
 .professional-row {
   display: grid;
-  gap: 0.78rem;
-  padding: 0.9rem;
+  gap: 0.55rem;
 }
 
 .professional-main {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.72rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
   align-items: center;
 }
 
 .professional-avatar {
   display: grid;
   place-items: center;
-  width: 2.55rem;
-  height: 2.55rem;
-  border-radius: 0.85rem;
-  color: #0f766e;
-  background: #dff7f4;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  color: #ffffff;
+  background: #0f766e;
+  font-size: 0.86rem;
   font-weight: 600;
+}
+
+.professional-avatar.avatar-1 { background: #1f5f9c; }
+.professional-avatar.avatar-2 { background: #5a48b8; }
+.professional-avatar.avatar-3 { background: #a23f6b; }
+
+.professional-copy {
+  min-width: 0;
 }
 
 .professional-copy strong,
 .professional-copy span {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .professional-copy strong {
-  color: #12313a;
+  color: var(--an-ink);
 }
 
-.professional-copy span {
-  color: #64748b;
-  font-size: 0.84rem;
+.professional-role,
+.professional-caption {
+  color: var(--an-muted);
+  font-size: 0.8rem;
 }
 
-.professional-copy .professional-role {
-  display: inline-flex;
-  width: fit-content;
-  margin: 0.24rem 0;
-  padding: 0.12rem 0.5rem;
-  border: 1px solid #cfece7;
-  border-radius: 999px;
-  color: #0f766e;
-  background: #f3fbf9;
-  font-size: 0.74rem;
+.professional-total {
+  color: var(--an-ink);
+  font-size: 1.5rem;
   font-weight: 600;
-}
-
-.activity-bar {
-  height: 0.48rem;
-  border-radius: 999px;
-  background: #e2e8f0;
-  overflow: hidden;
-}
-
-.activity-bar span {
-  display: block;
-  height: 100%;
-  max-width: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #0f766e, #4f9d99);
+  letter-spacing: -0.02em;
 }
 
 .metric-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 0.35rem;
 }
 
 .metric-chips span {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  min-height: 2rem;
-  padding: 0 0.62rem;
-  border: 1px solid #dbeafe;
+  min-height: 1.75rem;
+  padding: 0 0.6rem;
   border-radius: 999px;
-  color: #334155;
-  background: #ffffff;
-  font-size: 0.8rem;
+  color: var(--an-ink-2);
+  background: var(--an-surface-2);
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
 .metric-chips .v-icon {
-  color: #0f766e;
-}
-
-html[data-theme="clinical-night"] .dashboard-widget {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.88);
-}
-
-html[data-theme="clinical-night"] h2,
-html[data-theme="clinical-night"] .widget-state strong,
-html[data-theme="clinical-night"] .total-card strong,
-html[data-theme="clinical-night"] .professional-copy strong {
-  color: #e2e8f0;
-}
-
-html[data-theme="clinical-night"] .widget-description,
-html[data-theme="clinical-night"] .widget-state,
-html[data-theme="clinical-night"] .widget-state p,
-html[data-theme="clinical-night"] .total-card small,
-html[data-theme="clinical-night"] .professional-copy span {
-  color: #94a3b8;
-}
-
-html[data-theme="clinical-night"] .total-card,
-html[data-theme="clinical-night"] .professional-row,
-html[data-theme="clinical-night"] .professional-copy .professional-role,
-html[data-theme="clinical-night"] .metric-chips span {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(30, 41, 59, 0.76);
-}
-
-html[data-theme="clinical-night"] .metric-chips span {
-  color: #cbd5e1;
-}
-
-@media (max-width: 900px) {
-  .widget-heading {
-    flex-direction: column;
-  }
-
-  .total-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 560px) {
-  .total-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .widget-state,
-  .professional-main {
-    grid-template-columns: 1fr;
-  }
+  color: var(--an-accent) !important;
 }
 </style>

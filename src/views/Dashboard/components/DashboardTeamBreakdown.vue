@@ -1,26 +1,26 @@
 <template>
-  <section class="dashboard-widget team-widget" aria-labelledby="team-breakdown-title">
-    <div class="widget-heading">
+  <section class="an-card team-widget" aria-labelledby="team-breakdown-title">
+    <div class="an-heading">
       <div>
-        <p class="eyebrow">Equipo y capacidad</p>
+        <p class="an-eyebrow">Equipo y capacidad</p>
         <h2 id="team-breakdown-title">Uso por equipo</h2>
-        <span class="widget-description">{{ data && data.dateBasis || 'Estado actual del equipo; no depende del periodo seleccionado.' }}</span>
+        <span class="an-description">{{ data && data.dateBasis || 'Estado actual del equipo; no depende del periodo seleccionado.' }}</span>
       </div>
-      <span class="privacy-note">Sin nombres ni correos</span>
+      <span class="an-chip"><v-icon size="15">mdi-shield-lock-outline</v-icon>Sin nombres ni correos</span>
     </div>
 
-    <div v-if="loading" class="widget-state">
+    <div v-if="loading" class="an-state">
       <v-progress-circular indeterminate color="#0f766e" size="28"></v-progress-circular>
       <span>Cargando uso por equipo...</span>
     </div>
 
-    <div v-else-if="error" class="widget-state is-error">
+    <div v-else-if="error" class="an-state is-error">
       <v-icon size="28">mdi-alert-circle-outline</v-icon>
       <span>No pudimos cargar el uso por equipo.</span>
-      <button type="button" class="widget-action" @click="$emit('retry')">Reintentar</button>
+      <button type="button" class="an-button" @click="$emit('retry')">Reintentar</button>
     </div>
 
-    <div v-else-if="isEmpty" class="widget-state is-empty">
+    <div v-else-if="isEmpty" class="an-state is-empty">
       <v-icon size="30">mdi-account-group-outline</v-icon>
       <div>
         <strong>No hay actividad de equipo para mostrar.</strong>
@@ -32,22 +32,22 @@
       <div class="team-metrics" aria-label="Resumen del equipo">
         <article v-for="metric in userMetrics" :key="metric.key" class="team-metric">
           <span class="metric-icon">
-            <v-icon size="21">{{ metric.icon }}</v-icon>
+            <v-icon size="20">{{ metric.icon }}</v-icon>
           </span>
           <div>
-            <small>{{ metric.label }}</small>
             <strong>{{ formatNumber(metric.value) }}</strong>
+            <small>{{ metric.label }}</small>
           </div>
         </article>
       </div>
 
-      <section class="role-section" aria-labelledby="roles-title">
-        <div class="section-heading">
+      <section class="team-block" aria-labelledby="roles-title">
+        <div class="an-heading">
           <div>
-            <p class="eyebrow">Roles</p>
+            <p class="an-eyebrow">Roles</p>
             <h3 id="roles-title">Distribucion del equipo</h3>
           </div>
-          <span>{{ formatNumber(roleTotal) }} usuarios</span>
+          <span class="block-aside">{{ formatNumber(roleTotal) }} usuarios</span>
         </div>
 
         <div class="role-list">
@@ -56,32 +56,34 @@
               <strong>{{ role.label }}</strong>
               <span>{{ formatNumber(role.count) }} usuarios</span>
             </div>
-            <div class="role-bar" aria-hidden="true">
+            <div class="an-meter" aria-hidden="true">
               <span :style="{ width: roleWidth(role) + '%' }"></span>
             </div>
           </article>
         </div>
       </section>
 
-      <section class="license-section" aria-labelledby="team-license-title">
-        <div class="section-heading">
+      <section class="team-block" aria-labelledby="team-license-title">
+        <div class="an-heading">
           <div>
-            <p class="eyebrow">Licencia</p>
+            <p class="an-eyebrow">Licencia</p>
             <h3 id="team-license-title">Capacidad de equipo</h3>
           </div>
-          <span>Uso contratado</span>
+          <span class="block-aside">Uso contratado</span>
         </div>
 
         <div class="license-list">
           <article v-for="item in licenseCards" :key="item.key" class="license-row">
+            <svg v-if="!item.unlimited" class="an-ring" viewBox="0 0 36 36" aria-hidden="true">
+              <circle class="ring-track" cx="18" cy="18" r="15.915" />
+              <circle class="ring-value" cx="18" cy="18" r="15.915" :stroke-dasharray="item.progress + ' 100'" />
+            </svg>
+            <span v-else class="license-open" aria-hidden="true">∞</span>
             <div class="license-copy">
               <strong>{{ item.label }}</strong>
               <span>{{ item.usedLabel }} / {{ item.limitLabel }}</span>
+              <small>{{ item.helper }}</small>
             </div>
-            <div v-if="!item.unlimited" class="license-bar" aria-hidden="true">
-              <span :style="{ width: item.progress + '%' }"></span>
-            </div>
-            <small>{{ item.helper }}</small>
           </article>
         </div>
       </section>
@@ -223,274 +225,133 @@ export default {
 </script>
 
 <style scoped>
-.dashboard-widget {
-  padding: 1.15rem;
-  border: 1px solid rgba(14, 116, 144, 0.12);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07);
-}
-
-.widget-heading,
-.section-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.eyebrow {
-  margin: 0 0 0.35rem;
-  color: #0f766e;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-h2,
-h3 {
-  margin: 0;
-  color: #12313a;
-  letter-spacing: 0;
-}
-
-.widget-description,
-.section-heading span,
-.license-row small {
-  color: #64748b;
-  line-height: 1.4;
-}
-
-.widget-description {
-  display: block;
-  margin-top: 0.28rem;
-}
-
-.privacy-note {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2rem;
-  padding: 0 0.7rem;
-  border-radius: 999px;
-  color: #0f766e;
-  background: #ecfdf5;
-  font-size: 0.8rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.widget-state {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px dashed #b7e4df;
-  color: #475569;
-  background: #f8fdfc;
-}
-
-.widget-state.is-error {
-  border-color: #fecaca;
-  background: #fff7f7;
-}
-
-.widget-state.is-empty {
-  justify-content: center;
-  min-height: 9rem;
-  text-align: center;
-}
-
-.widget-state strong {
-  display: block;
-  color: #12313a;
-}
-
-.widget-state p {
-  margin: 0.25rem 0 0;
-  color: #64748b;
-  line-height: 1.45;
-}
-
-.widget-action {
-  min-height: 2.25rem;
-  border: 1px solid #b7e4df;
-  border-radius: 999px;
-  padding: 0 0.8rem;
-  color: #0f766e;
-  background: #ffffff;
-  font-weight: 600;
-}
-
-.widget-action:hover {
-  color: #ffffff;
-  border-color: #0f766e;
-  background: #0f766e;
-}
-
 .team-content {
   display: grid;
-  gap: 1rem;
-  margin-top: 1rem;
+  gap: 1.2rem;
+  margin-top: 1.1rem;
 }
 
 .team-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
-  gap: 0.65rem;
-}
-
-.team-metric,
-.role-section,
-.license-section,
-.role-row,
-.license-row {
-  border: 1px solid #e2edf0;
-  background: #f8fbfc;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
 }
 
 .team-metric {
-  display: grid;
-  grid-template-columns: 2.35rem minmax(0, 1fr);
-  gap: 0.7rem;
+  display: flex;
   align-items: center;
-  min-width: 0;
-  padding: 0.78rem 0.72rem;
+  gap: 0.65rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: var(--an-radius-sm);
+  background: var(--an-surface-2);
 }
 
 .metric-icon {
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 0.78rem;
-  color: #0f766e;
-  background: #dff7f4;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.75rem;
+  color: var(--an-accent);
+  background: var(--an-accent-soft);
 }
 
+.metric-icon .v-icon {
+  color: inherit !important;
+}
+
+.team-metric strong,
 .team-metric small {
   display: block;
-  min-width: 0;
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 600;
-  line-height: 1.05rem;
-  overflow-wrap: anywhere;
 }
 
 .team-metric strong {
-  display: block;
-  color: #12313a;
-  font-size: 1.45rem;
+  color: var(--an-ink);
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.15;
 }
 
-.role-section,
-.license-section {
-  padding: 1rem;
+.team-metric small {
+  color: var(--an-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.team-block {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--an-border);
+}
+
+.block-aside {
+  color: var(--an-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .role-list,
 .license-list {
   display: grid;
-  gap: 0.68rem;
-  margin-top: 0.85rem;
+  gap: 0.7rem;
 }
 
-.role-row,
-.license-row {
+.role-row {
   display: grid;
-  gap: 0.5rem;
-  padding: 0.78rem;
-  background: #ffffff;
+  gap: 0.35rem;
 }
 
-.role-row strong,
-.role-row span,
-.license-copy strong,
-.license-copy span {
-  display: block;
+.role-row > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .role-row strong,
 .license-copy strong {
-  color: #12313a;
+  color: var(--an-ink);
 }
 
 .role-row span,
+.license-copy small {
+  color: var(--an-muted);
+  font-size: 0.8rem;
+}
+
+.license-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--an-radius-sm);
+  background: var(--an-surface-2);
+}
+
+.license-open {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border: 3px solid var(--an-track);
+  border-radius: 50%;
+  color: var(--an-accent);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.license-copy {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
 .license-copy span {
-  color: #64748b;
-  font-size: 0.84rem;
-}
-
-.role-bar,
-.license-bar {
-  height: 0.45rem;
-  border-radius: 999px;
-  background: #e2e8f0;
-  overflow: hidden;
-}
-
-.role-bar span,
-.license-bar span {
-  display: block;
-  height: 100%;
-  max-width: 100%;
-  border-radius: inherit;
-  background: #0f766e;
-}
-
-.license-bar span {
-  background: linear-gradient(90deg, #0f766e, #0369a1);
-}
-
-html[data-theme="clinical-night"] .dashboard-widget {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.88);
-}
-
-html[data-theme="clinical-night"] h2,
-html[data-theme="clinical-night"] h3,
-html[data-theme="clinical-night"] .widget-state strong,
-html[data-theme="clinical-night"] .team-metric strong,
-html[data-theme="clinical-night"] .role-row strong,
-html[data-theme="clinical-night"] .license-copy strong {
-  color: #e2e8f0;
-}
-
-html[data-theme="clinical-night"] .widget-description,
-html[data-theme="clinical-night"] .widget-state,
-html[data-theme="clinical-night"] .widget-state p,
-html[data-theme="clinical-night"] .section-heading span,
-html[data-theme="clinical-night"] .team-metric small,
-html[data-theme="clinical-night"] .role-row span,
-html[data-theme="clinical-night"] .license-copy span,
-html[data-theme="clinical-night"] .license-row small {
-  color: #94a3b8;
-}
-
-html[data-theme="clinical-night"] .team-metric,
-html[data-theme="clinical-night"] .role-section,
-html[data-theme="clinical-night"] .license-section,
-html[data-theme="clinical-night"] .role-row,
-html[data-theme="clinical-night"] .license-row {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(30, 41, 59, 0.76);
-}
-
-@media (max-width: 1100px) {
-  .team-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 720px) {
-  .widget-heading,
-  .section-heading {
-    flex-direction: column;
-  }
-
-  .team-metrics {
-    grid-template-columns: 1fr;
-  }
+  color: var(--an-ink);
+  font-size: 1.15rem;
+  font-weight: 600;
 }
 </style>
