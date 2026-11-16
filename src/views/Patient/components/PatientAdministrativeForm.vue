@@ -15,7 +15,7 @@
           <v-row><v-col v-for="(label,key) in surnames" :key="key" cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" :value="identity[key] || ''" :label="label" :placeholder="identity[key+'Status'] === 'absent_declared' ? 'El paciente no tiene ' + label.toLowerCase() : ''" :readonly="identity[key+'Status'] === 'absent_declared'" persistent-placeholder outlined dense hide-details="auto" @input="setSurnameText(key,$event)" /><v-checkbox :key="key + selectionRevision" :disabled="saving || awaitingReload" :input-value="identity[key+'Status'] === 'absent_declared'" :label="'No tiene ' + label.toLowerCase()" dense hide-details class="nc1-surname-absent" @change="toggleSurnameAbsent(key,$event)" /></v-col></v-row>
           <p v-if="surnameHint" role="status" class="nc1-surname-notice">{{ surnameHint }}</p>
         </v-expansion-panel-content></v-expansion-panel>
-        <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-phone-outline</v-icon>Contacto</span><small>{{ contactChanged ? 'Cambios pendientes' : 'Sin cambios' }}</small></div></v-expansion-panel-header><v-expansion-panel-content><v-row><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="person.telephone" :rules="[validPhone]" label="Celular *" hint="10 dígitos" persistent-hint outlined dense inputmode="tel" /></v-col><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="person.local_telephone" :rules="[optionalPhone]" label="Teléfono local, opcional" outlined dense inputmode="tel" hide-details="auto" /></v-col></v-row></v-expansion-panel-content></v-expansion-panel>
+        <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-phone-outline</v-icon>Contacto</span><small>{{ contactChanged ? 'Cambios pendientes' : 'Sin cambios' }}</small></div></v-expansion-panel-header><v-expansion-panel-content><v-row><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="person.telephone" :rules="[validPhone]" label="Celular *" hint="10 dígitos" persistent-hint outlined dense inputmode="tel" /></v-col><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="person.local_telephone" :rules="[optionalPhone]" label="Teléfono local, opcional" outlined dense inputmode="tel" hide-details="auto" /></v-col></v-row><section class="nc1-emergency" aria-labelledby="nc1-emergency-title"><h3 id="nc1-emergency-title"><v-icon small color="primary" class="mr-2">mdi-account-heart-outline</v-icon>Contacto de emergencia <span>opcional</span></h3><p>La persona a quien llamar si el paciente lo necesita durante su atención.</p><v-row><v-col cols="12" md="5"><v-text-field :disabled="saving || awaitingReload" v-model="emergency.name" :rules="[emergencyNameRule]" label="Nombre completo" outlined dense autocomplete="off" maxlength="255" hide-details="auto" /></v-col><v-col cols="12" sm="6" md="3"><v-combobox :disabled="saving || awaitingReload" v-model="emergency.relationship" :items="relationshipItems" label="Parentesco" outlined dense hide-details="auto" maxlength="150" /></v-col><v-col cols="12" sm="6" md="4"><v-text-field :disabled="saving || awaitingReload" v-model.trim="emergency.phone" :rules="[optionalPhone]" label="Teléfono" hint="10 dígitos" persistent-hint outlined dense inputmode="tel" /></v-col></v-row><v-btn v-if="hasEmergencyContact" text small color="primary" class="nc1-emergency-clear" :disabled="saving || awaitingReload" @click="clearEmergency"><v-icon small left>mdi-close</v-icon>Quitar contacto de emergencia</v-btn></section></v-expansion-panel-content></v-expansion-panel>
         <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-map-marker-outline</v-icon>Domicilio</span><small>{{ addressGroupChanged ? 'Cambios pendientes' : 'Sin cambios' }}</small></div></v-expansion-panel-header><v-expansion-panel-content><v-row><v-col cols="12"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.direction" label="Calle, número y colonia" outlined dense hide-details="auto" /></v-col><v-col cols="12" md="8"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.residence" label="Lugar de residencia" outlined dense hide-details="auto" /></v-col><v-col cols="12" md="4"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.cp" :rules="[validPostalCode]" label="Código postal" outlined dense inputmode="numeric" maxlength="5" hide-details="auto" /></v-col></v-row></v-expansion-panel-content></v-expansion-panel>
         <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-card-account-details-outline</v-icon>Información adicional</span><small>{{ optionalChanged ? 'Cambios pendientes' : 'Opcional' }}</small></div></v-expansion-panel-header><v-expansion-panel-content>
           <div class="nc1-optional-intro"><v-icon color="primary" class="mr-3">mdi-shield-check-outline</v-icon><div><strong>¿Por qué te pedimos estos datos?</strong><p>La norma oficial de expedientes clínicos electrónicos (NOM-024) los contempla para que el expediente esté completo. <b>Ninguno es obligatorio:</b> captura solo lo que el paciente quiera compartir y deja en blanco lo demás.</p></div></div>
@@ -55,6 +55,13 @@ const surnameKeys = ['firstSurname','secondSurname','firstSurnameStatus','second
 const coreIdentityKeys = ['givenNames','birthDate','biologicalSex',...surnameKeys];
 const same = (a,b) => JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b);
 const affiliationText = identity => (identity.affiliations || []).map(item => item.code).join(',');
+// NC1-EC1: one optional primary emergency contact; empty fields mean «no contact».
+const emergencyDraft = value => ({name:(value&&value.name)||'',relationship:(value&&value.relationship)||'',phone:(value&&value.phone)||''});
+const emergencyValue = draft => {
+  const text = value => String(value==null?'':value).trim().replace(/\s+/g,' ');
+  const next = {name:text(draft.name),phone:normalizePatientPhone(draft.phone)||null,relationship:text(draft.relationship)||null};
+  return next.name||next.phone||next.relationship ? next : null;
+};
 const editableIdentity = record => {
   const identity = clone(record);
   ['contractVersion','revision','updatedAt','provenance','qualityIssues','legacySurname','catalogValidation','curpSex'].forEach(key => delete identity[key]);
@@ -67,7 +74,8 @@ export default {
   data() {
     const patient=normalizePatient(this.patient), identity=patient.identity;
     return {identity, baseline:clone(identity),person:clone(patient.person),address:clone(patient.address),original:clone(patient),legacySurname:identity.legacySurname,revision:identity.revision||0,panels:[0,1,2,3],saving:false,error:'',message:'',conflict:false,review:false,currentIdentity:null,currentPatient:null,awaitingReload:false,pendingSavedSurnames:null,sequence:0,
-      curpValue:(identity.curp||{}).value||'',curpKind:(identity.curp||{}).kind||'real',curpReason:(identity.curp||{}).reason||'',affiliations:affiliationText(identity),residence:clone(identity.residence||{}),pendingConfirmation:null,selectionRevision:0,
+      curpValue:(identity.curp||{}).value||'',curpKind:(identity.curp||{}).kind||'real',curpReason:(identity.curp||{}).reason||'',affiliations:affiliationText(identity),residence:clone(identity.residence||{}),pendingConfirmation:null,selectionRevision:0,emergency:emergencyDraft(patient.emergencyContact),
+      relationshipItems:['Madre','Padre','Pareja','Hijo o hija','Hermano o hermana','Otro familiar','Amistad','Tutor o tutora'],
       surnames:{firstSurname:'Primer apellido',secondSurname:'Segundo apellido'},surnameStates:choices({unknown:'Sin capturar',present:'Apellido registrado',absent_declared:'Declara que no tiene este apellido'}),
       sexField:{key:'biologicalSex',label:'Sexo biológico',items:choices({1:'Hombre',2:'Mujer',3:'Intersexual'})},
       additionalFields:[{key:'genderIdentity',label:'Género',items:choices({0:'No especificado',1:'Masculino',2:'Femenino',3:'Transgénero',4:'Transexual',5:'Travesti',6:'Intersexual',88:'Otro'})},...['indigenousSelfIdentification','afromexicanSelfIdentification'].map((key,i)=>({key,label:i?'¿Se autodenomina afromexicano/a?':'¿Se autodenomina indígena?',items:choices({yes:'Sí',no:'No',declined:'No responde',unknown_to_patient:'No sabe'})})),{key:'migrantStatus',label:'Situación migratoria',items:choices({none:'No migrante',national:'Nacional',international:'Internacional',returned:'Retornado'})}],
@@ -82,6 +90,8 @@ export default {
       if(this.validPhone(this.person.telephone)!==true)errors.push(this.validPhone(this.person.telephone));
       if(this.optionalPhone(this.person.local_telephone)!==true)errors.push(this.optionalPhone(this.person.local_telephone));
       if(this.validPostalCode(this.address.cp)!==true)errors.push(this.validPostalCode(this.address.cp));
+      if(this.emergencyNameRule(this.emergency.name)!==true)errors.push(this.emergencyNameRule(this.emergency.name));
+      if(this.optionalPhone(this.emergency.phone)!==true)errors.push('El teléfono del contacto de emergencia debe tener 10 dígitos.');
       if(this.surnamesConfirmed && (!['firstSurname','secondSurname'].some(key=>this.identity[key+'Status']==='present') || ['firstSurname','secondSurname'].some(key=>this.identity[key+'Status']==='present' && this.required(this.identity[key])!==true)))errors.push('Registra al menos un apellido y completa los apellidos declarados como registrados.');
       return errors;
     },
@@ -116,7 +126,9 @@ export default {
     },
     hasSavableChanges(){return Object.keys(this.identityPatch()).length > 0 || this.personalDetailsChanged || this.contactChanged || this.addressChanged;},
     personalDetailsChanged(){return ['ocupation','rfc'].some(key=>!same(this.person[key],this.original.person[key]));},
-    contactChanged(){return ['telephone','local_telephone'].some(key=>!same(normalizePatientPhone(this.person[key]),normalizePatientPhone(this.original.person[key])));},
+    emergencyChanged(){return !same(emergencyValue(this.emergency),emergencyValue(emergencyDraft(this.original.emergencyContact)));},
+    hasEmergencyContact(){return Boolean(emergencyValue(this.emergency));},
+    contactChanged(){return this.emergencyChanged || ['telephone','local_telephone'].some(key=>!same(normalizePatientPhone(this.person[key]),normalizePatientPhone(this.original.person[key])));},
     addressChanged(){return !same(this.address,this.original.address);},dirty(){return this.identityChanged||this.personalDetailsChanged||this.contactChanged||this.addressChanged;}
   },
   watch:{'identity.birthDate'(value){this.person.age=patientAge(value);}},
@@ -125,6 +137,8 @@ export default {
     validBirthDate(value){return patientAge(value)!=='' || 'Ingresa una fecha real, anterior o igual a hoy, con una edad de hasta 150 años.';},
     validPhone(value){return /^\d{10}$/.test(normalizePatientPhone(value)) || 'Ingresa un teléfono de contacto de 10 dígitos.';},
     optionalPhone(value){return !value || this.validPhone(value);},
+    emergencyNameRule(value){const draft=emergencyValue(this.emergency);return !draft || Boolean(String(value||'').trim()) || 'Escribe el nombre del contacto de emergencia o borra sus datos.';},
+    clearEmergency(){this.emergency=emergencyDraft(null);},
     validPostalCode(value){return !value || /^\d{5}$/.test(value) || 'El código postal debe tener 5 dígitos.';},
     required(v){return !!String(v||'').trim()||'Campo obligatorio';},
     setSurnameText(key,value){
@@ -191,11 +205,12 @@ export default {
       const identity=this.identityPatch();
       if(surnameKeys.some(key=>key in identity))person.surname=[identity.firstSurname,identity.secondSurname].filter(Boolean).join(' ');
       if(Object.keys(identity).length){payload.identity=identity;payload.expectedRevision=this.revision;}
+      if(this.emergencyChanged)payload.emergencyContact=emergencyValue(this.emergency);
       return payload;
     },
     acceptSavedPatient(patient, pendingSurnames){
       patient=normalizePatient(patient);
-      this.original=clone(patient);this.person=clone(patient.person);this.address=clone(patient.address);
+      this.original=clone(patient);this.person=clone(patient.person);this.address=clone(patient.address);this.emergency=emergencyDraft(patient.emergencyContact);
       this.identity=clone(patient.identity);this.baseline=clone(patient.identity);this.revision=patient.identity.revision||0;
       this.legacySurname=patient.identity.legacySurname;this.residence=clone(patient.identity.residence||{});this.affiliations=affiliationText(patient.identity);
       this.curpValue=(patient.identity.curp||{}).value||'';this.curpKind=(patient.identity.curp||{}).kind||'real';this.curpReason=(patient.identity.curp||{}).reason||'';
@@ -256,6 +271,11 @@ export default {
 .nc1-codes-note { display:flex; align-items:flex-start; margin-top:18px; padding:12px 14px; border-radius:10px; background:#f8fafc; border:1px dashed #cbd5e1; color:#516479; font-size:13px; }
 .nc1-codes-note strong { display:block; color:#334155; margin-bottom:2px; }
 .nc1-codes-note p { margin:0 0 4px; }
+.nc1-emergency { margin-top:20px; padding-top:16px; border-top:1px solid #e5edf2; }
+.nc1-emergency h3 { display:flex; align-items:center; font-size:15px; font-weight:600; color:#0f3d52; margin:0 0 4px; }
+.nc1-emergency h3 span { margin-left:8px; font-size:12px; font-weight:400; color:#516479; }
+.nc1-emergency > p { margin:0 0 8px; font-size:13px; color:#516479; }
+.nc1-emergency-clear { margin-top:8px; }
 .nc1-confirm-actions { display:flex; flex-wrap:wrap; gap:12px; padding:16px; }
 .nc1-confirm-actions .v-btn { min-height:44px; }
 .nc1-conflict { color: #714b12 !important; background: #fff5df !important; }

@@ -941,7 +941,7 @@ import { mapGetters } from 'vuex';
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
 import { editorSnapshot, textLengthErrors, canRefreshAllergyRevision } from '../../../domain/clinical-history/history.editor';
-import { identificationFields, identificationValue, identificationLabel, identificationDifferences, reviewedHistorySnapshot } from '../../../domain/clinical-history/history.identification';
+import { identificationFields, identificationValue, identificationLabel, identificationDifferences, reviewedHistorySnapshot, emergencyContactText } from '../../../domain/clinical-history/history.identification';
 import { vitalSignMetadata, vitalSignError, vitalSignErrors, heightInCm } from '../../../domain/clinical-history/vitalSigns.validation';
 import { getSettingsSections } from '../../../security/settingsAccess';
 import { allergySnapshot, allergyLabels } from '../../../domain/patient/allergy';
@@ -1841,7 +1841,7 @@ export default {
         phone: identificationValue(person.telephone) || identificationValue(person.local_telephone),
         email: identificationValue(person.email),
         address: identificationValue(addressText),
-        emergency_contact: identificationValue(person.emergency_contact)
+        emergency_contact: identificationValue(emergencyContactText(this.px && this.px.emergencyContact) || person.emergency_contact)
       };
     },
     identificationLabel(value) { return identificationLabel(value); },

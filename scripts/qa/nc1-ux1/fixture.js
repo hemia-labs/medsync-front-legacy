@@ -2,7 +2,9 @@ import Vue from 'vue';
 export const clone = value => JSON.parse(JSON.stringify(value));
 // Independent name/date/age/CP subset of px.validator.js:14-26; no frontend age-helper reuse.
 // This synthetic adapter does not replace the complete API/identity validators.
-export const validateFixtureAdministrative = ({person,address}, today = new Date()) => {
+export const validateFixtureAdministrative = ({person,address,emergencyContact}, today = new Date()) => {
+  // NC1-EC1: same rule as the backend contract (name required; phone optional, 10 digits).
+  if(emergencyContact!==undefined && emergencyContact!==null && (!String(emergencyContact.name||'').trim() || (emergencyContact.phone && !/^\d{10}$/.test(emergencyContact.phone))))return 'Revisa el contacto de emergencia.';
   if(!String(person.name||'').trim() || !String(person.surname||'').trim())return 'El nombre y el apellido del paciente son obligatorios.';
   const date=person.birthday, birth=new Date(`${date}T00:00:00`);
   const formatted=Number.isFinite(birth.getTime())?`${birth.getFullYear()}-${String(birth.getMonth()+1).padStart(2,'0')}-${String(birth.getDate()).padStart(2,'0')}`:'';
@@ -32,6 +34,7 @@ export const fixtureTransport={
     const identity=payload.identity?{...fixture.patient.identity,...clone(payload.identity),revision:(payload.expectedRevision||0)+1}:fixture.patient.identity;
     if(payload.identity && payload.identity.residence)identity.residence={...(fixture.patient.identity.residence||{}),...clone(payload.identity.residence)};
     fixture.patient={...fixture.patient,person:{...payload.person,fullname:[payload.person.name,payload.person.surname].join(' ')},address:clone(payload.address),identity};
+    if('emergencyContact' in payload)fixture.patient.emergencyContact=clone(payload.emergencyContact);
     fixture.notice='Simulación local: ficha guardada y releída. Una petición de escritura.';
     return {success:true,data:{id_person:fixture.patient.person.id_person}};
   }
