@@ -21,26 +21,14 @@
     <template v-if="patientReady">
     <v-alert v-if="tabAccessNotice" type="warning" text role="alert" class="mb-4">{{ tabAccessNotice }}</v-alert>
     <div class="mb-4">
-        <da-history-header :px="px" :can-edit="canManagePatient" :editing="isEdit" :archive-pending="archivePending" :show-clinical="canViewClinical" v-model="isEditProfile" v-on:edit="requestProfileEdit" @edit-patient="requestAdministrativeEdit" @archive="requestArchive"></da-history-header>
+        <!-- NC1-UX4: one header with contact data, archive and restore; no separate administrative card. -->
+        <da-history-header :px="px" :can-edit="canManagePatient" :editing="isEdit" :archive-pending="archivePending" :show-clinical="canViewClinical" v-on:edit="requestProfileEdit" @edit-patient="requestAdministrativeEdit" @archive="requestArchive" @restore="restorePatient"></da-history-header>
     </div>
     <div v-if="canViewClinical" class="mb-4">
         <da-alergy-alert :px="px" :can-edit="canEditAllergies" v-on:edit="openAllergyEditor"></da-alergy-alert>
         <p v-if="allergyFeedback" role="status" class="text-sm mt-2">{{ allergyFeedback }}</p>
     </div>
 
-    <div v-if="isArchived || !canViewClinical" class="patient-record-shell pa-5 mb-4">
-        <p v-if="isArchived" role="status">Paciente archivado. Su expediente y sus citas se conservan. Restaura al paciente para acceder a las secciones que no estén disponibles.</p>
-        <template v-if="!canViewClinical">
-            <h2 class="text-lg font-semibold">Ficha administrativa</h2>
-            <p>Teléfono: {{ px.person.telephone || 'Sin registrar' }}</p>
-            <p>Domicilio: {{ px.address && px.address.direction || 'Sin registrar' }}</p>
-        </template>
-        <div v-if="canManagePatient" class="flex flex-wrap gap-3 mt-3">
-            <v-btn v-if="isArchived" outlined :disabled="archivePending" @click="restorePatient">Restaurar paciente</v-btn>
-            <v-btn v-else outlined :disabled="archivePending" @click="requestArchive">Archivar paciente</v-btn>
-        </div>
-    </div>
-    
     <div v-if="!isEdit" :class="{'animate-fade-in-left ease-in-out': !isEdit}">
         <div class="patient-record-shell">
             <v-tabs 
@@ -74,7 +62,6 @@
                       :document-focus-request="documentFocusRequest"
                       :treatment-focus-request="treatmentFocusRequest"
                       v-on:edit="requestPatientEdit"
-                      v-on:delete="requestArchive"
                       v-on:open-documents="openTabByComponent('da-patient-documents', $event)"
                       v-on:document-focus-consumed="consumeDocumentFocusRequest"
                       v-on:prepare-treatment="openTabByComponent('da-patient-treatment', $event)"
@@ -218,16 +205,17 @@ export default {
         if(await this.confirmSectionLeave() && this.canReturnToAgenda) await this.$router.push({ name: 'Citas' })
     },
     async requestArchive() {
-        if(!this.canManagePatient || this.isArchived || this.archivePending) return
-        if(await this.confirmSectionLeave()) this.isDelete = true
+        // NC1-UX4: archiving is not offered while the patient form is open.
+        if(!this.canManagePatient || this.isArchived || this.archivePending || this.isEdit) return
+        if(await this.confirmSectionLeave() && !this.isEdit) this.isDelete = true
     },
-    requestProfileEdit() { if(this.canManagePatient) this.isEditProfile = true },
+    requestProfileEdit() { if(this.canManagePatient && !this.isEdit) this.isEditProfile = true },
     onAdministrativeRefreshed(patient) {
         if(this.canManagePatient && patient.person.id_person === this.id) this.$store.commit(moduleTypes.PX + '/' + mutationTypes.SET_PX, patient)
     },
     onAdministrativeSaved() { this.isEdit = false },
     async restorePatient() {
-        if(!this.canManagePatient || this.archivePending) return
+        if(!this.canManagePatient || !this.isArchived || this.archivePending || this.isEdit) return
         this.archivePending = true
         try {
             const response = await DAPxService.restore({ id_person: this.id })
