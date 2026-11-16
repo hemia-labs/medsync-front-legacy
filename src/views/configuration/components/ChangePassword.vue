@@ -353,7 +353,7 @@ export default {
 .password-settings { min-width: 0; }
 .password-heading { display: flex; align-items: flex-start; gap: 1rem; padding: 1.5rem 1.75rem; }
 .password-heading-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 3rem; height: 3rem; color: var(--color-primary-900); border: 1px solid var(--color-primary-200); background: white; }
-.password-eyebrow { margin: 0 0 .35rem; color: var(--color-primary-900); font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.password-eyebrow { margin: 0 0 .35rem; color: var(--color-primary-900); font-size: .7rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
 .password-heading h2 { margin: 0; color: #4b5563; font-size: 1.5rem; font-weight: 400; }
 .password-heading p:last-child { max-width: 48rem; margin: .5rem 0 0; color: #4b5563; font-size: .875rem; line-height: 1.65; }
 .password-content { display: block; padding: 1.75rem; align-items: start; }

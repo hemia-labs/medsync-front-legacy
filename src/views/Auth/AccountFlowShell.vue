@@ -64,7 +64,7 @@ export default {
 .account-steps li.complete::after { background:var(--color-primary-700); }
 .account-steps__number { display:flex; align-items:center; justify-content:center; width:36px; height:36px; border:1px solid var(--auth-border); border-radius:50%; font-size:14px; font-weight:600; background:var(--color-surface); }
 .account-steps__label { padding:0 4px; font-size:12px; line-height:1.4; }
-.account-steps li[aria-current=step] { color:var(--color-primary-700); font-weight:700; }
+.account-steps li[aria-current=step] { color:var(--color-primary-700); font-weight:600; }
 .account-steps li[aria-current=step] .account-steps__number { background:var(--color-primary-700); border-color:var(--color-primary-700); color:white; box-shadow:0 0 0 4px var(--color-primary-100); }
 .account-steps .complete { color:var(--color-primary-700); }
 .account-steps .complete .account-steps__number { background:var(--color-primary-100); border-color:var(--color-primary-200); }

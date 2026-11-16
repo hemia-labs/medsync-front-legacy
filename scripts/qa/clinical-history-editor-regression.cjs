@@ -6,13 +6,14 @@ const vm = require('node:vm');
 (async () => {
     const source = fs.readFileSync(path.join(__dirname, '../../src/domain/clinical-history/history.editor.js'), 'utf8');
     const helper = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+    const identification = await import(`data:text/javascript;base64,${Buffer.from(fs.readFileSync(path.join(__dirname, '../../src/domain/clinical-history/history.identification.js'), 'utf8')).toString('base64')}`);
     const vitalSigns = await import(`data:text/javascript;base64,${Buffer.from(fs.readFileSync(path.join(__dirname, '../../src/domain/clinical-history/vitalSigns.validation.js'), 'utf8')).toString('base64')}`);
     const settings = await import(`data:text/javascript;base64,${Buffer.from(fs.readFileSync(path.join(__dirname, '../../src/security/settingsAccess.js'), 'utf8')).toString('base64')}`);
     const sfc = fs.readFileSync(path.join(__dirname, '../../src/views/Patient/Sections/MedicalHistory.vue'), 'utf8');
     const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component =');
     const services = {};
     const context = { component: null, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {},
-        isD2AuthMode: () => true, dialogName: {}, fieldError: {}, ...helper, ...vitalSigns, ...settings,
+        isD2AuthMode: () => true, dialogName: {}, fieldError: {}, ...helper, ...vitalSigns, ...settings, ...identification,
         DAClinicalHistoryService: services, DADocumentService: {}, DAPrescriptionService: {}, DAClinicalHistoryTemplateService: {},
         window: {}, document: {}, setTimeout, clearTimeout };
     vm.runInNewContext(script, context);
@@ -199,7 +200,7 @@ const vm = require('node:vm');
     assert.equal(state.form.vital_signs.height_unit, 'cm');
     assert.equal(state.getDynamicFieldValue({ key: 'vital_signs' }, { key: 'height' }), '0.5', 'Explicit new cm captures bypass the legacy metre heuristic');
     state.authUser = { id_login: 'qa-doctor' }; state.authRole = 'doctor'; state.doctors = [];
-    assert.match(state.profilePreparationMessage, /Mi perfil profesional/);
+    assert.match(state.profilePreparationMessage, /perfil profesional activo con nombre y cédula/);
     assert.equal(state.canPrepareOwnProfile, true);
     state.hasPermission = permission => permission !== 'documents.config';
     assert.equal(state.canPrepareDocuments, false, 'Document setup action respects the real settings section permission');

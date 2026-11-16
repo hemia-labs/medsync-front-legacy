@@ -299,7 +299,7 @@ export default {
 .registration-loading .v-progress-circular { flex-shrink:0; }
 .registration-document.v-card { border-radius:14px; max-height:min(44rem, 86vh); max-height:min(44rem, 86dvh); padding:0; background:var(--color-surface); }
 .registration-document-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:20px 24px 16px; border-bottom:1px solid var(--auth-border); }
-.registration-document-header h2 { margin:0; font-size:clamp(1.15rem, 3vw, 1.4rem); font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
+.registration-document-header h2 { margin:0; font-size:clamp(1.15rem, 3vw, 1.4rem); font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
 .registration-document-header .flow-hint { margin:4px 0 0; }
 .registration-document-close.v-btn { flex-shrink:0; width:44px; height:44px; border:1px solid var(--auth-border); color:var(--color-primary-900); }
 .registration-document .flow-legal__body { min-height:0; max-height:none; margin:0; padding:20px 24px 24px; border:0; color:var(--color-primary-900); font-size:.95rem; line-height:1.65; overscroll-behavior:contain; }

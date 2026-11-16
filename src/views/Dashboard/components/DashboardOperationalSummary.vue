@@ -1,25 +1,25 @@
 <template>
-  <section class="dashboard-widget operational-widget" aria-labelledby="operational-summary-title">
-    <div class="widget-heading">
+  <section class="an-card operational-widget" aria-labelledby="operational-summary-title">
+    <div class="an-heading">
       <div>
-        <p class="eyebrow">Analisis operativo</p>
+        <p class="an-eyebrow">Analisis operativo</p>
         <h2 id="operational-summary-title">Resumen operativo</h2>
       </div>
-      <span class="privacy-note">Informacion general</span>
+      <span class="an-chip">Informacion general</span>
     </div>
 
-    <div v-if="loading" class="widget-state">
+    <div v-if="loading" class="an-state">
       <v-progress-circular indeterminate color="#0f766e" size="28"></v-progress-circular>
       <span>Cargando resumen operativo...</span>
     </div>
 
-    <div v-else-if="error" class="widget-state is-error">
+    <div v-else-if="error" class="an-state is-error">
       <v-icon size="28">mdi-alert-circle-outline</v-icon>
       <span>No pudimos cargar el resumen operativo.</span>
-      <button type="button" class="widget-action" @click="$emit('retry')">Reintentar</button>
+      <button type="button" class="an-button" @click="$emit('retry')">Reintentar</button>
     </div>
 
-    <div v-else-if="isEmpty" class="widget-state is-empty">
+    <div v-else-if="isEmpty" class="an-state is-empty">
       <v-icon size="30">mdi-clipboard-text-search-outline</v-icon>
       <div>
         <strong>No hay actividad operativa registrada en este periodo.</strong>
@@ -28,56 +28,62 @@
     </div>
 
     <div v-else class="operational-content">
-      <div v-if="priorityActions.length" class="priority-panel">
-        <div class="decision-heading">
+      <div v-if="priorityActions.length" class="reading-panel">
+        <div class="an-heading">
           <div>
-            <p class="eyebrow">Interpretación del periodo</p>
+            <p class="an-eyebrow">Interpretación del periodo</p>
             <h3>Lectura del periodo</h3>
           </div>
-          <small>Alcance y periodo seleccionados</small>
+          <small class="heading-aside">Alcance y periodo seleccionados</small>
         </div>
 
-        <div class="priority-grid">
-          <article v-for="item in priorityActions" :key="item.key" :class="['priority-card', 'tone-' + item.tone]">
-            <v-icon size="22">{{ item.icon }}</v-icon>
-            <div>
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.impact }}</small>
-              <em>{{ item.nextStep }}</em>
-            </div>
+        <div class="reading-grid">
+          <article v-for="item in priorityActions" :key="item.key" :class="['reading-card', 'tone-' + item.tone]">
+            <strong>{{ item.value }}</strong>
+            <span>{{ item.label }}</span>
+            <small>{{ item.impact }}</small>
+            <em v-if="!sharedNextStep"><v-icon size="15">{{ item.icon }}</v-icon>{{ item.nextStep }}</em>
           </article>
         </div>
 
-        <p class="interpretation-note panel-note">
+        <p v-if="sharedNextStep" class="reading-next"><v-icon size="16">mdi-chart-box-outline</v-icon>{{ sharedNextStep }}</p>
+
+        <p class="an-note">
           Esta lectura describe los registros del periodo seleccionado. Consulta el Pulso para revisar obligaciones actuales de todo el consultorio, incluido el backlog anterior.
         </p>
       </div>
 
       <div class="summary-groups">
-        <article v-if="hasGroup('appointments')" class="operation-group">
+        <article v-if="hasGroup('appointments')" class="an-panel operation-group">
           <div class="group-heading">
             <v-icon size="22">mdi-calendar-check-outline</v-icon>
             <div>
               <strong>Citas</strong>
               <span>{{ formatNumber(appointments.total) }} creadas en el periodo</span>
             </div>
+            <b>{{ formatNumber(appointments.scheduled) }}<small>con fecha en el periodo</small></b>
           </div>
-          <div class="metric-grid">
-            <span class="metric-tile"><strong>{{ formatNumber(appointments.scheduled) }}</strong> con fecha en el periodo</span>
+          <div v-if="appointmentSegments.length" class="an-stack" role="img" :aria-label="segmentsLabel(appointmentSegments)">
+            <span
+              v-for="segment in appointmentSegments"
+              :key="segment.key"
+              :style="{ width: segment.width + '%', background: segment.color }"
+              :title="segment.label + ': ' + formatNumber(segment.value)"
+            ></span>
           </div>
-          <div class="status-list">
-            <span v-for="item in appointmentStatuses" :key="item.status">
-              {{ appointmentLabel(item.status) }}
+          <ul class="legend-list">
+            <li v-for="item in appointmentStatuses" :key="item.status">
+              <i class="an-dot" :style="{ background: appointmentColor(item.status) }" aria-hidden="true"></i>
+              <span>{{ appointmentLabel(item.status) }}</span>
               <strong>{{ formatNumber(item.count) }}</strong>
-            </span>
-          </div>
-          <p class="interpretation-note">
-            {{ appointments.dateBasis || 'Estado actual de citas con fecha en el periodo.' }}. Las citas creadas pueden estar programadas para otro periodo.
+            </li>
+          </ul>
+          <p class="an-note">
+            {{ appointments.dateBasis || 'Estado actual de citas con fecha en el periodo' }}. Las citas creadas pueden estar programadas para otro periodo.
           </p>
         </article>
 
-        <article v-if="hasGroup('prescriptions')" class="operation-group">
+        <article v-if="hasGroup('prescriptions')" class="an-panel operation-group">
           <div class="group-heading">
             <v-icon size="22">mdi-file-document-edit-outline</v-icon>
             <div>
@@ -85,17 +91,25 @@
               <span>{{ formatNumber(prescriptions.total) }} totales</span>
             </div>
           </div>
-          <div class="metric-grid">
-            <span class="metric-tile"><strong>{{ formatNumber(prescriptions.issued) }}</strong> emitidas</span>
-            <span class="metric-tile"><strong>{{ formatNumber(prescriptions.drafts) }}</strong> borradores</span>
-            <span class="metric-tile"><strong>{{ formatNumber(prescriptions.cancelled) }}</strong> canceladas</span>
+          <div v-if="prescriptionSegments.length" class="an-stack" role="img" :aria-label="segmentsLabel(prescriptionSegments)">
+            <span
+              v-for="segment in prescriptionSegments"
+              :key="segment.key"
+              :style="{ width: segment.width + '%', background: segment.color }"
+              :title="segment.label + ': ' + formatNumber(segment.value)"
+            ></span>
           </div>
-          <p class="interpretation-note">
-            {{ prescriptions.dateBasis || 'Estado actual de recetas creadas en el periodo.' }}. El indicador Recetas emitidas del resumen usa la fecha de emision.
+          <ul class="legend-list">
+            <li><i class="an-dot" :style="{ background: palette.done }" aria-hidden="true"></i><span>emitidas</span><strong>{{ formatNumber(prescriptions.issued) }}</strong></li>
+            <li><i class="an-dot" :style="{ background: palette.draft }" aria-hidden="true"></i><span>borradores</span><strong>{{ formatNumber(prescriptions.drafts) }}</strong></li>
+            <li><i class="an-dot" :style="{ background: palette.off }" aria-hidden="true"></i><span>canceladas</span><strong>{{ formatNumber(prescriptions.cancelled) }}</strong></li>
+          </ul>
+          <p class="an-note">
+            {{ prescriptions.dateBasis || 'Estado actual de recetas creadas en el periodo' }}. El indicador Recetas emitidas del resumen usa la fecha de emision.
           </p>
         </article>
 
-        <article v-if="hasGroup('clinicalHistories')" class="operation-group">
+        <article v-if="hasGroup('clinicalHistories')" class="an-panel operation-group">
           <div class="group-heading">
             <v-icon size="22">mdi-clipboard-check-outline</v-icon>
             <div>
@@ -103,74 +117,100 @@
               <span>{{ formatNumber(clinicalHistories.total) }} totales</span>
             </div>
           </div>
-          <div class="metric-grid">
-            <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.finalized) }}</strong> finalizadas</span>
-            <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.drafts) }}</strong> borradores</span>
-            <span class="metric-tile"><strong>{{ formatNumber(clinicalHistories.pending) }}</strong> pendientes de finalizar</span>
+          <div v-if="historySegments.length" class="an-stack" role="img" :aria-label="segmentsLabel(historySegments)">
+            <span
+              v-for="segment in historySegments"
+              :key="segment.key"
+              :style="{ width: segment.width + '%', background: segment.color }"
+              :title="segment.label + ': ' + formatNumber(segment.value)"
+            ></span>
           </div>
-          <p class="interpretation-note">
-            {{ clinicalHistories.dateBasis || 'Estado actual de historias creadas en el periodo.' }}. Las pendientes corresponden a borradores; este conteo no mide por si solo la calidad de la atencion.
+          <ul class="legend-list">
+            <li><i class="an-dot" :style="{ background: palette.done }" aria-hidden="true"></i><span>finalizadas</span><strong>{{ formatNumber(clinicalHistories.finalized) }}</strong></li>
+            <li><i class="an-dot" :style="{ background: palette.draft }" aria-hidden="true"></i><span>borradores</span><strong>{{ formatNumber(clinicalHistories.drafts) }}</strong></li>
+            <li><i class="an-dot is-hollow" aria-hidden="true"></i><span>pendientes de finalizar</span><strong>{{ formatNumber(clinicalHistories.pending) }}</strong></li>
+          </ul>
+          <p class="an-note">
+            {{ clinicalHistories.dateBasis || 'Estado actual de historias creadas en el periodo' }}. Las pendientes corresponden a borradores; este conteo no mide por si solo la calidad de la atencion.
           </p>
         </article>
       </div>
 
-      <div v-if="hasMetricGroup('treatmentEconomics')" class="economics-panel">
-        <div class="decision-heading">
+      <div v-if="decisionCards.length" class="decision-panel">
+        <div class="an-heading">
           <div>
-            <p class="eyebrow">Planes de tratamiento</p>
+            <p class="an-eyebrow">Indicadores de decision</p>
+            <h3>Acceso y continuidad</h3>
+          </div>
+          <small class="heading-aside">Sin datos personales</small>
+        </div>
+
+        <div class="decision-grid">
+          <article v-for="item in decisionCards" :key="item.key" :class="['an-tile', 'decision-card', 'tone-' + (item.tone || 'neutral')]">
+            <div class="decision-main">
+              <svg v-if="ringFor(item.key) !== null" class="an-ring" viewBox="0 0 36 36" aria-hidden="true">
+                <circle class="ring-track" cx="18" cy="18" r="15.915" />
+                <circle class="ring-value" cx="18" cy="18" r="15.915" :stroke-dasharray="ringFor(item.key) + ' 100'" />
+              </svg>
+              <div>
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+            <small>{{ item.helper }}</small>
+            <details class="an-details">
+              <summary>Cómo leerlo</summary>
+              <em>{{ item.interpretation }}</em>
+            </details>
+          </article>
+        </div>
+      </div>
+
+      <div v-if="hasMetricGroup('treatmentEconomics')" class="economics-panel an-panel">
+        <div class="an-heading">
+          <div>
+            <p class="an-eyebrow">Planes de tratamiento</p>
             <h3>Costos estimados de tratamientos</h3>
           </div>
-          <small>Sin montos por paciente</small>
+          <small class="heading-aside">Sin montos por paciente</small>
         </div>
 
         <div class="economics-grid">
-          <article v-for="item in economicsCards" :key="item.key" class="economics-card">
+          <article v-for="item in economicsCards" :key="item.key" class="an-tile economics-card">
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
             <small>{{ item.helper }}</small>
           </article>
         </div>
 
-        <p class="interpretation-note panel-note">
+        <p class="an-note">
           {{ treatmentEconomics.reason || treatmentEconomics.definition || 'Suma los costos capturados en tratamientos no cancelados creados en el periodo. No representa ingresos ni cobros.' }}
         </p>
       </div>
 
-      <div v-if="decisionCards.length" class="decision-panel">
-        <div class="decision-heading">
-          <div>
-            <p class="eyebrow">Indicadores de decision</p>
-            <h3>Acceso y continuidad</h3>
-          </div>
-          <small>Sin datos personales</small>
-        </div>
-
-        <div class="decision-grid">
-          <article v-for="item in decisionCards" :key="item.key" :class="['decision-card', 'tone-' + (item.tone || 'neutral')]">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-            <small>{{ item.helper }}</small>
-            <em>{{ item.interpretation }}</em>
-          </article>
-        </div>
-      </div>
-
       <div v-if="comparisonCards.length" class="comparison-panel">
-        <div class="comparison-heading">
+        <div class="an-heading">
           <div>
-            <p class="eyebrow">Comparativo</p>
+            <p class="an-eyebrow">Comparativo</p>
             <h3>Vs periodo anterior</h3>
           </div>
-          <small v-if="previousRangeLabel">{{ previousRangeLabel }}</small>
+          <small v-if="previousRangeLabel" class="heading-aside">{{ previousRangeLabel }}</small>
         </div>
 
         <div class="comparison-grid">
-          <article v-for="item in comparisonCards" :key="item.key" class="comparison-card">
+          <article v-for="item in comparisonCards" :key="item.key" class="an-tile comparison-card">
             <span>{{ item.label }}</span>
-            <strong>{{ formatNumber(item.current) }}</strong>
+            <div class="comparison-value">
+              <strong>{{ formatNumber(item.current) }}</strong>
+              <b v-if="deltaDirection(item)" :class="'is-' + deltaDirection(item)" aria-hidden="true">{{ { up: '▲', down: '▼', flat: '=' }[deltaDirection(item)] }}</b>
+            </div>
             <small>
               {{ deltaLabel(item) }}
             </small>
+            <div v-if="item.current !== null && item.previous !== null" class="comparison-bars" aria-hidden="true">
+              <div><i>Actual</i><span class="an-meter"><span :style="{ width: comparisonWidth(item, 'current') + '%' }"></span></span><u>{{ formatNumber(item.current) }}</u></div>
+              <div class="is-previous"><i>Anterior</i><span class="an-meter"><span :style="{ width: comparisonWidth(item, 'previous') + '%' }"></span></span><u>{{ formatNumber(item.previous) }}</u></div>
+            </div>
             <em>{{ item.interpretation }}</em>
           </article>
         </div>
@@ -203,7 +243,56 @@ export default {
       default: null
     }
   },
+  data: function() {
+    return {
+      // Colores por estado; siempre acompañados de su etiqueta y su cifra en la leyenda.
+      palette: {
+        done: 'var(--an-series-1)',
+        confirmed: 'var(--an-series-2)',
+        draft: 'var(--an-series-3)',
+        absent: 'var(--an-series-4)',
+        moved: 'var(--an-series-5)',
+        off: 'var(--an-muted)'
+      }
+    };
+  },
   computed: {
+    appointmentSegments: function() {
+      return this.buildSegments(this.appointmentStatuses.map(item => ({
+        key: item.status,
+        label: this.appointmentLabel(item.status),
+        value: item.count,
+        color: this.appointmentColor(item.status)
+      })));
+    },
+    prescriptionSegments: function() {
+      return this.buildSegments([
+        { key: 'issued', label: 'emitidas', value: this.prescriptions.issued, color: this.palette.done },
+        { key: 'drafts', label: 'borradores', value: this.prescriptions.drafts, color: this.palette.draft },
+        { key: 'cancelled', label: 'canceladas', value: this.prescriptions.cancelled, color: this.palette.off }
+      ]);
+    },
+    historySegments: function() {
+      return this.buildSegments([
+        { key: 'finalized', label: 'finalizadas', value: this.clinicalHistories.finalized, color: this.palette.done },
+        { key: 'drafts', label: 'borradores', value: this.clinicalHistories.drafts, color: this.palette.draft }
+      ]);
+    },
+    // Cuando todas las tarjetas comparten el mismo siguiente paso, se muestra una sola vez.
+    sharedNextStep: function() {
+      const steps = this.priorityActions.map(item => item.nextStep);
+      return steps.length > 1 && steps.every(step => step === steps[0]) ? steps[0] : '';
+    },
+    decisionRings: function() {
+      return {
+        retention: this.retention.retentionRate,
+        followUps: this.followUps.coverageRate,
+        noShow: this.appointmentHealth.noShowRate,
+        pending: this.appointmentHealth.pendingConfirmationRate,
+        completion: this.appointmentHealth.completedRate,
+        cancelled: this.appointmentHealth.cancelledRate
+      };
+    },
     appointments: function() {
       return this.data && this.data.appointments ? this.data.appointments : {};
     },
@@ -404,6 +493,40 @@ export default {
     }
   },
   methods: {
+    buildSegments: function(parts) {
+      const measured = parts
+        .map(part => ({ ...part, value: metricNumber(part.value) }))
+        .filter(part => part.value !== null && part.value > 0);
+      const total = measured.reduce((sum, part) => sum + part.value, 0);
+      return measured.map(part => ({ ...part, width: (part.value / total) * 100 }));
+    },
+    segmentsLabel: function(segments) {
+      return segments.map(segment => `${segment.label}: ${this.formatNumber(segment.value)}`).join(', ');
+    },
+    appointmentColor: function(status) {
+      const colors = {
+        completed: this.palette.done,
+        confirmed: this.palette.confirmed,
+        pending_confirmation: this.palette.draft,
+        no_show: this.palette.absent,
+        rescheduled: this.palette.moved,
+        cancelled: this.palette.off
+      };
+      return colors[status] || this.palette.off;
+    },
+    ringFor: function(key) {
+      if(!Object.prototype.hasOwnProperty.call(this.decisionRings, key)) return null;
+      const rate = metricNumber(this.decisionRings[key]);
+      return rate === null ? null : Math.max(0, Math.min(100, rate));
+    },
+    deltaDirection: function(item) {
+      if(item.delta === null || item.current === null || item.previous === null) return '';
+      return item.delta > 0 ? 'up' : item.delta < 0 ? 'down' : 'flat';
+    },
+    comparisonWidth: function(item, key) {
+      const max = Math.max(item.current, item.previous, 1);
+      return item[key] > 0 ? Math.max(3, Math.round((item[key] / max) * 100)) : 0;
+    },
     hasGroup: function(key) {
       return hasMetric(this.data, key);
     },
@@ -492,133 +615,124 @@ export default {
 </script>
 
 <style scoped>
-.dashboard-widget {
-  padding: 1.15rem;
-  border: 1px solid rgba(14, 116, 144, 0.12);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07);
+.operational-content {
+  display: grid;
+  gap: 1.4rem;
+  margin-top: 1.1rem;
 }
 
-.widget-heading,
-.comparison-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
+.operational-content > * {
+  min-width: 0;
 }
 
-.eyebrow {
-  margin: 0 0 0.35rem;
-  color: #0f766e;
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-h2,
-h3 {
-  margin: 0;
-  color: #12313a;
-  letter-spacing: 0;
-}
-
-.privacy-note {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2rem;
-  padding: 0 0.7rem;
-  border-radius: 999px;
-  color: #0f766e;
-  background: #ecfdf5;
+.heading-aside {
+  color: var(--an-muted);
   font-size: 0.8rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
-.widget-state {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px dashed #b7e4df;
-  color: #475569;
-  background: #f8fdfc;
+/* Lectura del periodo */
+.reading-panel,
+.decision-panel,
+.comparison-panel {
+  display: grid;
+  gap: 0.9rem;
 }
 
-.widget-state.is-error {
-  border-color: #fecaca;
-  background: #fff7f7;
+.reading-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
 }
 
-.widget-state.is-empty {
-  justify-content: center;
-  min-height: 9rem;
-  text-align: center;
+.reading-card {
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--an-border);
+  border-left: 4px solid var(--an-accent);
+  border-radius: var(--an-radius-sm);
+  background: var(--an-surface-2);
 }
 
-.widget-state strong {
-  display: block;
-  color: #12313a;
+.reading-card strong {
+  color: var(--an-ink);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
-.widget-state p {
-  margin: 0.25rem 0 0;
-  color: #64748b;
+.reading-card span {
+  color: var(--an-ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.reading-card small {
+  color: var(--an-ink-2);
+  font-size: 0.82rem;
   line-height: 1.45;
 }
 
-.widget-action {
-  min-height: 2.25rem;
-  border: 1px solid #b7e4df;
-  border-radius: 999px;
-  padding: 0 0.8rem;
-  color: #0f766e;
-  background: #ffffff;
-  font-weight: 900;
+.reading-card em {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+  color: var(--an-accent-strong);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-.widget-action:hover {
-  color: #ffffff;
-  border-color: #0f766e;
-  background: #0f766e;
+.reading-card em .v-icon {
+  margin-top: 0.1rem;
+  color: inherit !important;
 }
 
-.operational-content {
-  display: grid;
-  gap: 1rem;
-  margin-top: 1rem;
+.reading-next {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  color: var(--an-accent-strong);
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
+.reading-next .v-icon {
+  color: inherit !important;
+}
+
+.reading-card.tone-warning {
+  border-left-color: var(--an-warn-ink);
+  background: var(--an-warn-bg);
+}
+
+.reading-card.tone-danger {
+  border-left-color: var(--an-danger-ink);
+  background: var(--an-danger-bg);
+}
+
+/* Grupos operativos */
 .summary-groups {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
   gap: 0.85rem;
-}
-
-.operation-group,
-.priority-panel,
-.priority-card,
-.economics-panel,
-.economics-card,
-.decision-panel,
-.decision-card,
-.comparison-panel,
-.comparison-card {
-  border: 1px solid #e2edf0;
-  background: #f8fbfc;
 }
 
 .operation-group {
   display: grid;
-  align-content: flex-start;
+  align-content: start;
   gap: 0.85rem;
-  padding: 1rem;
 }
 
 .group-heading {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.7rem;
   align-items: center;
 }
@@ -628,9 +742,9 @@ h3 {
   place-items: center;
   width: 2.45rem;
   height: 2.45rem;
-  border-radius: 0.75rem;
-  color: #0f766e;
-  background: #dff7f4;
+  border-radius: 0.8rem;
+  color: var(--an-accent) !important;
+  background: var(--an-accent-soft);
 }
 
 .group-heading strong,
@@ -639,373 +753,230 @@ h3 {
 }
 
 .group-heading strong {
-  color: #12313a;
-  font-size: 1.02rem;
+  color: var(--an-ink);
+  font-size: 1.05rem;
 }
 
-.group-heading span,
-.status-list span,
-.comparison-heading small,
-.comparison-card span,
-.comparison-card small {
-  color: #64748b;
+.group-heading span {
+  color: var(--an-muted);
   font-size: 0.82rem;
 }
 
-.metric-grid,
-.status-list {
-  display: grid;
-  gap: 0.4rem;
+.group-heading b {
+  color: var(--an-ink);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+  text-align: right;
 }
 
-.metric-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
-}
-
-.metric-tile,
-.status-list span {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.7rem;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-}
-
-.metric-tile strong,
-.status-list strong {
-  color: #12313a;
-}
-
-.metric-tile {
-  align-items: baseline;
-  min-width: 0;
-  color: #475569;
-  line-height: 1.35;
-}
-
-.metric-tile strong {
-  flex: 0 0 auto;
-  font-size: 1.12rem;
-}
-
-.interpretation-note {
-  margin: 0;
-  padding: 0.72rem 0.82rem;
-  border: 1px solid #d7ebe8;
-  background: #f5fbfa;
-  color: #475569;
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
-.priority-panel {
-  padding: 1rem;
-  background: #fbfdfc;
-}
-
-.priority-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-  gap: 0.75rem;
-  margin-top: 0.9rem;
-}
-
-.priority-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.72rem;
-  padding: 0.9rem;
-  background: #ffffff;
-}
-
-.priority-card .v-icon {
-  display: grid;
-  place-items: center;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 0.75rem;
-  color: #0f766e;
-  background: #dff7f4;
-}
-
-.priority-card span,
-.priority-card strong,
-.priority-card small,
-.priority-card em {
+.group-heading b small {
   display: block;
+  max-width: 7rem;
+  color: var(--an-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
-.priority-card span {
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 900;
-}
-
-.priority-card strong {
-  margin-top: 0.12rem;
-  color: #12313a;
-  font-size: 1.22rem;
-}
-
-.priority-card small {
-  margin-top: 0.26rem;
-  color: #475569;
-  line-height: 1.28rem;
-}
-
-.priority-card em {
-  margin-top: 0.42rem;
-  color: #0f766e;
-  font-size: 0.8rem;
-  font-style: normal;
-  font-weight: 900;
-  line-height: 1.25rem;
-}
-
-.priority-card.tone-warning {
-  border-color: #e7dbc3;
-  background: #fffaf0;
-}
-
-.priority-card.tone-danger {
-  border-color: #f5c6c8;
-  background: #fff7f7;
-}
-
-.priority-card.tone-danger .v-icon {
-  color: #b4232a;
-  background: #fde8e8;
-}
-
-.priority-card.tone-success {
-  border-color: #c8eadc;
-  background: #f3fbf7;
-}
-
-.priority-card.tone-neutral {
-  border-color: #dbe3ed;
-  background: #f8fafc;
-}
-
-.economics-panel {
-  padding: 1rem;
-  background: #fbfdfc;
-}
-
-.economics-grid {
+.legend-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
-  gap: 0.75rem;
-  margin-top: 0.9rem;
+  gap: 0.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.economics-card {
+.legend-list li {
   display: grid;
-  gap: 0.22rem;
-  padding: 0.85rem;
-  background: #ffffff;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.32rem 0;
+  border-bottom: 1px dashed var(--an-border);
+  color: var(--an-ink-2);
+  font-size: 0.86rem;
 }
 
-.economics-card span {
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 900;
+.legend-list li:last-child {
+  border-bottom: 0;
 }
 
-.economics-card strong {
-  color: #12313a;
-  font-size: 1.35rem;
-  line-height: 1.45rem;
-  word-break: break-word;
+.legend-list strong {
+  color: var(--an-ink);
+  font-weight: 600;
 }
 
-.economics-card small {
-  color: #64748b;
-  line-height: 1.25rem;
+.an-dot.is-hollow {
+  border: 1.5px solid var(--an-muted);
 }
 
-.panel-note {
-  margin-top: 0.9rem;
-}
-
-.decision-panel,
-.comparison-panel {
-  padding: 1rem;
-}
-
-.decision-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.decision-heading small {
-  color: #0f766e;
-  font-size: 0.8rem;
-  font-weight: 900;
-}
-
+/* Indicadores de decisión */
 .decision-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr));
   gap: 0.75rem;
-  margin-top: 0.9rem;
 }
 
 .decision-card {
   display: grid;
-  gap: 0.22rem;
-  padding: 0.85rem;
-  background: #ffffff;
+  align-content: start;
+  gap: 0.45rem;
 }
 
-.decision-card span {
-  color: #64748b;
+.decision-main {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.decision-main > div {
+  min-width: 0;
+}
+
+.decision-card span,
+.economics-card span,
+.comparison-card > span {
+  display: block;
+  color: var(--an-muted);
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .decision-card strong {
-  color: #12313a;
-  font-size: 1.65rem;
-  line-height: 1.7rem;
+  display: block;
+  color: var(--an-ink);
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
-.decision-card small {
-  color: #64748b;
-  line-height: 1.2rem;
-}
-
-.decision-card em,
-.comparison-card em {
-  color: #475569;
-  font-size: 0.78rem;
-  font-style: normal;
-  line-height: 1.25rem;
-}
-
-.decision-card.tone-accent {
-  border-color: #b7e4df;
-  background: #f5fdfb;
-}
-
-.decision-card.tone-success {
-  border-color: #c8eadc;
-  background: #f3fbf7;
+.decision-card small,
+.economics-card small,
+.comparison-card small {
+  color: var(--an-ink-2);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .decision-card.tone-warning {
-  border-color: #e7dbc3;
-  background: #fffaf0;
+  border-color: var(--an-warn-border);
+  background: var(--an-warn-bg);
 }
 
-.decision-card.tone-neutral {
-  border-color: #e2edf0;
-  background: #ffffff;
+.decision-card.tone-warning .ring-value {
+  stroke: var(--an-warn-ink);
 }
 
+.decision-card.tone-neutral .ring-value {
+  stroke: var(--an-series-2);
+}
+
+/* Costos */
+.economics-panel {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.economics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 0.75rem;
+}
+
+.economics-card {
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+}
+
+.economics-card strong {
+  color: var(--an-ink);
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+/* Comparativo */
 .comparison-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
   gap: 0.75rem;
-  margin-top: 0.9rem;
 }
 
 .comparison-card {
   display: grid;
-  gap: 0.25rem;
-  padding: 0.85rem;
-  background: #ffffff;
+  align-content: start;
+  gap: 0.3rem;
 }
 
-.comparison-card strong {
-  color: #12313a;
-  font-size: 1.7rem;
+.comparison-value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
 }
 
-html[data-theme="clinical-night"] .dashboard-widget {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.88);
+.comparison-value strong {
+  color: var(--an-ink);
+  font-size: 1.8rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
-html[data-theme="clinical-night"] h2,
-html[data-theme="clinical-night"] h3,
-html[data-theme="clinical-night"] .widget-state strong,
-html[data-theme="clinical-night"] .group-heading strong,
-html[data-theme="clinical-night"] .metric-tile strong,
-html[data-theme="clinical-night"] .status-list strong,
-html[data-theme="clinical-night"] .priority-card strong,
-html[data-theme="clinical-night"] .economics-card strong,
-html[data-theme="clinical-night"] .decision-card strong,
-html[data-theme="clinical-night"] .comparison-card strong {
-  color: #e2e8f0;
+.comparison-value b {
+  color: var(--an-muted);
+  font-size: 0.85rem;
 }
 
-html[data-theme="clinical-night"] .operation-group,
-html[data-theme="clinical-night"] .priority-panel,
-html[data-theme="clinical-night"] .priority-card,
-html[data-theme="clinical-night"] .economics-panel,
-html[data-theme="clinical-night"] .economics-card,
-html[data-theme="clinical-night"] .decision-panel,
-html[data-theme="clinical-night"] .decision-card,
-html[data-theme="clinical-night"] .comparison-panel,
-html[data-theme="clinical-night"] .comparison-card,
-html[data-theme="clinical-night"] .metric-tile,
-html[data-theme="clinical-night"] .status-list span {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(30, 41, 59, 0.76);
+.comparison-value b.is-up {
+  color: var(--an-good-ink);
 }
 
-html[data-theme="clinical-night"] .group-heading span,
-html[data-theme="clinical-night"] .metric-tile,
-html[data-theme="clinical-night"] .status-list span,
-html[data-theme="clinical-night"] .priority-card span,
-html[data-theme="clinical-night"] .priority-card small,
-html[data-theme="clinical-night"] .economics-card span,
-html[data-theme="clinical-night"] .economics-card small,
-html[data-theme="clinical-night"] .decision-card span,
-html[data-theme="clinical-night"] .decision-card small,
-html[data-theme="clinical-night"] .decision-card em,
-html[data-theme="clinical-night"] .comparison-heading small,
-html[data-theme="clinical-night"] .comparison-card span,
-html[data-theme="clinical-night"] .comparison-card small,
-html[data-theme="clinical-night"] .comparison-card em,
-html[data-theme="clinical-night"] .widget-state p,
-html[data-theme="clinical-night"] .widget-state {
-  color: #94a3b8;
+.comparison-value b.is-down {
+  color: var(--an-warn-ink);
 }
 
-html[data-theme="clinical-night"] .priority-card em {
-  color: #5eead4;
+.comparison-bars {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.3rem 0;
 }
 
-html[data-theme="clinical-night"] .interpretation-note {
-  border-color: rgba(45, 212, 191, 0.18);
-  background: rgba(15, 23, 42, 0.58);
-  color: #cbd5e1;
+.comparison-bars > div {
+  display: grid;
+  grid-template-columns: 3.6rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
 }
 
-@media (max-width: 1100px) {
-  .summary-groups,
-  .decision-grid,
-  .comparison-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.comparison-bars i,
+.comparison-bars u {
+  color: var(--an-muted);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 600;
+  text-decoration: none;
 }
 
-@media (max-width: 720px) {
-  .widget-heading,
-  .comparison-heading {
-    flex-direction: column;
-  }
+.comparison-bars u {
+  min-width: 1.6rem;
+  color: var(--an-ink-2);
+  text-align: right;
+}
 
-  .summary-groups,
-  .decision-grid,
-  .comparison-grid,
-  .metric-grid {
-    grid-template-columns: 1fr;
-  }
+.comparison-bars .is-previous .an-meter span {
+  background: var(--an-muted);
+  opacity: 0.55;
+}
+
+.comparison-card em {
+  color: var(--an-muted);
+  font-size: 0.78rem;
+  font-style: normal;
+  line-height: 1.45;
 }
 </style>

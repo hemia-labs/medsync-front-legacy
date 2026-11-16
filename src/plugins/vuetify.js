@@ -12,6 +12,18 @@ const spanishLocale = { ...es, loading: 'Cargando...', input: {
     prependAction: 'Acción inicial de {0}',
     appendAction: 'Acción final de {0}'
 } };
-const options = { lang: { locales: { es: spanishLocale }, current: 'es' } }
+// Vuetify components (color="primary", error states, date pickers) use the MedSync
+// palette instead of Vuetify's default blue. theme.js keeps these in sync with tenant themes.
+const theme = {
+    themes: {
+        light: {
+            primary: '#1C7FA7',
+            error: '#D64545',
+            success: '#2FA36B',
+            info: '#3B82C4'
+        }
+    }
+};
+const options = { lang: { locales: { es: spanishLocale }, current: 'es' }, theme }
 
 export default new Vuetify(options);

@@ -73,7 +73,7 @@ export default {
 <style scoped>
 
 #signature {
-  border: 2px solid var(--color-primary-700, #1497BD);
+  border: 2px solid var(--color-primary-700);
   border-radius: 5px;
   background-color: #fff;
 }

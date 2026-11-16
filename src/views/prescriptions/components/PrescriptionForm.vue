@@ -269,7 +269,7 @@ export default {
 .rx-sheet h4 { font-size: 15px; color: #334155; }
 .rx-sheet p { margin: 0; }
 .rx-sheet-header p { font-size: 14px; }
-.rx-eyebrow { color: #116c70; font-size: 11px !important; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.rx-eyebrow { color: #116c70; font-size: 11px !important; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .rx-sheet-body { overflow-y: auto; padding: 20px 24px; flex: 1 1 auto; min-height: 0; background: #f4f7f8; }
 .rx-paper { padding: 22px; background: white; border: 1px solid #dbe5e9; border-radius: 8px; }
 .rx-metadata { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; }

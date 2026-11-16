@@ -1198,9 +1198,9 @@ export default {
               body { margin: 0; background: #fff; color: #1f2a44; font-family: Arial, sans-serif; font-size: 12px; line-height: 1.5; }
               .sheet { width: 100%; }
               .header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 1px solid #d8e9ef; padding-bottom: 14px; margin-bottom: 16px; break-inside: avoid; }
-              .brand { margin: 0 0 4px; color: #00728c; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+              .brand { margin: 0 0 4px; color: #00728c; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
               h1 { margin: 0 0 6px; font-size: 20px; }
-              .status { border: 1px solid #b8edf7; padding: 4px 8px; font-weight: 800; height: max-content; }
+              .status { border: 1px solid #b8edf7; padding: 4px 8px; font-weight: 600; height: max-content; }
               .meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 18px; border: 1px solid #d8e9ef; padding: 12px; margin-bottom: 18px; break-inside: avoid; }
               .meta strong { display: block; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
               .content { margin-bottom: 22px; font-size: 13px; }
@@ -1208,7 +1208,7 @@ export default {
               .warning.danger { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
               .signatures { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; break-inside: avoid; }
               .signature-card { border-top: 1px solid #1f2a44; padding-top: 8px; min-height: 120px; break-inside: avoid; }
-              .signature-card span { display: block; color: #64748b; font-weight: 800; margin-bottom: 6px; }
+              .signature-card span { display: block; color: #64748b; font-weight: 600; margin-bottom: 6px; }
               .signature-card img { display: block; max-width: 220px; max-height: 90px; object-fit: contain; margin: 0 auto 8px; }
               .signature-card strong, .signature-card small { display: block; text-align: center; }
             </style>
@@ -1460,7 +1460,7 @@ export default {
 .empty-card,
 .step-card {
   border: 1px solid var(--color-border, rgba(14, 84, 104, 0.16));
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
 }
 
 .documents-hero {
@@ -1474,9 +1474,9 @@ export default {
 
 .eyebrow {
   margin: 0 0 .25rem;
-  color: var(--color-primary-700, #00728c);
+  color: var(--color-primary-700);
   font-size: .75rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: .12em;
   text-transform: uppercase;
 }
@@ -1517,7 +1517,7 @@ export default {
   border-radius: 999px;
   min-height: 2.5rem;
   padding: .38rem .9rem;
-  font-weight: 800;
+  font-weight: 600;
   box-shadow: 0 1px 3px rgba(15, 23, 42, .05);
   transition: box-shadow .16s ease, transform .16s ease, border-color .16s ease, background .16s ease;
 }
@@ -1546,14 +1546,14 @@ export default {
 }
 
 .document-card--priority {
-  border-color: var(--color-primary-200, #b8edf7);
-  background: linear-gradient(0deg, rgba(27, 166, 201, .04), rgba(27, 166, 201, .04)), var(--color-surface, #fff);
+  border-color: var(--color-primary-200);
+  background: linear-gradient(0deg, rgba(27, 166, 201, .04), rgba(27, 166, 201, .04)), var(--color-surface);
 }
 
 .document-card--focused {
   border-color: var(--color-primary-400, #45c3dd);
   box-shadow: 0 14px 28px rgba(27, 166, 201, .16);
-  background: linear-gradient(0deg, rgba(27, 166, 201, .08), rgba(27, 166, 201, .08)), var(--color-surface, #fff);
+  background: linear-gradient(0deg, rgba(27, 166, 201, .08), rgba(27, 166, 201, .08)), var(--color-surface);
 }
 
 .document-main {
@@ -1620,7 +1620,7 @@ export default {
   border-radius: 999px;
   border: 1px solid transparent;
   padding: .5rem .85rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: .03em;
 }
 
@@ -1631,19 +1631,19 @@ export default {
 }
 
 .btn-primary {
-  background: var(--color-primary-500, #19a6c9);
+  background: var(--color-primary-500);
   color: #fff;
 }
 
 .btn-soft {
-  background: var(--color-primary-100, #e0f7fc);
-  color: var(--color-primary-900, #006077);
-  border-color: var(--color-primary-200, #b8edf7);
+  background: var(--color-primary-100);
+  color: var(--color-primary-900);
+  border-color: var(--color-primary-200);
 }
 
 .btn-outline {
   background: #fff;
-  color: var(--color-primary-900, #006077);
+  color: var(--color-primary-900);
   border-color: var(--color-border, #d8e9ef);
 }
 
@@ -1654,16 +1654,16 @@ export default {
 }
 
 .status-chip {
-  border: 1px solid var(--color-primary-200, #b8edf7);
-  background: var(--color-primary-100, #e0f7fc);
-  color: var(--color-primary-900, #006077);
+  border: 1px solid var(--color-primary-200);
+  background: var(--color-primary-100);
+  color: var(--color-primary-900);
   display: inline-flex;
   align-items: center;
   width: max-content;
   min-height: 1.45rem;
   padding: .14rem .42rem;
   font-size: .75rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.1;
 }
 
@@ -1688,20 +1688,20 @@ html[data-theme="clinical-night"] .status-REEMPLAZADO { --state-bg: #33264a; --s
   gap: 1rem;
   padding: 1.5rem;
   border-bottom: 1px solid var(--color-border, #d8e9ef);
-  background: linear-gradient(180deg, var(--color-primary-100, #e6f7fb), #fff);
+  background: linear-gradient(180deg, var(--color-primary-100), #fff);
 }
 .document-modal { border-radius: 16px; overflow: hidden; color: var(--color-text, #25364d); }
 .dialog-header > div { flex: 1; min-width: 0; }
-.dialog-header h3 { margin: .25rem 0 0; font-size: 1.25rem; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.dialog-header h3 { margin: .25rem 0 0; font-size: 1.25rem; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
 .dialog-header > .v-btn { flex-shrink: 0; margin: -4px -8px 0 0; color: var(--color-text-muted, #64748b); }
-.dialog-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 12px; background: var(--color-primary-100, #e6f7fb); }
-.dialog-icon .v-icon { color: var(--color-primary-900, #086783); }
-.document-feedback { margin: 0 0 1rem; padding: 1rem; border: 1px solid var(--color-primary-200, #cdeef7); border-radius: 10px; background: var(--color-primary-100, #e6f7fb); color: var(--color-primary-900, #086783); }
+.dialog-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 12px; background: var(--color-primary-100); }
+.dialog-icon .v-icon { color: var(--color-primary-900); }
+.document-feedback { margin: 0 0 1rem; padding: 1rem; border: 1px solid var(--color-primary-200); border-radius: 10px; background: var(--color-primary-100); color: var(--color-primary-900); }
 .document-feedback--error { color: #991b1b; background: #fff1f2; border-color: #fecdd3; }
 .document-feedback ul { margin: .5rem 0 0; padding-left: 1.2rem; }
 .document-feedback li button { padding: .25rem 0; text-decoration: underline; text-align: left; }
-.document-feedback:focus { outline: 3px solid var(--color-primary-900, #086783); outline-offset: 3px; }
-.document-modal button:focus-visible, .document-modal a:focus-visible { outline: 3px solid var(--color-primary-900, #086783); outline-offset: 3px; }
+.document-feedback:focus { outline: 3px solid var(--color-primary-900); outline-offset: 3px; }
+.document-modal button:focus-visible, .document-modal a:focus-visible { outline: 3px solid var(--color-primary-900); outline-offset: 3px; }
 .preparation-empty { border-radius: 12px; padding: 1.5rem; text-align: left; }
 .preparation-empty h3 { margin-top: .75rem; }
 .preparation-empty .inline-actions { justify-content: flex-start; }
@@ -1719,7 +1719,7 @@ html[data-theme="clinical-night"] .status-REEMPLAZADO { --state-bg: #33264a; --s
   flex-wrap: wrap;
   padding: 1rem 1.4rem !important;
   border-top: 1px solid var(--color-border, #d8e9ef);
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
 }
 
 .step-card {
@@ -1731,7 +1731,7 @@ html[data-theme="clinical-night"] .status-REEMPLAZADO { --state-bg: #33264a; --s
 .step-title {
   margin: 0 0 .55rem;
   color: var(--color-text, #25364d);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .help-text {
@@ -1827,8 +1827,8 @@ html[data-theme="clinical-night"] .status-REEMPLAZADO { --state-bg: #33264a; --s
 
 .sheet-brand {
   margin: 0 0 .25rem;
-  color: var(--color-primary-700, #00728c);
-  font-weight: 800;
+  color: var(--color-primary-700);
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .08em;
 }
@@ -1862,9 +1862,9 @@ html[data-theme="clinical-night"] .status-REEMPLAZADO { --state-bg: #33264a; --s
 
 .section-kicker {
   margin: 0 0 .55rem;
-  color: var(--color-primary-700, #00728c);
+  color: var(--color-primary-700);
   font-size: .72rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: .1em;
   text-transform: uppercase;
 }
@@ -1886,7 +1886,7 @@ html[data-theme="clinical-night"] .status-REEMPLAZADO { --state-bg: #33264a; --s
   border: 1px solid var(--color-border, #d8e9ef);
   padding: .32rem .55rem;
   font-size: .82rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .signature-progress-chip.complete {
@@ -1918,7 +1918,7 @@ html[data-theme="clinical-night"] .status-REEMPLAZADO { --state-bg: #33264a; --s
 .signature-card span {
   display: block;
   color: var(--color-text-muted, #64748b);
-  font-weight: 800;
+  font-weight: 600;
   margin-bottom: .5rem;
 }
 

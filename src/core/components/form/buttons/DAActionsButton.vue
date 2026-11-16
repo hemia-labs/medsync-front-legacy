@@ -1,5 +1,5 @@
 <template>
-    <button :class="[css, classes]" class="px-2 transition duration-150 ease-in-out font-sans font-medium  tracking-widest" style="padding-top: 3px; padding-bottom: 3px;" >
+    <button :class="[css, classes]" class="px-2 transition duration-150 ease-in-out font-sans font-semibold tracking-wide rounded-full" style="padding-top: 3px; padding-bottom: 3px;" >
         <slot> {{label ? label : ''}}</slot>
   </button>
 </template>

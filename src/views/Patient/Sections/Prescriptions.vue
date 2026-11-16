@@ -453,7 +453,7 @@ export default {
     margin: 0 0 0.2rem;
     color: var(--color-primary-900);
     font-size: 0.72rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
 }
@@ -462,7 +462,7 @@ export default {
     margin: 0;
     color: #334155;
     font-size: 1rem;
-    font-weight: 800;
+    font-weight: 600;
 }
 
 .prescription-intro p:last-child {
@@ -499,7 +499,7 @@ export default {
     background: #e8f8ef;
     color: #137445;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.03em;
     line-height: 1;
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1);
@@ -551,7 +551,7 @@ export default {
     background: #fff;
     color: #4b5563;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.02em;
     line-height: 1;
     box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);

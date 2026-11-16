@@ -1022,7 +1022,7 @@ export default {
         }
 
         if (this.role !== 'super_admin' && this.business && this.business.registrationWelcomePending) return '/activar-cuenta';
-        return this.role === 'super_admin' ? '/super-admin/dashboard' : '/inicio';
+        return this.role === 'super_admin' ? '/acceso-no-disponible' : '/inicio';
       }
 
       const token = this.$session ? this.$session.get('token') : null;
@@ -1037,7 +1037,7 @@ export default {
         if (payload && payload.rol !== 'super_admin' && tenantOperational && tenantOperational.allowed === false && tenantOperational.code === 'TENANT_NOT_OPERATIONAL') {
           return '/tenant-restricted';
         }
-        return payload && payload.rol === 'super_admin' ? '/super-admin/dashboard' : '/inicio';
+        return payload && payload.rol === 'super_admin' ? '/acceso-no-disponible' : '/inicio';
       } catch (error) {
         return '/inicio';
       }

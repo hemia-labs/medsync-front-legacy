@@ -1,5 +1,5 @@
 <template>
-    <button :class="[css, classes]" class="bg-red-700 px-2 py-1 text-white hover:bg-red-900 transition duration-150 ease-in-out font-sans font-medium  tracking-widest text-center" >
+    <button :class="[css, classes]" class="bg-secondary-500 px-2 py-1 text-white hover:bg-secondary-700 transition duration-150 ease-in-out font-sans font-semibold tracking-wide rounded-full text-center" >
           {{label ? label : ''}}
           <slot></slot>
     </button>
