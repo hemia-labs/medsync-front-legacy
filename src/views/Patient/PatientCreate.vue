@@ -19,7 +19,6 @@
         <strong>Revisa los datos antes de crear el paciente.</strong>
         <button v-for="(message, field) in formErrors" :key="field" type="button" @click="focusField(field)">{{ message }}</button>
       </div>
-      <identity-fields v-model="identity" :names="false" required-sex :disabled="isSaving" />
       <article class="patient-create-section">
         <div class="section-heading">
           <p>Datos personales</p>
@@ -33,6 +32,14 @@
           <v-text-field :value="form.age" label="Edad" outlined dense readonly></v-text-field>
           <v-text-field v-field-error="{ id: 'patient-mobilePhone', invalid: Boolean(fieldError('mobilePhone').length), required: true }" ref="mobilePhone" v-model.trim="form.mobilePhone" label="Teléfono / celular *" required type="tel" inputmode="tel" hint="10 dígitos; puedes usar espacios, guiones o paréntesis." persistent-hint outlined dense :error-messages="fieldError('mobilePhone')" @blur="touchField('mobilePhone')"></v-text-field>
         </div>
+      </article>
+
+      <article class="patient-create-section">
+        <div class="section-heading">
+          <p>Identidad del paciente</p>
+          <span>Solo el sexo biológico es obligatorio. Lo que no captures queda pendiente; no se deduce del nombre ni de otros documentos.</span>
+        </div>
+        <patient-identity-fields ref="biologicalSex" v-model="identity" :disabled="isSaving" :sex-errors="fieldError('biologicalSex')" @blur-sex="touchField('biologicalSex')" />
       </article>
 
       <article class="patient-create-section">
@@ -82,7 +89,7 @@
 </template>
 
 <script>
-import IdentityFields from '../../components/identity/IdentityFields.vue';
+import PatientIdentityFields from './components/PatientIdentityFields.vue';
 import { mapGetters } from 'vuex';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
@@ -95,7 +102,7 @@ import { peekAgendaReturn, setAgendaCreatedPatient } from '../../domain/appointm
 import { authorizationContext, isCurrentAuthorization } from '../../security/authorizationContext';
 
 export default {
-  components: { IdentityFields },
+  components: { PatientIdentityFields },
   directives: { fieldError },
   mixins: [VuexMixin],
   data() {
@@ -138,7 +145,13 @@ export default {
     creationAccessKey() { return JSON.stringify(authorizationContext(this.$store)); },
     fromAgenda() { const entry = peekAgendaReturn(this.$store); return entry && entry.kind === 'create-patient'; },
     today() { return localDateString(); },
-    formErrors() { const errors=patientAdministrativeErrors(this.form); if(!this.identity.biologicalSex) errors.biologicalSex='Selecciona el sexo biológico.'; return errors; }
+    formErrors() {
+      // Keep the error summary in the same order as the form: identity follows the personal data.
+      const administrative = patientAdministrativeErrors(this.form), errors = {};
+      ['name', 'firstSurname', 'birthDate', 'mobilePhone'].forEach(key => { if(administrative[key]) errors[key] = administrative[key]; });
+      if(!this.identity.biologicalSex) errors.biologicalSex = 'Selecciona el sexo biológico.';
+      return Object.assign(errors, administrative);
+    }
   },
   watch: {
     creationAccessKey() { this.accessChanged = true; this.pendingCreate = null; this.createdPatient = null; Object.keys(this.form).forEach(key => { this.form[key] = '' }); this.creationMessage = 'Cambió tu acceso. Recarga para continuar.'; },
