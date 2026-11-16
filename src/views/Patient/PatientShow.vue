@@ -21,10 +21,7 @@
     <template v-if="patientReady">
     <v-alert v-if="tabAccessNotice" type="warning" text role="alert" class="mb-4">{{ tabAccessNotice }}</v-alert>
     <div class="mb-4">
-        <da-history-header :px="px" :can-edit="canManagePatient" :archive-pending="archivePending" :show-clinical="canViewClinical" v-model="isEditProfile" v-on:edit="requestProfileEdit" @archive="requestArchive"></da-history-header>
-    </div>
-    <div v-if="canManagePatient && !isEdit" class="mb-4">
-        <v-btn outlined @click="requestAdministrativeEdit">Editar datos e identidad</v-btn>
+        <da-history-header :px="px" :can-edit="canManagePatient" :editing="isEdit" :archive-pending="archivePending" :show-clinical="canViewClinical" v-model="isEditProfile" v-on:edit="requestProfileEdit" @edit-patient="requestAdministrativeEdit" @archive="requestArchive"></da-history-header>
     </div>
     <div v-if="canViewClinical" class="mb-4">
         <da-alergy-alert :px="px" :can-edit="canEditAllergies" v-on:edit="openAllergyEditor"></da-alergy-alert>
@@ -98,7 +95,7 @@
     
     <div v-if="isEdit" class="py-5" :class="{'animate-fade-in-left ease-in-out': isEdit}">
         <da-patient-form v-if="canEditClinical && !administrativeEdit" :id="id" v-on:cancel="onCancelEdit"></da-patient-form>
-        <PatientAdministrativeForm v-else-if="canManagePatient" :patient="px" @cancel="onCancelEdit" @saved="onAdministrativeSaved" />
+        <PatientAdministrativeForm v-else-if="canManagePatient" :patient="px" @cancel="onCancelEdit" @refreshed="onAdministrativeRefreshed" @saved="onAdministrativeSaved" />
     </div>
 
     <da-dialog v-model="isDelete" :persist="true" :maxWidth="'500px'">
@@ -137,6 +134,7 @@ import { mapGetters, mapActions } from 'vuex';
 import VuexMixin from '../../mixins/VuexMixin';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
+import mutationTypes from '../../store/modules/common/mutation-types';
 import DAHistoryHeader from './components/DAHistoryHeader.vue';
 import DAAlergyAlert from './components/DAAlergyAlert.vue';
 import AllergyEditor from './components/AllergyEditor.vue';
@@ -224,7 +222,10 @@ export default {
         if(await this.confirmSectionLeave()) this.isDelete = true
     },
     requestProfileEdit() { if(this.canManagePatient) this.isEditProfile = true },
-    async onAdministrativeSaved() { this.isEdit = false; await this.init() },
+    onAdministrativeRefreshed(patient) {
+        if(this.canManagePatient && patient.person.id_person === this.id) this.$store.commit(moduleTypes.PX + '/' + mutationTypes.SET_PX, patient)
+    },
+    onAdministrativeSaved() { this.isEdit = false },
     async restorePatient() {
         if(!this.canManagePatient || this.archivePending) return
         this.archivePending = true
@@ -306,7 +307,7 @@ export default {
         }
     },
     async requestAdministrativeEdit() {
-        if(!this.canManagePatient) return
+        if(!this.canManagePatient || this.isEdit) return
         if(await this.confirmSectionLeave()) {
             this.administrativeEdit = true
             this.isEdit = true

@@ -36,6 +36,7 @@
         </div>
 
         <div class="patient-summary-actions">
+            <v-btn v-if="canEdit && !editing" outlined color="primary" class="patient-edit-action" @click="$emit('edit-patient')"><v-icon small class="mr-2">mdi-account-edit-outline</v-icon>Editar datos del paciente</v-btn>
             <v-tooltip v-if="canEdit" bottom>
                 <template v-slot:activator="{ on, attrs }">
                     <button type="button" class="patient-icon-action" v-bind="attrs" v-on="on" aria-label="Actualizar foto" @click="$emit('edit', $attrs.value)">
@@ -60,6 +61,7 @@
 export default {
     props: {
         canEdit: { type: Boolean, default: false },
+        editing: { type: Boolean, default: false },
         archivePending: { type: Boolean, default: false },
         showClinical: { type: Boolean, default: true },
         px: {
@@ -93,6 +95,7 @@ export default {
 </script>
 
 <style scoped>
+.patient-edit-action { min-height: 44px; }
 .patient-summary-card {
     display: flex;
     align-items: center;
@@ -311,8 +314,10 @@ export default {
         font-size: 1.05rem;
     }
 
-    .patient-summary-actions {
-        flex-direction: column;
-    }
+    .patient-summary-card { flex-direction: column; }
+    .patient-summary-main { width: 100%; }
+    .patient-summary-actions { width: 100%; flex-direction: row; flex-wrap: wrap; }
+    .patient-edit-action { flex: 1 1 100%; }
+    .patient-icon-action { width: 44px; height: 44px; }
 }
 </style>

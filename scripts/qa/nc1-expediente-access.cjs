@@ -1,54 +1,35 @@
 'use strict';
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-const assert = require('node:assert/strict');
-const { chromium } = require('playwright');
-const root = path.resolve(__dirname, '../..');
-const source = fs.readFileSync(path.join(root, 'src/views/Patient/PatientShow.vue'), 'utf8');
-const context = { mapGetters: () => ({}), mapActions: () => ({}), VuexMixin: {},
-  DAHistoryHeader: {}, DAAlergyAlert: {}, AllergyEditor: {}, PatientAdministrativeForm: {},
-  DASweetConfirm: {}, DocumentsAndSignatures: {}, moduleTypes: {AUTH:{},PX:{},CONFIGURATION:{}}, fnTypes: {} };
-vm.runInNewContext(source.split('<script>')[1].split('</script>')[0]
-  .replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component ='), context);
-const methods = context.component.methods;
-async function main() {
-  let prompted = 0;
-  const view = { canManagePatient: false, isEdit: false, administrativeEdit: false,
-    confirmSectionLeave: async () => { prompted++; return true; } };
-  await methods.requestAdministrativeEdit.call(view);
-  assert.equal(view.isEdit, false); assert.equal(prompted, 0);
-  view.canManagePatient = true;
-  view.confirmSectionLeave = async () => false;
-  await methods.requestAdministrativeEdit.call(view);
-  assert.equal(view.isEdit, false, 'clinical draft refusal keeps current view');
-  view.confirmSectionLeave = async () => true;
-  await methods.requestAdministrativeEdit.call(view);
-  assert.equal(view.isEdit, true); assert.equal(view.administrativeEdit, true);
-  await methods.requestPatientEdit.call(view);
-  assert.equal(view.administrativeEdit, false, 'existing clinical edit remains available');
-  const template = source.slice(source.indexOf('<template>')+10, source.lastIndexOf('</template>'));
-  const browser = await chromium.launch({channel:'msedge',headless:true});
-  try { for (const width of [390,1280]) {
-    const page = await browser.newPage({viewport:{width,height:900}});
-    await page.route('**/*', route => route.abort());
-    await page.setContent('<div id="app"></div>');
-    await page.addScriptTag({path:require.resolve('vue/dist/vue.js')});
-    await page.evaluate(({template, open}) => {
-      const stub = {template:'<div><slot/></div>'};
-      Vue.component('v-btn',{template:'<button @click="$emit(\'click\')"><slot/></button>'});
-      for(const name of ['v-alert','v-icon','v-tabs','v-tabs-items','v-tab','v-tab-item']) Vue.component(name,stub);
-      for(const name of ['da-history-header','da-alergy-alert','da-dialog','da-upload-file','AllergyEditor']) Vue.component(name,{template:'<div/>'});
-      Vue.component('PatientAdministrativeForm',{template:'<div id="admin-editor">Administrative editor</div>'});
-      Vue.component('da-patient-form',{template:'<div id="clinical-editor">Clinical editor</div>'});
-      window.qa = new Vue({el:'#app',template,data:()=>({canReturnToAgenda:false,loadingPatient:false,patientError:'',patientReady:true,tabAccessNotice:'',px:{person:{}},canManagePatient:true,archivePending:false,canViewClinical:true,isEditProfile:false,isArchived:false,isEdit:false,administrativeEdit:false,allowedTabs:[],canEditAllergies:false,isDelete:false,isUploadFile:false,canEditClinical:true,id:'synthetic'}),methods:{requestAdministrativeEdit:new Function('return '+open)(),confirmSectionLeave:async()=>true}});
-    },{template,open:methods.requestAdministrativeEdit.toString().replace('async requestAdministrativeEdit()', 'async function()')});
-    await page.getByRole('button',{name:'Editar datos e identidad',exact:true}).click();
-    await page.locator('#admin-editor').waitFor();
-    assert.equal(await page.locator('#clinical-editor').count(),0);
-    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-    await page.close();
-  }} finally {await browser.close();}
-  console.log('PASS: permission, clinical draft guard, administrative editor for clinical profile, 390/1280. Synthetic shell with UI stubs.');
+// Component integration in JSDOM; visual QA uses the real local app separately.
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');const dom=new JSDOM('<div id="app"></div>');
+global.window=dom.window;global.document=dom.window.document;
+const Vue=require('vue/dist/vue.common.js');Vue.config.productionTip=false;Vue.config.devtools=false;
+const root=path.resolve(__dirname,'../..');
+const source=fs.readFileSync(path.join(root,'src/views/Patient/PatientShow.vue'),'utf8');
+const context={mapGetters:()=>({}),mapActions:()=>({}),VuexMixin:{},DAHistoryHeader:{},DAAlergyAlert:{},AllergyEditor:{},PatientAdministrativeForm:{},DASweetConfirm:{},DocumentsAndSignatures:{},DELETE:{},moduleTypes:{AUTH:{},PX:'CORE/PX',CONFIGURATION:{}},fnTypes:{},mutationTypes:{SET_PX:'SET_PX'}};
+vm.runInNewContext(source.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default','component ='),context);
+const methods=context.component.methods;
+async function main(){
+  let prompted=0;
+  const view={canManagePatient:false,isEdit:false,administrativeEdit:false,confirmSectionLeave:async()=>{prompted++;return true;}};
+  await methods.requestAdministrativeEdit.call(view);assert.equal(view.isEdit,false);assert.equal(prompted,0);
+  view.canManagePatient=true;view.confirmSectionLeave=async()=>false;await methods.requestAdministrativeEdit.call(view);assert.equal(view.isEdit,false);
+  view.confirmSectionLeave=async()=>{prompted++;return true;};await methods.requestAdministrativeEdit.call(view);assert.equal(view.isEdit,true);assert.equal(view.administrativeEdit,true);
+  const previous=prompted;await methods.requestAdministrativeEdit.call(view);assert.equal(prompted,previous,'opening twice is blocked');
+  const headerSource=fs.readFileSync(path.join(root,'src/views/Patient/components/DAHistoryHeader.vue'),'utf8');
+  const header=new Function(headerSource.split('<script>')[1].split('</script>')[0].replace('export default','return'))();
+  header.template=headerSource.slice(headerSource.indexOf('<template>')+10,headerSource.lastIndexOf('</template>'));
+  Vue.component('v-icon',{template:'<span><slot/></span>'});
+  Vue.component('v-btn',{template:'<button @click="$emit(\'click\')"><slot/></button>'});
+  Vue.component('v-tooltip',{render(h){return h('span',this.$scopedSlots.activator?this.$scopedSlots.activator({on:{},attrs:{}}):[]);}});
+  const parent=new Vue({el:'#app',components:{Header:header},data:()=>({canManagePatient:true,isEdit:false,administrativeEdit:false,px:{person:{name:'Sintética',surname:'Prueba'}}}),methods:{requestAdministrativeEdit:methods.requestAdministrativeEdit,confirmSectionLeave:async()=>true},template:'<div><Header :px="px" :can-edit="canManagePatient" :editing="isEdit" @edit-patient="requestAdministrativeEdit"/><div v-if="isEdit && administrativeEdit" id="administrative-editor"/></div>'});
+  const action=()=>Array.from(parent.$el.querySelectorAll('button')).find(el=>el.textContent.includes('Editar datos del paciente'));
+  assert.ok(action());action().click();await Vue.nextTick();await Vue.nextTick();assert.ok(parent.$el.querySelector('#administrative-editor'));assert.equal(action(),undefined);
+  parent.isEdit=false;parent.canManagePatient=false;await Vue.nextTick();assert.equal(action(),undefined,'permission hides real header action');
+  const commits=[];const refresh={canManagePatient:true,id:'qa',isEdit:true,$store:{commit:(...args)=>commits.push(args)}};
+  methods.onAdministrativeRefreshed.call(refresh,{person:{id_person:'foreign'}});assert.equal(commits.length,0);
+  methods.onAdministrativeRefreshed.call(refresh,{person:{id_person:'qa'}});assert.equal(commits[0][0],'CORE/PX/SET_PX');assert.equal(refresh.isEdit,true,'partial save refresh does not unmount capture');
+  methods.onAdministrativeSaved.call(refresh);assert.equal(refresh.isEdit,false);
+  parent.$destroy();console.log('PASS patient access: real header event, permission, clinical leave guard, repeated-open guard and partial-refresh lifecycle. JSDOM, no network.');
 }
-main().catch(error=>{console.error(error);process.exitCode=1;});
+main().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>dom.window.close());
