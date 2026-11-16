@@ -21,7 +21,7 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../../../src/services/co
 const sfc=compiler.parseComponent(fs.readFileSync(path.join(__dirname,'../../../src/views/Patient/components/PatientAdministrativeForm.vue'),'utf8'));
 assert.deepEqual(compiler.compile(sfc.template.content).errors,[]);
 assert.ok(!sfc.script.content.includes('window.confirm'));
-const ctx={DAPxService:serviceContext.module.exports,...helperContext.module.exports,...authContext.module.exports,module:{exports:{}}};
+const ctx={DASweetConfirm:{render:h=>h("div")},DAPxService:serviceContext.module.exports,...helperContext.module.exports,...authContext.module.exports,module:{exports:{}}};
 vm.runInNewContext(sfc.script.content.replace(/^import.*$/gm,'').replace('export default','module.exports ='),ctx);
 const original=clone(fixture.patient),events=[];
 function fresh(){const component=new Vue({...ctx.module.exports,propsData:{patient:clone(fixture.patient)}});component.$store=store;component.$refs.form={validate:()=>true};component.$refs.conflict={$el:{focus(){}}};component.$on('saved',()=>events.push('saved'));return component;}
@@ -100,6 +100,21 @@ const results=[];
   results.push('UX1I-1 legacy: missing identity remains absent in both emitted DTOs; defaults exist only inside the form');
   const savedGet=serviceContext.DACore.get;form=fresh();form.person.telephone='5500000045';eventCount=events.length;serviceContext.DACore.get=async url=>{const result=await savedGet(url);store.state.CORE.AUTH.accessRevision++;return result;};await form.save();assert.equal(events.length,eventCount);assert.equal(form.awaitingReload,true);serviceContext.DACore.get=savedGet;
   results.push('Authorization generation change during read suppresses saved/refreshed publication');
+  // NC1-UX3: plain surname fields with a 'No tiene' checkbox; statuses are derived, H1 rule unchanged.
+  fixture.patient=clone(original);form=fresh();assert.equal(form.storedSurnamesSplit,false);
+  form.setSurnameText('firstSurname','  De la Cruz ');assert.equal(form.identity.firstSurnameStatus,'present');assert.equal(form.identity.secondSurnameStatus,'unknown');
+  payload=form.buildPayload();assert.ok(['firstSurname','secondSurname','firstSurnameStatus','secondSurnameStatus'].every(key=>!(key in (payload.identity||{}))));assert.equal(payload.person.surname,original.person.surname);assert.ok(/completa los dos campos/.test(form.surnameHint));
+  form.setSurnameText('secondSurname','López');payload=form.buildPayload();assert.equal(payload.identity.firstSurname,'De la Cruz');assert.equal(payload.identity.secondSurnameStatus,'present');assert.equal(payload.person.surname,'De la Cruz López');assert.equal(form.surnameHint,'');
+  form.toggleSurnameAbsent('secondSurname',true);assert.equal(form.pendingConfirmation.kind,'surname');assert.equal(form.confirmationCopy.title,'¿Borrar el apellido?');form.resolveConfirmation(false);assert.equal(form.identity.secondSurnameStatus,'present');
+  form.toggleSurnameAbsent('secondSurname',true);form.resolveConfirmation(true);assert.equal(form.identity.secondSurnameStatus,'absent_declared');assert.equal(form.identity.secondSurname,null);payload=form.buildPayload();assert.equal(payload.person.surname,'De la Cruz');
+  form.toggleSurnameAbsent('secondSurname',false);assert.equal(form.identity.secondSurnameStatus,'unknown');form.setSurnameText('firstSurname','');assert.equal(form.identity.firstSurnameStatus,'unknown');assert.equal(form.identity.firstSurname,null);
+  form.toggleSurnameAbsent('firstSurname',true);form.toggleSurnameAbsent('secondSurname',true);assert.equal(form.surnameHint,'El paciente debe tener al menos un apellido.');assert.ok(form.inputErrors.length);
+  results.push('UX3 surnames: typed text marks present, empty returns to unknown, No tiene asks before clearing; one surname alone keeps the record surname; both confirmed send jointly and trimmed; both absent blocked');
+  fixture.patient=clone(original);fixture.patient.identity.affiliations=[{family:'sis.affiliation',code:'QA-A'}];form=fresh();assert.deepEqual(Array.from(form.storedCodes),['Afiliación QA-A']);
+  form.person.ocupation='Docente QA';assert.equal(form.optionalChanged,true);assert.equal(form.identityGroupStatus,'Identidad por completar');assert.equal(form.hasSavableChanges,true);
+  form=fresh();form.address.place_birth='Ciudad QA';assert.equal(form.addressGroupChanged,false);assert.equal(form.optionalChanged,true);form.identity.migrantStatus='none';assert.equal(form.identityGroupStatus,'Identidad por completar');
+  form=fresh();form.identity.givenNames='Otra';form.cancel();assert.equal(form.confirmationCopy.title,'¿Salir sin guardar?');form.resolveConfirmation(false);fixture.patient=clone(original);
+  results.push('UX3 optional group: occupation, place of birth and NOM-024 extras mark only Información adicional; existing codes are summarised read-only; system confirm copy for discard');
   const report={scope:'Real Vue 2 administrative component + real DAPxService with synthetic DACore; no HTTP/DB/staging acceptance',results,reads,requests:clone(fixture.requests)};
   if(process.env.NC1_UX1_EVIDENCE)fs.writeFileSync(process.env.NC1_UX1_EVIDENCE,JSON.stringify(report,null,2)+'\n');
   console.log('PASS NC1-UX1 implementation: '+results.join('; '));

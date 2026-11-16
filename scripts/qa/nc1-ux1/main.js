@@ -7,6 +7,10 @@ import PatientShow from '../../../src/views/Patient/PatientShow.vue';
 import MedicalHistory from '../../../src/views/Patient/Sections/MedicalHistory.vue';
 import { DACore } from '../../../src/services/config/axios.context';
 import MedSyncBrand from '../../../src/components/MedSyncBrand.vue';
+import DADialog from '../../../src/core/components/form/dialog/DADialog.vue';
+import DAGrayButton from '../../../src/core/components/form/buttons/DAGrayButton.vue';
+import DAPrimaryButton from '../../../src/core/components/form/buttons/DAPrimaryButton.vue';
+import LottieAnimation from 'lottie-vuejs/src/LottieAnimation.vue';
 import HistoryService from '../../../src/services/core/clinicalHistory/DAClinicalHistoryService';
 import { fixture,clone,fixtureTransport } from './fixture';
 import '../../../src/assets/tailwind.css';
@@ -20,7 +24,9 @@ DACore.get=async url=>{
 };
 DACore.put=async(url,payload)=>url==='api/px/administrative'?fixtureTransport.put(payload):{success:false,status:404};
 Vue.use(Vuex);Vue.use(Router);Vue.component('medsync-brand',MedSyncBrand);Vue.directive('viewer',{});
-const Empty={render:h=>h('span')};Vue.component('da-dialog',Empty);
+const Empty={render:h=>h('span')};
+// Real system dialog pieces, so confirmations look as in the product.
+Vue.component('da-dialog',DADialog);Vue.component('da-button-gray',DAGrayButton);Vue.component('da-button-primary',DAPrimaryButton);Vue.component('lottie-animation',LottieAnimation);
 const permissions=['px.new','px.all','px.dates','px.tab.history','documents.view','clinical_history.view','clinical_history.view_sensitive','clinical_history.edit_draft','clinical_history.create_draft','clinical_history.finalize','clinical_history.print'];
 const doctor={id_login:'local-doctor',name:'Profesional QA',rol:'DOCTOR',professional_name:'Profesional QA',professional_license:'QA000000',active:1,professional_profile_active:1,professional_profile_complete:1};
 const getters={getUser:()=>doctor,getRole:()=>'DOCTOR',hasPermission:()=>key=>permissions.includes(key),getBusiness:()=>({name:'Consultorio de pruebas'}),getTenantOperational:()=>({allowed:true}),isAuthorized:()=>true,unauthorized:()=>false,refreshtoken:()=>'',isRefresingToken:()=>false};

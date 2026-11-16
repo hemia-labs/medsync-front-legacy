@@ -1,7 +1,7 @@
 <template>
   <section class="nc1-sheet">
     <header class="nc1-sheet-heading"><div><p class="nc1-eyebrow">Ficha del paciente</p><h2>Datos del paciente</h2><p>Edita lo que necesitas. Los datos clínicos ya registrados se conservan.</p></div><v-chip small outlined color="primary">Paciente existente</v-chip></header>
-    <v-alert text type="info" class="nc1-help">Puedes guardar contacto o domicilio sin completar los datos de identidad pendientes. Los campos con * son obligatorios cuando los modificas.</v-alert>
+    <v-alert text type="info" class="nc1-help">Solo los campos con * son obligatorios. Puedes guardar cambios de contacto o domicilio aunque falten otros datos.</v-alert>
     <v-alert v-if="conflict" ref="conflict" tabindex="-1" type="warning" color="#714b12" text role="alert" class="nc1-conflict">
       <strong>Hay datos guardados distintos de tu captura.</strong><p>Tu teléfono y domicilio pendientes se conservan. Revisa el nombre y la fecha antes de guardar.</p>
       <v-btn v-if="currentIdentity" outlined @click="review = !review">Revisar diferencias</v-btn>
@@ -10,19 +10,20 @@
     <v-form ref="form" @submit.prevent="save">
       <v-expansion-panels v-model="panels" multiple flat class="nc1-groups">
         <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-account-outline</v-icon>Datos personales</span><small>{{ identityGroupStatus }}</small></div></v-expansion-panel-header><v-expansion-panel-content>
-          <div v-if="legacySurname" class="nc1-legacy"><strong>Apellidos del registro histórico</strong><p>{{ legacySurname }}</p><small>Se conservan completos. Confirma cada apellido con el paciente cuando tengas el dato; no se separan automáticamente.</small></div>
-          <v-row><v-col cols="12" md="8"><v-text-field :disabled="saving || awaitingReload" v-model.trim="identity.givenNames" label="Nombres *" outlined dense hide-details="auto" :rules="[required]" /></v-col><v-col cols="12" md="4"><v-text-field :disabled="saving || awaitingReload" v-model="identity.birthDate" type="date" :max="today" :rules="[validBirthDate]" label="Fecha de nacimiento *" outlined dense hide-details="auto" /></v-col></v-row>
-          <v-row><v-col v-for="(label,key) in surnames" :key="key" cols="12" md="6"><v-select :disabled="saving || awaitingReload" :key="key + selectionRevision" :value="identity[key+'Status']" :label="label + ': situación'" :items="surnameStates" outlined dense hide-details="auto" @change="changeSurnameStatus(key,$event)" /><p class="nc1-status-note">{{ statusText(identity[key+'Status']) }}</p><v-text-field :disabled="saving || awaitingReload" v-if="identity[key+'Status'] === 'present'" v-model.trim="identity[key]" :label="label + ' *'" outlined dense hide-details="auto" :rules="surnamesConfirmed ? [required] : []" /></v-col></v-row>
-          <p v-if="!surnamesConfirmed" role="status" class="nc1-surname-notice">Confirma ambos apellidos (registrado o declarado ausente) para actualizar el apellido del expediente</p>
-          <v-expansion-panels flat class="mt-3"><v-expansion-panel><v-expansion-panel-header>Datos adicionales · opcionales</v-expansion-panel-header><v-expansion-panel-content>
-            <v-row><v-col v-for="field in additionalFields" :key="field.key" cols="12" md="6"><v-select :disabled="saving || awaitingReload" v-model="identity[field.key]" :items="field.items" :label="field.label" outlined dense clearable hide-details="auto" /></v-col>
-              <v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model="curpValue" label="CURP, opcional" maxlength="18" outlined dense hide-details="auto" /></v-col><v-col v-if="curpValue" cols="12" md="6"><v-select :disabled="saving || awaitingReload" v-model="curpKind" label="Tipo de CURP" :items="[{text:'Personal',value:'real'},{text:'Genérica',value:'generic'}]" outlined dense hide-details="auto" /></v-col><v-col v-if="curpValue && curpKind === 'generic'" cols="12"><v-text-field :disabled="saving || awaitingReload" v-model="curpReason" label="Motivo de CURP genérica *" outlined dense :rules="[required]" /></v-col>
-              <v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model="person.ocupation" label="Ocupación, opcional" outlined dense hide-details="auto" /></v-col><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model="person.rfc" label="RFC, opcional" outlined dense hide-details="auto" /></v-col><v-col cols="12"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.place_birth" label="Lugar de nacimiento, opcional" outlined dense hide-details="auto" /></v-col></v-row>
-            <p>Las claves de catálogo y la CURP conservan su validación pendiente. Captura únicamente claves conocidas.</p><v-row><v-col v-for="field in catalogFields" :key="field.key" cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" :value="(identity[field.key] || {}).code" :label="field.label" outlined dense hide-details="auto" @input="setCatalog(field,$event)" /></v-col><v-col cols="12"><v-text-field :disabled="saving || awaitingReload" v-model="affiliations" label="Afiliaciones: claves separadas por coma" outlined dense hide-details="auto" /></v-col></v-row>
-          </v-expansion-panel-content></v-expansion-panel></v-expansion-panels>
+          <v-row><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="identity.givenNames" label="Nombres *" outlined dense hide-details="auto" :rules="[required]" /></v-col><v-col cols="12" sm="6" md="3"><v-text-field :disabled="saving || awaitingReload" v-model="identity.birthDate" type="date" :max="today" :rules="[validBirthDate]" label="Fecha de nacimiento *" outlined dense hide-details="auto" /></v-col><v-col cols="12" sm="6" md="3"><v-select :disabled="saving || awaitingReload" v-model="identity.biologicalSex" :items="sexField.items" :label="sexField.label" outlined dense clearable hide-details="auto" /></v-col></v-row>
+          <div v-if="legacySurname && !storedSurnamesSplit" class="nc1-legacy"><v-icon small color="primary" class="mr-2">mdi-information-outline</v-icon><span>Apellidos actuales en el expediente: <strong>{{ legacySurname }}</strong>. Escribe cada apellido en su campo; mientras no completes los dos, se conservan como están.</span></div>
+          <v-row><v-col v-for="(label,key) in surnames" :key="key" cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" :value="identity[key] || ''" :label="label" :placeholder="identity[key+'Status'] === 'absent_declared' ? 'El paciente no tiene ' + label.toLowerCase() : ''" :readonly="identity[key+'Status'] === 'absent_declared'" persistent-placeholder outlined dense hide-details="auto" @input="setSurnameText(key,$event)" /><v-checkbox :key="key + selectionRevision" :disabled="saving || awaitingReload" :input-value="identity[key+'Status'] === 'absent_declared'" :label="'No tiene ' + label.toLowerCase()" dense hide-details class="nc1-surname-absent" @change="toggleSurnameAbsent(key,$event)" /></v-col></v-row>
+          <p v-if="surnameHint" role="status" class="nc1-surname-notice">{{ surnameHint }}</p>
         </v-expansion-panel-content></v-expansion-panel>
         <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-phone-outline</v-icon>Contacto</span><small>{{ contactChanged ? 'Cambios pendientes' : 'Sin cambios' }}</small></div></v-expansion-panel-header><v-expansion-panel-content><v-row><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="person.telephone" :rules="[validPhone]" label="Celular *" hint="10 dígitos" persistent-hint outlined dense inputmode="tel" /></v-col><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="person.local_telephone" :rules="[optionalPhone]" label="Teléfono local, opcional" outlined dense inputmode="tel" hide-details="auto" /></v-col></v-row></v-expansion-panel-content></v-expansion-panel>
-        <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-map-marker-outline</v-icon>Domicilio</span><small>{{ addressChanged ? 'Cambios pendientes' : 'Sin cambios' }}</small></div></v-expansion-panel-header><v-expansion-panel-content><v-row><v-col cols="12"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.direction" label="Calle, número y colonia" outlined dense hide-details="auto" /></v-col><v-col cols="12" md="8"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.residence" label="Lugar de residencia" outlined dense hide-details="auto" /></v-col><v-col cols="12" md="4"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.cp" :rules="[validPostalCode]" label="Código postal" outlined dense inputmode="numeric" maxlength="5" hide-details="auto" /></v-col></v-row><details class="mt-4"><summary>Claves de residencia · opcionales</summary><p>Sin catálogo conectado. Validación pendiente.</p><v-row><v-col v-for="field in residenceFields" :key="field.key" cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" :value="(residence[field.key] || {}).code" :label="field.label" outlined dense hide-details="auto" @input="setResidence(field,$event)" /></v-col></v-row></details></v-expansion-panel-content></v-expansion-panel>
+        <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-map-marker-outline</v-icon>Domicilio</span><small>{{ addressGroupChanged ? 'Cambios pendientes' : 'Sin cambios' }}</small></div></v-expansion-panel-header><v-expansion-panel-content><v-row><v-col cols="12"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.direction" label="Calle, número y colonia" outlined dense hide-details="auto" /></v-col><v-col cols="12" md="8"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.residence" label="Lugar de residencia" outlined dense hide-details="auto" /></v-col><v-col cols="12" md="4"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.cp" :rules="[validPostalCode]" label="Código postal" outlined dense inputmode="numeric" maxlength="5" hide-details="auto" /></v-col></v-row></v-expansion-panel-content></v-expansion-panel>
+        <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-card-account-details-outline</v-icon>Información adicional</span><small>{{ optionalChanged ? 'Cambios pendientes' : 'Opcional' }}</small></div></v-expansion-panel-header><v-expansion-panel-content>
+          <div class="nc1-optional-intro"><v-icon color="primary" class="mr-3">mdi-shield-check-outline</v-icon><div><strong>¿Por qué te pedimos estos datos?</strong><p>La norma oficial de expedientes clínicos electrónicos (NOM-024) los contempla para que el expediente esté completo. <b>Ninguno es obligatorio:</b> captura solo lo que el paciente quiera compartir y deja en blanco lo demás.</p></div></div>
+          <v-row><v-col v-for="field in additionalFields" :key="field.key" cols="12" md="6"><v-select :disabled="saving || awaitingReload" v-model="identity[field.key]" :items="field.items" :label="field.label" outlined dense clearable hide-details="auto" /></v-col>
+            <v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model="curpValue" label="CURP" hint="18 caracteres, como aparece en su documento" maxlength="18" outlined dense hide-details="auto" /></v-col><v-col v-if="curpValue" cols="12" md="6"><v-select :disabled="saving || awaitingReload" v-model="curpKind" label="Tipo de CURP" :items="[{text:'Personal',value:'real'},{text:'Genérica',value:'generic'}]" outlined dense hide-details="auto" /></v-col><v-col v-if="curpValue && curpKind === 'generic'" cols="12"><v-text-field :disabled="saving || awaitingReload" v-model="curpReason" label="Motivo de CURP genérica *" outlined dense :rules="[required]" /></v-col>
+            <v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model="person.ocupation" label="Ocupación" outlined dense hide-details="auto" /></v-col><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model="person.rfc" label="RFC" outlined dense hide-details="auto" /></v-col><v-col cols="12"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.place_birth" label="Lugar de nacimiento" outlined dense hide-details="auto" /></v-col></v-row>
+          <div class="nc1-codes-note"><v-icon small class="mr-2">mdi-format-list-bulleted</v-icon><div><strong>Claves oficiales</strong><p>País, entidad, municipio, nacionalidad y afiliación se elegirán de listas oficiales cuando estén disponibles. No necesitas buscar ni capturar claves.</p><p v-if="storedCodes.length" class="mb-0">Ya registradas: {{ storedCodes.join(' · ') }}</p></div></div>
+        </v-expansion-panel-content></v-expansion-panel>
       </v-expansion-panels>
       <v-alert v-if="error" type="error" text role="alert" class="mt-4">{{ error }}</v-alert>
       <p v-if="message" role="status" class="mt-4">{{ message }}</p>
@@ -30,15 +31,18 @@
       <v-btn v-if="conflict && !currentIdentity" outlined :loading="saving" @click="loadConflict">Consultar datos para conciliar</v-btn>
       <footer class="nc1-save-bar"><div role="status"><strong>{{ dirty ? 'Cambios pendientes de guardar' : 'Sin cambios pendientes' }}</strong><p>{{ conflict ? 'Revisa las diferencias para habilitar el guardado.' : deferredSurnameChanges ? 'Los apellidos pendientes se conservan en esta ficha; puedes guardar los demás cambios.' : 'Un solo guardado para toda la ficha del paciente.' }}</p></div><div class="nc1-actions"><v-btn outlined :disabled="saving" @click="cancel">Volver al expediente</v-btn><v-btn color="primary" type="submit" :loading="saving" :disabled="saving || awaitingReload || !hasSavableChanges || conflict">Guardar ficha</v-btn></div></footer>
     </v-form>
-    <v-dialog :value="Boolean(pendingConfirmation)" max-width="520" aria-label="Confirmar cambio" @input="!$event && resolveConfirmation(false)">
-      <v-card><v-card-title>Confirmar cambio</v-card-title><v-card-text>{{ pendingConfirmation && pendingConfirmation.kind === 'surname' ? 'Este cambio quitará el apellido capturado. ¿Quieres continuar?' : 'Hay cambios sin guardar, incluidos los apellidos pendientes. ¿Quieres volver al expediente y descartarlos?' }}</v-card-text><v-card-actions class="nc1-confirm-actions"><v-btn outlined color="primary" @click="resolveConfirmation(false)">Seguir editando</v-btn><v-btn color="primary" @click="resolveConfirmation(true)">Confirmar</v-btn></v-card-actions></v-card>
-    </v-dialog>
+    <da-dialog :value="Boolean(pendingConfirmation)" :persist="true" :max-width="'500px'" @input="!$event && resolveConfirmation(false)">
+      <template #body>
+        <da-sweet-confirm :title="confirmationCopy.title" :message="confirmationCopy.message" :calcelbtntext="'Seguir editando'" :confirmbtntext="confirmationCopy.confirm" v-on:close="resolveConfirmation(false)" v-on:confirm="resolveConfirmation(true)"></da-sweet-confirm>
+      </template>
+    </da-dialog>
   </section>
 </template>
 <script>
 import DAPxService from '../../../services/core/px/DAPxService';
 import { patientAge, localDateString, normalizePatientPhone } from '../../../domain/patient/administrative.validation';
 import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
+import DASweetConfirm from '../../../core/components/form/dialog/components/DASweetConfirm.vue';
 const clone = value => JSON.parse(JSON.stringify(value));
 const normalizePatient = record => {
   const person=clone(record.person), parts=String(person.birthday||'').split('-');
@@ -48,6 +52,7 @@ const normalizePatient = record => {
 };
 const choices = values => Object.entries(values).map(([value,text]) => ({value,text}));
 const surnameKeys = ['firstSurname','secondSurname','firstSurnameStatus','secondSurnameStatus'];
+const coreIdentityKeys = ['givenNames','birthDate','biologicalSex',...surnameKeys];
 const same = (a,b) => JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b);
 const affiliationText = identity => (identity.affiliations || []).map(item => item.code).join(',');
 const editableIdentity = record => {
@@ -57,13 +62,15 @@ const editableIdentity = record => {
   return identity;
 };
 export default {
+  components:{ 'da-sweet-confirm': DASweetConfirm },
   props:{patient:{type:Object,required:true}},
   data() {
     const patient=normalizePatient(this.patient), identity=patient.identity;
-    return {identity, baseline:clone(identity),person:clone(patient.person),address:clone(patient.address),original:clone(patient),legacySurname:identity.legacySurname,revision:identity.revision||0,panels:[0,1,2],saving:false,error:'',message:'',conflict:false,review:false,currentIdentity:null,currentPatient:null,awaitingReload:false,pendingSavedSurnames:null,sequence:0,
+    return {identity, baseline:clone(identity),person:clone(patient.person),address:clone(patient.address),original:clone(patient),legacySurname:identity.legacySurname,revision:identity.revision||0,panels:[0,1,2,3],saving:false,error:'',message:'',conflict:false,review:false,currentIdentity:null,currentPatient:null,awaitingReload:false,pendingSavedSurnames:null,sequence:0,
       curpValue:(identity.curp||{}).value||'',curpKind:(identity.curp||{}).kind||'real',curpReason:(identity.curp||{}).reason||'',affiliations:affiliationText(identity),residence:clone(identity.residence||{}),pendingConfirmation:null,selectionRevision:0,
       surnames:{firstSurname:'Primer apellido',secondSurname:'Segundo apellido'},surnameStates:choices({unknown:'Sin capturar',present:'Apellido registrado',absent_declared:'Declara que no tiene este apellido'}),
-      additionalFields:[{key:'biologicalSex',label:'Sexo biológico',items:choices({1:'Hombre',2:'Mujer',3:'Intersexual'})},{key:'genderIdentity',label:'Género',items:choices({0:'No especificado',1:'Masculino',2:'Femenino',3:'Transgénero',4:'Transexual',5:'Travesti',6:'Intersexual',88:'Otro'})},...['indigenousSelfIdentification','afromexicanSelfIdentification'].map((key,i)=>({key,label:i?'¿Se autodenomina afromexicano/a?':'¿Se autodenomina indígena?',items:choices({yes:'Sí',no:'No',declined:'No responde',unknown_to_patient:'No sabe'})})),{key:'migrantStatus',label:'Situación migratoria',items:choices({none:'No migrante',national:'Nacional',international:'Internacional',returned:'Retornado'})}],
+      sexField:{key:'biologicalSex',label:'Sexo biológico',items:choices({1:'Hombre',2:'Mujer',3:'Intersexual'})},
+      additionalFields:[{key:'genderIdentity',label:'Género',items:choices({0:'No especificado',1:'Masculino',2:'Femenino',3:'Transgénero',4:'Transexual',5:'Travesti',6:'Intersexual',88:'Otro'})},...['indigenousSelfIdentification','afromexicanSelfIdentification'].map((key,i)=>({key,label:i?'¿Se autodenomina afromexicano/a?':'¿Se autodenomina indígena?',items:choices({yes:'Sí',no:'No',declined:'No responde',unknown_to_patient:'No sabe'})})),{key:'migrantStatus',label:'Situación migratoria',items:choices({none:'No migrante',national:'Nacional',international:'Internacional',returned:'Retornado'})}],
       catalogFields:[{key:'birthCountry',family:'sis.country',label:'País de nacimiento: clave'},{key:'birthEntity',family:'sis.federal_entity',label:'Entidad de nacimiento: clave'},{key:'nationality',family:'renapo.nationality',label:'Nacionalidad: clave'},{key:'originCountry',family:'sis.country',label:'País de procedencia: clave'}],residenceFields:[{key:'country',family:'sis.country',label:'País: clave'},{key:'entity',family:'inegi.state',label:'Entidad: clave'},{key:'municipality',family:'inegi.municipality',label:'Municipio: clave'},{key:'locality',family:'inegi.locality',label:'Localidad: clave'}]};
   },
   computed:{
@@ -79,12 +86,31 @@ export default {
       return errors;
     },
     reviewDifferences(){const labels={givenNames:'Nombres',firstSurname:'Primer apellido',secondSurname:'Segundo apellido',birthDate:'Fecha de nacimiento',firstSurnameStatus:'Situación del primer apellido',secondSurnameStatus:'Situación del segundo apellido'};const display=(key,value)=>key.endsWith('Status')?(this.surnameStates.find(x=>x.value===value)||{}).text||'Sin capturar':value||'Sin capturar';return Object.keys(labels).filter(key=>this.currentIdentity&&this.currentIdentity[key]!==this.identity[key]).map(key=>({key,label:labels[key],saved:display(key,this.currentIdentity[key]),draft:display(key,this.identity[key])}));},
+    storedSurnamesSplit(){return ['firstSurname','secondSurname'].every(key => ['present','absent_declared'].includes(this.baseline[key+'Status']));},
+    surnameHint(){
+      const states=['firstSurname','secondSurname'].map(key=>this.identity[key+'Status']);
+      if(states.every(state=>state==='absent_declared'))return 'El paciente debe tener al menos un apellido.';
+      if(this.surnamesConfirmed || !this.deferredSurnameChanges)return '';
+      return 'Para actualizar los apellidos del expediente, completa los dos campos. Si el paciente no tiene alguno, marca «No tiene». Mientras tanto, se conservan los apellidos actuales y puedes guardar lo demás.';
+    },
+    changedIdentityKeys(){const baseline=editableIdentity(this.baseline);return Object.entries(this.formIdentity()).filter(([key,value])=>!same(value,baseline[key])).map(([key])=>key);},
+    optionalChanged(){return this.personalDetailsChanged || !same(this.address.place_birth,this.original.address.place_birth) || this.changedIdentityKeys.some(key=>!coreIdentityKeys.includes(key));},
+    addressGroupChanged(){const strip=address=>{const copy=clone(address||{});delete copy.place_birth;return copy;};return !same(strip(this.address),strip(this.original.address));},
+    storedCodes(){
+      const fields=[...this.catalogFields.map(field=>[field.label.replace(': clave',''),(this.identity[field.key]||{}).code]),...this.residenceFields.map(field=>['Residencia · '+field.label.replace(': clave',''),(this.residence[field.key]||{}).code])];
+      if(this.affiliations)fields.push(['Afiliación',this.affiliations]);
+      return fields.filter(([,code])=>code).map(([label,code])=>label+' '+code);
+    },
+    confirmationCopy(){
+      if(this.pendingConfirmation && this.pendingConfirmation.kind==='surname')return {title:'¿Borrar el apellido?',message:'Se quitará el apellido que escribiste y quedará marcado que el paciente no lo tiene.',confirm:'Sí, borrar'};
+      return {title:'¿Salir sin guardar?',message:'Tienes cambios sin guardar en la ficha del paciente. Si sales ahora, se perderán.',confirm:'Salir sin guardar'};
+    },
     surnamesConfirmed(){return ['firstSurname','secondSurname'].every(key => ['present','absent_declared'].includes(this.identity[key+'Status']));},
     deferredSurnameChanges(){return !this.surnamesConfirmed && surnameKeys.some(key => !same(this.identity[key],this.baseline[key]));},
     identityChanged(){const baseline=editableIdentity(this.baseline);return Object.entries(this.formIdentity()).some(([key,value])=>!same(value,baseline[key]));},
     identityGroupStatus(){
       if(this.deferredSurnameChanges) return 'Apellidos por confirmar';
-      if(this.identityChanged || this.personalDetailsChanged) return 'Cambios pendientes';
+      if(this.changedIdentityKeys.some(key=>coreIdentityKeys.includes(key))) return 'Cambios pendientes';
       const complete = this.identity.givenNames && patientAge(this.identity.birthDate) !== '' && this.identity.biologicalSex && this.surnamesConfirmed && ['firstSurname','secondSurname'].every(key => this.identity[key+'Status'] !== 'present' || String(this.identity[key] || '').trim()) && [this.identity.firstSurname,this.identity.secondSurname].some(Boolean);
       return complete ? 'Identidad confirmada' : 'Identidad por completar';
     },
@@ -101,7 +127,17 @@ export default {
     optionalPhone(value){return !value || this.validPhone(value);},
     validPostalCode(value){return !value || /^\d{5}$/.test(value) || 'El código postal debe tener 5 dígitos.';},
     required(v){return !!String(v||'').trim()||'Campo obligatorio';},
-    statusText(v){return v==='unknown'?'Pendiente de preguntar; no significa que no tenga apellido.':v==='absent_declared'?'El paciente declara no tener este apellido.':'Escribe el apellido como lo indica el paciente.';},
+    setSurnameText(key,value){
+      const text=value==null?'':String(value);
+      if(text.trim()){this.$set(this.identity,key+'Status','present');this.$set(this.identity,key,text);return;}
+      this.$set(this.identity,key,null);
+      if(this.identity[key+'Status']==='present')this.$set(this.identity,key+'Status','unknown');
+    },
+    toggleSurnameAbsent(key,checked){
+      if(checked)this.changeSurnameStatus(key,'absent_declared');
+      else this.applySurnameStatus(key,'unknown');
+      this.selectionRevision++;
+    },
     changeSurnameStatus(key,value){
       if(value!=='present' && this.identity[key]) { this.pendingConfirmation={kind:'surname',key,value};return; }
       this.applySurnameStatus(key,value);
@@ -113,7 +149,6 @@ export default {
       if(action.kind==='surname')this.applySurnameStatus(action.key,action.value);
       else this.$emit('cancel');
     },
-    setCatalog(field,value){this.$set(this.identity,field.key,value?{family:field.family,code:value}:null);},setResidence(field,value){this.$set(this.residence,field.key,value?{family:field.family,code:value}:null);},
     reconcile(keep){
       if(!this.currentIdentity || !this.currentPatient)return;
       // The server sends no current identity in a 409: compare a fresh GET, never infer it.
@@ -130,6 +165,7 @@ export default {
     cancel(){if(this.dirty){this.pendingConfirmation={kind:'discard'};return;}this.$emit('cancel');},
     formIdentity(){
       const identity=editableIdentity(this.identity);
+      ['firstSurname','secondSurname'].forEach(key=>{if(typeof identity[key]==='string')identity[key]=identity[key].trim()||null;});
       identity.curp=this.curpValue?{value:this.curpValue.toUpperCase(),kind:this.curpKind,...(this.curpKind==='generic'?{reason:this.curpReason}:{})}:null;
       identity.residence=Object.keys(this.residence).length?clone(this.residence):null;
       identity.affiliations=this.affiliations.trim()?this.affiliations.split(',').map(value=>{
@@ -211,11 +247,19 @@ export default {
 };
 </script>
 <style scoped>
-.nc1-surname-notice { padding:12px; background:#f3f7fa; border-left:3px solid #186c8e; font-size:14px; }
+.nc1-surname-notice { padding:12px 14px; margin:12px 0 0; background:#f3f7fa; border-left:3px solid #186c8e; border-radius:0 8px 8px 0; font-size:14px; color:#334155; }
+.nc1-surname-absent { margin-top:6px; padding-top:0; }
+.nc1-surname-absent ::v-deep label { font-size:13px; color:#516479; }
+.nc1-optional-intro { display:flex; align-items:flex-start; gap:4px; padding:14px 16px; margin-bottom:18px; border-radius:12px; background:linear-gradient(135deg,#f0f9fb,#f7fbfd); border:1px solid #d6ecf2; }
+.nc1-optional-intro strong { display:block; color:#0f3d52; font-size:15px; margin-bottom:4px; }
+.nc1-optional-intro p { margin:0; font-size:14px; line-height:1.5; color:#40566b; }
+.nc1-codes-note { display:flex; align-items:flex-start; margin-top:18px; padding:12px 14px; border-radius:10px; background:#f8fafc; border:1px dashed #cbd5e1; color:#516479; font-size:13px; }
+.nc1-codes-note strong { display:block; color:#334155; margin-bottom:2px; }
+.nc1-codes-note p { margin:0 0 4px; }
 .nc1-confirm-actions { display:flex; flex-wrap:wrap; gap:12px; padding:16px; }
 .nc1-confirm-actions .v-btn { min-height:44px; }
 .nc1-conflict { color: #714b12 !important; background: #fff5df !important; }
 .nc1-conflict .v-btn { color: #186c8e !important; }
-.nc1-sheet{background:#fff;border:1px solid var(--color-primary-200);border-radius:16px;padding:24px;color:#334155}.nc1-sheet-heading{display:flex;justify-content:space-between;gap:16px;margin-bottom:20px}.nc1-sheet h2{font-size:24px;font-weight:600;margin:4px 0 8px}.nc1-eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--color-primary-700);margin:0}.nc1-help{font-size:14px}.nc1-groups>.v-expansion-panel{border:1px solid #dbe6ec;border-radius:12px!important;margin:0 0 16px}.nc1-group-title{display:flex;justify-content:space-between;gap:12px;align-items:center;font-weight:600;font-size:17px}.nc1-group-title small{font-size:12px;font-weight:400;color:#516479}.nc1-legacy{background:#f3f7fa;border-radius:8px;padding:14px;margin-bottom:20px}.nc1-legacy p{margin:4px 0}.nc1-status-note{font-size:12px;color:#516479;margin:6px 0 12px;min-height:32px}.nc1-save-bar{display:flex;justify-content:space-between;gap:16px;align-items:center;border-top:1px solid #dbe6ec;padding-top:22px}.nc1-save-bar p{font-size:13px;margin:4px 0}.nc1-actions{display:flex;flex-wrap:wrap;gap:12px}.nc1-sheet .v-btn{min-height:44px}.nc1-review{margin-top:16px}.nc1-sheet .row{margin-top:4px}.nc1-sheet ::v-deep .v-select__selection{max-width:100%;white-space:normal;line-height:1.4;margin-top:9px;margin-bottom:9px}.nc1-sheet ::v-deep .v-expansion-panel-header{min-height:64px}.nc1-sheet summary{cursor:pointer;padding:12px 0}
+.nc1-sheet{background:#fff;border:1px solid var(--color-primary-200);border-radius:16px;padding:24px;color:#334155}.nc1-sheet-heading{display:flex;justify-content:space-between;gap:16px;margin-bottom:20px}.nc1-sheet h2{font-size:24px;font-weight:600;margin:4px 0 8px}.nc1-eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--color-primary-700);margin:0}.nc1-help{font-size:14px}.nc1-groups>.v-expansion-panel{border:1px solid #dbe6ec;border-radius:12px!important;margin:0 0 16px}.nc1-group-title{display:flex;justify-content:space-between;gap:12px;align-items:center;font-weight:600;font-size:17px}.nc1-group-title small{font-size:12px;font-weight:400;color:#516479}.nc1-legacy{display:flex;align-items:flex-start;background:#f3f7fa;border-radius:10px;padding:12px 14px;margin:4px 0 16px;font-size:14px;color:#334155;line-height:1.5}.nc1-legacy p{margin:4px 0}.nc1-status-note{font-size:12px;color:#516479;margin:6px 0 12px;min-height:32px}.nc1-save-bar{display:flex;justify-content:space-between;gap:16px;align-items:center;border-top:1px solid #dbe6ec;padding-top:22px}.nc1-save-bar p{font-size:13px;margin:4px 0}.nc1-actions{display:flex;flex-wrap:wrap;gap:12px}.nc1-sheet .v-btn{min-height:44px}.nc1-review{margin-top:16px}.nc1-sheet .row{margin-top:4px}.nc1-sheet ::v-deep .v-select__selection{max-width:100%;white-space:normal;line-height:1.4;margin-top:9px;margin-bottom:9px}.nc1-sheet ::v-deep .v-expansion-panel-header{min-height:64px}.nc1-sheet summary{cursor:pointer;padding:12px 0}
 @media(max-width:600px){.nc1-sheet{padding:16px}.nc1-sheet-heading{display:block}.nc1-sheet-heading .v-chip{margin-top:6px}.nc1-group-title{display:block}.nc1-group-title small{display:block;margin-top:8px}.nc1-save-bar{display:block}.nc1-actions{margin-top:16px}.nc1-actions .v-btn{width:100%;white-space:normal}.nc1-sheet ::v-deep .v-expansion-panel-content__wrap{padding:0 16px 16px}.nc1-sheet h2{font-size:21px}}
 </style>

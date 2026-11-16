@@ -22,7 +22,7 @@
  const authText=await (await fetch('/source/security/authorizationContext.js')).text();
  const auth=new Function(authText.replace(/export /g,'')+';return {authorizationContext,isCurrentAuthorization};')();
  const IdentityEditor=await component('components/identity/IdentityEditor.vue',{IdentityFields,DACore,...auth});
- const Admin=await component('views/Patient/components/PatientAdministrativeForm.vue',{...auth,...validation,DAPxService:{updateAdministrative:d=>api('api/px/administrative','PUT',d),getById:()=>api('qa/patient')}});
+ const Admin=await component('views/Patient/components/PatientAdministrativeForm.vue',{...auth,...validation,DASweetConfirm:{render:h=>h('div')},DAPxService:{updateAdministrative:d=>api('api/px/administrative','PUT',d),getById:()=>api('qa/patient')}});
  const Profile=await component('views/User/components/DAProfessionalProfile.vue',{IdentityEditor,PreparationGuide:{render:h=>h('span')},focusControl:()=>{},DAUserService:{getProfessionalProfile:id=>api('api/user/professional-profile/'+id),saveProfessionalProfile:(id,d)=>api('api/user/professional-profile/'+id,'POST',d)},buildLicenseLimitMessage:(_r,msg)=>msg,mapGetters:()=>({}),moduleTypes:{AUTH:'CORE/AUTH'},fnTypes:{},getSettingsSections:()=>[],confirmSettingsDiscard:async()=>true,registerSettingsNavigationGuard:()=>()=>{}});
  // Host-only navigation/help controls; identity/admin/profile fields are unchanged product components.
  Vue.component('da-button-primary',{props:['label','disabled'],template:'<button :disabled="disabled">{{label}}</button>'});
