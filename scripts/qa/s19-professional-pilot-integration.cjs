@@ -60,7 +60,7 @@ async function http(method, url, body) {
       template_snapshot_json: template, clinical_snapshot_json: { consultation: clone(body.consultation) } };
     return response(intakeData());
   }
-  if(endpoint === `api/clinical-history/patient/${patient.person.id_person}`) return response({ history: db.history });
+  if(endpoint === `api/clinical-history/patient/${patient.person.id_person}`) return response({ history: db.history, consent_status: db.consent, consent_document_id: 'QA_S19_CONSENT' });
   if(endpoint.endsWith('/versions')) return response({ versions: db.history ? [db.history] : [] });
   if(endpoint === 'api/clinical-history-template/current') return response({ template: { schema_json: template }, source: 'BUSINESS' });
   if(endpoint === 'api/prescription/doctors') return response([doctor]);
@@ -165,7 +165,7 @@ function role(name, permissions) { auth.role = name; auth.user.rol = name; auth.
   assert.equal(history.form.allergies_medications.allergy_status, 'NONE_KNOWN');
   const beforeBlocked = requests.length; await history.finalizeHistory();
   assert.equal(requests.length, beforeBlocked, 'Pending consent does not submit save/finalize');
-  db.consent = 'FIRMADO'; await history.loadConsentStatus();
+  db.consent = 'FIRMADO'; await history.refreshPreparation(); history.reviewedConsentKey = history.effectiveConsentKey; history.showFinalizeDialog = true; // STG-C05-1: reviewed effective consent, confirmation open (C05-R2)
   history.form.consultation.reason += ' — revisión de doctora';
   networkState.failHistory = true; await history.finalizeHistory();
   assert.equal(history.revisionConflict, true); assert.equal(history.dirty, true); assert.equal(db.history.status, 'DRAFT');

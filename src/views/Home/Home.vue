@@ -2,7 +2,8 @@
   <section class="home-page">
     <div class="home-container">
       <preparation-checklist />
-      <header class="home-hero">
+      <header class="home-hero" :class="'home-hero--' + dayPeriod">
+        <home-hero-scene :period="dayPeriod" :season="homeSeason" />
         <div class="hero-copy">
           <p class="eyebrow">{{ formattedToday }}</p>
           <h1>{{ greetingTitle }}</h1>
@@ -17,17 +18,6 @@
             v-model="selectedScope" class="continuity-select" aria-label="Alcance de agenda e indicadores de Inicio" @change="changeHomeScope">
             <option value="">Mi actividad</option><option value="tenant">Todo el consultorio</option>
           </select>
-        </div>
-
-        <div class="hero-visual" :class="homeSeason !== 'normal' ? ['hero-visual--seasonal', 'hero-visual--' + homeSeason] : []" aria-hidden="true">
-          <owned-home-lottie
-            :key="heroLottiePath"
-            :path="heroLottiePath"
-            :width="190"
-            :height="190"
-            :speed="1"
-          />
-          <home-seasonal-decoration v-if="homeSeason !== 'normal'" :season="homeSeason" :period="dayPeriod" />
         </div>
       </header>
 
@@ -348,8 +338,7 @@
 
 <script>
 import HomeInsights from './components/HomeInsights.vue';
-import OwnedHomeLottie from './components/OwnedHomeLottie.vue';
-import HomeSeasonalDecoration from './components/HomeSeasonalDecoration.vue';
+import HomeHeroScene from './components/HomeHeroScene.vue';
 import { getHomeSeason } from '../../utils/homeSeason';
 import { mapGetters } from 'vuex';
 import decode from 'jwt-decode';
@@ -380,7 +369,7 @@ const EMPTY_CONTINUITY_SECTION = {
 
 export default {
     name: 'Home',
-    components: { PreparationChecklist, HomeInsights, OwnedHomeLottie, HomeSeasonalDecoration },
+    components: { PreparationChecklist, HomeInsights, HomeHeroScene },
     mixins: [VuexMixin],
     data: function() {
         return {
@@ -513,15 +502,6 @@ export default {
         }
 
         return 'Buenas noches'
-      },
-      heroLottiePath: function() {
-        const paths = {
-          morning: 'lottie/doctor-morning.json',
-          afternoon: 'lottie/doctor-afternoon.json',
-          night: 'lottie/doctor-night.json'
-        }
-
-        return paths[this.dayPeriod] || paths.night
       },
       displayUserName: function() {
         const user = this.sessionUser
@@ -937,20 +917,37 @@ export default {
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
 }
 
+/* The hero is the sky: its background follows the local hour and HomeHeroScene
+   paints the clinic landscape directly on the card. */
 .home-hero {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 1.5rem;
-  min-height: 12.5rem;
+  min-height: 13.5rem;
   padding: clamp(1.4rem, 3vw, 2.15rem);
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 253, 252, 0.98) 58%, rgba(236, 248, 246, 0.94) 100%);
+    linear-gradient(100deg, #ffffff 0%, #fbfeff 36%, #e3f4fb 70%, #c5e6f6 100%);
+}
+
+.home-hero--morning {
+  background:
+    linear-gradient(100deg, #ffffff 0%, #fffdf8 36%, #fff0da 70%, #ffdcbc 100%);
+}
+
+.home-hero--night {
+  border-color: rgba(148, 163, 184, 0.22);
+  background:
+    linear-gradient(100deg, #0e1a31 0%, #12223f 48%, #1b3660 100%);
 }
 
 .hero-copy {
+  position: relative;
+  z-index: 1;
   min-width: 0;
+  max-width: min(42rem, 58%);
 }
 
 .eyebrow {
@@ -985,26 +982,16 @@ export default {
   line-height: 1.6rem;
 }
 
-.hero-visual {
-  display: grid;
-  place-items: center;
-  width: 12rem;
-  min-height: 9rem;
-  border: 1px solid rgba(15, 118, 110, 0.08);
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.66);
+.home-hero--night h1 {
+  color: #f1f5f9;
 }
 
-.hero-visual--seasonal {
-  position: relative;
+.home-hero--night .eyebrow {
+  color: #5eead4;
 }
 
-.hero-visual--day-of-dead {
-  border-color: rgba(194, 104, 23, 0.24);
-}
-
-.hero-visual--christmas {
-  border-color: rgba(48, 117, 82, 0.3);
+.home-hero--night .hero-description {
+  color: #cbd5e1;
 }
 
 .search-command {
@@ -1593,6 +1580,25 @@ html[data-theme="clinical-night"] .continuity-arrow {
   background: rgba(15, 23, 42, 0.88);
 }
 
+html[data-theme="clinical-night"] .home-hero--morning {
+  background:
+    linear-gradient(100deg, rgba(15, 23, 42, 0.94) 0%, #17223a 46%, #3b2c3c 82%, #5a3a3a 100%);
+}
+
+html[data-theme="clinical-night"] .home-hero--afternoon {
+  background:
+    linear-gradient(100deg, rgba(15, 23, 42, 0.94) 0%, #13263c 46%, #17405a 100%);
+}
+
+html[data-theme="clinical-night"] .home-hero--night {
+  background:
+    linear-gradient(100deg, rgba(15, 23, 42, 0.94) 0%, #111f3a 48%, #1b3660 100%);
+}
+
+html[data-theme="clinical-night"] .home-hero .eyebrow {
+  color: #5eead4;
+}
+
 html[data-theme="clinical-night"] .home-hero h1,
 html[data-theme="clinical-night"] .section-heading h2,
 html[data-theme="clinical-night"] .patient-info strong,
@@ -1635,13 +1641,12 @@ html[data-theme="clinical-night"] .icon-button {
   }
 
   .home-hero {
-    grid-template-columns: 1fr;
     min-height: auto;
-    padding: 1.35rem;
+    padding: 1.35rem 1.35rem 8.75rem;
   }
 
-  .hero-visual {
-    display: none;
+  .hero-copy {
+    max-width: none;
   }
 
   .search-box {
