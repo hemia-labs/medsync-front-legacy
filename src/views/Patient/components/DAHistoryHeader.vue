@@ -63,7 +63,12 @@
             </div>
             <div>
                 <dt>Domicilio</dt>
-                <dd><template v-if="addressLine">{{ addressLine }}<span v-if="postalCode" class="patient-contact-secondary">CP {{ postalCode }}</span></template><span v-else class="patient-contact-empty">Sin registrar</span></dd>
+                <!-- Street and postal code are independent fields: each one shows when it exists. -->
+                <dd>
+                    <span v-if="addressLine">{{ addressLine }}</span>
+                    <span v-if="postalCode" class="patient-contact-secondary">CP {{ postalCode }}</span>
+                    <span v-if="!addressLine && !postalCode" class="patient-contact-empty">Sin registrar</span>
+                </dd>
             </div>
             <!-- EC1 read-only. Key absent (API without EC1): no row, rather than claiming there is no contact. -->
             <div v-if="emergency.state !== 'unsupported'">

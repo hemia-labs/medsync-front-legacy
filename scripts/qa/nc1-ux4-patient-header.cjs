@@ -131,6 +131,21 @@ async function main() {
   await methods.restorePatient.call({ ...archivedView, isArchived: false }); assert.equal(restores, 1, 'restore only for archived patients');
   checks.push('PatientShow: no separate card or delete listener, archive only from header, archive/photo/restore blocked while editing');
 
+  // 8. UX4-R1: street and postal code are independent; «Sin registrar» only when both are missing.
+  const addresses = [
+    [{ direction: null, cp: '01234', residence: 'Ciudad Sintética' }, ['CP 01234'], 'postal code only'],
+    [{ direction: 'Calle Sintética 8', cp: '' }, ['Calle Sintética 8'], 'street only'],
+    [{ direction: 'Calle Sintética 8', cp: '01234' }, ['Calle Sintética 8', 'CP 01234'], 'both'],
+    [{ direction: '  ', cp: null }, ['Sin registrar'], 'both empty'],
+    [undefined, ['Sin registrar'], 'no address object']
+  ];
+  for (const [address, expected, label] of addresses) {
+    m = mount({ ...base, px: { person: person(), address } }); await tick();
+    const parts = Array.from(field(m.el, 'Domicilio').querySelectorAll('span')).map(span => span.textContent.trim());
+    assert.deepEqual(parts, expected, label);
+  }
+  checks.push('UX4-R1 address: postal code without street, street without postal code, both, both empty and no address object');
+
   console.log(JSON.stringify(checks, null, 2));
   console.log('PASS NC1-UX4: real header and PatientShow methods. JSDOM, synthetic data, no network, upload or print.');
 }
