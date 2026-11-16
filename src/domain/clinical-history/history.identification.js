@@ -11,6 +11,16 @@ export const identificationValue = value => {
     return value;
 };
 
+// NC1-EC1: the primary emergency contact as one readable line for the versioned snapshot.
+export const emergencyContactText = contact => {
+    if (!contact || typeof contact !== 'object') return '';
+    const name = String(contact.name || '').trim();
+    if (!name) return '';
+    const relationship = String(contact.relationship || '').trim();
+    const phone = String(contact.phone || '').trim();
+    return [relationship ? name + ' (' + relationship + ')' : name, phone].filter(Boolean).join(' · ');
+};
+
 export const identificationLabel = value => {
     const captured = identificationValue(value);
     return captured === '' ? 'No registrado en esta versión' : captured;
