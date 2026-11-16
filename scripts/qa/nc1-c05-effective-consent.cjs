@@ -179,6 +179,93 @@ async function main() {
   assert.equal(state.sensitiveConsentTitle, 'Sin acceso'); assert.equal(state.hasSignedConsent, false);
   checks.push('no documents.view: Sin acceso, no signed state');
 
+  // 10. C05-R1: answers arriving out of order never replace the newest verified consent.
+  const deferred = () => { const pending = []; service.getByPatient = () => new Promise((resolve, reject) => pending.push({ resolve, reject })); return pending; };
+  state = fresh(); calls = readyToClose(state);
+  let pending = deferred();
+  const background = state.refreshEffectiveConsent(); // return to the tab: read A
+  const opening = state.openFinalizeDialog(); // confirmation: read B
+  assert.equal(pending.length, 2);
+  pending[1].resolve(server('NO_FIRMADO_POR_NEGATIVA', REFUSAL));
+  await opening;
+  assert.equal(state.sensitiveConsentTitle, 'Negativa vigente');
+  const reviewedRefusal = state.reviewedConsentKey;
+  state.form.consultation.reason = 'Captura durante lecturas invertidas';
+  pending[0].resolve(server('FIRMADO', SIGNED));
+  assert.equal(await background, false, 'the older answer is ignored');
+  assert.equal(state.sensitiveConsentTitle, 'Negativa vigente'); assert.equal(state.hasConsentRefusal, true);
+  assert.equal(state.reviewedConsentKey, reviewedRefusal); assert.equal(state.saveError, '');
+  assert.equal(state.form.consultation.reason, 'Captura durante lecturas invertidas');
+  service.getByPatient = async () => server('NO_FIRMADO_POR_NEGATIVA', REFUSAL);
+  await state.finalizeHistory();
+  assert.equal(calls.finalize, 1); assert.equal(state.clinicalHistory.status, 'INCOMPLETE');
+  // A late error from an older read does not invalidate a newer valid one.
+  state = fresh(); calls = readyToClose(state);
+  pending = deferred();
+  const olderRead = state.refreshEffectiveConsent();
+  const newerRead = state.refreshEffectiveConsent();
+  pending[1].resolve(server('FIRMADO', SIGNED)); assert.equal(await newerRead, true);
+  pending[0].reject(new Error('synthetic late failure')); assert.equal(await olderRead, false);
+  assert.equal(state.consentRefreshError, ''); assert.equal(state.sensitiveConsentTitle, 'Firmado'); assert.equal(state.finalizeBlockReason, '');
+  // The initial history load takes part in the same sequence.
+  pending = deferred();
+  const load = state.loadClinicalHistory(state.loadRequest, state.patientId, true);
+  const laterRead = state.refreshEffectiveConsent();
+  pending[1].resolve(server('NO_FIRMADO_POR_NEGATIVA', REFUSAL)); await laterRead;
+  pending[0].resolve(server('FIRMADO', SIGNED)); await load;
+  assert.equal(state.sensitiveConsentTitle, 'Negativa vigente', 'an older history load does not overwrite a newer consent read');
+  // A newer, different answer while the confirmation is open is shown and requires review.
+  state = fresh(); calls = readyToClose(state);
+  service.getByPatient = async () => server('FIRMADO', SIGNED);
+  await state.openFinalizeDialog();
+  service.getByPatient = async () => server('NO_FIRMADO_POR_NEGATIVA', REFUSAL);
+  state.onVisibilityChange(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(state.hasConsentRefusal, true); assert.match(state.saveError, /cambió. Revisa la confirmación/);
+  await state.finalizeHistory();
+  assert.equal(calls.save, 0); assert.equal(calls.finalize, 0, 'the first close after the change only asks to review');
+  // A close whose own read was superseded writes nothing.
+  state = fresh(); calls = readyToClose(state);
+  service.getByPatient = async () => server('FIRMADO', SIGNED);
+  await state.openFinalizeDialog();
+  pending = deferred();
+  const supersededClose = state.finalizeHistory();
+  const interloper = state.refreshEffectiveConsent();
+  pending[1].resolve(server('FIRMADO', SIGNED)); await interloper;
+  pending[0].resolve(server('FIRMADO', SIGNED)); await supersededClose;
+  assert.equal(calls.save, 0); assert.equal(calls.finalize, 0); assert.match(state.saveError, /se volvió a verificar/);
+  checks.push('C05-R1: inverted answers, late error and older load ignored; newer change shown and needs review; superseded close writes nothing');
+
+  // 11. C05-R2: cancelling while the close is verifying really cancels it.
+  for (const [label, cancel] of [['Cancel button', s => s.cancelFinalizeDialog()], ['Esc / outside click', s => { s.showFinalizeDialog = false; }]]) {
+    state = fresh(); calls = readyToClose(state);
+    service.getByPatient = async () => server('FIRMADO', SIGNED);
+    await state.openFinalizeDialog();
+    state.form.consultation.reason = `Captura conservada tras ${label}`;
+    pending = deferred();
+    const closing = state.finalizeHistory();
+    assert.equal(state.consentChecking, true); assert.equal(calls.save, 0);
+    cancel(state);
+    pending[0].resolve(server('FIRMADO', SIGNED));
+    await closing;
+    assert.equal(calls.save, 0, `${label}: no save after cancelling`); assert.equal(calls.finalize, 0, `${label}: no close after cancelling`);
+    assert.equal(state.form.consultation.reason, `Captura conservada tras ${label}`); assert.equal(state.clinicalHistory.status, 'DRAFT');
+  }
+  // Cancelling while the draft is being saved keeps the save but does not close.
+  state = fresh(); calls = readyToClose(state);
+  service.getByPatient = async () => server('FIRMADO', SIGNED);
+  await state.openFinalizeDialog();
+  const realUpdate = service.updateDraft;
+  service.updateDraft = async (...args) => { state.cancelFinalizeDialog(); return realUpdate(...args); };
+  let notified = null; state.notify = (icon, text) => { notified = { icon, text }; };
+  await state.finalizeHistory();
+  assert.equal(calls.save, 1); assert.equal(calls.finalize, 0); assert.match(notified.text, /No se cerró la historia/);
+  // Reopening after cancelling starts a new attempt that closes normally.
+  service.updateDraft = realUpdate;
+  await state.openFinalizeDialog(); await state.finalizeHistory();
+  assert.equal(calls.finalize, 1); assert.equal(state.clinicalHistory.status, 'FINALIZED');
+  assert.match(template, /@click="cancelFinalizeDialog">Cancelar</);
+  checks.push('C05-R2: Cancel or Esc during verification → zero writes, capture kept; cancel during save → saved, not closed; reopen closes');
+
   console.log(JSON.stringify(checks, null, 2));
   console.log('PASS NC1 C05 lote 1: consent shown and applied from server consent_status/consent_document_id; refusal → incomplete; failures block with retry; changes need re-review; draft preserved. No API, DB, browser or print.');
 }

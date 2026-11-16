@@ -165,7 +165,7 @@ function role(name, permissions) { auth.role = name; auth.user.rol = name; auth.
   assert.equal(history.form.allergies_medications.allergy_status, 'NONE_KNOWN');
   const beforeBlocked = requests.length; await history.finalizeHistory();
   assert.equal(requests.length, beforeBlocked, 'Pending consent does not submit save/finalize');
-  db.consent = 'FIRMADO'; await history.refreshPreparation(); history.reviewedConsentKey = history.effectiveConsentKey; // STG-C05-1: reviewed effective consent
+  db.consent = 'FIRMADO'; await history.refreshPreparation(); history.reviewedConsentKey = history.effectiveConsentKey; history.showFinalizeDialog = true; // STG-C05-1: reviewed effective consent, confirmation open (C05-R2)
   history.form.consultation.reason += ' — revisión de doctora';
   networkState.failHistory = true; await history.finalizeHistory();
   assert.equal(history.revisionConflict, true); assert.equal(history.dirty, true); assert.equal(db.history.status, 'DRAFT');

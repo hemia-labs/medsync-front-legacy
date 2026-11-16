@@ -874,7 +874,7 @@
           <button v-else-if="!hasSignedConsent && !hasConsentRefusal" class="clinical-link-button" type="button" @click="reviewConsent">Revisar consentimiento</button>
         </div>
         <div class="button-row dialog-actions">
-          <button class="clinical-button secondary" type="button" @click="showFinalizeDialog = false">Cancelar</button>
+          <button class="clinical-button secondary" type="button" @click="cancelFinalizeDialog">Cancelar</button>
           <button class="clinical-button success" type="button" :disabled="isBusy || consentChecking || Boolean(finalizeBlockReason)" @click="finalizeHistory">
             {{ hasConsentRefusal ? 'Marcar incompleta' : 'Finalizar historia clínica' }}
           </button>
@@ -1074,6 +1074,10 @@ export default {
       consentRefreshError: '',
       consentChecking: false,
       reviewedConsentKey: '',
+      // Only the newest consent read may change the state; older answers and errors are ignored.
+      consentReadSeq: 0,
+      // Bumped when the close confirmation is opened or cancelled; a pending close stops if it changed.
+      finalizeAttempt: 0,
       templates: [],
       doctors: [],
       doctorResponsibleUserId: null,
@@ -1744,13 +1748,14 @@ export default {
     async loadClinicalHistory(request = this.loadRequest, patientId = this.patientId, preserveDraft = this.dirty) {
       this.loadError = false;
       if(!this.canReadHistory) { this.denyHistoryAccess(); return; }
+      const consentRead = ++this.consentReadSeq;
       try {
         const response = await DAClinicalHistoryService.getByPatient(patientId);
         if(request !== this.loadRequest || this.historyForbidden) return;
         if(response && response.status === 403) { this.denyHistoryAccess(); return; }
         if(!response || !response.success || !response.data) throw new Error('History load failed');
         this.historyLoaded = true;
-        this.applyEffectiveConsent(response.data);
+        if(consentRead === this.consentReadSeq) this.applyEffectiveConsent(response.data);
         if(!preserveDraft) {
           this.clinicalHistory = response.data.history || null;
           if(this.clinicalHistory) this.applyHistoryToForm(this.clinicalHistory);
@@ -2071,22 +2076,33 @@ export default {
       }
       this.effectiveConsent = { loaded: true, status: data.consent_status, documentId: data.consent_document_id || null };
       this.consentRefreshError = '';
+      // A newer answer that differs from the reviewed confirmation is shown, and closing will ask to review it.
+      if(this.showFinalizeDialog && this.reviewedConsentKey && this.effectiveConsentKey !== this.reviewedConsentKey) {
+        this.saveError = 'El consentimiento vigente cambió. Revisa la confirmación antes de continuar.';
+      }
       return true;
     },
     // Re-reading narrows, but does not remove, the window for a consent change before the close request.
-    async refreshEffectiveConsent() {
+    // Returns 'verified', 'failed' or 'superseded' (a newer read started; this answer was ignored).
+    async readEffectiveConsent() {
       const request = this.loadRequest;
       const patientId = this.patientId;
-      if(!patientId || !this.canReadHistory) return false;
+      if(!patientId || !this.canReadHistory) return 'failed';
+      const consentRead = ++this.consentReadSeq;
+      const current = () => consentRead === this.consentReadSeq && request === this.loadRequest && patientId === this.patientId;
       try {
         const response = await DAClinicalHistoryService.getByPatient(patientId);
-        if(request !== this.loadRequest || patientId !== this.patientId) return false;
+        if(!current()) return 'superseded';
         if(!response || !response.success) throw new Error('Consent refresh failed');
-        return this.applyEffectiveConsent(response.data);
+        return this.applyEffectiveConsent(response.data) ? 'verified' : 'failed';
       } catch (error) {
-        if(request === this.loadRequest) this.consentRefreshError = 'No se pudo verificar el consentimiento vigente. Tu captura se conserva; reintenta antes de finalizar.';
-        return false;
+        if(!current()) return 'superseded';
+        this.consentRefreshError = 'No se pudo verificar el consentimiento vigente. Tu captura se conserva; reintenta antes de finalizar.';
+        return 'failed';
       }
+    },
+    async refreshEffectiveConsent() {
+      return (await this.readEffectiveConsent()) === 'verified';
     },
     onVisibilityChange() {
       if(document.visibilityState === 'visible' && this.isDraft && !this.isBusy && !this.consentChecking) this.refreshEffectiveConsent();
@@ -2100,10 +2116,16 @@ export default {
     async openFinalizeDialog() {
       if(this.isBusy || this.consentChecking || !this.contextReady) return;
       this.saveError = '';
+      this.finalizeAttempt++;
       this.consentChecking = true;
       try { await this.refreshEffectiveConsent(); } finally { this.consentChecking = false; }
       this.reviewedConsentKey = this.effectiveConsentKey;
       this.showFinalizeDialog = true;
+    },
+    // Cancel really stops a close that is still verifying: nothing is saved or closed afterwards.
+    cancelFinalizeDialog() {
+      this.finalizeAttempt++;
+      this.showFinalizeDialog = false;
     },
     reviewConsent() {
       this.showFinalizeDialog = false;
@@ -2126,10 +2148,18 @@ export default {
       }
       // The action shown must match the consent the server applies; a change requires reviewing it again.
       const reviewedConsent = this.reviewedConsentKey;
+      const attempt = this.finalizeAttempt;
+      // Esc, outside click and Cancel all hide the dialog; any of them, or reopening it, ends this attempt.
+      const stillConfirmed = () => attempt === this.finalizeAttempt && this.showFinalizeDialog;
       this.consentChecking = true;
-      let verified = false;
-      try { verified = await this.refreshEffectiveConsent(); } finally { this.consentChecking = false; }
-      if(!verified) {
+      let verification = 'failed';
+      try { verification = await this.readEffectiveConsent(); } finally { this.consentChecking = false; }
+      if(!stillConfirmed()) return;
+      if(verification === 'superseded') {
+        this.saveError = 'El consentimiento se volvió a verificar mientras confirmabas. Revisa la confirmación y vuelve a intentarlo.';
+        return;
+      }
+      if(verification !== 'verified') {
         this.saveError = this.consentRefreshError;
         return;
       }
@@ -2145,6 +2175,10 @@ export default {
       const reviewed = reviewedHistorySnapshot(this.buildPayloadSnapshot(), this.doctorResponsibleUserId);
       const saved = await this.saveDraft(false);
       if(!saved) {
+        return;
+      }
+      if(!stillConfirmed()) {
+        this.notify('info', 'Borrador guardado. No se cerró la historia porque cancelaste la confirmación.');
         return;
       }
       if(reviewed !== this.lastSavedHistorySnapshot || reviewed !== reviewedHistorySnapshot(this.buildPayloadSnapshot(), this.doctorResponsibleUserId)) {

@@ -64,6 +64,7 @@ async function main() {
   // STG-C05-1: closing re-reads the server's effective consent and requires the reviewed one.
   service.getByPatient = async () => ({ success:true, data:{ history:{ status:'DRAFT' }, consent_status:'FIRMADO', consent_document_id:'synthetic-consent' } });
   state.reviewedConsentKey = 'FIRMADO|synthetic-consent';
+  state.showFinalizeDialog = true; // C05-R2: closing only proceeds while the confirmation is still open
   service.finalize = async(id,revision) => { assert.equal(revision,stored.revision); stored={...stored,status:'FINALIZED',revision:stored.revision+1};return {success:true,data:{history:clone(stored)}}; };
   await state.finalizeHistory();
   results.push({...row(state,'after-finalize-simulated',stored),visibleBeforeFinalize});
@@ -102,6 +103,7 @@ async function main() {
     Object.defineProperty(s,'finalizeBlockReason',{get:()=>'',configurable:true});
     Object.defineProperty(s,'criticalFieldsStatus',{get:()=>[],configurable:true});
     s.reviewedConsentKey='FIRMADO|synthetic-consent'; // matches the service.getByPatient stub above
+    s.showFinalizeDialog=true; // C05-R2: closing only proceeds while the confirmation is still open
     return ()=>record;
   }
   state=fresh(); persistence(state);
