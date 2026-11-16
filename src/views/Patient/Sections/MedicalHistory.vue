@@ -282,6 +282,16 @@
       </button>
     </section>
 
+    <section v-if="isDraft && identificationChanges.length" class="clinical-panel identification-notice" role="status">
+      <strong>Datos actuales del paciente distintos de este borrador</strong>
+      <p>{{ identificationKept ? 'Conservas los datos de este borrador durante esta sesión.' : 'La identificación de esta historia se conserva hasta que decidas actualizarla.' }}</p>
+      <p>Actualizar estos datos no cambia tu captura clínica ni las versiones finalizadas.</p>
+      <div class="button-row">
+        <button v-if="canEditDraftPermission" type="button" class="clinical-button secondary" :disabled="!canEditForm || revisionConflict" @click="openIdentificationReview">Actualizar identificación del borrador</button>
+        <button v-if="canEditDraftPermission && !identificationKept" type="button" class="clinical-link-button" :disabled="!canEditForm" @click="keepHistoryIdentification">Conservar datos de este borrador</button>
+      </div>
+    </section>
+
     <section v-if="false && clinicalHistory && isDraft" class="clinical-panel capture-guide-panel">
       <div class="capture-guide-main">
         <p class="section-kicker">Progreso de captura</p>
@@ -810,6 +820,23 @@
       </div>
     </v-dialog>
 
+    <v-dialog content-class="clinical-history-dialog" v-model="showIdentificationReview" max-width="720">
+      <div @keydown="trapDialogFocus" v-dialog-name="'Actualizar identificación del borrador'" class="dialog-card">
+        <header><h3>Actualizar identificación del borrador</h3><p>Selecciona los datos que quieres incorporar. El resto de tu captura se conserva y los cambios quedan pendientes de guardar.</p></header>
+        <div class="identification-comparison">
+          <label v-for="item in identificationChanges" :key="item.key" class="identification-change">
+            <input type="checkbox" v-model="selectedIdentificationFields" :value="item.key" :disabled="!canEditForm" />
+            <span><strong>{{ item.label }}</strong><span>En este borrador: {{ identificationLabel(item.captured) }}</span><span>Ficha actual: {{ identificationLabel(item.current) }}</span></span>
+          </label>
+        </div>
+        <p>Al actualizar la fecha de nacimiento también se actualiza la edad de este borrador.</p>
+        <div class="button-row dialog-actions">
+          <button type="button" class="clinical-button secondary" @click="showIdentificationReview = false">Cancelar</button>
+          <button type="button" class="clinical-button primary" :disabled="!canEditForm || revisionConflict || !selectedIdentificationFields.length" @click="updateHistoryIdentification">Aplicar campos seleccionados</button>
+        </div>
+      </div>
+    </v-dialog>
+
     <v-dialog content-class="clinical-history-dialog" v-model="showFinalizeDialog" max-width="620">
       <div @keydown="trapDialogFocus" v-dialog-name="'Finalizar historia clínica'" class="dialog-card">
         <header>
@@ -824,6 +851,14 @@
             <strong>{{ item.status }}</strong>
           </div>
         </div>
+        <div v-if="identificationChanges.length" class="identification-comparison" role="status">
+          <strong>Se conservará la identificación de este borrador</strong>
+          <p>Estas diferencias con la ficha actual no impiden finalizar:</p>
+          <div v-for="item in identificationChanges" :key="item.key" class="identification-change">
+            <span><strong>{{ item.label }}</strong><span>Se guardará: {{ identificationLabel(item.captured) }}</span><span>Ficha actual: {{ identificationLabel(item.current) }}</span></span>
+          </div>
+        </div>
+        <p>Las alergias mantienen su revisión clínica vigente. Si cambian durante el cierre, tendrás que revisar el borrador de nuevo.</p>
         <p v-if="finalizeBlockReason" class="block-reason">{{ finalizeBlockReason }}</p>
         <p v-if="saveError" class="form-warning" role="alert">{{ saveError }}</p>
         <div class="button-row">
@@ -903,6 +938,7 @@ import { mapGetters } from 'vuex';
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
 import { editorSnapshot, textLengthErrors, canRefreshAllergyRevision } from '../../../domain/clinical-history/history.editor';
+import { identificationFields, identificationValue, identificationLabel, identificationDifferences, reviewedHistorySnapshot } from '../../../domain/clinical-history/history.identification';
 import { vitalSignMetadata, vitalSignError, vitalSignErrors, heightInCm } from '../../../domain/clinical-history/vitalSigns.validation';
 import { getSettingsSections } from '../../../security/settingsAccess';
 import { allergySnapshot, allergyLabels } from '../../../domain/patient/allergy';
@@ -1039,6 +1075,10 @@ export default {
       savedSnapshot: '',
       saveError: '',
       revisionConflict: false,
+      showIdentificationReview: false,
+      selectedIdentificationFields: [],
+      keptIdentificationFingerprint: '',
+      lastSavedHistorySnapshot: '',
       showValidation: false,
       showConsentSetupDialog: false,
       vitalSignMetadata,
@@ -1435,7 +1475,17 @@ export default {
       return this.hasPermission('clinical_history.finalize') && allowedRoles.includes(this.currentUserRole) && Boolean(this.currentDoctorProfile);
     },
     legacyIdentification() {
-      return this.buildIdentificationSnapshot();
+      const captured = this.buildIdentificationSnapshot();
+      return Object.fromEntries(identificationFields.map(([key]) => [key, identificationLabel(captured[key])]));
+    },
+    identificationChanges() {
+      return this.isDraft ? identificationDifferences(this.form.identification, this.buildIdentificationSnapshot()) : [];
+    },
+    identificationFingerprint() {
+      return JSON.stringify([this.clinicalHistory && this.clinicalHistory.id_clinical_history, this.identificationChanges]);
+    },
+    identificationKept() {
+      return this.keptIdentificationFingerprint === this.identificationFingerprint;
     },
     legacyConsultation() {
       return {
@@ -1445,16 +1495,7 @@ export default {
     },
     identificationDisplay() {
       const identification = this.form.identification || {};
-      return [
-        { label: 'Nombre completo', value: this.valueOrEmpty(identification.full_name) },
-        { label: 'Edad', value: this.valueOrEmpty(identification.age) },
-        { label: 'Fecha de nacimiento', value: this.valueOrEmpty(identification.birth_date) },
-        { label: 'Sexo', value: this.valueOrEmpty(identification.sex) },
-        { label: 'Teléfono', value: this.valueOrEmpty(identification.phone) },
-        { label: 'Correo', value: this.valueOrEmpty(identification.email) },
-        { label: 'Dirección', value: this.valueOrEmpty(identification.address) },
-        { label: 'Contacto de emergencia', value: this.valueOrEmpty(identification.emergency_contact) }
-      ];
+      return identificationFields.map(([key, label]) => ({ label, value: identificationLabel(identification[key]) }));
     },
     formModeTitle() {
       if(this.isDraft) {
@@ -1790,15 +1831,34 @@ export default {
       const addressText = [address.direction, address.residence, address.cp].filter(Boolean).join(', ');
       const fullName = person.fullname || `${person.name || ''} ${person.surname || ''}`.trim();
       return {
-        full_name: fullName || 'No registrado',
-        age: this.calculateAge(person.birthday) || person.age || 'No registrado',
-        birth_date: person.birthday || 'No registrado',
-        sex: ({'1':'Hombre','2':'Mujer','3':'Intersexual'})[(this.px.identity || {}).biologicalSex] || 'No registrado',
-        phone: person.telephone || person.local_telephone || 'No registrado',
-        email: person.email || 'No registrado',
-        address: addressText || 'No registrado',
-        emergency_contact: person.emergency_contact || 'No registrado'
+        full_name: identificationValue(fullName),
+        age: this.calculateAge(person.birthday) === '' ? identificationValue(person.age) : this.calculateAge(person.birthday),
+        birth_date: identificationValue(person.birthday),
+        sex: ({'1':'Hombre','2':'Mujer','3':'Intersexual'})[(this.px.identity || {}).biologicalSex] || '',
+        phone: identificationValue(person.telephone) || identificationValue(person.local_telephone),
+        email: identificationValue(person.email),
+        address: identificationValue(addressText),
+        emergency_contact: identificationValue(person.emergency_contact)
       };
+    },
+    identificationLabel(value) { return identificationLabel(value); },
+    openIdentificationReview() {
+      if(!this.canEditForm || this.revisionConflict) return;
+      this.selectedIdentificationFields = this.identificationChanges.map(item => item.key);
+      this.showIdentificationReview = true;
+    },
+    keepHistoryIdentification() {
+      if(!this.canEditForm) return;
+      this.keptIdentificationFingerprint = this.identificationFingerprint;
+    },
+    updateHistoryIdentification() {
+      if(!this.canEditForm || this.revisionConflict) return;
+      const current = this.buildIdentificationSnapshot();
+      const selected = this.identificationChanges.filter(item => this.selectedIdentificationFields.includes(item.key));
+      selected.forEach(({key}) => this.$set(this.form.identification, key, current[key]));
+      if(selected.some(item => item.key === 'birth_date')) this.$set(this.form.identification, 'age', current.age);
+      this.showIdentificationReview = false;
+      this.saveError = '';
     },
     buildLegacySnapshot() {
       const snapshot = emptySnapshot();
@@ -1933,7 +1993,7 @@ export default {
       return false;
     },
     async saveDraft(showMessage = true) {
-      if(this.isBusy || !this.contextReady || !this.canEditDraftPermission || !this.isDraft || !this.clinicalHistory) {
+      if(this.isBusy || this.revisionConflict || !this.contextReady || !this.canEditDraftPermission || !this.isDraft || !this.clinicalHistory) {
         if(!this.contextReady) this.saveError = 'Reintenta la carga del contexto antes de guardar. Los cambios se conservan.';
         return false;
       }
@@ -1945,6 +2005,7 @@ export default {
       }
       this.showValidation = false;
       this.saveError = '';
+      this.lastSavedHistorySnapshot = '';
       this.isBusy = true;
       try {
         const response = await DAClinicalHistoryService.updateDraft(this.clinicalHistory.id_clinical_history, {
@@ -1953,6 +2014,10 @@ export default {
           clinical_snapshot_json: this.buildPayloadSnapshot()
         });
         if(response && response.success && response.data && response.data.history) {
+          this.lastSavedHistorySnapshot = reviewedHistorySnapshot(
+            mergeSnapshot(emptySnapshot(), response.data.history.clinical_snapshot_json),
+            response.data.history.doctor_responsible_user_id
+          );
           this.clinicalHistory = response.data.history;
           this.applyHistoryToForm(this.clinicalHistory);
           await this.loadClinicalHistoryVersions();
@@ -1963,7 +2028,7 @@ export default {
         }
         this.handleRevisionConflict(response);
         this.saveError = response && response.message ? response.message : 'No se pudo guardar el borrador. Reintenta; los cambios se conservan.';
-      } catch (error) { this.saveError = 'No se pudo guardar el borrador. Reintenta; los cambios se conservan.'; }
+      } catch (error) { this.handleRevisionConflict(error.response); this.saveError = 'No se pudo guardar el borrador. Reintenta; los cambios se conservan.'; }
       finally { this.isBusy = false; }
       return false;
     },
@@ -1983,6 +2048,7 @@ export default {
       });
     },
     async finalizeHistory() {
+      if(this.isBusy || this.revisionConflict) return;
       if(this.criticalFieldsStatus.length) {
         this.scrollToFirstMissingRequired();
       }
@@ -1990,8 +2056,14 @@ export default {
         this.notify('warning', this.finalizeBlockReason);
         return;
       }
+      const reviewed = reviewedHistorySnapshot(this.buildPayloadSnapshot(), this.doctorResponsibleUserId);
       const saved = await this.saveDraft(false);
       if(!saved) {
+        return;
+      }
+      if(reviewed !== this.lastSavedHistorySnapshot || reviewed !== reviewedHistorySnapshot(this.buildPayloadSnapshot(), this.doctorResponsibleUserId)) {
+        this.showFinalizeDialog = false;
+        this.saveError = 'El guardado devolvió cambios en la historia. Revisa los datos mostrados antes de volver a finalizar.';
         return;
       }
       this.isBusy = true;
@@ -2007,7 +2079,7 @@ export default {
         }
         this.handleRevisionConflict(response);
         this.saveError = response && response.message ? response.message : 'No se pudo finalizar. El borrador guardado se conserva; puedes reintentar.';
-      } catch (error) { this.saveError = 'No se pudo finalizar. El borrador guardado se conserva; puedes reintentar.'; }
+      } catch (error) { this.handleRevisionConflict(error.response); this.saveError = 'No se pudo finalizar. El borrador guardado se conserva; puedes reintentar.'; }
       finally { this.isBusy = false; }
     },
     async cancelDraft() {
@@ -2036,7 +2108,7 @@ export default {
       finally { this.isBusy = false; }
     },
     handleRevisionConflict(response) {
-      if(response && response.data && response.data.code === 'HISTORY_REVISION_CONFLICT') {
+      if(response && (response.status === 409 || (response.data && response.data.code === 'HISTORY_REVISION_CONFLICT'))) {
         this.revisionConflict = true;
         this.showFinalizeDialog = false;
         this.showLeaveDialog = false;
@@ -2115,12 +2187,7 @@ export default {
       if(this.activeSchema) {
         this.ensureDynamicSnapshotDefaults(this.activeSchema);
       }
-      const snapshot = mergeSnapshot(emptySnapshot(), this.form);
-      snapshot.identification = {
-        ...snapshot.identification,
-        ...this.buildIdentificationSnapshot()
-      };
-      return snapshot;
+      return JSON.parse(JSON.stringify(mergeSnapshot(emptySnapshot(), this.form)));
     },
     normalizeTemplateSchema(rawSchema) {
       let parsed = rawSchema;
@@ -2444,10 +2511,7 @@ export default {
     },
     resolveReadonlyFieldValue(section, field) {
       const source = field.source || '';
-      const identification = {
-        ...this.buildIdentificationSnapshot(),
-        ...((this.form && this.form.identification) || {})
-      };
+      const identification = (this.form && this.form.identification) || {};
       const sourceMap = {
         'patient.full_name': identification.full_name,
         'patient.age': identification.age,
@@ -2460,10 +2524,10 @@ export default {
         'patient.emergency_contact': identification.emergency_contact
       };
       if(source && Object.prototype.hasOwnProperty.call(sourceMap, source)) {
-        return sourceMap[source] || 'No registrado';
+        return identificationLabel(sourceMap[source]);
       }
       const sectionValues = this.form[section.key] || {};
-      return sectionValues[field.key] || 'No registrado';
+      return identificationLabel(sectionValues[field.key]);
     },
     dynamicMissingRequiredFields() {
       const missing = [];
@@ -2681,7 +2745,7 @@ export default {
       const history = payload.history || {};
       const snapshot = history.clinical_snapshot_json || {};
       const schema = this.normalizeTemplateSchema(history.template_snapshot_json || {});
-      const patient = this.printablePatient(payload.patient || {}, snapshot.identification || {});
+      const patient = this.printablePatient(snapshot.identification || {});
       const business = payload.business || (this.$session ? this.$session.get('business') : null) || {};
       const doctor = payload.doctor || {};
       const finalizer = payload.finalizer || null;
@@ -2782,18 +2846,8 @@ export default {
         </html>
       `;
     },
-    printablePatient(patient, identification) {
-      const address = identification.address || [patient.direction, patient.residence, patient.cp].filter(Boolean).join(', ');
-      return [
-        { label: 'Nombre completo', value: identification.full_name || patient.full_name || `${patient.name || ''} ${patient.surname || ''}`.trim() },
-        { label: 'Edad', value: identification.age || patient.age },
-        { label: 'Fecha de nacimiento', value: identification.birth_date || patient.birthday },
-        { label: 'Sexo', value: identification.sex },
-        { label: 'Teléfono', value: identification.phone || patient.telephone || patient.local_telephone },
-        { label: 'Correo', value: identification.email },
-        { label: 'Dirección', value: address },
-        { label: 'Contacto de emergencia', value: identification.emergency_contact }
-      ];
+    printablePatient(identification) {
+      return identificationFields.map(([key, label]) => ({ label, value: identificationLabel(identification[key]) }));
     },
     printableDoctorFields(doctor, history) {
       const historicalLicenseText = history && history.status !== 'DRAFT' ? 'Sin copia histórica disponible.' : 'No registrada';
@@ -2916,7 +2970,7 @@ export default {
         'patient.address': sourceMap['dirección'],
         'patient.emergency_contact': sourceMap['contacto de emergencia']
       };
-      return values[source] || sectionValues[field.key] || '';
+      return identificationLabel(Object.prototype.hasOwnProperty.call(values, source) ? values[source] : sectionValues[field.key]);
     },
     printableFieldValue(value, type = 'text') {
       if(Array.isArray(value)) {
@@ -2981,7 +3035,7 @@ export default {
       if(month < 0 || (month === 0 && today.getDate() < birthDate.getDate())) {
         age -= 1;
       }
-      return age > 0 ? `${age} años` : '';
+      return age >= 0 ? `${age} años` : '';
     },
     formatDateTime(value) {
       if(!value) {
@@ -3072,6 +3126,12 @@ export default {
 </script>
 
 <style scoped>
+.identification-notice { border-left: 4px solid var(--color-primary-700, #00728c); }
+.identification-comparison { display: grid; gap: .75rem; margin: 1rem 0; }
+.identification-change { display: flex; align-items: flex-start; gap: .75rem; border-bottom: 1px solid #d8e9ef; padding: .75rem 0; overflow-wrap: anywhere; }
+.identification-change > span { display: grid; gap: .35rem; min-width: 0; }
+.identification-change input { min-width: 1.25rem; min-height: 1.25rem; margin-top: .2rem; }
+.identification-change input:focus-visible { outline: 3px solid #00728c; outline-offset: 3px; }
 .clinical-history-page {
   display: flex;
   flex-direction: column;
