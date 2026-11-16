@@ -171,10 +171,13 @@
         <p>{{ sensitiveConsentHelpText }}</p>
       </div>
       <div v-if="canViewConsent" class="button-row consent-action-row">
+        <button v-if="consentRefreshError" class="clinical-button secondary" type="button" :disabled="consentChecking" @click="retryConsentVerification">
+          Reintentar verificación
+        </button>
         <button v-if="sensitiveConsent" class="clinical-button secondary" type="button" @click="openSensitiveDocument">
           {{ hasConsentRefusal ? 'Ver detalle' : 'Ver consentimiento' }}
         </button>
-        <button v-if="!sensitiveConsent && hasPermission('documents.create')" class="clinical-button secondary" type="button" @click="createSensitiveConsent">
+        <button v-if="consentVerified && !sensitiveConsent && hasPermission('documents.create')" class="clinical-button secondary" type="button" @click="createSensitiveConsent">
           Gestionar consentimiento
         </button>
         <button
@@ -255,7 +258,7 @@
           v-if="isDraft"
           class="clinical-button success"
           type="button"
-          :disabled="isBusy || !contextReady || !canCurrentUserFinalize"
+          :disabled="isBusy || consentChecking || !contextReady || !canCurrentUserFinalize"
           title="Solo un doctor o administrador con perfil profesional activo puede finalizar esta historia."
           @click="openFinalizeDialog"
         >
@@ -844,8 +847,9 @@
       <div @keydown="trapDialogFocus" v-dialog-name="'Finalizar historia clínica'" class="dialog-card">
         <header>
           <p class="section-kicker">Confirmación</p>
-          <h3>Finalizar historia clínica</h3>
-          <p>Al finalizar, la historia clínica quedará bloqueada para edición y se conservará como versión histórica del paciente.</p>
+          <h3>{{ hasConsentRefusal ? 'Guardar historia como incompleta' : 'Finalizar historia clínica' }}</h3>
+          <p v-if="hasConsentRefusal">Hay una negativa de consentimiento vigente. La historia quedará bloqueada como <strong>incompleta</strong>, no como finalizada, y se conservará como versión histórica del paciente.</p>
+          <p v-else>Al finalizar, la historia clínica quedará bloqueada para edición y se conservará como versión histórica del paciente.</p>
         </header>
         <div class="finalize-checklist">
           <div v-for="item in finalizeChecklist" :key="item.label" :class="['check-item', item.ok ? 'ok' : 'warn']">
@@ -866,11 +870,12 @@
         <p v-if="saveError" class="form-warning" role="alert">{{ saveError }}</p>
         <div class="button-row">
           <button v-if="requiredPendingCount" class="clinical-link-button" type="button" @click="showFinalizeDialog = false; openPendingSummary()">Ir a datos pendientes</button>
-          <button v-if="!hasSignedConsent && !hasConsentRefusal" class="clinical-link-button" type="button" @click="reviewConsent">Revisar consentimiento</button>
+          <button v-if="consentRefreshError" class="clinical-link-button" type="button" :disabled="consentChecking" @click="retryConsentVerification">Reintentar verificación</button>
+          <button v-else-if="!hasSignedConsent && !hasConsentRefusal" class="clinical-link-button" type="button" @click="reviewConsent">Revisar consentimiento</button>
         </div>
         <div class="button-row dialog-actions">
           <button class="clinical-button secondary" type="button" @click="showFinalizeDialog = false">Cancelar</button>
-          <button class="clinical-button success" type="button" :disabled="isBusy || Boolean(finalizeBlockReason)" @click="finalizeHistory">
+          <button class="clinical-button success" type="button" :disabled="isBusy || consentChecking || Boolean(finalizeBlockReason)" @click="finalizeHistory">
             {{ hasConsentRefusal ? 'Marcar incompleta' : 'Finalizar historia clínica' }}
           </button>
         </div>
@@ -1064,6 +1069,11 @@ export default {
       clinicalHistoryVersions: [],
       form: emptySnapshot(),
       documents: [],
+      // STG-C05-1: the consent the server will apply on close (consent_status / consent_document_id).
+      effectiveConsent: { loaded: false, status: '', documentId: null },
+      consentRefreshError: '',
+      consentChecking: false,
+      reviewedConsentKey: '',
       templates: [],
       doctors: [],
       doctorResponsibleUserId: null,
@@ -1376,30 +1386,38 @@ export default {
         updatedBy: this.clinicalHistory && (this.clinicalHistory.updated_by_name || this.clinicalHistory.created_by_name) || 'No registrado'
       };
     },
+    // STG-C05-1: the effective consent comes from the server, never from the first document in a (paged) list.
+    consentVerified() {
+      return this.effectiveConsent.loaded && !this.consentRefreshError;
+    },
+    effectiveConsentKey() {
+      return this.consentVerified ? `${this.effectiveConsent.status}|${this.effectiveConsent.documentId || ''}` : '';
+    },
     sensitiveConsent() {
-      return this.documents.find((item) => item.document_type === 'SENSITIVE_DATA_CONSENT' && item.status !== 'CANCELADO') || null;
+      if(!this.consentVerified || !this.effectiveConsent.documentId) return null;
+      const id = this.effectiveConsent.documentId;
+      const listed = this.documents.find((item) => item.id_patient_document === id);
+      return { ...(listed || { id_patient_document: id, document_type: 'SENSITIVE_DATA_CONSENT' }), status: this.effectiveConsent.status };
     },
     sensitiveConsentTemplate() {
       return this.templates.find((item) => item.template_type === 'SENSITIVE_DATA_CONSENT') || null;
     },
     hasSignedConsent() {
-      return Boolean(this.sensitiveConsent && this.sensitiveConsent.status === 'FIRMADO');
+      return Boolean(this.canViewConsent && this.sensitiveConsent && this.sensitiveConsent.status === 'FIRMADO');
     },
     hasConsentRefusal() {
-      return Boolean(this.sensitiveConsent && this.sensitiveConsent.status === 'NO_FIRMADO_POR_NEGATIVA');
+      return Boolean(this.canViewConsent && this.sensitiveConsent && this.sensitiveConsent.status === 'NO_FIRMADO_POR_NEGATIVA');
+    },
+    // Another signed consent is listed while the refusal stays effective. No claim about which came first.
+    otherSignedConsentListed() {
+      if(!this.hasConsentRefusal) return false;
+      return this.documents.some((item) => item.document_type === 'SENSITIVE_DATA_CONSENT' && item.status === 'FIRMADO' && item.id_patient_document !== this.effectiveConsent.documentId);
     },
     sensitiveConsentTitle() {
       if(!this.canViewConsent) return 'Sin acceso';
-      if(this.hasSignedConsent) {
-        return 'Firmado';
-      }
-      if(this.hasConsentRefusal) {
-        return 'Negativa registrada';
-      }
-      if(this.sensitiveConsent) {
-        return 'Pendiente';
-      }
-      return 'Pendiente';
+      if(!this.consentVerified) return 'Sin verificar';
+      const label = this.hasSignedConsent ? 'Firmado' : (this.hasConsentRefusal ? 'Negativa vigente' : 'Pendiente');
+      return this.clinicalHistory && !this.isDraft ? `Vigente hoy: ${label}` : label;
     },
     consentStatusTone() {
       if(this.hasSignedConsent) {
@@ -1412,12 +1430,16 @@ export default {
     },
     sensitiveConsentHelpText() {
       if(!this.canViewConsent) return 'Tu acceso no permite consultar este consentimiento. Solicita apoyo a una persona con permiso de documentos para verificarlo.';
-      if(this.clinicalHistory && !this.isDraft) return 'Esta historia está cerrada y es de consulta. El estado del consentimiento utilizado al cerrarla está registrado en el historial de versiones.';
+      if(!this.consentVerified) return this.consentRefreshError || 'Verificando el consentimiento vigente.';
+      if(this.clinicalHistory && !this.isDraft) return 'Esta historia está cerrada y es de consulta. El estado mostrado es el consentimiento vigente hoy; el utilizado al cerrarla está registrado en el historial de versiones.';
       if(this.hasSignedConsent) {
         return 'Ya se cuenta con consentimiento firmado. La historia puede finalizarse cuando esté completa.';
       }
+      if(this.otherSignedConsentListed) {
+        return 'La negativa sigue vigente aunque en Documentos y firmas hay otro consentimiento firmado. La historia se guardará como incompleta, no como finalizada. Revisa los documentos.';
+      }
       if(this.hasConsentRefusal) {
-        return 'Hay una negativa registrada. La historia podrá guardarse como incompleta, no como finalizada.';
+        return 'Hay una negativa vigente. La historia podrá guardarse como incompleta, no como finalizada.';
       }
       if(this.sensitiveConsent) {
         return 'Puedes guardar el borrador. Para finalizar, falta capturar la firma o registrar una negativa.';
@@ -1552,7 +1574,7 @@ export default {
         {
           label: 'Consentimiento de datos personales sensibles',
           ok: consentOk,
-          status: this.hasSignedConsent ? 'Firmado' : (this.hasConsentRefusal ? 'Negativa' : 'Pendiente')
+          status: !this.consentVerified ? 'Sin verificar' : (this.hasSignedConsent ? 'Firmado' : (this.hasConsentRefusal ? 'Negativa vigente: se guardará como incompleta' : 'Pendiente'))
         },
         {
           label: 'Doctor responsable',
@@ -1579,6 +1601,9 @@ export default {
       }
       if(this.doctorResponsibleWarning) {
         return this.doctorResponsibleWarning;
+      }
+      if(!this.consentVerified) {
+        return 'No se pudo verificar el consentimiento vigente. Reintenta; tu captura se conserva.';
       }
       if(!this.hasSignedConsent && !this.hasConsentRefusal) {
         return 'Para finalizar, primero registra el consentimiento firmado o una negativa.';
@@ -1614,6 +1639,7 @@ export default {
     this.$emit('register-navigation-guard', this.confirmLeave);
     this.loadInitialData();
     window.addEventListener('beforeunload', this.beforeUnload);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.removeNavigationGuard = this.$router.beforeEach((to, from, next) => {
       this.confirmLeave().then(allowed => next(allowed)).catch(() => next(false));
     });
@@ -1622,6 +1648,7 @@ export default {
     this.$emit('register-navigation-guard', null);
     this.loadRequest++;
     window.removeEventListener('beforeunload', this.beforeUnload);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
     if(this.removeNavigationGuard) this.removeNavigationGuard();
     clearTimeout(this.fieldFocusTimer);
     if(this.leaveResolver) this.leaveResolver(false);
@@ -1723,6 +1750,7 @@ export default {
         if(response && response.status === 403) { this.denyHistoryAccess(); return; }
         if(!response || !response.success || !response.data) throw new Error('History load failed');
         this.historyLoaded = true;
+        this.applyEffectiveConsent(response.data);
         if(!preserveDraft) {
           this.clinicalHistory = response.data.history || null;
           if(this.clinicalHistory) this.applyHistoryToForm(this.clinicalHistory);
@@ -2035,9 +2063,46 @@ export default {
       finally { this.isBusy = false; }
       return false;
     },
-    openFinalizeDialog() {
-      if(this.isBusy || !this.contextReady) return;
+    // Only consent metadata is taken from the response: the draft, sections and reviews on screen are kept.
+    applyEffectiveConsent(data) {
+      if(!data || typeof data.consent_status !== 'string') {
+        this.consentRefreshError = 'No se pudo verificar el consentimiento vigente. Tu captura se conserva; reintenta antes de finalizar.';
+        return false;
+      }
+      this.effectiveConsent = { loaded: true, status: data.consent_status, documentId: data.consent_document_id || null };
+      this.consentRefreshError = '';
+      return true;
+    },
+    // Re-reading narrows, but does not remove, the window for a consent change before the close request.
+    async refreshEffectiveConsent() {
+      const request = this.loadRequest;
+      const patientId = this.patientId;
+      if(!patientId || !this.canReadHistory) return false;
+      try {
+        const response = await DAClinicalHistoryService.getByPatient(patientId);
+        if(request !== this.loadRequest || patientId !== this.patientId) return false;
+        if(!response || !response.success) throw new Error('Consent refresh failed');
+        return this.applyEffectiveConsent(response.data);
+      } catch (error) {
+        if(request === this.loadRequest) this.consentRefreshError = 'No se pudo verificar el consentimiento vigente. Tu captura se conserva; reintenta antes de finalizar.';
+        return false;
+      }
+    },
+    onVisibilityChange() {
+      if(document.visibilityState === 'visible' && this.isDraft && !this.isBusy && !this.consentChecking) this.refreshEffectiveConsent();
+    },
+    async retryConsentVerification() {
+      if(this.consentChecking) return;
+      this.consentChecking = true;
+      try { await this.refreshEffectiveConsent(); } finally { this.consentChecking = false; }
+      if(this.showFinalizeDialog) this.reviewedConsentKey = this.effectiveConsentKey;
+    },
+    async openFinalizeDialog() {
+      if(this.isBusy || this.consentChecking || !this.contextReady) return;
       this.saveError = '';
+      this.consentChecking = true;
+      try { await this.refreshEffectiveConsent(); } finally { this.consentChecking = false; }
+      this.reviewedConsentKey = this.effectiveConsentKey;
       this.showFinalizeDialog = true;
     },
     reviewConsent() {
@@ -2051,9 +2116,27 @@ export default {
       });
     },
     async finalizeHistory() {
-      if(this.isBusy || this.revisionConflict) return;
+      if(this.isBusy || this.consentChecking || this.revisionConflict) return;
       if(this.criticalFieldsStatus.length) {
         this.scrollToFirstMissingRequired();
+      }
+      if(this.finalizeBlockReason) {
+        this.notify('warning', this.finalizeBlockReason);
+        return;
+      }
+      // The action shown must match the consent the server applies; a change requires reviewing it again.
+      const reviewedConsent = this.reviewedConsentKey;
+      this.consentChecking = true;
+      let verified = false;
+      try { verified = await this.refreshEffectiveConsent(); } finally { this.consentChecking = false; }
+      if(!verified) {
+        this.saveError = this.consentRefreshError;
+        return;
+      }
+      if(!reviewedConsent || this.effectiveConsentKey !== reviewedConsent) {
+        this.reviewedConsentKey = this.effectiveConsentKey;
+        this.saveError = 'El consentimiento vigente cambió. Revisa la confirmación antes de continuar.';
+        return;
       }
       if(this.finalizeBlockReason) {
         this.notify('warning', this.finalizeBlockReason);
@@ -2634,6 +2717,7 @@ export default {
       });
       if(response && response.success) {
         this.documents = response.data || [];
+        await this.refreshEffectiveConsent();
         this.notify('success', 'Consentimiento creado correctamente.');
         const createdConsent = this.documents.find((item) => item.document_type === 'SENSITIVE_DATA_CONSENT' && item.status !== 'CANCELADO') || null;
         if(createdConsent) {
@@ -2650,7 +2734,7 @@ export default {
     async refreshPreparation() {
       if(this.isBusy) return;
       this.contextError = '';
-      await this.loadConsentStatus();
+      await Promise.all([this.loadConsentStatus(), this.refreshEffectiveConsent()]);
     },
     async registerSensitiveRefusal() {
       if(!this.canViewConsent || !this.hasPermission('documents.refusal')) return;
@@ -2677,6 +2761,7 @@ export default {
       });
       if(response && response.success) {
         this.documents = response.data || [];
+        await this.refreshEffectiveConsent();
         this.notify('success', 'Negativa registrada.');
       } else {
         this.notify('error', response && response.message ? response.message : 'No se pudo registrar negativa.');
