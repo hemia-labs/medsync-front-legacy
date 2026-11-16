@@ -200,7 +200,7 @@ const vm = require('node:vm');
     assert.equal(state.form.vital_signs.height_unit, 'cm');
     assert.equal(state.getDynamicFieldValue({ key: 'vital_signs' }, { key: 'height' }), '0.5', 'Explicit new cm captures bypass the legacy metre heuristic');
     state.authUser = { id_login: 'qa-doctor' }; state.authRole = 'doctor'; state.doctors = [];
-    assert.match(state.profilePreparationMessage, /Mi perfil profesional/);
+    assert.match(state.profilePreparationMessage, /perfil profesional activo con nombre y cédula/);
     assert.equal(state.canPrepareOwnProfile, true);
     state.hasPermission = permission => permission !== 'documents.config';
     assert.equal(state.canPrepareDocuments, false, 'Document setup action respects the real settings section permission');

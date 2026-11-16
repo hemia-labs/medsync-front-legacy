@@ -184,12 +184,14 @@
       </div>
     </section>
 
-    <section v-if="!isLoading && contextReady && (!clinicalHistory || isDraft) && profilePreparationMessage" class="clinical-panel warning-panel" role="status">
+    <section v-if="!isLoading && contextReady && (!clinicalHistory || isDraft) && profilePreparationMessage" class="clinical-panel warning-panel profile-preparation" role="status">
       <strong>Antes de finalizar la historia</strong>
       <span>{{ profilePreparationMessage }}</span>
-      <a v-if="canPrepareOwnProfile && !currentDoctorProfile" class="clinical-button secondary" href="/admin?section=doctor-identity" target="_blank" rel="noopener">Completar mi perfil profesional</a>
-      <small v-if="canPrepareOwnProfile && !currentDoctorProfile">Se abre en otra pestaña para conservar esta captura. Al volver, actualiza los requisitos.</small>
-      <button class="clinical-link-button" type="button" :disabled="isBusy" @click="refreshPreparation">Actualizar requisitos</button>
+      <div class="profile-preparation-actions">
+        <a v-if="canPrepareOwnProfile && !currentDoctorProfile" class="clinical-button secondary profile-preparation-link" href="/admin?section=doctor-identity" target="_blank" rel="noopener">Completar mi perfil profesional</a>
+        <button class="clinical-link-button" type="button" :disabled="isBusy" @click="refreshPreparation">Actualizar requisitos</button>
+      </div>
+      <small v-if="canPrepareOwnProfile && !currentDoctorProfile">Abre otra pestaña. Al volver, actualiza los requisitos.</small>
     </section>
 
     <section v-if="contextError || (templateLoadError && !historyTemplateSchema) || (loadError && clinicalHistory)" class="clinical-panel warning-panel" role="alert">
@@ -220,9 +222,6 @@
         <h3>{{ formModeTitle }}</h3>
         <p>{{ formModeHelp }}</p>
         <p v-if="isDraft" class="save-state" role="status">{{ isBusy ? 'Procesando…' : (dirty ? 'Cambios sin guardar' : 'Todos los cambios guardados') }}</p>
-        <p v-if="isDraft && !canCurrentUserFinalize" class="permission-note">
-          {{ profilePreparationMessage || 'La finalización requiere un doctor o administrador autorizado con perfil profesional activo.' }}
-        </p>
         <div v-if="useDynamicSchema" class="capture-template-inline">
           <span>Formato</span>
           <strong>{{ activeTemplateLabel }}</strong>
@@ -245,7 +244,7 @@
         </div>
       </div>
       <div class="button-row capture-action-row">
-        <button v-if="isDraft && canEditDraftPermission" class="clinical-button primary" type="button" :disabled="isBusy || !contextReady" @click="saveDraft()">
+        <button v-if="isDraft && canEditDraftPermission" class="clinical-button primary draft-save" type="button" :disabled="isBusy || !contextReady" @click="saveDraft()">
           Guardar borrador
         </button>
         <button
@@ -568,7 +567,7 @@
             <button class="clinical-button secondary" type="button" :disabled="!previousDynamicSection" @click="goToPreviousSection">
               Anterior
             </button>
-            <button class="clinical-button primary" type="button" :disabled="isBusy || !contextReady || !canEditDraftPermission" @click="saveDraft()">
+            <button class="clinical-button primary draft-save" type="button" :disabled="isBusy || !contextReady || !canEditDraftPermission" @click="saveDraft()">
               Guardar borrador
             </button>
             <button class="clinical-button secondary" type="button" :disabled="!nextDynamicSection" @click="goToNextSection">
@@ -1137,7 +1136,7 @@ export default {
     canPrepareDocuments() { return this.allowedPreparationSections.includes('documents'); },
     profilePreparationMessage() {
       if(!this.hasPermission('clinical_history.finalize')) return 'Puedes guardar un borrador. Pide a un doctor o administrador con permiso de finalización que lo revise y cierre.';
-      if(!this.currentDoctorProfile) return 'Puedes iniciar y guardar un borrador. Para finalizar, tu perfil profesional debe estar activo y tener nombre profesional y cédula. Completa Mi perfil profesional; si tu perfil está inactivo o necesitas permisos, solicita ayuda al administrador.';
+      if(!this.currentDoctorProfile) return 'Para finalizar necesitas un perfil profesional activo con nombre y cédula. Si no puedes editarlo, pide ayuda al administrador.';
       if(this.selectedDoctor && !this.selectedDoctorProfileReady) return 'El doctor responsable seleccionado aún no tiene un perfil activo con nombre profesional y cédula. Pídele que complete Mi perfil profesional o selecciona otro responsable preparado. Puedes guardar el borrador.';
       return '';
     },
@@ -3763,6 +3762,35 @@ h3 {
   background: var(--color-primary-900) !important;
   border-color: var(--color-primary-900) !important;
   box-shadow: 0 12px 24px rgba(23, 167, 201, .24);
+}
+
+.clinical-button.primary.draft-save {
+  background: var(--color-primary-500) !important;
+  border-color: var(--color-primary-500) !important;
+}
+
+.warning-panel.profile-preparation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: .5rem;
+}
+
+.profile-preparation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem 1rem;
+  max-width: 100%;
+}
+
+.clinical-button.profile-preparation-link {
+  flex: 0 0 auto;
+  border-radius: 8px;
+  min-height: 44px;
+  padding: .55rem .75rem;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .clinical-button.success {
