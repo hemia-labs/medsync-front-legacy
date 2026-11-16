@@ -11,8 +11,12 @@ const {patientAge}=helperContext.module.exports;
 const authContext={module:{exports:{}}};
 vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../../../src/security/authorizationContext.js'),'utf8').replace(/export function /g,'function ')+'\nmodule.exports={authorizationContext,isCurrentAuthorization};',authContext);
 const store={state:{CORE:{AUTH:{authenticated:true,user:{id_login:'qa'},permissions:['px.new'],accessRevision:1}}}};
-let readFailure=false,reads=0;
-const serviceContext={DAC_PX_BY_ID:'api/px/get/',module:{exports:{}},DACore:{async put(url,payload){assert.equal(url,'api/px/administrative');return fixtureTransport.put(payload);},async get(url){assert.equal(url,'api/px/get/nc1-local-only');reads++;if(readFailure)return {success:false,status:503};const patient=await fixtureTransport.get();patient.person.birthday=patient.person.birthday.split('-').reverse().join('-');return {success:true,data:patient};}}};
+let readFailure=false,reads=0,lastApiPatient=null;
+// Exercise the demo's actual adapter too, so its GET shape cannot drift from this regression.
+const demoContext={DACore:{},fixtureTransport};
+const demoSource=fs.readFileSync(path.join(__dirname,'main.js'),'utf8');
+vm.runInNewContext(demoSource.slice(demoSource.indexOf('DACore.get='),demoSource.indexOf('Vue.use(')),demoContext);
+const serviceContext={DAC_PX_BY_ID:'api/px/get/',module:{exports:{}},DACore:{async put(url,payload){assert.equal(url,'api/px/administrative');return fixtureTransport.put(payload);},async get(url){assert.equal(url,'api/px/get/nc1-local-only');reads++;if(readFailure)return {success:false,status:503};const response=await demoContext.DACore.get(url);lastApiPatient=response.data;return response;}}};
 vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../../../src/services/core/px/DAPxService.js'),'utf8').replace(/^import.*$/gm,'').replace('export default','module.exports ='),serviceContext);
 const sfc=compiler.parseComponent(fs.readFileSync(path.join(__dirname,'../../../src/views/Patient/components/PatientAdministrativeForm.vue'),'utf8'));
 assert.deepEqual(compiler.compile(sfc.template.content).errors,[]);
@@ -24,8 +28,17 @@ function fresh(){const component=new Vue({...ctx.module.exports,propsData:{patie
 const results=[];
 (async()=>{
   let form=fresh();form.person.telephone='5500000025';
+  const emitted=[];
+  for(const event of ['refreshed','saved'])form.$on(event,patient=>emitted.push({event,patient}));
   let payload=form.buildPayload();assert.equal(payload.identity,undefined);assert.equal(payload.expectedRevision,undefined);assert.equal(payload.person.surname,original.person.surname);
   await form.save();assert.equal(fixture.requests.length,1);assert.equal(events.length,1);assert.equal(fixture.patient.identity.revision,0);assert.equal(fixture.patient.identity.biologicalSex,null);assert.equal(fresh().person.telephone,'5500000025');
+  assert.deepEqual(emitted.map(item=>item.event),['refreshed','saved']);
+  for(const {patient} of emitted){assert.equal(patient,lastApiPatient);assert.equal(patient.person.birthday,'18-06-1992');}
+  assert.equal(form.person.birthday,'1992-06-18');assert.notEqual(form.person,lastApiPatient.person);
+  // The demo store can already hold an API-formatted DTO: a second GET must not reverse it.
+  const apiDateFixture=clone(fixture.patient);fixture.patient=clone(lastApiPatient);
+  assert.equal((await demoContext.DACore.get('api/px/get/nc1-local-only')).data.person.birthday,'18-06-1992');fixture.patient=apiDateFixture;
+  results.push('UX1I-1: refreshed/saved emit original API DTO with DD-MM-YYYY; form alone uses ISO; demo GET preserves API format on repeated reads');
   results.push('single simulated PUT for contact only; no identity/revision; legacy surname and missing sex preserved; reopen matches');
   for(const outcome of ['400','401','network']){
     form=fresh();form.identity.givenNames='Nombre pendiente';form.person.telephone='5500000026';form.address.direction='Domicilio pendiente';const capture=JSON.stringify(form.buildPayload()),saved=JSON.stringify(fixture.patient),count=fixture.requests.length,eventCount=events.length;
@@ -79,6 +92,12 @@ const results=[];
   form=fresh();form.person.telephone='5500000044';readFailure=true;count=fixture.requests.length;eventCount=events.length;await form.save();assert.equal(fixture.requests.length,count+1);assert.equal(form.awaitingReload,true);assert.equal(events.length,eventCount);await form.save();assert.equal(fixture.requests.length,count+1);readFailure=false;await form.reloadSaved();assert.equal(form.awaitingReload,false);assert.equal(fixture.requests.length,count+1);assert.equal(events.length,eventCount+1);
   form=fresh();form.address.cp='54321';fixture.outcome='409';readFailure=true;await form.save();assert.equal(form.conflict,true);assert.equal(form.currentIdentity,null);form.reconcile(true);assert.equal(form.conflict,true);readFailure=false;await form.loadConflict();form.reconcile(false);assert.equal(form.address.cp,'54321');fixture.outcome='success';await form.save();assert.equal(fixture.patient.identity.residence.postalCode.code,'54321');
   results.push('Actual API shape: 409 has no current DTO; fresh GET required. Failed GET after successful PUT locks writes and retries only read; pending capture retained');
+  fixture.patient=clone(original);delete fixture.patient.identity;form=fresh();form.person.telephone='5500000044';
+  const legacyEvents=[];for(const event of ['refreshed','saved'])form.$on(event,patient=>legacyEvents.push(patient));
+  await form.save();assert.equal(legacyEvents.length,2);
+  for(const patient of legacyEvents){assert.equal(patient,lastApiPatient);assert.equal(patient.person.birthday,'18-06-1992');assert.equal('identity' in patient,false);}
+  assert.equal(form.identity.firstSurnameStatus,'unknown');assert.equal(form.person.birthday,'1992-06-18');
+  results.push('UX1I-1 legacy: missing identity remains absent in both emitted DTOs; defaults exist only inside the form');
   const savedGet=serviceContext.DACore.get;form=fresh();form.person.telephone='5500000045';eventCount=events.length;serviceContext.DACore.get=async url=>{const result=await savedGet(url);store.state.CORE.AUTH.accessRevision++;return result;};await form.save();assert.equal(events.length,eventCount);assert.equal(form.awaitingReload,true);serviceContext.DACore.get=savedGet;
   results.push('Authorization generation change during read suppresses saved/refreshed publication');
   const report={scope:'Real Vue 2 administrative component + real DAPxService with synthetic DACore; no HTTP/DB/staging acceptance',results,reads,requests:clone(fixture.requests)};

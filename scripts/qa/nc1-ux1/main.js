@@ -11,7 +11,13 @@ import HistoryService from '../../../src/services/core/clinicalHistory/DAClinica
 import { fixture,clone,fixtureTransport } from './fixture';
 import '../../../src/assets/tailwind.css';
 import '@mdi/font/css/materialdesignicons.css';
-DACore.get=async url=>url==='api/px/get/nc1-local-only'?{success:true,data:await fixtureTransport.get()}:{success:false,status:404,message:'QA local: ruta no simulada'};
+DACore.get=async url=>{
+  if(url!=='api/px/get/nc1-local-only')return {success:false,status:404,message:'QA local: ruta no simulada'};
+  const patient=await fixtureTransport.get();
+  // Match px.dao.js: birthday is DD-MM-YYYY on reads, ISO on administrative writes.
+  patient.person.birthday=patient.person.birthday.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3-$2-$1');
+  return {success:true,data:patient};
+};
 DACore.put=async(url,payload)=>url==='api/px/administrative'?fixtureTransport.put(payload):{success:false,status:404};
 Vue.use(Vuex);Vue.use(Router);Vue.component('medsync-brand',MedSyncBrand);Vue.directive('viewer',{});
 const Empty={render:h=>h('span')};Vue.component('da-dialog',Empty);
