@@ -65,39 +65,43 @@
         </div>
         <p class="status-copy">{{ clinicalHistoryHelpText }}</p>
       </div>
-      <div class="status-grid">
-        <div class="status-item">
-          <span>Versión</span>
-          <strong>{{ metadata.version }}</strong>
-        </div>
-        <div class="status-item">
-          <span>Creación</span>
-          <strong>{{ metadata.createdAt }}</strong>
-        </div>
-        <div class="status-item">
-          <span>Última actualización</span>
-          <strong>{{ metadata.updatedAt }}</strong>
-        </div>
-        <div v-if="!isDraft || metadata.finalizedAt !== 'No registrado'" class="status-item">
-          <span>Finalización</span>
-          <strong>{{ metadata.finalizedAt }}</strong>
-        </div>
-        <div class="status-item wide">
-          <span>Doctor responsable</span>
-          <strong>{{ selectedDoctorLabel }}</strong>
-        </div>
-        <div v-if="!isDraft && clinicalHistory.finalizer_snapshot_json" class="status-item wide">
-          <span>Profesional que cerró esta versión</span>
-          <strong>{{ doctorLabel(clinicalHistory.finalizer_snapshot_json) }}</strong>
-        </div>
-        <div class="status-item wide">
-          <span>Capturado por</span>
-          <strong>{{ metadata.createdBy }}</strong>
-        </div>
-        <div class="status-item wide">
-          <span>Última edición por</span>
-          <strong>{{ metadata.updatedBy }}</strong>
-        </div>
+      <div class="status-details">
+        <dl class="status-list" aria-label="Fechas de la historia clínica">
+          <div class="status-row">
+            <dt>Versión</dt>
+            <dd>{{ metadata.version }}</dd>
+          </div>
+          <div class="status-row">
+            <dt>Creación</dt>
+            <dd>{{ metadata.createdAt }}</dd>
+          </div>
+          <div class="status-row">
+            <dt>Última actualización</dt>
+            <dd>{{ metadata.updatedAt }}</dd>
+          </div>
+          <div v-if="!isDraft || metadata.finalizedAt !== 'No registrado'" class="status-row">
+            <dt>Finalización</dt>
+            <dd>{{ metadata.finalizedAt }}</dd>
+          </div>
+        </dl>
+        <dl class="status-list" aria-label="Personas de la historia clínica">
+          <div class="status-row">
+            <dt>Doctor responsable</dt>
+            <dd>{{ selectedDoctorLabel }}</dd>
+          </div>
+          <div v-if="!isDraft && clinicalHistory.finalizer_snapshot_json" class="status-row">
+            <dt>Profesional que cerró esta versión</dt>
+            <dd>{{ doctorLabel(clinicalHistory.finalizer_snapshot_json) }}</dd>
+          </div>
+          <div class="status-row">
+            <dt>Capturado por</dt>
+            <dd>{{ metadata.createdBy }}</dd>
+          </div>
+          <div class="status-row">
+            <dt>Última edición por</dt>
+            <dd>{{ metadata.updatedBy }}</dd>
+          </div>
+        </dl>
       </div>
     </section>
 
@@ -3457,6 +3461,57 @@ h3 {
   grid-column: span 2;
 }
 
+.status-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  align-self: start;
+  border: 1px solid #d7e8f1;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .86);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .035);
+  overflow: hidden;
+}
+
+.status-list {
+  margin: 0;
+  padding: .35rem 1.1rem;
+  min-width: 0;
+}
+
+.status-list + .status-list {
+  border-top: 1px solid #e3eef4;
+}
+
+.status-row {
+  display: grid;
+  grid-template-columns: minmax(8.5rem, 12rem) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 1rem;
+  padding: .7rem 0;
+  border-bottom: 1px solid #edf3f7;
+}
+
+.status-row:last-child {
+  border-bottom: 0;
+}
+
+.status-row dt {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: .78rem;
+  font-weight: 600;
+}
+
+.status-row dd {
+  margin: 0;
+  min-width: 0;
+  color: #0f172a;
+  font-size: .9rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .status-panel .clinical-button {
   align-self: end;
   min-height: 2.4rem;
@@ -4460,6 +4515,11 @@ h3 {
 
   .status-panel .status-item.wide {
     grid-column: 1 / -1;
+  }
+
+  .status-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .15rem;
   }
 
   .form-grid.two,

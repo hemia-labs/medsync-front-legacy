@@ -19,9 +19,7 @@ async function main(){
   await page.getByLabel('Celular *',{exact:true}).fill('5598765432');
   await page.getByLabel('Calle, número y colonia',{exact:true}).fill('Calle sintetica '+width);
   for(const label of ['Primer apellido','Segundo apellido']){
-   await page.getByLabel(label+': situación',{exact:true}).click();
-   await page.getByRole('option',{name:'Apellido registrado',exact:true}).click();
-   await page.getByLabel(label+' *',{exact:true}).fill(label==='Primer apellido'?'De la Prueba':'Ensayo');
+   await page.getByLabel(label,{exact:true}).fill(label==='Primer apellido'?'De la Prueba':'Ensayo');
   }
   await page.getByLabel('Fecha de nacimiento *',{exact:true}).fill('2000-01-31');
   await page.screenshot({path:path.join(output,'admin-'+width+'.png'),fullPage:true});
