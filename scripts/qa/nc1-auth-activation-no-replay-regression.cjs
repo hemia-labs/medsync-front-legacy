@@ -368,5 +368,109 @@ const kept = () => { assert.equal(state.authenticated, true, 'session kept'); as
     assert.equal(sends.length, 2); assert.equal(sessionCalls, 0);
   });
 
+  // 7. ACT-R1/R2 (Codex review of af407e47): recovery from a store that is still anonymous right after signup.
+  // The server may hold a session Vuex has not hydrated yet; the classification comes from what the shared check
+  // did (applied / ended / discarded), never from the store being anonymous.
+  const anonymous = () => { realStore.commit(modules.AUTH + '/' + types.SET_AUTH_ACCESS_SESSION, null); sessionCalls = 0; redirects = 0; };
+  const OTHER = { user: { id_login: 'qa-other', id_session: 'qa-other-session', id_business: 'qa-other-business', rol: 'admin', email: 'otra@example.invalid' }, business: { id_business: 'qa-other-business' } };
+  await test('7a anonymous owner, session valid: legitimate hydration -> recovered, one send', async () => {
+    anonymous(); answer = () => r401();
+    const error = await failureOf(() => Registration.sendCode());
+    assert.equal(error.code, 'AUTH_SESSION_RECOVERED'); assert.equal(error.sessionRecovery, 'valid');
+    kept(); assert.equal(state.user.id_login, 'qa-owner', 'hydrated with the signup session'); assert.equal(sends.length, 1);
+  });
+  await test('7b anonymous owner, expired access renewed (real renewal) -> recovered, no resend', async () => {
+    anonymous(); answer = () => r401('AUTH_ACCESS_EXPIRED'); sessionReplies = [sessionFailure(401, 'AUTH_ACCESS_EXPIRED')];
+    renewalAnswer = { status: 200, data: { status: 200, data: {}, message: 'ok' } };
+    const error = await failureOf(() => Registration.sendCode());
+    assert.equal(error.sessionRecovery, 'valid'); kept(); assert.equal(sends.length, 1);
+    assert.equal(coreSent.filter(r => r.url.includes('refreshToken')).length, 1);
+  });
+  await test('7c anonymous owner, network or 503 during the check -> uncertain, never "session ended"', async () => {
+    for (const failure of [sessionFailure(0), sessionFailure(503)]) {
+      signIn(); anonymous(); answer = () => r401(); sessionReplies = [failure];
+      const error = await failureOf(() => Registration.sendCode());
+      assert.equal(error.code, 'AUTH_SESSION_UNCONFIRMED', 'status ' + failure.status); assert.equal(error.sessionRecovery, 'uncertain');
+      assert.equal(redirects, 0); assert.equal(sends.length, 1); assert.equal(state.authenticated, false, 'nothing hydrated, nothing revoked');
+    }
+  });
+  await test('7d anonymous owner, invalidity confirmed by auth/session -> session ended', async () => {
+    anonymous(); answer = () => r401(); sessionReplies = [sessionFailure(401, 'AUTH_SESSION_INVALID')];
+    const error = await failureOf(() => Registration.sendCode());
+    assert.equal(error.code, 'AUTH_REQUIRED'); assert.equal(error.sessionRecovery, 'invalid'); assert.equal(sends.length, 1);
+  });
+  await test('7e anonymous owner: late positive/negative answers after a foreign login, logout or revision change are not recoveries', async () => {
+    const changes = [
+      ['foreign login', () => realStore.commit(modules.AUTH + '/' + types.SET_D2_AUTH_SESSION, sessionData(OTHER)), 'qa-other'],
+      ['foreign revision (logout of the anonymous context)', () => realStore.commit(modules.AUTH + '/' + types.SET_AUTH_ACCESS_SESSION, null), null]
+    ];
+    for (const [label, change, expectedUser] of changes) {
+      for (const late of [valid(), sessionFailure(401, 'AUTH_SESSION_INVALID')]) {
+        signIn(); anonymous();
+        const pending = deferred(); sessionReplies = [pending]; answer = () => r401();
+        const call = failureOf(() => Registration.sendCode());
+        await waitFor(() => sessionCalls === 1, 'hydration started');
+        change();
+        pending.resolve(late);
+        const error = await call;
+        assert.equal(error.code, 'AUTH_CONTEXT_CHANGED', label); assert.equal(error.sessionRecovery, 'changed', label);
+        assert.equal(redirects, 0, label + ': nothing cleared');
+        assert.equal(state.user ? state.user.id_login : null, expectedUser, label + ': the late answer neither hydrates nor clears');
+        assert.equal(sends.length, 1, label);
+      }
+    }
+  });
+  await test('7f 401 with a server delay keeps Retry-After (body or header)', async () => {
+    answer = () => ({ status: 401, data: { code: 'AUTH_REQUIRED' }, headers: { 'retry-after': '30' } });
+    const error = await failureOf(() => Registration.sendCode());
+    assert.equal(error.retryAfterSeconds, 30); assert.equal(error.sessionRecovery, 'valid');
+    const view = instantiate(Activation, { activation: activationStatus().data, loading: false });
+    signIn(); answer = () => ({ status: 401, data: { code: 'AUTH_REQUIRED', retryAfterSeconds: 25 } });
+    await view.sendCode();
+    assert.equal(view.remaining, 25, 'the announced delay is honoured'); assert.equal(count('POST api/account/contact-verifications'), 1);
+  });
+
+  const signupView = () => instantiate(RegisterView, { form: { email: 'qa.owner@example.invalid' }, created: true, sessionEstablished: true,
+    registrationActivation: { accountId: 'qa-owner', contact: { emailVerified: false } } });
+  await test('8a Register from an anonymous store: valid recovery keeps the created account, no resend; explicit retry continues', async () => {
+    anonymous(); answer = () => r401();
+    const view = signupView();
+    await view.resumeSession();
+    assert.equal(count('POST api/account/contact-verifications'), 1); assert.equal(navigations.length, 0);
+    assert.match(view.error, /Actualizamos tu sesión/); assert.equal(view.created, true); assert.equal(view.busy, false);
+    // A remount/navigation into AccountActivation does not send automatically (resend time saved before sending).
+    answer = url => (url.endsWith('account/activation') ? activationStatus() : challengeOk);
+    const activation = instantiate(Activation);
+    await activation.initialize();
+    assert.equal(count('POST api/account/contact-verifications'), 1, 'no send from remount/initialize/load');
+    answer = () => challengeOk;
+    await view.resumeSession();
+    assert.equal(count('POST api/account/contact-verifications'), 2, 'second send only by the explicit retry'); assert.equal(navigations.length, 1);
+  });
+  await test('8b Register from an anonymous store: 503 -> uncertainty, account created and screen kept', async () => {
+    anonymous(); answer = () => r401(); sessionReplies = [sessionFailure(503)];
+    const view = signupView();
+    await view.resumeSession();
+    assert.match(view.error, /No pudimos confirmar tu sesión/); assert.equal(view.created, true); assert.equal(view.sessionEstablished, true);
+    assert.equal(count('POST api/account/contact-verifications'), 1); assert.equal(navigations.length, 0); assert.equal(redirects, 0);
+  });
+  await test('8c Register from an anonymous store: confirmed invalid -> "session ended", nothing resent', async () => {
+    anonymous(); answer = () => r401(); sessionReplies = [sessionFailure(401, 'AUTH_SESSION_INVALID')];
+    const view = signupView();
+    await view.resumeSession();
+    assert.match(view.error, /Tu sesión terminó/); assert.equal(count('POST api/account/contact-verifications'), 1); assert.equal(navigations.length, 0);
+  });
+  await test('8d Register from an anonymous store: another account signs in during recovery -> no action on it', async () => {
+    anonymous(); const pending = deferred(); sessionReplies = [pending]; answer = () => r401();
+    const view = signupView();
+    const resuming = view.resumeSession();
+    await waitFor(() => sessionCalls === 1, 'hydration started');
+    realStore.commit(modules.AUTH + '/' + types.SET_D2_AUTH_SESSION, sessionData(OTHER));
+    pending.resolve(valid());
+    await resuming;
+    assert.match(view.error, /La sesión cambió/); assert.equal(navigations.length, 0, 'no navigation into the other account');
+    assert.equal(state.user.id_login, 'qa-other', 'the other session is untouched'); assert.equal(count('POST api/account/contact-verifications'), 1);
+  });
+
   console.log(failures.length ? `FAIL: ${failures.length} of ${failures.length + results.length} NC1-AUTH-ACTIVATION-NO-REPLAY groups.` : `PASS: ${results.length} NC1-AUTH-ACTIVATION-NO-REPLAY groups. Synthetic data; no network, account or email.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });
