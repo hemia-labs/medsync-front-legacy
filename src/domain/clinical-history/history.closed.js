@@ -3,9 +3,18 @@ const sectionLabels = { identification:'Identificación al cierre', consultation
 const fieldLabels = { full_name:'Nombre completo', age:'Edad', birth_date:'Fecha de nacimiento', sex:'Sexo', phone:'Teléfono', email:'Correo', address:'Dirección', emergency_contact:'Contacto de emergencia', reason:'Motivo de consulta', current_condition:'Padecimiento actual', blood_pressure:'Presión arterial', heart_rate:'Frecuencia cardiaca', respiratory_rate:'Frecuencia respiratoria', temperature:'Temperatura', oxygen_saturation:'Saturación de oxígeno', weight:'Peso', height:'Talla', height_unit:'Unidad de talla', bmi:'IMC', current_or_previous_diseases:'Enfermedades actuales o previas', current_medications:'Medicamentos actuales', known_adverse_reactions:'Reacciones adversas conocidas', initial_diagnosis:'Diagnóstico inicial', clinical_problems:'Problemas clínicos', diagnostic_code:'Código diagnóstico', initial_indications:'Indicaciones iniciales', initial_plan:'Plan inicial', general_recommendations:'Recomendaciones generales', allergy_status:'Estado de alergias' };
 const sourceKeys = { full_name:'full_name', age:'age', birth_date:'birth_date', sex:'sex', gender:'sex', phone:'phone', email:'email', address:'address', emergency_contact:'emergency_contact' };
 const allergyLabels = { UNREVIEWED:'Alergias sin revisar', HAS_ALLERGIES:'Con alergias registradas', NONE_KNOWN:'Sin alergias conocidas', UNKNOWN:'No se pudo confirmar' };
+const legacyLabels = {
+  evolution_time:'Tiempo de evolución',main_symptoms:'Síntomas principales',relevant:'Antecedentes relevantes',family_diseases:'Enfermedades familiares',
+  surgeries:'Cirugías',hospitalizations:'Hospitalizaciones',trauma:'Traumatismos',transfusions:'Transfusiones',other:'Otros antecedentes',
+  smoking:'Tabaquismo',alcohol:'Consumo de alcohol',physical_activity:'Actividad física',diet:'Alimentación',housing_environment:'Vivienda y entorno',
+  hygiene_general_habits:'Higiene y hábitos generales',other_habits:'Otros hábitos',allergies:'Alergias',allergy_revision:'Revisión de alergias',
+  allergy_reviewed_at:'Fecha de revisión de alergias',allergy_reviewed_by:'Responsable de revisión de alergias',review:'Interrogatorio',
+  general:'Información general',relevant_findings:'Hallazgos relevantes',previous_studies:'Estudios previos',current_results:'Resultados actuales',
+  lab_imaging_observations:'Observaciones de laboratorio e imagen',prognosis:'Pronóstico',followup:'Seguimiento',note:'Nota'
+};
 const owns = (object,key) => Object.prototype.hasOwnProperty.call(object || {},key);
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
-const humanize = key => fieldLabels[key] || String(key).replace(/[_-]+/g,' ').replace(/^./,letter=>letter.toUpperCase());
+const humanize = key => fieldLabels[key] || legacyLabels[key] || String(key).replace(/[_-]+/g,' ').replace(/^./,letter=>letter.toUpperCase());
 export function closedConsent(history) {
   if(!history || !history.consent_document_id) return {label:'Documento del cierre no registrado en esta versión',documentId:null};
   const labels = { FINALIZED:'Consentimiento firmado', INCOMPLETE:'Negativa registrada · por eso esta versión quedó incompleta' };
