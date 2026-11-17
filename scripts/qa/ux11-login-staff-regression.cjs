@@ -46,11 +46,20 @@ for (const file of ['src/views/Auth/Login.vue', 'src/views/Auth/ReLogin.vue']) {
 }
 console.log('PASS login and re-login: accept email and phone, reject invalid identifiers.');
 
-const staffValidation = value(pick(staffComponent,'validations').value, {...validators,...moduleObject.exports});
+// NC1 identidad simple: Primer y Segundo apellido; the rule lives in src/domain/user/userSurnames.js.
+const surnamesCode = babel.transformSync(fs.readFileSync(path.join(repo,'src/domain/user/userSurnames.js'),'utf8'),{babelrc:false,configFile:false,plugins:[require.resolve('@babel/plugin-transform-modules-commonjs')]}).code;
+const surnamesModule = {exports:{}};
+new Function('require','module','exports',surnamesCode)(() => ({}),surnamesModule,surnamesModule.exports);
+const staffValidation = value(pick(staffComponent,'validations').value, {...validators,...moduleObject.exports,...surnamesModule.exports});
 assert.equal(staffValidation.user.first_name.required(''),false);
-assert.equal(staffValidation.user.last_name.required(''),false);
-assert.equal(staffValidation.user.last_name.namesLength.call({user:{first_name:'a'.repeat(100),last_name:'b'.repeat(100)}}),false);
-assert.equal(staffValidation.user.last_name.namesLength.call({user:{first_name:'María del Carmen',last_name:'De la Cruz López'}}),true);
+assert.equal(staffValidation.user.last_name,undefined,'«Apellidos» is no longer one captured field');
+assert.equal(staffValidation.user.first_surname.surnames.call({user:{first_name:'Ana',first_surname:'',second_surname:''}}),false,'first surname required for a new user');
+assert.equal(staffValidation.user.first_surname.surnames.call({user:{first_name:'Ana',first_surname:'',second_surname:'López'}}),false);
+assert.equal(staffValidation.user.first_surname.surnames.call({user:{first_name:'a'.repeat(100),first_surname:'b'.repeat(60),second_surname:'c'.repeat(40)}}),false,'200 characters in total');
+assert.equal(staffValidation.user.first_surname.surnames.call({user:{first_name:'María del Carmen',first_surname:'De la Cruz',second_surname:'López'}}),true);
+assert.equal(staffValidation.user.first_surname.surnames.call({user:{first_name:'Ana',first_surname:'Pérez',second_surname:''}}),true,'second surname optional');
+assert.deepEqual(surnamesModule.exports.userNamesPayload({first_name:' Ana ',first_surname:' De la Cruz ',second_surname:' ',last_name:'viejo'},{storedStructured:true}),{first_name:'Ana',first_surname:'De la Cruz',second_surname:null,last_name:'De la Cruz'});
+assert.deepEqual(surnamesModule.exports.userNamesPayload({first_name:'Ana',first_surname:'',second_surname:'',last_name:'Pérez López'}),{first_name:'Ana',last_name:'Pérez López'},'untouched historical surnames are sent as stored');
 assert.equal(staffValidation.user.phone.required(''),false);
 assert.equal(staffValidation.user.phone.phonePattern('123'),false);
 assert.equal(staffValidation.user.phone.phonePattern('12345678901'),false);

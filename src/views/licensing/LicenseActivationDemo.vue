@@ -161,7 +161,7 @@ export default {
 .license-demo { min-height:100vh; background:#f3f7f8; color:#18333b; padding:28px 24px 48px; font-family:inherit; }
 .license-shell { max-width:1060px; margin:0 auto; }
 .license-header { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:24px; }
-.license-brand { font-size:25px; font-weight:800; letter-spacing:-.7px; color:#0d5258; }
+.license-brand { font-size:25px; font-weight:600; letter-spacing:-.7px; color:#0d5258; }
 .license-brand span { display:block; font-size:12px; font-weight:500; letter-spacing:0; margin-top:2px; color:#52656c; }
 .license-link { color:#155e65; font-size:14px; text-decoration:underline; }
 .demo-notice { display:flex; align-items:baseline; gap:14px; padding:14px 18px; background:#fff6db; border:1px solid #e8d399; border-radius:12px; color:#66501c; font-size:14px; }
@@ -169,18 +169,18 @@ export default {
 .license-steps { display:flex; gap:24px; list-style:none; padding:0; margin:28px 0; color:#54696e; font-size:13px; }
 .license-steps li { display:flex; align-items:center; gap:9px; }
 .license-steps li > span { display:grid; place-items:center; width:28px; height:28px; flex-shrink:0; border-radius:50%; border:1px solid #9bafb4; }
-.license-steps .current { font-weight:700; color:#0c5d60; }
+.license-steps .current { font-weight:600; color:#0c5d60; }
 .license-steps .current > span,.license-steps .done > span { background:#0c6265; border-color:#0c6265; color:white; }
 .license-grid { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(0,1fr); gap:28px; align-items:start; }
 .license-content { background:white; padding:32px; border:1px solid #d9e4e7; border-radius:20px; box-shadow:0 8px 28px #18333b07; min-width:0; }
-.license-eyebrow { display:block; margin:0 0 9px; color:#397076; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; }
+.license-eyebrow { display:block; margin:0 0 9px; color:#397076; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1.4px; }
 .license-content h1 { font-size:30px; line-height:1.2; letter-spacing:-.8px; margin:0 0 14px; color:#173840; }
 .license-lead { font-size:15px; line-height:1.65; color:#51676e; margin:0 0 24px; }
 .professional-card { padding:25px; border:2px solid #388a88; border-radius:15px; background:linear-gradient(135deg,#f2fbf8,white 65%); }
-.plan-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:#226b69; }
+.plan-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.7px; color:#226b69; }
 .professional-card h2 { font-size:28px; margin:9px 0; }
 .professional-card p { color:#52686f; font-size:14px; line-height:1.6; }
-.plan-price { font-size:22px; font-weight:700; margin:24px 0; }
+.plan-price { font-size:22px; font-weight:600; margin:24px 0; }
 .plan-price span { display:block; font-size:12px; font-weight:400; line-height:1.5; color:#52686f; margin-top:5px; }
 .plan-benefits { margin:0 0 24px; padding-left:20px; font-size:14px; line-height:1.7; }
 .plan-benefits li { margin-bottom:7px; }
@@ -195,7 +195,7 @@ export default {
 .license-next p,.license-next li span { font-size:14px; color:#52686f; line-height:1.65; }
 .license-next ol { list-style:none; margin:28px 0 0; padding:0; counter-reset:next; }
 .license-next li { position:relative; padding-left:36px; margin-bottom:24px; counter-increment:next; }
-.license-next li::before { content:counter(next); position:absolute; left:0; color:#307b79; font-size:14px; font-weight:700; }
+.license-next li::before { content:counter(next); position:absolute; left:0; color:#307b79; font-size:14px; font-weight:600; }
 .license-next li strong,.license-next li span { display:block; }
 .license-next li strong { font-size:14px; margin-bottom:5px; }
 .license-review { margin:24px 0; }

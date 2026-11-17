@@ -22,7 +22,7 @@
                 :error-messages="diagnosisInvalid ? ['Escribe el diagnóstico de esta región dental.'] : []"
                 rows="6"
                 :disabled="saving"
-                color="var(--color-primary-700, #1b6b6f)"
+                color="var(--color-primary-700)"
                 maxlength="1000"
                 counter="1000"
                 outlined
@@ -36,7 +36,7 @@
             <span v-if="saving" role="status" class="editor-saving">Guardando diagnóstico…</span>
             <v-spacer></v-spacer>
             <v-btn outlined :disabled="saving" class="editor-cancel" @click="onClose">Cancelar</v-btn>
-            <v-btn depressed :disabled="saving" :loading="saving" color="var(--color-primary-900, #086783)" class="editor-submit" @click="onSave">Guardar diagnóstico</v-btn>
+            <v-btn depressed :disabled="saving" :loading="saving" color="var(--color-primary-900)" class="editor-submit" @click="onSave">Guardar diagnóstico</v-btn>
         </v-card-actions>
     </v-card>
 
@@ -127,25 +127,25 @@ export default {
 </script>
 
 <style scoped>
-.odontogram-editor { border: 1px solid var(--color-border, #d8e9ef); border-radius: 12px; overflow: hidden; background: var(--color-surface, #fff); color: var(--color-text, #25364d); }
+.odontogram-editor { border: 1px solid var(--color-border, #d8e9ef); border-radius: 12px; overflow: hidden; background: var(--color-surface); color: var(--color-text, #25364d); }
 .editor-header { display: flex; align-items: flex-start; gap: 16px; padding: 24px; border-bottom: 1px solid var(--color-border, #d8e9ef); background: var(--color-primary-50, #effbfe); }
 .editor-heading { flex: 1; min-width: 0; }
-.editor-eyebrow { margin: 0 0 6px; color: var(--color-text-muted, #64748b); font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
-.editor-heading h2 { margin: 0; color: var(--color-text, #25364d); font-size: 22px; line-height: 1.35; font-weight: 700; overflow-wrap: anywhere; }
-.editor-region { display: inline-flex; margin-top: 12px; padding: 5px 11px; border: 1px solid var(--color-primary-200, #b9e5e8); border-radius: 999px; color: var(--color-primary-900, #086783); background: var(--color-primary-100, #e8f5f2); font-size: 12px; font-weight: 600; }
+.editor-eyebrow { margin: 0 0 6px; color: var(--color-text-muted, #64748b); font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+.editor-heading h2 { margin: 0; color: var(--color-text, #25364d); font-size: 22px; line-height: 1.35; font-weight: 600; overflow-wrap: anywhere; }
+.editor-region { display: inline-flex; margin-top: 12px; padding: 5px 11px; border: 1px solid var(--color-primary-200); border-radius: 999px; color: var(--color-primary-900); background: var(--color-primary-100); font-size: 12px; font-weight: 600; }
 .editor-header .editor-close { flex: 0 0 auto; margin: -6px -6px 0 0; color: var(--color-text-muted, #64748b); }
 .odontogram-editor .editor-body { padding: 22px 24px; background: var(--color-bg, #f8fbfd); }
 .editor-help { margin: 0 0 22px; color: var(--color-text-muted, #64748b); font-size: 14px; line-height: 1.6; }
 .editor-field { margin: 0; }
-.editor-field ::v-deep .v-input__slot { background: var(--color-surface, #fff); border-radius: 8px; }
+.editor-field ::v-deep .v-input__slot { background: var(--color-surface); border-radius: 8px; }
 .editor-field ::v-deep textarea { color: var(--color-text, #25364d); font-size: 14px; line-height: 1.6; }
 .editor-field ::v-deep textarea:focus { outline: none; }
 .editor-field ::v-deep .v-label,
 .editor-field ::v-deep .v-counter { color: var(--color-text-muted, #64748b); }
 .editor-field:not(.error--text) ::v-deep fieldset { border-color: var(--color-border, #d8e9ef); }
-.editor-field.v-input--is-focused:not(.error--text) ::v-deep fieldset { border-color: var(--color-primary-700, #1b6b6f); }
+.editor-field.v-input--is-focused:not(.error--text) ::v-deep fieldset { border-color: var(--color-primary-700); }
 .editor-error { margin: 16px 0 0; font-size: 13px; line-height: 1.5; }
-.odontogram-editor .editor-footer { gap: 10px; padding: 18px 24px; border-top: 1px solid var(--color-border, #d8e9ef); background: var(--color-surface, #fff); flex-wrap: wrap; }
+.odontogram-editor .editor-footer { gap: 10px; padding: 18px 24px; border-top: 1px solid var(--color-border, #d8e9ef); background: var(--color-surface); flex-wrap: wrap; }
 .editor-footer .v-btn { margin: 0; min-height: 40px; padding: 0 18px; border-radius: 8px; font-size: 13px; letter-spacing: 0; text-transform: none; font-weight: 600; }
 .editor-footer .editor-cancel { border-color: var(--color-border, #d8e9ef); color: var(--color-text, #25364d); }
 .editor-footer .editor-submit:not(.v-btn--disabled) { color: #fff; }

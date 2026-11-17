@@ -1,5 +1,49 @@
 // Editorial drafts; question IDs and related guides live in helpIndex.js. «…» marks interface labels.
 export const helpAnswers = {
+  'inicio-alcance': [
+    '«Mi actividad» muestra la agenda y los indicadores que corresponden a tu trabajo. «Todo el consultorio» reúne los de todo el equipo.',
+    'El selector solo aparece cuando tu cuenta puede consultar ambos alcances. Cambiarlo no modifica tus accesos ni los datos guardados.'
+  ],
+  'legal-pendiente': [
+    'Revisa la tarjeta del documento en «Configuración → Cuenta y legal». Si se acepta por el consultorio, debe hacerlo una persona administradora; pídele que lo revise desde su cuenta.',
+    'Si el estado es «Sincronización pendiente», tu confirmación ya está guardada y no necesitas aceptarla otra vez. Si la aceptación es personal, usa «Revisar y confirmar documentos» o abre el documento, marca la casilla de lectura y acéptalo.'
+  ],
+  'legal-nueva-version': [
+    'Sí, cuando la nueva versión requiere revisión. El documento vuelve a aparecer como «Pendiente de aceptación» hasta que se revise y acepte la versión vigente.',
+    'Tus comprobantes anteriores se conservan en «Historial y comprobantes» con el texto exacto que aceptaste en su fecha.'
+  ],
+  'receta-sin-pdf': [
+    'Solo las recetas emitidas pueden imprimirse o descargarse en PDF. Un borrador debe emitirse primero y una receta cancelada ya no ofrece esas acciones.',
+    'Si la receta está emitida y no ves «Imprimir» o «PDF», tu puesto no incluye ese acceso; la administración lo revisa en «Puestos y accesos». Si el navegador bloquea la ventana de impresión, permite las ventanas emergentes y vuelve a intentarlo.'
+  ],
+  'logo-documentos': [
+    'No. El logo de «Configuración → Apariencia» identifica la pantalla de acceso y la cabecera del sistema.',
+    'El logo que aparece en historias clínicas y firmas públicas se configura en «Información del consultorio».'
+  ],
+  'seccion-oculta-datos': [
+    'Ocultar una sección en «Configuración → Secciones clínicas» retira su pestaña del expediente para todo el consultorio. Esa pantalla no ofrece una acción para eliminar registros.',
+    'Antes de ocultar una sección que ya se usa, confirma con la administración si el equipo necesita seguir consultando esa información.'
+  ],
+  'pulso-acceso': [
+    '«Pulso del consultorio» requiere acceso a la información de todo el consultorio. Si tu puesto no lo incluye, la opción no aparece en el menú.',
+    'Pide a la administración que revise tus accesos en «Puestos y accesos». Si ya estabas dentro y aparece el aviso de acceso, usa «Revalidar acceso».'
+  ],
+  'pulso-sigue-pendiente': [
+    'El Pulso muestra la última lectura que consultaste. Después de resolver un registro, selecciona «Actualizar Pulso» o, dentro de una sesión, «Comprobar avances».',
+    'Un pendiente deja de contarse cuando ya no aparece en la lista actual: el seguimiento tiene una cita vinculada, la firma se completó o la cita tiene un resultado registrado. Si sigue apareciendo, abre el registro y comprueba que el cambio se haya guardado.'
+  ],
+  'pulso-racha': [
+    'La racha cuenta los resúmenes diarios seguidos sin pendientes que deban atenderse primero. Los resúmenes toman como referencia las 18:00, hora del consultorio.',
+    'Un día sin resumen o un pendiente prioritario la interrumpen. Al resolver esos pendientes empieza una nueva racha. Es una referencia de tu propio consultorio, no una comparación con otras personas.'
+  ],
+  'analisis-no-disponible': [
+    'Algunos análisis dependen del plan contratado y otros de los accesos de tu puesto. Cuando tu plan no incluye un análisis, la tarjeta lo indica y ofrece «Contactar para cambiar plan».',
+    'Si el plan sí lo incluye y no lo ves, pide a la administración que revise tus accesos en «Puestos y accesos».'
+  ],
+  'analisis-suma': [
+    'Cada indicador cuenta un tipo de registro: pacientes creados, citas registradas, recetas emitidas o historias finalizadas. Una misma atención puede aparecer en varios.',
+    'Por eso la suma de los indicadores no representa consultas distintas. Usa cada cifra por separado y compara periodos equivalentes.'
+  ],
   'preparacion-pendiente': [
     'Terminar de leer la guía no guarda la configuración. La preparación comprueba los datos guardados y los requisitos de cada tarea.',
     'Revisa que hayas guardado los cambios y selecciona «Actualizar preparación». Si sigue pendiente, consulta el requisito indicado; algunos dependen del perfil o de una autorización de la administración.'

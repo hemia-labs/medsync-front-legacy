@@ -12,7 +12,7 @@ export const patientAge = (value, today = new Date()) => {
 export const patientAdministrativeErrors = (form, today = new Date()) => {
   const errors = {};
   if(!String(form.name || '').trim()) errors.name = 'El nombre del paciente es obligatorio.';
-  if(!String(form.firstSurname || '').trim()) errors.firstSurname = 'El apellido paterno es obligatorio.';
+  if(!String(form.firstSurname || '').trim()) errors.firstSurname = 'El primer apellido es obligatorio.';
   if(!form.birthDate) errors.birthDate = 'La fecha de nacimiento es obligatoria.';
   else if(patientAge(form.birthDate, today) === '') errors.birthDate = 'Ingresa una fecha real, anterior o igual a hoy, con una edad de hasta 150 años.';
   if(!/^\d{10}$/.test(normalizePatientPhone(form.mobilePhone))) errors.mobilePhone = 'Ingresa un teléfono de contacto de 10 dígitos.';

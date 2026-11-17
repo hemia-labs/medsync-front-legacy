@@ -9,7 +9,7 @@ assert.equal(context.allergyStatus({ has_allergy: null }), 'UNREVIEWED');
 assert.equal(context.allergyStatus({ review_status: 'UNKNOWN', has_allergy: null }), 'UNKNOWN');
 const existing = { current_medications: 'Texto pendiente', known_adverse_reactions: 'Conservar', legacy_allergies: 'Texto previo' };
 const updated = context.allergySnapshot(existing, { review_status: 'NONE_KNOWN', revision: 2 });
-const historyContext = { component: null, mapGetters: () => ({}), moduleTypes: {}, fnTypes: {}, dialogName: {}, fieldError: {} };
+const historyContext = { component: null, ClosedHistoryReader: {}, mapGetters: () => ({}), moduleTypes: {}, fnTypes: {}, dialogName: {}, fieldError: {} };
 vm.runInNewContext(read('src/views/Patient/Sections/MedicalHistory.vue').split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component ='), historyContext);
 const detailSection = { key: 'allergies_medications', fields: [{ key: 'allergies', required: false }] };
 for (const state of ['HAS_ALLERGIES', 'UNKNOWN', 'NONE_KNOWN', '']) {

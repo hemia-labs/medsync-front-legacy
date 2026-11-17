@@ -60,14 +60,14 @@ export default {
 <style scoped>
 .allergy-editor { display: flex; flex-direction: column; max-height: 85vh; background: #fff; border-radius: 16px; color: #334155; overflow: hidden; }
 header { flex-shrink: 0; padding: 1.3rem 1.5rem; background: var(--color-primary-50, #ecfeff); border-bottom: 1px solid #cbd5e1; }
-h2 { font-size: 1.35rem; font-weight: 700; }
-.eyebrow { color: var(--color-primary-800); text-transform: uppercase; font-size: .75rem; font-weight: 700; letter-spacing: .08em; }
+h2 { font-size: 1.35rem; font-weight: 600; }
+.eyebrow { color: var(--color-primary-800); text-transform: uppercase; font-size: .75rem; font-weight: 600; letter-spacing: .08em; }
 .editor-body { flex: 1; min-height: 0; padding: 1.25rem 1.5rem; max-height: 65vh; overflow-y: auto; }
 .editor-body > p { margin-bottom: 1rem; font-size: .9rem; }
 .legacy-note { border: 1px solid #f59e0b; background: #fffbeb; padding: .7rem; border-radius: 8px; }
 .error { color: #991b1b; margin-top: 1rem; }
 footer { flex-shrink: 0; display: flex; justify-content: flex-end; gap: .7rem; padding: 1rem 1.5rem; border-top: 1px solid #cbd5e1; }
-button { min-height: 44px; padding: .6rem 1rem; border-radius: 999px; font-weight: 700; }
+button { min-height: 44px; padding: .6rem 1rem; border-radius: 999px; font-weight: 600; }
 button.allergy-button--primary { color: #fff; background: var(--color-primary-700); }
 button.allergy-button--secondary { color: var(--color-primary-900); background: #fff; border: 1px solid #94a3b8; }
 button:focus-visible { outline: 3px solid var(--color-primary-700); outline-offset: 3px; }

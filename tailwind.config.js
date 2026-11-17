@@ -147,7 +147,7 @@ module.exports = {
             transform: 'translate3d(2px, 0, 0)'
           },
           '30%, 50%, 70%': {
-            transform: 'translateX(-2px, 0, 0)'
+            transform: 'translate3d(-2px, 0, 0)'
           },
           '40%, 60%': {
             transform: 'translate3d(2px, 0, 0)'
@@ -166,8 +166,8 @@ module.exports = {
         'fade-out-up':      'fade-out-up 0.5s ease-out',
         'fade-in-left':     'fade-in-left 1.5s ease-out',
         'fade-in-right':    'fade-in-right 1.5s ease-out',
-        'fadeInScroll':     'fadeIn 2s ease-in forwards',
-        'shake':            'shake 0.82s cubic-bezier(.36,.07,.19,97) both',
+        'fadeInScroll':     'fadeInScroll 2s ease-in forwards',
+        'shake':            'shake 0.82s cubic-bezier(.36,.07,.19,.97) both',
         'open-menu':        'open-menu 0.5s ease-in-out forwards'
       },
       screens: {

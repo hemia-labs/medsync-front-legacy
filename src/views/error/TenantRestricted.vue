@@ -37,7 +37,7 @@
         </v-btn>
         <v-btn text color="primary" @click="logout">
           <v-icon left small>mdi-logout</v-icon>
-          Cerrar sesion
+          Cerrar sesión
         </v-btn>
       </div>
 
@@ -185,7 +185,7 @@ export default {
   margin: 0 0 6px;
   color: #08799a;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -220,14 +220,14 @@ export default {
 .status-list dt {
   color: #5f7081;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .status-list dd {
   margin: 6px 0 0;
   color: #163047;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 

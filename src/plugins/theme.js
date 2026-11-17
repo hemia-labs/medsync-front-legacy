@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import vuetify from './vuetify';
 
 const DEFAULT_THEME = {
   code: 'medical-blue',
@@ -6,11 +7,11 @@ const DEFAULT_THEME = {
   primary_200: '#A7E0D1',
   primary_300: '#A7E0D1',
   primary_500: '#1C7FA7',
-  primary_700: '#1C7FA7',
+  primary_700: '#186C8E',
   primary_900: '#12294A',
-  primary_1000: '#12294A',
+  primary_1000: '#0D1F37',
   secondary_500: '#D64545',
-  secondary_700: '#D64545',
+  secondary_700: '#B63B3B',
   terciary_500: '#6E7C92',
   forty_500: '#DCE3EC',
   grey: '#4E5B70',
@@ -53,6 +54,23 @@ const hexToRgb = (hex) => {
   };
 };
 
+const vuetifyColorMap = {
+  primary: 'primary_500',
+  error: 'secondary_500',
+  success: 'success',
+  info: 'info'
+};
+
+// Vuetify needs literal hex values (it cannot read CSS variables), so copy them over.
+const syncVuetifyTheme = theme => {
+  const vuetifyTheme = vuetify.framework && vuetify.framework.theme;
+  if(!vuetifyTheme || !vuetifyTheme.themes) return;
+  Object.keys(vuetifyColorMap).forEach((key) => {
+    const value = theme[vuetifyColorMap[key]];
+    if(typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) vuetifyTheme.themes.light[key] = value;
+  });
+};
+
 const toShadow = (hex, alpha) => {
   const rgb = hexToRgb(hex);
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
@@ -83,6 +101,7 @@ const renderTheme = theme => {
     ? { ...DEFAULT_THEME }
     : { ...DEFAULT_THEME, ...theme };
   themeState.currentTheme = resolvedTheme;
+  syncVuetifyTheme(resolvedTheme);
   if(typeof document === 'undefined') return;
   const root = document.documentElement;
 

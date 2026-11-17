@@ -39,7 +39,7 @@ export function preparationDefinition(branch, { stage = '', goal = '', actionLab
   if (!base) return null;
   if (branch === 'identity' && stage !== 'edit') return { ...base, steps:[base.steps[0]] };
   if (branch === 'doctor-identity' && goal === 'agenda') return { ...base, title:'Prepara tu perfil para agendar', steps:[
-    ['identity','Primero, tu nombre profesional','Escribe el nombre con el que atiendes. Con esto identificaremos tu agenda. La cédula y la firma podrás completarlas al preparar recetas o documentos.'],
+    ['identity','Primero, tu nombre','Escribe tu nombre y tus apellidos, cada uno en su campo. Con esto identificaremos tu agenda. La cédula y la firma podrás completarlas al preparar recetas o documentos.'],
     ['save','Guarda tu nombre y continúa','Pulsa Guardar perfil. Cuando confirmemos el perfil activo, podrás continuar con tus horarios.']
   ] };
   if (branch === 'doctor-identity') return { ...base, steps:base.steps.map(step => step[0] === 'signature-capture' && signatureOpen
@@ -85,7 +85,7 @@ export function preparationDefinition(branch, { stage = '', goal = '', actionLab
 export function preparationControlLabel(branch, id, {stage = '', actionLabel = '', signatureOpen = false, signatureCaptureLabel = 'Capturar firma'} = {}) {
   const labels = {
     identity:{identity:stage === 'edit' ? 'Nombre comercial' : 'Editar datos',phone:'Teléfono del consultorio',address:'Domicilio',save:'Guardar cambios'},
-    'doctor-identity':{identity:'Nombre profesional',license:'Cédula profesional','signature-capture':signatureOpen ? 'Recuadro de firma' : signatureCaptureLabel,'signature-apply':signatureOpen ? 'Aplicar' : signatureCaptureLabel,save:actionLabel || 'Guardar perfil'},
+    'doctor-identity':{identity:'Nombre(s)',license:'Cédula profesional','signature-capture':signatureOpen ? 'Recuadro de firma' : signatureCaptureLabel,'signature-apply':signatureOpen ? 'Aplicar' : signatureCaptureLabel,save:actionLabel || 'Guardar perfil'},
     users:{users:stage ? 'Nombre' : 'Buscar usuarios',phone:'Teléfono',email:'Correo',access:'Puesto',password:'Contraseña inicial',issuer:'Autorizado como doctor emisor',signer:'Autorizado como firmante profesional',save:stage === 'create' ? 'Guardar usuario' : 'Guardar cambios'},
     documents:{documents:stage === 'edit' ? 'Nombre del formato' : 'Crear formato',type:'Tipo de documento',content:'Contenido',signatures:'Firmas requeridas',active:'Plantilla activa',save:actionLabel || 'Guardar plantilla'},
     prescriptions:{doctor:'Configuración de recetas del doctor',contact:'Teléfono de contacto',address:'Domicilio completo del consultorio',preview:'Vista previa',save:'Guardar recetas'},

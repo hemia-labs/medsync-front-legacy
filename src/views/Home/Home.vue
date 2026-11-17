@@ -2,7 +2,8 @@
   <section class="home-page">
     <div class="home-container">
       <preparation-checklist />
-      <header class="home-hero">
+      <header class="home-hero" :class="'home-hero--' + dayPeriod">
+        <home-hero-scene :period="dayPeriod" :season="homeSeason" />
         <div class="hero-copy">
           <p class="eyebrow">{{ formattedToday }}</p>
           <h1>{{ greetingTitle }}</h1>
@@ -17,17 +18,6 @@
             v-model="selectedScope" class="continuity-select" aria-label="Alcance de agenda e indicadores de Inicio" @change="changeHomeScope">
             <option value="">Mi actividad</option><option value="tenant">Todo el consultorio</option>
           </select>
-        </div>
-
-        <div class="hero-visual" :class="homeSeason !== 'normal' ? ['hero-visual--seasonal', 'hero-visual--' + homeSeason] : []" aria-hidden="true">
-          <owned-home-lottie
-            :key="heroLottiePath"
-            :path="heroLottiePath"
-            :width="190"
-            :height="190"
-            :speed="1"
-          />
-          <home-seasonal-decoration v-if="homeSeason !== 'normal'" :season="homeSeason" :period="dayPeriod" />
         </div>
       </header>
 
@@ -348,8 +338,7 @@
 
 <script>
 import HomeInsights from './components/HomeInsights.vue';
-import OwnedHomeLottie from './components/OwnedHomeLottie.vue';
-import HomeSeasonalDecoration from './components/HomeSeasonalDecoration.vue';
+import HomeHeroScene from './components/HomeHeroScene.vue';
 import { getHomeSeason } from '../../utils/homeSeason';
 import { mapGetters } from 'vuex';
 import decode from 'jwt-decode';
@@ -380,7 +369,7 @@ const EMPTY_CONTINUITY_SECTION = {
 
 export default {
     name: 'Home',
-    components: { PreparationChecklist, HomeInsights, OwnedHomeLottie, HomeSeasonalDecoration },
+    components: { PreparationChecklist, HomeInsights, HomeHeroScene },
     mixins: [VuexMixin],
     data: function() {
         return {
@@ -513,15 +502,6 @@ export default {
         }
 
         return 'Buenas noches'
-      },
-      heroLottiePath: function() {
-        const paths = {
-          morning: 'lottie/doctor-morning.json',
-          afternoon: 'lottie/doctor-afternoon.json',
-          night: 'lottie/doctor-night.json'
-        }
-
-        return paths[this.dayPeriod] || paths.night
       },
       displayUserName: function() {
         const user = this.sessionUser
@@ -937,27 +917,44 @@ export default {
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
 }
 
+/* The hero is the sky: its background follows the local hour and HomeHeroScene
+   paints the clinic landscape directly on the card. */
 .home-hero {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 1.5rem;
-  min-height: 12.5rem;
+  min-height: 13.5rem;
   padding: clamp(1.4rem, 3vw, 2.15rem);
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 253, 252, 0.98) 58%, rgba(236, 248, 246, 0.94) 100%);
+    linear-gradient(100deg, #ffffff 0%, #fbfeff 36%, #e3f4fb 70%, #c5e6f6 100%);
+}
+
+.home-hero--morning {
+  background:
+    linear-gradient(100deg, #ffffff 0%, #fffdf8 36%, #fff0da 70%, #ffdcbc 100%);
+}
+
+.home-hero--night {
+  border-color: rgba(148, 163, 184, 0.22);
+  background:
+    linear-gradient(100deg, #0e1a31 0%, #12223f 48%, #1b3660 100%);
 }
 
 .hero-copy {
+  position: relative;
+  z-index: 1;
   min-width: 0;
+  max-width: min(42rem, 58%);
 }
 
 .eyebrow {
   margin: 0 0 0.4rem;
   color: #0f766e;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1rem;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -973,7 +970,7 @@ export default {
 .home-hero h1 {
   max-width: 42rem;
   font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.06;
 }
 
@@ -985,26 +982,16 @@ export default {
   line-height: 1.6rem;
 }
 
-.hero-visual {
-  display: grid;
-  place-items: center;
-  width: 12rem;
-  min-height: 9rem;
-  border: 1px solid rgba(15, 118, 110, 0.08);
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.66);
+.home-hero--night h1 {
+  color: #f1f5f9;
 }
 
-.hero-visual--seasonal {
-  position: relative;
+.home-hero--night .eyebrow {
+  color: #5eead4;
 }
 
-.hero-visual--day-of-dead {
-  border-color: rgba(194, 104, 23, 0.24);
-}
-
-.hero-visual--christmas {
-  border-color: rgba(48, 117, 82, 0.3);
+.home-hero--night .hero-description {
+  color: #cbd5e1;
 }
 
 .search-command {
@@ -1028,7 +1015,7 @@ export default {
 
 .section-heading h2 {
   font-size: 1.2rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.55rem;
 }
 
@@ -1054,7 +1041,7 @@ export default {
   gap: 0.45rem;
   min-height: 2.75rem;
   border-radius: 0.85rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0;
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
@@ -1125,7 +1112,7 @@ export default {
 .form-message {
   margin: 0.75rem 0 0;
   font-size: 0.88rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .form-message.is-warning {
@@ -1142,7 +1129,7 @@ export default {
 .empty-state strong {
   display: block;
   color: #12313a;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -1233,7 +1220,7 @@ export default {
   border-radius: 0.85rem;
   background: #0f766e;
   color: #ffffff;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .patient-avatar {
@@ -1258,7 +1245,7 @@ export default {
   gap: 0.25rem;
   color: #0f766e;
   font-size: 0.86rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .empty-state,
@@ -1305,7 +1292,7 @@ export default {
 
 .inline-state a {
   color: #0f766e;
-  font-weight: 900;
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 0.2rem;
 }
@@ -1341,7 +1328,7 @@ export default {
   color: #0f766e;
   background: #e7f6f4;
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .continuity-card {
@@ -1387,7 +1374,7 @@ export default {
   color: #12313a;
   background: #ffffff;
   font-size: 0.88rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .continuity-select:focus {
@@ -1430,7 +1417,7 @@ export default {
   display: block;
   color: #12313a;
   font-size: 0.98rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.25rem;
 }
 
@@ -1459,7 +1446,7 @@ export default {
   display: block;
   color: #12313a;
   font-size: 1.2rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.2rem;
 }
 
@@ -1468,7 +1455,7 @@ export default {
   margin-top: 0.28rem;
   color: #64748b;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 0.95rem;
 }
 
@@ -1549,7 +1536,7 @@ export default {
 .continuity-item strong {
   color: #12313a;
   font-size: 0.85rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .continuity-item small {
@@ -1570,7 +1557,7 @@ export default {
   border-radius: 0.5rem;
   color: #0f766e;
   background: #f0fdfa;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .continuity-action:hover,
@@ -1591,6 +1578,25 @@ html[data-theme="clinical-night"] .continuity-select,
 html[data-theme="clinical-night"] .continuity-arrow {
   border-color: rgba(148, 163, 184, 0.18);
   background: rgba(15, 23, 42, 0.88);
+}
+
+html[data-theme="clinical-night"] .home-hero--morning {
+  background:
+    linear-gradient(100deg, rgba(15, 23, 42, 0.94) 0%, #17223a 46%, #3b2c3c 82%, #5a3a3a 100%);
+}
+
+html[data-theme="clinical-night"] .home-hero--afternoon {
+  background:
+    linear-gradient(100deg, rgba(15, 23, 42, 0.94) 0%, #13263c 46%, #17405a 100%);
+}
+
+html[data-theme="clinical-night"] .home-hero--night {
+  background:
+    linear-gradient(100deg, rgba(15, 23, 42, 0.94) 0%, #111f3a 48%, #1b3660 100%);
+}
+
+html[data-theme="clinical-night"] .home-hero .eyebrow {
+  color: #5eead4;
 }
 
 html[data-theme="clinical-night"] .home-hero h1,
@@ -1635,13 +1641,12 @@ html[data-theme="clinical-night"] .icon-button {
   }
 
   .home-hero {
-    grid-template-columns: 1fr;
     min-height: auto;
-    padding: 1.35rem;
+    padding: 1.35rem 1.35rem 8.75rem;
   }
 
-  .hero-visual {
-    display: none;
+  .hero-copy {
+    max-width: none;
   }
 
   .search-box {

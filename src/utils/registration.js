@@ -1,4 +1,3 @@
-export const LEGAL_KEYS = ['terms_conditions', 'privacy_notice'];
 export function usableRegistrationContext(context) {
   return Boolean(context && context.enabled && typeof context.legalContext === 'string' && context.legalContext
     && Array.isArray(context.legalDocuments) && context.legalDocuments.length > 0 && context.legalDocuments.length <= 10
@@ -24,10 +23,13 @@ export function registrationPasswordError(value) {
 }
 export function registrationErrors(form) {
   const errors = {};
-  for (const field of ['name', 'lastName', 'businessName']) {
-    if (!form[field].trim() || [...form[field].trim()].length > 200) errors[field] = 'Escribe un nombre de hasta 200 caracteres.';
+  // NC1 identidad simple: Nombre(s), Primer apellido (obligatorio) y Segundo apellido (opcional).
+  for (const field of ['name', 'firstSurname', 'businessName']) {
+    if (!form[field].trim() || [...form[field].trim()].length > 200) errors[field] = field === 'firstSurname' ? 'Escribe tu primer apellido, hasta 200 caracteres.' : 'Escribe un nombre de hasta 200 caracteres.';
   }
-  if ([...form.name.trim(), ' ', ...form.lastName.trim()].length > 200) errors.lastName = 'El nombre y los apellidos deben sumar hasta 200 caracteres.';
+  if ([...(form.secondSurname || '').trim()].length > 200) errors.secondSurname = 'Escribe un apellido de hasta 200 caracteres.';
+  const surnames = [form.firstSurname.trim(), (form.secondSurname || '').trim()].filter(Boolean).join(' ');
+  if (!errors.firstSurname && [...form.name.trim(), ' ', ...surnames].length > 200) errors.firstSurname = 'El nombre y los apellidos deben sumar hasta 200 caracteres.';
   if (form.telephone.trim() && !/^[0-9]{10}$/.test(form.telephone.trim())) errors.telephone = 'Escribe los 10 dígitos de tu teléfono, sin +52.';
   if (!validRegistrationEmail(form.email.trim())) errors.email = 'Escribe un correo válido de hasta 254 caracteres.';
   const passwordError = registrationPasswordError(form.password);

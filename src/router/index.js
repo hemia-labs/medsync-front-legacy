@@ -2,13 +2,11 @@ import Vue from 'vue';
 import { canAccessPulse } from '../security/pulseAccess';
 import VueRouter from 'vue-router';
 import dashboard from './routes/dashboard';
-import superAdmin from './routes/super-admin';
 import admin from './routes/admin';
 import auth from './routes/auth';
 import patient from './routes/patient';
 import error from './routes/error';
 import legal from './routes/legal';
-import business from './routes/business';
 import prescription from './routes/prescription';
 import publicSignature from './routes/public-signature';
 import licensingDemo from './routes/licensing-demo';
@@ -53,10 +51,10 @@ function isD2SuperAdminSession() {
 function getDefaultAuthenticatedRoute() {
     if(isPendingAccountSession()) return { name: 'accountActivation' };
     if(isD2AuthMode()) {
-        return isD2SuperAdminSession() ? { name: 'superAdminDashboard' } : { name: 'home' };
+        return isD2SuperAdminSession() ? { name: 'accessUnavailable' } : { name: 'home' };
     }
 
-    return isLegacySuperAdminSession() ? { name: 'superAdminDashboard' } : { name: 'home' };
+    return isLegacySuperAdminSession() ? { name: 'accessUnavailable' } : { name: 'home' };
 }
 
 function getLegacyTenantOperationalState() {
@@ -108,7 +106,6 @@ const routes = [
             redirect: () => getDefaultAuthenticatedRoute(),
         },
         ...auth,
-        ...superAdmin,
         ...dashboard,
         ...admin,
         ...patient,
@@ -117,7 +114,6 @@ const routes = [
         ...publicSignature,
         ...licensingDemo,
         ...help,
-        ...business,
         ...prescription,
         { path: "*", component: () => import('@/views/error/404.vue') }
 
@@ -179,8 +175,8 @@ const router = new VueRouter({
         next(getDefaultAuthenticatedRoute()); return;
     }
 
-    if(['dashboard', 'home'].includes(to.name) && isD2SuperAdminSession()){
-        next({ name: 'superAdminDashboard' })
+    if(isD2SuperAdminSession()){
+        next({ name: 'accessUnavailable' })
         return;
     }
 
@@ -255,8 +251,8 @@ const router = new VueRouter({
         return;
     }
 
-    if(requiredAuth && ['dashboard', 'home'].includes(to.name) && isLegacySuperAdminSession()){
-        next({ name: 'superAdminDashboard' })
+    if(requiredAuth && isLegacySuperAdminSession()){
+        next({ name: 'accessUnavailable' })
         return;
     }
 

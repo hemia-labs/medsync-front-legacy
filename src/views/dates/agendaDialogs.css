@@ -1,12 +1,12 @@
 /* Shared presentation for the agenda's secondary dialogs. */
 .v-card.agenda-modal {
-  --agenda-surface: var(--color-surface, #fff);
+  --agenda-surface: var(--color-surface);
   --agenda-background: var(--color-bg, #f8fafc);
   --agenda-text: var(--color-text, #25364d);
   --agenda-muted: var(--color-text-muted, #526579);
   --agenda-border: var(--color-border, #d8e6ed);
-  --agenda-accent: var(--color-primary-900, #086783);
-  --agenda-tint: var(--color-primary-100, #e6f7fb);
+  --agenda-accent: var(--color-primary-900);
+  --agenda-tint: var(--color-primary-100);
   --agenda-danger: #b42318;
   --agenda-danger-tint: #fff1f2;
   display: flex;
@@ -24,19 +24,19 @@
 .agenda-modal-icon .v-icon { color: inherit; }
 .agenda-modal-icon--danger { color: var(--agenda-danger); background: var(--agenda-danger-tint); }
 .agenda-modal-heading { flex: 1; min-width: 0; }
-.agenda-modal-heading .agenda-modal-eyebrow { margin: 0 0 5px; color: var(--agenda-accent); font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
-.agenda-modal-heading h2 { margin: 0; color: var(--agenda-text); font-size: 20px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.agenda-modal-heading .agenda-modal-eyebrow { margin: 0 0 5px; color: var(--agenda-accent); font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+.agenda-modal-heading h2 { margin: 0; color: var(--agenda-text); font-size: 20px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .v-dialog .v-card.agenda-modal .agenda-modal-body { min-height: 0; padding: 22px 24px; overflow-y: auto; color: var(--agenda-muted); background: var(--agenda-background); font-size: 14px; line-height: 1.65; letter-spacing: normal; }
 .agenda-modal-body > :last-child { margin-bottom: 0; }
 .agenda-modal .agenda-modal-summary { margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--agenda-border); border-radius: 10px; color: var(--agenda-text); background: var(--agenda-surface); overflow-wrap: anywhere; }
 .agenda-modal-summary > span { display: block; margin-bottom: 3px; color: var(--agenda-muted); font-size: 12px; }
-.agenda-modal-summary > strong { font-size: 15px; font-weight: 700; }
+.agenda-modal-summary > strong { font-size: 15px; font-weight: 600; }
 .agenda-modal .agenda-modal-note { margin: 16px 0; padding: 12px 14px; border-left: 3px solid var(--agenda-accent); border-radius: 0 8px 8px 0; background: var(--agenda-tint); color: var(--agenda-accent); }
 .agenda-modal .agenda-modal-error { color: var(--agenda-danger); }
 .v-dialog .v-card.agenda-modal .agenda-modal-footer { display: flex; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 18px 24px; border-top: 1px solid var(--agenda-border); background: var(--agenda-surface); }
 .agenda-modal .v-btn.agenda-modal-button { height: auto; min-height: 44px; min-width: 0; margin: 0; padding: 10px 16px; border: 1px solid var(--agenda-border); border-radius: 10px; background: var(--agenda-surface); color: var(--agenda-text); box-shadow: none; font-size: 13px; font-weight: 600; letter-spacing: normal; text-transform: none; }
 .agenda-modal-button .v-btn__content { white-space: normal; line-height: 1.45; }
-.agenda-modal .v-btn.agenda-modal-button--primary { background: var(--color-primary-900, #086783); border-color: transparent; color: white; box-shadow: 0 3px 8px rgba(8, 103, 131, .16); }
+.agenda-modal .v-btn.agenda-modal-button--primary { background: var(--color-primary-900); border-color: transparent; color: white; box-shadow: 0 3px 8px rgba(8, 103, 131, .16); }
 .agenda-modal .v-btn.agenda-modal-button--danger { background: #b42318; border-color: transparent; color: white; }
 .agenda-modal .v-btn.agenda-modal-button.v-btn--disabled { opacity: .7; color: var(--agenda-muted) !important; background: var(--agenda-border) !important; border-color: transparent; box-shadow: none; }
 .agenda-modal .v-btn:focus-visible { outline: 3px solid var(--agenda-accent); outline-offset: 2px; }

@@ -433,7 +433,7 @@ export default {
   margin: 0 0 0.25rem;
   color: #036b84;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -550,7 +550,7 @@ export default {
   padding: 0.75rem 1rem;
   color: #036b84;
   background: #e8f7fb;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .group-heading { margin: 0; font-size: 1rem; }
