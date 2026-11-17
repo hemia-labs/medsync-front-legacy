@@ -48,7 +48,7 @@ view.form.person.name = 'Captura pendiente';
   context.DAPxService.updateAdministrative = async () => ({ success: true });
   await view.save(); assert.equal(notices[0][0], 'saved'); assert.equal(view.saving, false);
   const header = fs.readFileSync(path.join(root, 'src/views/Patient/components/DAHistoryHeader.vue'), 'utf8');
-  assert.match(header, /v-if="showClinical">Afecciones/);
+  assert.match(header, /Afecciones: /); assert.doesNotMatch(header, /v-if="showClinical">Afecciones/, "UX4: conditions appear once, in the clinical badge");
   assert.match(header, /v-if="showClinical" class="patient-badge"/);
   const show = fs.readFileSync(path.join(root, 'src/views/Patient/PatientShow.vue'), 'utf8');
   assert.match(show, /Archivar paciente/); assert.doesNotMatch(show, /Eliminar Paciente/);

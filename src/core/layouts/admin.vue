@@ -8,7 +8,7 @@
             ref="mobileMenuButton"
             icon
             color="primary"
-            aria-label="Abrir navegacion principal"
+            aria-label="Abrir navegación principal"
             :aria-expanded="String(isMobileNavigationOpen)"
             aria-controls="tenant-mobile-navigation"
             @click="isMobileNavigationOpen = true"

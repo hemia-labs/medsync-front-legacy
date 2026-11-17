@@ -24,7 +24,7 @@
             :placeholder="field.placeholder" :prepend-inner-icon="field.icon"
             :autocomplete="field.autocomplete" :inputmode="field.key === 'telephone' ? 'numeric' : undefined"
             :autocapitalize="['email', 'password', 'confirmPassword'].includes(field.key) ? 'none' : undefined"
-            :spellcheck="false" :disabled="busy" :required="field.key !== 'telephone'" outlined dense color="var(--auth-focus)"
+            :spellcheck="false" :disabled="busy" :required="!['telephone', 'secondSurname'].includes(field.key)" outlined dense color="var(--auth-focus)"
             :error-messages="errors[field.key] || []" hide-details="auto"
             :aria-invalid="errors[field.key] ? 'true' : 'false'"
             :aria-describedby="field.key === 'password' ? 'register-password-strength' : undefined"
@@ -64,14 +64,16 @@
           <button class="flow-secondary" type="button" :disabled="busy" @click="loadContext">Volver a consultar</button>
         </div>
       </div>
-      <v-btn class="auth-submit registration-submit" type="submit" block depressed :loading="busy" :disabled="busy || loading || !available || remaining > 0">
+      <v-btn class="auth-submit registration-submit" type="submit" block depressed :loading="busy" :disabled="busy || loading || !available || remaining > 0 || sessionExpired || alreadyAuthenticated">
         {{ remaining > 0 ? 'Reintentar en ' + remaining + ' s' : 'Crear cuenta' }}
         <v-icon right aria-hidden="true">mdi-arrow-right</v-icon>
       </v-btn>
     </form>
     <div v-if="error" ref="alert" class="flow-alert" role="alert" tabindex="-1">{{ error }}
       <button v-if="alreadyAuthenticated" class="flow-link" :disabled="busy" @click="resumeSession">Continuar con la sesión abierta</button>
+      <button v-if="sessionExpired" class="flow-link" :disabled="busy || loading || remaining > 0" @click="recoverRegistrationSession">Continuar con el registro</button>
     </div>
+    <p v-if="recoveryNotice" class="flow-copy" role="status">{{ recoveryNotice }}</p>
     <div class="login-register">
       <p>¿Ya tienes cuenta?</p>
       <v-btn text :to="{ name: 'login' }" :disabled="busy" color="var(--auth-link)" class="login-register-button">Iniciar sesión</v-btn>
@@ -106,11 +108,12 @@ import { usableRegistrationContext, registrationAttemptId, registrationErrors, r
 export default {
   components: { AccountFlowShell, PasswordStrength },
   data: () => ({
-    form: { email: '', telephone: '', name: '', lastName: '', businessName: '', password: '', confirmPassword: '' },
+    form: { email: '', telephone: '', name: '', firstSurname: '', secondSurname: '', businessName: '', password: '', confirmPassword: '' },
     fields: [
       { key: 'email', placeholder: 'tu@correo.com', icon: 'mdi-email-outline', label: 'Correo electrónico', type: 'email', autocomplete: 'email' },
-      { key: 'name', placeholder: 'Nombre', icon: 'mdi-account-outline', label: 'Nombre', type: 'text', autocomplete: 'given-name' },
-      { key: 'lastName', placeholder: 'Apellidos', icon: 'mdi-account-outline', label: 'Apellidos', type: 'text', autocomplete: 'family-name' },
+      { key: 'name', placeholder: 'Nombre(s)', icon: 'mdi-account-outline', label: 'Nombre(s)', type: 'text', autocomplete: 'given-name' },
+      { key: 'firstSurname', placeholder: 'Primer apellido', icon: 'mdi-account-outline', label: 'Primer apellido', type: 'text', autocomplete: 'family-name' },
+      { key: 'secondSurname', placeholder: 'Opcional', icon: 'mdi-account-outline', label: 'Segundo apellido, opcional', type: 'text', autocomplete: 'off' },
       { key: 'businessName', placeholder: 'Nombre del consultorio', icon: 'mdi-hospital-building', label: 'Consultorio', type: 'text', autocomplete: 'organization' },
       { key: 'password', placeholder: 'Mínimo 8 caracteres', icon: 'mdi-lock-outline', label: 'Contraseña', autocomplete: 'new-password' },
       { key: 'confirmPassword', placeholder: 'Repite tu contraseña', icon: 'mdi-lock-outline', label: 'Repetir contraseña', autocomplete: 'new-password' }
@@ -119,7 +122,7 @@ export default {
     accepted: {}, visible: { password: false, confirmPassword: false },
     legalOpen: false, selectedDocument: null, attemptId: null, created: false,
     sessionEstablished: false, registrationActivation: null, initialVerification: null, sendingCode: false,
-    alreadyAuthenticated: false, remaining: 0, timer: null
+    alreadyAuthenticated: false, sessionExpired: false, recoveryNotice: '', remaining: 0, timer: null
   }),
   computed: {
     available() { return usableRegistrationContext(this.context); },
@@ -157,6 +160,11 @@ export default {
         }
         if (previous && previous.legalSnapshotToken !== next.legalSnapshotToken) { this.legalOpen = false; this.selectedDocument = null; }
         this.context = next;
+        this.alreadyAuthenticated = next.sessionState === 'active';
+        this.sessionExpired = next.sessionState === 'expired';
+        if (this.alreadyAuthenticated || this.sessionExpired) {
+          this.error = registrationErrorMessage({ code: this.alreadyAuthenticated ? 'ACCOUNT_ALREADY_AUTHENTICATED' : 'REGISTRATION_SESSION_EXPIRED' });
+        }
       } catch (error) {
         this.context = null;
         this.contextError = ['LEGAL_UNAVAILABLE', 'NETWORK_ERROR'].includes(error.code)
@@ -173,7 +181,7 @@ export default {
     clearLegalError() { if (this.documents.every(doc => this.accepted[doc.documentKey])) this.legalError = ''; },
     onFieldInput(key) {
       if (this.errors[key]) this.validateField(key);
-      if (key === 'name' && this.errors.lastName) this.validateField('lastName');
+      if (['name', 'secondSurname'].includes(key) && this.errors.firstSurname) this.validateField('firstSurname');
       if (key === 'password' && this.form.confirmPassword) this.validateField('confirmPassword');
     },
     validateField(key) { this.$set(this.errors, key, registrationErrors(this.form)[key] || ''); },
@@ -189,8 +197,8 @@ export default {
       await this.$nextTick(); if (this.$refs.alert) this.$refs.alert.focus();
     },
     async submit() {
-      if (this.busy || this.loading || this.remaining || !this.available || this.created) return;
-      this.errors = registrationErrors(this.form); this.error = '';
+      if (this.busy || this.loading || this.remaining || !this.available || this.created || this.sessionExpired || this.alreadyAuthenticated) return;
+      this.errors = registrationErrors(this.form); this.error = ''; this.recoveryNotice = '';
       this.legalError = this.documents.every(doc => this.accepted[doc.documentKey]) ? '' : 'Confirma todos los documentos para crear tu cuenta.';
       if (Object.keys(this.errors).length || this.legalError) {
         await this.$nextTick(); const invalid = this.$el.querySelector('input[aria-invalid=true]'); if (invalid) invalid.focus(); return;
@@ -199,7 +207,7 @@ export default {
       try {
         if (!this.attemptId) this.attemptId = registrationAttemptId();
         const result = await Registration.register({
-          account: { first_name: this.form.name.trim(), last_name: this.form.lastName.trim(), telephone: this.form.telephone.trim(), email: this.form.email.trim(), password: this.form.password },
+          account: { first_name: this.form.name.trim(), first_surname: this.form.firstSurname.trim(), second_surname: this.form.secondSurname.trim(), last_name: [this.form.firstSurname.trim(), this.form.secondSurname.trim()].filter(Boolean).join(' '), telephone: this.form.telephone.trim(), email: this.form.email.trim(), password: this.form.password },
           business: { name: this.form.businessName.trim() },
           legalContext: this.context.legalContext,
           legalAcceptances: this.documents.map(doc => ({ documentKey: doc.documentKey, versionId: doc.versionId, acknowledged: this.accepted[doc.documentKey] }))
@@ -213,6 +221,24 @@ export default {
         if (this._isDestroyed) return;
         if (error.code === 'LEGAL_VERSION_CHANGED') await this.loadContext();
         this.alreadyAuthenticated = error.code === 'ACCOUNT_ALREADY_AUTHENTICATED';
+        this.sessionExpired = error.code === 'REGISTRATION_SESSION_EXPIRED';
+        await this.showError(error);
+      } finally { this.busy = false; }
+    },
+    async recoverRegistrationSession() {
+      if (this.busy || this.loading || this.remaining || !this.sessionExpired || this.created) return;
+      this.busy = true; this.recoveryNotice = '';
+      try {
+        await Registration.recoverSession();
+        if (this._isDestroyed) return;
+        await this.loadContext();
+        if (this._isDestroyed) return;
+        if (this.available && !this.sessionExpired && !this.alreadyAuthenticated) {
+          this.recoveryNotice = 'Ya puedes continuar. Tus datos se conservaron. Revisa las confirmaciones de los documentos y pulsa Crear cuenta cuando estés listo.';
+        }
+      } catch (error) {
+        if (this._isDestroyed) return;
+        if (error.code === 'ACCOUNT_ALREADY_AUTHENTICATED') { this.alreadyAuthenticated = true; this.sessionExpired = false; }
         await this.showError(error);
       } finally { this.busy = false; }
     },
@@ -305,7 +331,7 @@ export default {
 .registration-loading .v-progress-circular { flex-shrink:0; }
 .registration-document.v-card { border-radius:14px; max-height:min(44rem, 86vh); max-height:min(44rem, 86dvh); padding:0; background:var(--color-surface); }
 .registration-document-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:20px 24px 16px; border-bottom:1px solid var(--auth-border); }
-.registration-document-header h2 { margin:0; font-size:clamp(1.15rem, 3vw, 1.4rem); font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
+.registration-document-header h2 { margin:0; font-size:clamp(1.15rem, 3vw, 1.4rem); font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
 .registration-document-header .flow-hint { margin:4px 0 0; }
 .registration-document-close.v-btn { flex-shrink:0; width:44px; height:44px; border:1px solid var(--auth-border); color:var(--color-primary-900); }
 .registration-document .flow-legal__body { min-height:0; max-height:none; margin:0; padding:20px 24px 24px; border:0; color:var(--color-primary-900); font-size:.95rem; line-height:1.65; overscroll-behavior:contain; }

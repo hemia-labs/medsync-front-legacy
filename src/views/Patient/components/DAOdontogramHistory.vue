@@ -12,7 +12,7 @@
 
         <v-card-text class="history-body">
             <section v-if="loading" class="history-state" role="status" aria-live="polite">
-                <v-progress-circular indeterminate size="26" width="3" color="var(--color-primary-700, #1b6b6f)"></v-progress-circular>
+                <v-progress-circular indeterminate size="26" width="3" color="var(--color-primary-700)"></v-progress-circular>
                 <h3>Cargando historial…</h3>
                 <p>Estamos consultando los odontogramas del paciente.</p>
             </section>
@@ -278,7 +278,7 @@ export default {
 .odontogram-history {
     overflow: hidden;
     border-radius: 12px;
-    background: var(--color-surface, #fff);
+    background: var(--color-surface);
     color: var(--color-text, #25364d);
 }
 .history-header {
@@ -296,19 +296,19 @@ export default {
     width: 44px;
     height: 44px;
     border-radius: 12px;
-    background: var(--color-primary-100, #e3f2ef);
+    background: var(--color-primary-100);
 }
-.history-icon .v-icon { color: var(--color-primary-700, #1b6b6f); }
+.history-icon .v-icon { color: var(--color-primary-700); }
 .history-heading { flex: 1; min-width: 0; }
 .history-heading .history-kicker {
     margin: 0 0 5px;
     font-size: .67rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: .08em;
     text-transform: uppercase;
-    color: var(--color-primary-700, #1b6b6f);
+    color: var(--color-primary-700);
 }
-.history-heading h2 { margin: 0; font-size: 1.2rem; font-weight: 700; line-height: 1.4; color: var(--color-text, #25364d); }
+.history-heading h2 { margin: 0; font-size: 1.2rem; font-weight: 600; line-height: 1.4; color: var(--color-text, #25364d); }
 .history-heading p { margin: 7px 0 0; font-size: .82rem; line-height: 1.6; color: var(--color-text-muted, #64748b); }
 .history-header > .v-btn { margin-top: -4px; margin-right: -8px; color: var(--color-text-muted, #64748b); }
 .odontogram-history .history-body { padding: 24px; background: var(--color-bg, #f8fbfd); color: var(--color-text, #25364d); }
@@ -318,7 +318,7 @@ export default {
 .history-count span { font-size: .76rem; line-height: 1.5; color: var(--color-text-muted, #64748b); }
 .history-search { flex: 0 1 290px; min-width: 230px; }
 .history-search ::v-deep input:focus { outline: none; }
-.history-search ::v-deep .v-input__slot { background: var(--color-surface, #fff); border-radius: 8px; }
+.history-search ::v-deep .v-input__slot { background: var(--color-surface); border-radius: 8px; }
 .history-search ::v-deep .v-label, .history-search ::v-deep .v-icon { color: var(--color-text-muted, #64748b); }
 .history-search ::v-deep input { color: var(--color-text, #25364d); }
 html[data-theme="clinical-night"] .history-search ::v-deep input { background-color: transparent !important; }
@@ -331,10 +331,10 @@ html[data-theme="clinical-night"] .history-search ::v-deep input { background-co
     padding: 36px 20px;
     border: 1px solid var(--color-border, #d8e9ef);
     border-radius: 12px;
-    background: var(--color-surface, #fff);
+    background: var(--color-surface);
     text-align: center;
 }
-.history-state > .v-icon { color: var(--color-primary-700, #1b6b6f); }
+.history-state > .v-icon { color: var(--color-primary-700); }
 .history-state h3 { margin: 0; font-size: .95rem; line-height: 1.5; color: var(--color-text, #25364d); font-weight: 600; }
 .history-state p { margin: 0; max-width: 420px; font-size: .82rem; line-height: 1.65; color: var(--color-text-muted, #64748b); }
 .history-state-error > .v-icon { color: #b45309; }
@@ -347,22 +347,22 @@ html[data-theme="clinical-night"] .history-search ::v-deep input { background-co
     border: 1px solid var(--color-border, #d8e9ef);
     border-radius: 12px;
     padding: 20px;
-    background: var(--color-surface, #fff);
+    background: var(--color-surface);
 }
 .record-summary { min-width: 0; }
 .record-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .record-title-row h3 { margin: 0; font-size: .95rem; font-weight: 600; line-height: 1.5; color: var(--color-text, #25364d); overflow-wrap: anywhere; }
 .record-status { padding: 3px 9px; border-radius: 999px; background: var(--color-bg, #f8fbfd); border: 1px solid var(--color-border, #d8e9ef); color: var(--color-text-muted, #64748b); font-size: .69rem; font-weight: 600; line-height: 1.5; }
-.record-status.is-active { background: var(--color-primary-100, #e3f2ef); border-color: var(--color-primary-200, #b4ded7); color: var(--color-primary-900, #086783); }
+.record-status.is-active { background: var(--color-primary-100); border-color: var(--color-primary-200); color: var(--color-primary-900); }
 .history-record .record-date { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: .78rem; color: var(--color-text-muted, #64748b); }
 .record-date .v-icon { color: inherit; }
 .record-code { display: block; margin-top: 5px; font-size: .7rem; color: var(--color-text-muted, #64748b); }
 .record-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-shrink: 0; }
 .odontogram-history .history-button { border-radius: 8px; text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 600; }
-.odontogram-history .record-status-action:not(.v-btn--disabled) { color: var(--color-primary-900, #086783); border-color: var(--color-primary-200, #b4ded7); }
+.odontogram-history .record-status-action:not(.v-btn--disabled) { color: var(--color-primary-900); border-color: var(--color-primary-200); }
 .odontogram-history .record-delete:not(.v-btn--disabled), .history-action-error { color: #b42335; }
 .history-action-error { padding: 12px 16px; border-radius: 8px; border: 1px solid currentColor; font-size: .82rem; line-height: 1.6; }
-.odontogram-history .history-footer { padding: 16px 24px; gap: 12px; border-top: 1px solid var(--color-border, #d8e9ef); background: var(--color-surface, #fff); }
+.odontogram-history .history-footer { padding: 16px 24px; gap: 12px; border-top: 1px solid var(--color-border, #d8e9ef); background: var(--color-surface); }
 .history-footer > span { color: var(--color-text-muted, #64748b); font-size: .78rem; }
 .history-footer .history-button { margin: 0; color: var(--color-text, #25364d); border-color: var(--color-border, #d8e9ef); min-width: 100px; }
 html[data-theme="clinical-night"] .odontogram-history { --color-text: #e2e8f0; --color-text-muted: #cbd5e1; --color-surface: #1e293b; --color-bg: #172333; --color-border: #3b4d63; }

@@ -902,7 +902,7 @@ export default {
   margin: 0 0 4px;
   color: #1b6b6f;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -982,7 +982,7 @@ button.option-card:hover {
   margin: 10px 0 0;
   color: #9a6700;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .created-note {
@@ -992,7 +992,7 @@ button.option-card:hover {
   margin-top: 10px;
   color: #027a48;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .option-actions,
@@ -1023,7 +1023,7 @@ button.option-card:hover {
   justify-content: center;
   gap: 7px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .dialog-btn.signature-primary {

@@ -4,7 +4,6 @@ import { DAAuthService } from '../../../services/context/core-proccess-context';
 import DAAuthModel from '../../../models/auth/DAAuthModel';
 import types from '../common/mutation-types';
 import DAHasErrorModel from '../../../models/error/DAHasErrorModel';
-import modules from '../common/module-types';
 import DARefreshTokenModel from '../../../models/auth/DARefreshTokenModel';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
 import { clearLegacyAuthStorageForD2, clearClinicalContinuityCache } from '../../../utils/authStorageCleanup';
@@ -54,7 +53,7 @@ const actions = {
      * @param {*} param0 
      * @param {*} credentials 
      */
-    async login({commit, dispatch}, credentials) {
+    async login({commit}, credentials) {
 
             const {pwd, param, refresh} = credentials;
             let authModel = new DAAuthModel()
@@ -67,7 +66,6 @@ const actions = {
                 if(isD2AuthMode()) {
                     commitD2Session(commit, response)
                     commit(types.SET_AUTH_LOGIN_EXCEPTION, new DAHasErrorModel() )
-                    dispatch(modules.CORE+'/rollback', {}, {root: true})
                     return response
                 }
 
@@ -76,7 +74,6 @@ const actions = {
                 commit(types.SET_AUTH_PERMISSIONS, response.data.permisos)
                 commit(types.SET_AUTH_TENANT_OPERATIONAL, response.data.tenantOperational || null)
                 commit(types.SET_AUTH_LOGIN_EXCEPTION, new DAHasErrorModel() )
-                dispatch(modules.CORE+'/rollback', {}, {root: true})
             }
             else {
                 commit(types.SET_AUTH_LOGIN_EXCEPTION, new DAHasErrorModel(true, response.message) )
@@ -212,7 +209,6 @@ const actions = {
             if(response && response.success) {
                 commit(types.SET_AUTH_UNAUTHORIZED, false)
                 commitD2Session(commit, response)
-                dispatch(modules.CORE+'/rollback', {}, {root: true})
             } else {
                 commit(types.SET_D2_AUTH_SESSION, null)
             }
@@ -233,7 +229,6 @@ const actions = {
             commit(types.SET_REFRESH_TOKEN, response.data.refresh_token)
             commit(types.SET_AUTH_PERMISSIONS, response.data.permisos)
             commit(types.SET_AUTH_TENANT_OPERATIONAL, response.data.tenantOperational || null)
-            dispatch(modules.CORE+'/rollback', {}, {root: true})
         }else {
             commit(types.SET_TOKEN, null)
             commit(types.SET_REFRESH_TOKEN, null)

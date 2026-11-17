@@ -146,7 +146,7 @@ assertIncludesAll(
     'D2 reload uses /api/auth/session',
     `${d2BeforeEachSource}\n${ensureD2SessionSource}\n${sources.authActions}\n${sources.authService}\n${sources.sessionService}`,
     [
-        'const shouldHydrate = requiredAuth || to.name === \'login\'',
+        "const shouldHydrate = requiredAuth || ['login', 'register', 'forgotPassword'].includes(to.name)",
         'await ensureD2SessionHydrated()',
         'store.dispatch(`${AUTH_NAMESPACE}/getToken`)',
         "return dispatch('refreshAccess', { hydrate: true })",
@@ -253,7 +253,7 @@ assertIncludesAll(
         '} finally {',
         'commit(types.SET_AUTH_ACCESS_SESSION, null)',
         'clearD2ClientAuthArtifacts(Vue.prototype.$session)',
-        'window.location.href = \'/login\''
+        "window.location.replace('/login')"
     ],
     'Runtime is cleared before HTTP; artifact cleanup runs in finally even if backend close fails.'
 );

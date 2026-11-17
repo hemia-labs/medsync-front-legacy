@@ -21,29 +21,16 @@
     <template v-if="patientReady">
     <v-alert v-if="tabAccessNotice" type="warning" text role="alert" class="mb-4">{{ tabAccessNotice }}</v-alert>
     <div class="mb-4">
-        <da-history-header :px="px" :can-edit="canManagePatient" :archive-pending="archivePending" :show-clinical="canViewClinical" v-model="isEditProfile" v-on:edit="requestProfileEdit" @archive="requestArchive"></da-history-header>
+        <!-- NC1-UX4: one header with contact data, archive and restore; no separate administrative card. -->
+        <da-history-header :px="px" :can-edit="canManagePatient" :editing="isEdit" :archive-pending="archivePending" :show-clinical="canViewClinical" v-on:edit="requestProfileEdit" @edit-patient="requestAdministrativeEdit" @archive="requestArchive" @restore="restorePatient"></da-history-header>
     </div>
     <div v-if="canViewClinical" class="mb-4">
         <da-alergy-alert :px="px" :can-edit="canEditAllergies" v-on:edit="openAllergyEditor"></da-alergy-alert>
         <p v-if="allergyFeedback" role="status" class="text-sm mt-2">{{ allergyFeedback }}</p>
     </div>
 
-    <div v-if="isArchived || !canViewClinical" class="patient-record-shell pa-5 mb-4">
-        <p v-if="isArchived" role="status">Paciente archivado. Su expediente y sus citas se conservan. Restaura al paciente para acceder a las secciones que no estén disponibles.</p>
-        <template v-if="!canViewClinical">
-            <h2 class="text-lg font-semibold">Ficha administrativa</h2>
-            <p>Teléfono: {{ px.person.telephone || 'Sin registrar' }}</p>
-            <p>Domicilio: {{ px.address && px.address.direction || 'Sin registrar' }}</p>
-        </template>
-        <div v-if="canManagePatient" class="flex flex-wrap gap-3 mt-3">
-            <v-btn v-if="!isEdit" outlined @click="requestPatientEdit">Editar datos administrativos</v-btn>
-            <v-btn v-if="isArchived" outlined :disabled="archivePending" @click="restorePatient">Restaurar paciente</v-btn>
-            <v-btn v-else outlined :disabled="archivePending" @click="requestArchive">Archivar paciente</v-btn>
-        </div>
-    </div>
-    
     <div v-if="!isEdit" :class="{'animate-fade-in-left ease-in-out': !isEdit}">
-        <div class="patient-record-shell">
+        <div class="patient-record-shell" :class="{'patient-history-shell': tab === 'da-medical-history'}">
             <v-tabs 
             :value="tab"
             :key="tabNavigationRevision"
@@ -75,7 +62,6 @@
                       :document-focus-request="documentFocusRequest"
                       :treatment-focus-request="treatmentFocusRequest"
                       v-on:edit="requestPatientEdit"
-                      v-on:delete="requestArchive"
                       v-on:open-documents="openTabByComponent('da-patient-documents', $event)"
                       v-on:document-focus-consumed="consumeDocumentFocusRequest"
                       v-on:prepare-treatment="openTabByComponent('da-patient-treatment', $event)"
@@ -95,8 +81,8 @@
     <AllergyEditor v-if="canEditAllergies" v-model="showAllergyEditor" :patient-id="activePatientId" :patient-name="px.person.fullname" :record="px.allergy || {}" :legacy-text="allergyLegacyText" @saved="onAllergySaved" />
     
     <div v-if="isEdit" class="py-5" :class="{'animate-fade-in-left ease-in-out': isEdit}">
-        <da-patient-form v-if="canEditClinical" :id="id" v-on:cancel="onCancelEdit"></da-patient-form>
-        <PatientAdministrativeForm v-else-if="canManagePatient" :patient="px" @cancel="onCancelEdit" @saved="onAdministrativeSaved" />
+        <da-patient-form v-if="canEditClinical && !administrativeEdit" :id="id" v-on:cancel="onCancelEdit"></da-patient-form>
+        <PatientAdministrativeForm v-else-if="canManagePatient" :patient="px" @cancel="onCancelEdit" @refreshed="onAdministrativeRefreshed" @saved="onAdministrativeSaved" />
     </div>
 
     <da-dialog v-model="isDelete" :persist="true" :maxWidth="'500px'">
@@ -135,6 +121,7 @@ import { mapGetters, mapActions } from 'vuex';
 import VuexMixin from '../../mixins/VuexMixin';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
+import mutationTypes from '../../store/modules/common/mutation-types';
 import DAHistoryHeader from './components/DAHistoryHeader.vue';
 import DAAlergyAlert from './components/DAAlergyAlert.vue';
 import AllergyEditor from './components/AllergyEditor.vue';
@@ -158,6 +145,7 @@ export default {
     data() {
         return {
             isEdit: false,
+            administrativeEdit: false,
             isDelete: false,
             archivePending: false,
             showAllergyEditor: false,
@@ -217,13 +205,17 @@ export default {
         if(await this.confirmSectionLeave() && this.canReturnToAgenda) await this.$router.push({ name: 'Citas' })
     },
     async requestArchive() {
-        if(!this.canManagePatient || this.isArchived || this.archivePending) return
-        if(await this.confirmSectionLeave()) this.isDelete = true
+        // NC1-UX4: archiving is not offered while the patient form is open.
+        if(!this.canManagePatient || this.isArchived || this.archivePending || this.isEdit) return
+        if(await this.confirmSectionLeave() && !this.isEdit) this.isDelete = true
     },
-    requestProfileEdit() { if(this.canManagePatient) this.isEditProfile = true },
-    async onAdministrativeSaved() { this.isEdit = false; await this.init() },
+    requestProfileEdit() { if(this.canManagePatient && !this.isEdit) this.isEditProfile = true },
+    onAdministrativeRefreshed(patient) {
+        if(this.canManagePatient && patient.person.id_person === this.id) this.$store.commit(moduleTypes.PX + '/' + mutationTypes.SET_PX, patient)
+    },
+    onAdministrativeSaved() { this.isEdit = false },
     async restorePatient() {
-        if(!this.canManagePatient || this.archivePending) return
+        if(!this.canManagePatient || !this.isArchived || this.archivePending || this.isEdit) return
         this.archivePending = true
         try {
             const response = await DAPxService.restore({ id_person: this.id })
@@ -297,7 +289,17 @@ export default {
     registerSectionGuard(guard) { this.sectionLeaveGuard = guard },
     async requestPatientEdit() {
         if(!this.canManagePatient) return
-        if(await this.confirmSectionLeave()) this.isEdit = true
+        if(await this.confirmSectionLeave()) {
+            this.administrativeEdit = false
+            this.isEdit = true
+        }
+    },
+    async requestAdministrativeEdit() {
+        if(!this.canManagePatient || this.isEdit) return
+        if(await this.confirmSectionLeave()) {
+            this.administrativeEdit = true
+            this.isEdit = true
+        }
     },
     async requestTabChange(component) {
         if(component === this.tab || this.tabNavigationPending) return false
@@ -532,6 +534,13 @@ export default {
     box-shadow: 0 16px 35px rgba(15, 23, 42, 0.1);
 }
 
+/* History's section index sticks to the page scroll, not a non-scrolling tabs wrapper. */
+.patient-history-shell,
+.patient-history-shell > .patient-record-content {
+    overflow: visible;
+}
+.patient-history-shell > .patient-record-tabs { border-radius: 14px 14px 0 0; }
+
 .patient-record-tabs {
     padding: 0.75rem;
     border-bottom: 1px solid var(--color-primary-200);
@@ -546,10 +555,10 @@ export default {
     border-radius: 999px;
     color: #475569 !important;
     text-transform: none !important;
-    font-family: sans-serif;
+    font-family: inherit;
     font-size: 0.86rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-weight: 600;
+    letter-spacing: 0.03em;
     transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 

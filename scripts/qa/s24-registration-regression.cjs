@@ -9,11 +9,13 @@ function load(file,bindings={},component=false) {
 }
 (async()=>{
   const rules=await import('data:text/javascript;base64,'+Buffer.from(read('src/utils/registration.js')).toString('base64'));
-  const valid={name:'Médica',lastName:'Ñ',businessName:'Clínica Ñ',telephone:'5512345678',email:'QA@example.test',password:'  Una frase extensa y privada  '};
+  const valid={name:'Médica',firstSurname:'Ñ',secondSurname:'',businessName:'Clínica Ñ',telephone:'5512345678',email:'QA@example.test',password:'  Una frase extensa y privada  '};
   valid.confirmPassword=valid.password;
   assert.deepEqual(rules.registrationErrors(valid),{});
-  assert.ok(rules.registrationErrors({...valid,lastName:''}).lastName);
-  assert.ok(rules.registrationErrors({...valid,name:'a'.repeat(100),lastName:'b'.repeat(100)}).lastName);
+  // NC1 identidad simple: Primer apellido required, Segundo apellido optional, 200 characters in total.
+  assert.ok(rules.registrationErrors({...valid,firstSurname:''}).firstSurname);
+  assert.equal(rules.registrationErrors({...valid,secondSurname:'De la Luz'}).firstSurname,undefined);
+  assert.ok(rules.registrationErrors({...valid,name:'a'.repeat(100),firstSurname:'b'.repeat(60),secondSurname:'c'.repeat(40)}).firstSurname);
   assert.deepEqual(rules.registrationErrors({...valid,telephone:''}),{});
   assert.deepEqual(rules.registrationErrors({...valid,password:'Eight123',confirmPassword:'Eight123'}),{});
   assert.ok(rules.registrationErrors({...valid,confirmPassword:'different'}).confirmPassword);
@@ -22,7 +24,8 @@ function load(file,bindings={},component=false) {
   assert.deepEqual(rules.registrationErrors({...valid,password:'😀'.repeat(128),confirmPassword:'😀'.repeat(128)}),{});
   assert.ok(rules.registrationErrors({...valid,password:'😀'.repeat(129)}).password);
   assert.equal(rules.usableRegistrationContext({enabled:true,legalDocuments:[]}),false);
-  const complete={enabled:true,legalContext:'server-signed-context',legalSnapshotToken:'snapshot',legalDocuments:rules.LEGAL_KEYS.map((documentKey,i)=>({documentKey,versionId:'v'+i,contentHash:'hash',title:'Legal',requiredAction:i?'acknowledge':'accept',contentHtml:'<p>Texto</p>'}))};
+  const documentKeys=['terms_conditions','privacy_notice','qa_policy_update'];
+  const complete={enabled:true,legalContext:'server-signed-context',legalSnapshotToken:'snapshot',legalDocuments:documentKeys.map((documentKey,i)=>({documentKey,versionId:'v'+i,contentHash:'hash',title:'Legal',requiredAction:i?'acknowledge':'accept',contentHtml:'<p>Texto</p>'}))};
   assert.equal(rules.usableRegistrationContext(complete),true);
   assert.equal(rules.usableRegistrationContext({...complete,legalDocuments:[complete.legalDocuments[0],complete.legalDocuments[0]]}),false);
 
@@ -44,7 +47,7 @@ function load(file,bindings={},component=false) {
     for(const name of ['home','admin','AllPatients','ShowPx','tenantRestricted','login','register'])assert.equal((await navigate(name,{requireAuth:!['login','register'].includes(name)})).name,'accountActivation');
     assert.equal(await navigate('accountActivation',{requireAuth:true,allowTenantRestricted:true}),undefined);
     pending=false;assert.equal((await navigate('accountActivation')).name,'home');
-    superAdmin=true;assert.equal((await navigate('accountActivation')).name,'superAdminDashboard');superAdmin=false;
+    superAdmin=true;assert.equal((await navigate('accountActivation')).name,'accessUnavailable');superAdmin=false;
     authorized=false;assert.equal((await navigate('accountActivation')).name,'auth');authorized=true;pending=true;
   }
   const App=load('src/App.vue',{mapActions:()=>({}),moduleTypes:{AUTH:'CORE/AUTH',CONFIGURATION:'CORE/CONFIGURATION'},fnTypes:{},
@@ -76,21 +79,23 @@ function load(file,bindings={},component=false) {
   await service.acknowledgeWelcome();
   assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1).data)),{acknowledged:true,trialWelcome:true},'Legacy callers keep the explicit default');
   let submitted;
-  const Register=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PasswordStrength:{},PlanCatalog:{},LEGAL_KEYS:rules.LEGAL_KEYS,
+  const Register=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PasswordStrength:{},PlanCatalog:{},
     registrationErrors:rules.registrationErrors,registrationAttemptId:()=> 'test-attempt',
     Registration:{register:async payload=>{submitted=payload;return {accountCreated:true,sessionEstablished:false};}}},true);
-  const registration={...Register.data(),loading:false,form:{...valid,name:' Médica ',lastName:' Ñ ',telephone:''},available:true,context:complete,documents:complete.legalDocuments,accepted:{terms_conditions:true,privacy_notice:true}};
+  const registration={...Register.data(),loading:false,form:{...valid,name:' Médica ',firstSurname:' Ñ ',secondSurname:' de la Luz ',telephone:''},available:true,context:complete,documents:complete.legalDocuments,accepted:Object.fromEntries(documentKeys.map(key=>[key,true]))};
   await Register.methods.submit.call({...registration,loading:true});
   assert.equal(submitted,undefined,'Pending legal refresh must block submission');
   await Register.methods.submit.call(registration);
   assert.equal(submitted.legalContext,complete.legalContext);
-  assert.equal(submitted.legalAcceptances.length,2);
+  assert.deepEqual(Array.from(submitted.legalAcceptances, ({documentKey})=>documentKey),documentKeys);
   assert.equal(rules.usableRegistrationContext({...complete,legalContext:''}),false);
   assert.equal(rules.usableRegistrationContext({...complete,legalDocuments:complete.legalDocuments.map(doc=>({...doc,requiredAction:'unknown'}))}),false);
   assert.ok(Register.methods.documentConfirmation({requiredAction:'acknowledge',title:'Aviso'}).includes('se me presentó'));
   assert.ok(Register.methods.documentConfirmation({requiredAction:'accept',title:'Términos'}).startsWith('Acepto'));
   assert.equal(submitted.account.first_name,'Médica');
-  assert.equal(submitted.account.last_name,'Ñ');
+  assert.equal(submitted.account.first_surname,'Ñ');
+  assert.equal(submitted.account.second_surname,'de la Luz');
+  assert.equal(submitted.account.last_name,'Ñ de la Luz','joined, so an older server still accepts the request');
   assert.equal(submitted.account.telephone,'');
   assert.equal(registration.created,true);
   for(const file of ['Register','AccountActivation']) {

@@ -102,6 +102,7 @@
             </fieldset>
         </section>
 
+        <establishments v-if="activeSection === 'identity' && hasPermission('admin.config')" />
         <section ref="preparationEditor" v-if="activeSection === 'identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
             <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
                 <div>
@@ -769,6 +770,7 @@
 </template>
 
 <script>
+import Establishments from "../../components/identity/Establishments.vue";
 import PrivateClinicLogo from './components/PrivateClinicLogo.vue';
 import PreparationGuide from './components/PreparationGuide.vue';
 import { focusControl } from '../../domain/onboarding/focusControl';
@@ -814,6 +816,7 @@ export default {
     mixins:[VuexMixin],
     components: {
         PlanBilling: () => import('./components/PlanBilling.vue'),
+        Establishments,
         OdontogramModeSettings: () => import('./components/OdontogramModeSettings.vue'),
         PrivateClinicLogo,
         PreparationGuide,

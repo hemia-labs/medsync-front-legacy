@@ -53,7 +53,68 @@
       </div>
     </section>
 
-    <section v-if="clinicalHistory" :class="['clinical-panel', 'status-panel', { 'draft-status-panel': isDraft }]">
+    <closed-history-reader v-if="clinicalHistory && !isDraft" :history="clinicalHistory" :metadata="metadata"
+      :sections="closedReadingSections" :historical-consent="closedHistoricalConsent" :responsible="selectedDoctorLabel"
+      :finalizer="clinicalHistory.finalizer_snapshot_json ? doctorLabel(clinicalHistory.finalizer_snapshot_json) : ''"
+      :status-label="'Cerrada · ' + clinicalHistoryStatusLabel" :latest-id="latestVersionId" :can-view-versions="canViewVersions"
+      :versions-open="showVersionsPanel" :busy="isBusy || isLoading || versionsLoading" :can-print="canPrintClinicalHistory" :can-create="canCreateNewVersion"
+      :can-view-consent="canViewConsent" :current-consent-title="sensitiveConsentTitle.replace(/^Vigente hoy: /, '')"
+      :consent-error="consentRefreshError" :consent-verified="consentVerified" :consent-checking="consentChecking"
+      :document-busy="closedDocumentBusy" :document-error="closedDocumentError"
+      @versions="toggleVersionsPanel" @latest="viewLatestClosedVersion" @historical-document="openClosedConsentDocument"
+      @current-documents="openSensitiveDocument" @retry-consent="retryConsentVerification"
+      @print="printCurrentClinicalHistory" @create="createNewVersion">
+      <template #versions><section v-if="showVersionsPanel" class="clinical-panel versions-panel">
+      <header class="versions-header">
+        <div>
+          <p class="section-kicker">Historial</p>
+          <h3>Historial de historia clínica</h3>
+          <p>Consulta borradores y versiones anteriores sin modificar la información ya guardada.</p>
+        </div>
+        <button class="clinical-button secondary" type="button" :disabled="versionsLoading" @click="loadClinicalHistoryVersions">
+          Actualizar
+        </button>
+      </header>
+
+      <p v-if="versionsLoadError" class="form-warning">No fue posible cargar las versiones. Intenta nuevamente.</p>
+      <p v-if="versionsLoading" class="versions-empty">Cargando versiones...</p>
+      <p v-else-if="!clinicalHistoryVersions.length" class="versions-empty">Aún no hay versiones de historia clínica.</p>
+
+      <div v-else class="versions-list">
+        <article
+          v-for="version in clinicalHistoryVersions"
+          :key="version.id_clinical_history"
+          :class="['version-card', { active: clinicalHistory && clinicalHistory.id_clinical_history === version.id_clinical_history }]"
+        >
+          <div class="version-card-main">
+            <div class="version-title-row">
+              <h4>Versión {{ version.version_number || 'No registrada' }}</h4>
+              <span :class="['status-pill', String(version.status || '').toLowerCase()]">{{ statusLabel(version.status) }}</span>
+              <span class="version-indicator">{{ versionIndicator(version) }}</span>
+            </div>
+            <p>{{ version.summary_short || 'Historia clínica' }}</p>
+            <div class="version-meta-grid">
+              <div><span>Creada</span><strong>{{ formatDateTime(version.created_at) }}</strong></div>
+              <div><span>Finalizada</span><strong>{{ formatDateTime(version.finalized_at) }}</strong></div>
+              <div><span>Doctor responsable</span><strong>{{ version.doctor_name_snapshot || 'No registrado' }}</strong></div>
+              <div><span>Formato</span><strong>{{ version.template_name || 'No registrado' }} v{{ version.template_version_number || 'N/D' }}</strong></div>
+              <div><span>Consentimiento</span><strong>{{ consentVersionLabel(version) }}</strong></div>
+            </div>
+          </div>
+          <div class="version-actions">
+            <button class="clinical-button secondary" type="button" :disabled="isBusy" @click="viewHistoryVersion(version)">
+              {{ canContinueVersion(version) ? 'Continuar edición' : 'Ver versión' }}
+            </button>
+            <button class="clinical-button secondary" type="button" :disabled="isBusy || !canPrintClinicalHistory" @click="printHistoryVersion(version)">
+              Imprimir historia clínica
+            </button>
+          </div>
+        </article>
+      </div>
+    </section></template>
+    </closed-history-reader>
+
+    <section v-if="clinicalHistory && isDraft" :class="['clinical-panel', 'status-panel', { 'draft-status-panel': isDraft }]">
       <div class="status-main">
         <p class="section-kicker">Historia clínica</p>
         <div class="status-title-row">
@@ -65,48 +126,47 @@
         </div>
         <p class="status-copy">{{ clinicalHistoryHelpText }}</p>
       </div>
-      <div class="status-grid">
-        <div class="status-item">
-          <span>Versión</span>
-          <strong>{{ metadata.version }}</strong>
-        </div>
-        <div class="status-item">
-          <span>Creación</span>
-          <strong>{{ metadata.createdAt }}</strong>
-        </div>
-        <div class="status-item">
-          <span>Última actualización</span>
-          <strong>{{ metadata.updatedAt }}</strong>
-        </div>
-        <div v-if="!isDraft || metadata.finalizedAt !== 'No registrado'" class="status-item">
-          <span>Finalización</span>
-          <strong>{{ metadata.finalizedAt }}</strong>
-        </div>
-        <div class="status-item wide">
-          <span>Doctor responsable</span>
-          <strong>{{ selectedDoctorLabel }}</strong>
-        </div>
-        <div v-if="!isDraft && clinicalHistory.finalizer_snapshot_json" class="status-item wide">
-          <span>Profesional que cerró esta versión</span>
-          <strong>{{ doctorLabel(clinicalHistory.finalizer_snapshot_json) }}</strong>
-        </div>
-        <div class="status-item wide">
-          <span>Capturado por</span>
-          <strong>{{ metadata.createdBy }}</strong>
-        </div>
-        <div class="status-item wide">
-          <span>Última edición por</span>
-          <strong>{{ metadata.updatedBy }}</strong>
-        </div>
+      <div class="status-details">
+        <dl class="status-list" aria-label="Fechas de la historia clínica">
+          <div class="status-row">
+            <dt>Versión</dt>
+            <dd>{{ metadata.version }}</dd>
+          </div>
+          <div class="status-row">
+            <dt>Creación</dt>
+            <dd>{{ metadata.createdAt }}</dd>
+          </div>
+          <div class="status-row">
+            <dt>Última actualización</dt>
+            <dd>{{ metadata.updatedAt }}</dd>
+          </div>
+          <div v-if="!isDraft || metadata.finalizedAt !== 'No registrado'" class="status-row">
+            <dt>Finalización</dt>
+            <dd>{{ metadata.finalizedAt }}</dd>
+          </div>
+        </dl>
+        <dl class="status-list" aria-label="Personas de la historia clínica">
+          <div class="status-row">
+            <dt>Doctor responsable</dt>
+            <dd>{{ selectedDoctorLabel }}</dd>
+          </div>
+          <div v-if="!isDraft && clinicalHistory.finalizer_snapshot_json" class="status-row">
+            <dt>Profesional que cerró esta versión</dt>
+            <dd>{{ doctorLabel(clinicalHistory.finalizer_snapshot_json) }}</dd>
+          </div>
+          <div class="status-row">
+            <dt>Capturado por</dt>
+            <dd>{{ metadata.createdBy }}</dd>
+          </div>
+          <div class="status-row">
+            <dt>Última edición por</dt>
+            <dd>{{ metadata.updatedBy }}</dd>
+          </div>
+        </dl>
       </div>
     </section>
 
-    <section v-if="clinicalHistory && historyVersionNotice" class="clinical-panel version-notice-panel">
-      <strong>{{ historyVersionNotice }}</strong>
-      <span v-if="clinicalHistory.status !== 'DRAFT'">Las versiones cerradas son solo de consulta.</span>
-    </section>
-
-    <section v-if="showVersionsPanel" class="clinical-panel versions-panel">
+    <section v-if="showVersionsPanel && (!clinicalHistory || isDraft)" class="clinical-panel versions-panel">
       <header class="versions-header">
         <div>
           <p class="section-kicker">Historial</p>
@@ -155,7 +215,7 @@
       </div>
     </section>
 
-    <section v-if="!isLoading" class="clinical-panel consent-panel" :class="{ compact: !clinicalHistory }">
+    <section v-if="!isLoading && (!clinicalHistory || isDraft)" class="clinical-panel consent-panel" :class="{ compact: !clinicalHistory }">
       <div class="consent-copy">
         <div class="consent-title-row">
           <div>
@@ -167,10 +227,13 @@
         <p>{{ sensitiveConsentHelpText }}</p>
       </div>
       <div v-if="canViewConsent" class="button-row consent-action-row">
+        <button v-if="consentRefreshError" class="clinical-button secondary" type="button" :disabled="consentChecking" @click="retryConsentVerification">
+          Reintentar verificación
+        </button>
         <button v-if="sensitiveConsent" class="clinical-button secondary" type="button" @click="openSensitiveDocument">
           {{ hasConsentRefusal ? 'Ver detalle' : 'Ver consentimiento' }}
         </button>
-        <button v-if="!sensitiveConsent && hasPermission('documents.create')" class="clinical-button secondary" type="button" @click="createSensitiveConsent">
+        <button v-if="consentVerified && !sensitiveConsent && hasPermission('documents.create')" class="clinical-button secondary" type="button" @click="createSensitiveConsent">
           Gestionar consentimiento
         </button>
         <button
@@ -184,12 +247,14 @@
       </div>
     </section>
 
-    <section v-if="!isLoading && contextReady && (!clinicalHistory || isDraft) && profilePreparationMessage" class="clinical-panel warning-panel" role="status">
+    <section v-if="!isLoading && contextReady && (!clinicalHistory || isDraft) && profilePreparationMessage" class="clinical-panel warning-panel profile-preparation" role="status">
       <strong>Antes de finalizar la historia</strong>
       <span>{{ profilePreparationMessage }}</span>
-      <a v-if="canPrepareOwnProfile && !currentDoctorProfile" class="clinical-button secondary" href="/admin?section=doctor-identity" target="_blank" rel="noopener">Completar mi perfil profesional</a>
-      <small v-if="canPrepareOwnProfile && !currentDoctorProfile">Se abre en otra pestaña para conservar esta captura. Al volver, actualiza los requisitos.</small>
-      <button class="clinical-link-button" type="button" :disabled="isBusy" @click="refreshPreparation">Actualizar requisitos</button>
+      <div class="profile-preparation-actions">
+        <a v-if="canPrepareOwnProfile && !currentDoctorProfile" class="clinical-button secondary profile-preparation-link" href="/admin?section=doctor-identity" target="_blank" rel="noopener">Completar mi perfil profesional</a>
+        <button class="clinical-link-button" type="button" :disabled="isBusy" @click="refreshPreparation">Actualizar requisitos</button>
+      </div>
+      <small v-if="canPrepareOwnProfile && !currentDoctorProfile">Abre otra pestaña. Al volver, actualiza los requisitos.</small>
     </section>
 
     <section v-if="contextError || (templateLoadError && !historyTemplateSchema) || (loadError && clinicalHistory)" class="clinical-panel warning-panel" role="alert">
@@ -214,15 +279,12 @@
       </div>
     </section>
 
-    <section v-if="clinicalHistory" class="clinical-panel actions-panel">
+    <section v-if="clinicalHistory && isDraft" class="clinical-panel actions-panel">
       <div>
         <p class="section-kicker">Captura clínica</p>
         <h3>{{ formModeTitle }}</h3>
         <p>{{ formModeHelp }}</p>
         <p v-if="isDraft" class="save-state" role="status">{{ isBusy ? 'Procesando…' : (dirty ? 'Cambios sin guardar' : 'Todos los cambios guardados') }}</p>
-        <p v-if="isDraft && !canCurrentUserFinalize" class="permission-note">
-          {{ profilePreparationMessage || 'La finalización requiere un doctor o administrador autorizado con perfil profesional activo.' }}
-        </p>
         <div v-if="useDynamicSchema" class="capture-template-inline">
           <span>Formato</span>
           <strong>{{ activeTemplateLabel }}</strong>
@@ -245,14 +307,14 @@
         </div>
       </div>
       <div class="button-row capture-action-row">
-        <button v-if="isDraft && canEditDraftPermission" class="clinical-button primary" type="button" :disabled="isBusy || !contextReady" @click="saveDraft()">
+        <button v-if="isDraft && canEditDraftPermission" class="clinical-button primary draft-save" type="button" :disabled="isBusy || !contextReady" @click="saveDraft()">
           Guardar borrador
         </button>
         <button
           v-if="isDraft"
           class="clinical-button success"
           type="button"
-          :disabled="isBusy || !contextReady || !canCurrentUserFinalize"
+          :disabled="isBusy || consentChecking || !contextReady || !canCurrentUserFinalize"
           title="Solo un doctor o administrador con perfil profesional activo puede finalizar esta historia."
           @click="openFinalizeDialog"
         >
@@ -282,6 +344,16 @@
       </button>
     </section>
 
+    <section v-if="isDraft && identificationChanges.length" class="clinical-panel identification-notice" role="status">
+      <strong>Datos actuales del paciente distintos de este borrador</strong>
+      <p>{{ identificationKept ? 'Conservas los datos de este borrador durante esta sesión.' : 'La identificación de esta historia se conserva hasta que decidas actualizarla.' }}</p>
+      <p>Actualizar estos datos no cambia tu captura clínica ni las versiones finalizadas.</p>
+      <div class="button-row">
+        <button v-if="canEditDraftPermission" type="button" class="clinical-button secondary" :disabled="!canEditForm || revisionConflict" @click="openIdentificationReview">Actualizar identificación del borrador</button>
+        <button v-if="canEditDraftPermission && !identificationKept" type="button" class="clinical-link-button" :disabled="!canEditForm" @click="keepHistoryIdentification">Conservar datos de este borrador</button>
+      </div>
+    </section>
+
     <section v-if="false && clinicalHistory && isDraft" class="clinical-panel capture-guide-panel">
       <div class="capture-guide-main">
         <p class="section-kicker">Progreso de captura</p>
@@ -300,12 +372,9 @@
       </div>
     </section>
 
-    <section v-if="clinicalHistory && isIncomplete" class="clinical-panel warning-panel">
-      <strong>Historia clínica incompleta.</strong>
-      <span>La historia quedó incompleta porque falta el consentimiento firmado.</span>
-    </section>
 
-    <section v-if="clinicalHistory && templateWarningText" class="clinical-panel warning-panel">
+
+    <section v-if="clinicalHistory && isDraft && templateWarningText" class="clinical-panel warning-panel">
       <strong>Formato no disponible.</strong>
       <span>{{ templateWarningText }}</span>
     </section>
@@ -319,7 +388,7 @@
       <span class="template-version-pill">v{{ activeTemplateVersion }}</span>
     </section>
 
-    <section v-if="clinicalHistory" class="clinical-form">
+    <section v-if="clinicalHistory && isDraft" class="clinical-form">
       <template v-if="useDynamicSchema">
         <div :class="['clinical-capture-layout', { guided: isDraft }]">
           <aside v-if="isDraft" class="section-navigator">
@@ -558,7 +627,7 @@
             <button class="clinical-button secondary" type="button" :disabled="!previousDynamicSection" @click="goToPreviousSection">
               Anterior
             </button>
-            <button class="clinical-button primary" type="button" :disabled="isBusy || !contextReady || !canEditDraftPermission" @click="saveDraft()">
+            <button class="clinical-button primary draft-save" type="button" :disabled="isBusy || !contextReady || !canEditDraftPermission" @click="saveDraft()">
               Guardar borrador
             </button>
             <button class="clinical-button secondary" type="button" :disabled="!nextDynamicSection" @click="goToNextSection">
@@ -810,12 +879,30 @@
       </div>
     </v-dialog>
 
+    <v-dialog content-class="clinical-history-dialog" v-model="showIdentificationReview" max-width="720">
+      <div @keydown="trapDialogFocus" v-dialog-name="'Actualizar identificación del borrador'" class="dialog-card">
+        <header><h3>Actualizar identificación del borrador</h3><p>Selecciona los datos que quieres incorporar. El resto de tu captura se conserva y los cambios quedan pendientes de guardar.</p></header>
+        <div class="identification-comparison">
+          <label v-for="item in identificationChanges" :key="item.key" class="identification-change">
+            <input type="checkbox" v-model="selectedIdentificationFields" :value="item.key" :disabled="!canEditForm" />
+            <span><strong>{{ item.label }}</strong><span>En este borrador: {{ identificationLabel(item.captured) }}</span><span>Ficha actual: {{ identificationLabel(item.current) }}</span></span>
+          </label>
+        </div>
+        <p>Al actualizar la fecha de nacimiento también se actualiza la edad de este borrador.</p>
+        <div class="button-row dialog-actions">
+          <button type="button" class="clinical-button secondary" @click="showIdentificationReview = false">Cancelar</button>
+          <button type="button" class="clinical-button primary" :disabled="!canEditForm || revisionConflict || !selectedIdentificationFields.length" @click="updateHistoryIdentification">Aplicar campos seleccionados</button>
+        </div>
+      </div>
+    </v-dialog>
+
     <v-dialog content-class="clinical-history-dialog" v-model="showFinalizeDialog" max-width="620">
       <div @keydown="trapDialogFocus" v-dialog-name="'Finalizar historia clínica'" class="dialog-card">
         <header>
           <p class="section-kicker">Confirmación</p>
-          <h3>Finalizar historia clínica</h3>
-          <p>Al finalizar, la historia clínica quedará bloqueada para edición y se conservará como versión histórica del paciente.</p>
+          <h3>{{ hasConsentRefusal ? 'Guardar historia como incompleta' : 'Finalizar historia clínica' }}</h3>
+          <p v-if="hasConsentRefusal">Hay una negativa de consentimiento vigente. La historia quedará bloqueada como <strong>incompleta</strong>, no como finalizada, y se conservará como versión histórica del paciente.</p>
+          <p v-else>Al finalizar, la historia clínica quedará bloqueada para edición y se conservará como versión histórica del paciente.</p>
         </header>
         <div class="finalize-checklist">
           <div v-for="item in finalizeChecklist" :key="item.label" :class="['check-item', item.ok ? 'ok' : 'warn']">
@@ -824,15 +911,24 @@
             <strong>{{ item.status }}</strong>
           </div>
         </div>
+        <div v-if="identificationChanges.length" class="identification-comparison" role="status">
+          <strong>Se conservará la identificación de este borrador</strong>
+          <p>Estas diferencias con la ficha actual no impiden finalizar:</p>
+          <div v-for="item in identificationChanges" :key="item.key" class="identification-change">
+            <span><strong>{{ item.label }}</strong><span>Se guardará: {{ identificationLabel(item.captured) }}</span><span>Ficha actual: {{ identificationLabel(item.current) }}</span></span>
+          </div>
+        </div>
+        <p>Las alergias mantienen su revisión clínica vigente. Si cambian durante el cierre, tendrás que revisar el borrador de nuevo.</p>
         <p v-if="finalizeBlockReason" class="block-reason">{{ finalizeBlockReason }}</p>
         <p v-if="saveError" class="form-warning" role="alert">{{ saveError }}</p>
         <div class="button-row">
           <button v-if="requiredPendingCount" class="clinical-link-button" type="button" @click="showFinalizeDialog = false; openPendingSummary()">Ir a datos pendientes</button>
-          <button v-if="!hasSignedConsent && !hasConsentRefusal" class="clinical-link-button" type="button" @click="reviewConsent">Revisar consentimiento</button>
+          <button v-if="consentRefreshError" class="clinical-link-button" type="button" :disabled="consentChecking" @click="retryConsentVerification">Reintentar verificación</button>
+          <button v-else-if="!hasSignedConsent && !hasConsentRefusal" class="clinical-link-button" type="button" @click="reviewConsent">Revisar consentimiento</button>
         </div>
         <div class="button-row dialog-actions">
-          <button class="clinical-button secondary" type="button" @click="showFinalizeDialog = false">Cancelar</button>
-          <button class="clinical-button success" type="button" :disabled="isBusy || Boolean(finalizeBlockReason)" @click="finalizeHistory">
+          <button class="clinical-button secondary" type="button" @click="cancelFinalizeDialog">Cancelar</button>
+          <button class="clinical-button success" type="button" :disabled="isBusy || consentChecking || Boolean(finalizeBlockReason)" @click="finalizeHistory">
             {{ hasConsentRefusal ? 'Marcar incompleta' : 'Finalizar historia clínica' }}
           </button>
         </div>
@@ -900,11 +996,15 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import ClosedHistoryReader from './components/ClosedHistoryReader.vue';
+import { closedConsent, closedSections } from '../../../domain/clinical-history/history.closed';
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
 import { editorSnapshot, textLengthErrors, canRefreshAllergyRevision } from '../../../domain/clinical-history/history.editor';
+import { identificationFields, identificationValue, identificationLabel, identificationDifferences, reviewedHistorySnapshot, emergencyContactText } from '../../../domain/clinical-history/history.identification';
 import { vitalSignMetadata, vitalSignError, vitalSignErrors, heightInCm } from '../../../domain/clinical-history/vitalSigns.validation';
 import { getSettingsSections } from '../../../security/settingsAccess';
+import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
 import { allergySnapshot, allergyLabels } from '../../../domain/patient/allergy';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
@@ -1012,6 +1112,7 @@ const mergeSnapshot = (base, incoming) => {
 };
 
 export default {
+  components: { ClosedHistoryReader },
   directives: { dialogName, fieldError },
   props: {
     px: {
@@ -1022,9 +1123,23 @@ export default {
   data() {
     return {
       clinicalHistory: null,
+      closedDocumentBusy: false,
+      closedDocumentRequest: 0,
+      versionRequest: 0,
+      versionLoading: false,
+      closedDocumentError: '',
       clinicalHistoryVersions: [],
       form: emptySnapshot(),
       documents: [],
+      // STG-C05-1: the consent the server will apply on close (consent_status / consent_document_id).
+      effectiveConsent: { loaded: false, status: '', documentId: null },
+      consentRefreshError: '',
+      consentChecking: false,
+      reviewedConsentKey: '',
+      // Only the newest consent read may change the state; older answers and errors are ignored.
+      consentReadSeq: 0,
+      // Bumped when the close confirmation is opened or cancelled; a pending close stops if it changed.
+      finalizeAttempt: 0,
       templates: [],
       doctors: [],
       doctorResponsibleUserId: null,
@@ -1039,6 +1154,10 @@ export default {
       savedSnapshot: '',
       saveError: '',
       revisionConflict: false,
+      showIdentificationReview: false,
+      selectedIdentificationFields: [],
+      keptIdentificationFingerprint: '',
+      lastSavedHistorySnapshot: '',
       showValidation: false,
       showConsentSetupDialog: false,
       vitalSignMetadata,
@@ -1097,7 +1216,7 @@ export default {
     canPrepareDocuments() { return this.allowedPreparationSections.includes('documents'); },
     profilePreparationMessage() {
       if(!this.hasPermission('clinical_history.finalize')) return 'Puedes guardar un borrador. Pide a un doctor o administrador con permiso de finalización que lo revise y cierre.';
-      if(!this.currentDoctorProfile) return 'Puedes iniciar y guardar un borrador. Para finalizar, tu perfil profesional debe estar activo y tener nombre profesional y cédula. Completa Mi perfil profesional; si tu perfil está inactivo o necesitas permisos, solicita ayuda al administrador.';
+      if(!this.currentDoctorProfile) return 'Para finalizar necesitas un perfil profesional activo con nombre y cédula. Si no puedes editarlo, pide ayuda al administrador.';
       if(this.selectedDoctor && !this.selectedDoctorProfileReady) return 'El doctor responsable seleccionado aún no tiene un perfil activo con nombre profesional y cédula. Pídele que complete Mi perfil profesional o selecciona otro responsable preparado. Puedes guardar el borrador.';
       return '';
     },
@@ -1132,6 +1251,8 @@ export default {
     activeDraftVersion() {
       return this.clinicalHistoryVersions.find((item) => item.status === 'DRAFT') || null;
     },
+    closedHistoricalConsent() { return closedConsent(this.clinicalHistory); },
+    closedReadingSections() { return closedSections(this.clinicalHistory, vitalSignMetadata); },
     historyVersionNotice() {
       if(!this.clinicalHistory) {
         return '';
@@ -1333,30 +1454,38 @@ export default {
         updatedBy: this.clinicalHistory && (this.clinicalHistory.updated_by_name || this.clinicalHistory.created_by_name) || 'No registrado'
       };
     },
+    // STG-C05-1: the effective consent comes from the server, never from the first document in a (paged) list.
+    consentVerified() {
+      return this.effectiveConsent.loaded && !this.consentRefreshError;
+    },
+    effectiveConsentKey() {
+      return this.consentVerified ? `${this.effectiveConsent.status}|${this.effectiveConsent.documentId || ''}` : '';
+    },
     sensitiveConsent() {
-      return this.documents.find((item) => item.document_type === 'SENSITIVE_DATA_CONSENT' && item.status !== 'CANCELADO') || null;
+      if(!this.consentVerified || !this.effectiveConsent.documentId) return null;
+      const id = this.effectiveConsent.documentId;
+      const listed = this.documents.find((item) => item.id_patient_document === id);
+      return { ...(listed || { id_patient_document: id, document_type: 'SENSITIVE_DATA_CONSENT' }), status: this.effectiveConsent.status };
     },
     sensitiveConsentTemplate() {
       return this.templates.find((item) => item.template_type === 'SENSITIVE_DATA_CONSENT') || null;
     },
     hasSignedConsent() {
-      return Boolean(this.sensitiveConsent && this.sensitiveConsent.status === 'FIRMADO');
+      return Boolean(this.canViewConsent && this.sensitiveConsent && this.sensitiveConsent.status === 'FIRMADO');
     },
     hasConsentRefusal() {
-      return Boolean(this.sensitiveConsent && this.sensitiveConsent.status === 'NO_FIRMADO_POR_NEGATIVA');
+      return Boolean(this.canViewConsent && this.sensitiveConsent && this.sensitiveConsent.status === 'NO_FIRMADO_POR_NEGATIVA');
+    },
+    // Another signed consent is listed while the refusal stays effective. No claim about which came first.
+    otherSignedConsentListed() {
+      if(!this.hasConsentRefusal) return false;
+      return this.documents.some((item) => item.document_type === 'SENSITIVE_DATA_CONSENT' && item.status === 'FIRMADO' && item.id_patient_document !== this.effectiveConsent.documentId);
     },
     sensitiveConsentTitle() {
       if(!this.canViewConsent) return 'Sin acceso';
-      if(this.hasSignedConsent) {
-        return 'Firmado';
-      }
-      if(this.hasConsentRefusal) {
-        return 'Negativa registrada';
-      }
-      if(this.sensitiveConsent) {
-        return 'Pendiente';
-      }
-      return 'Pendiente';
+      if(!this.consentVerified) return 'Sin verificar';
+      const label = this.hasSignedConsent ? 'Firmado' : (this.hasConsentRefusal ? 'Negativa vigente' : 'Pendiente');
+      return this.clinicalHistory && !this.isDraft ? `Vigente hoy: ${label}` : label;
     },
     consentStatusTone() {
       if(this.hasSignedConsent) {
@@ -1369,12 +1498,16 @@ export default {
     },
     sensitiveConsentHelpText() {
       if(!this.canViewConsent) return 'Tu acceso no permite consultar este consentimiento. Solicita apoyo a una persona con permiso de documentos para verificarlo.';
-      if(this.clinicalHistory && !this.isDraft) return 'Esta historia está cerrada y es de consulta. El estado del consentimiento utilizado al cerrarla está registrado en el historial de versiones.';
+      if(!this.consentVerified) return this.consentRefreshError || 'Verificando el consentimiento vigente.';
+      if(this.clinicalHistory && !this.isDraft) return 'Esta historia está cerrada y es de consulta. El estado mostrado es el consentimiento vigente hoy; el utilizado al cerrarla está registrado en el historial de versiones.';
       if(this.hasSignedConsent) {
         return 'Ya se cuenta con consentimiento firmado. La historia puede finalizarse cuando esté completa.';
       }
+      if(this.otherSignedConsentListed) {
+        return 'La negativa sigue vigente aunque en Documentos y firmas hay otro consentimiento firmado. La historia se guardará como incompleta, no como finalizada. Revisa los documentos.';
+      }
       if(this.hasConsentRefusal) {
-        return 'Hay una negativa registrada. La historia podrá guardarse como incompleta, no como finalizada.';
+        return 'Hay una negativa vigente. La historia podrá guardarse como incompleta, no como finalizada.';
       }
       if(this.sensitiveConsent) {
         return 'Puedes guardar el borrador. Para finalizar, falta capturar la firma o registrar una negativa.';
@@ -1435,7 +1568,17 @@ export default {
       return this.hasPermission('clinical_history.finalize') && allowedRoles.includes(this.currentUserRole) && Boolean(this.currentDoctorProfile);
     },
     legacyIdentification() {
-      return this.buildIdentificationSnapshot();
+      const captured = this.buildIdentificationSnapshot();
+      return Object.fromEntries(identificationFields.map(([key]) => [key, identificationLabel(captured[key])]));
+    },
+    identificationChanges() {
+      return this.isDraft ? identificationDifferences(this.form.identification, this.buildIdentificationSnapshot()) : [];
+    },
+    identificationFingerprint() {
+      return JSON.stringify([this.clinicalHistory && this.clinicalHistory.id_clinical_history, this.identificationChanges]);
+    },
+    identificationKept() {
+      return this.keptIdentificationFingerprint === this.identificationFingerprint;
     },
     legacyConsultation() {
       return {
@@ -1445,16 +1588,7 @@ export default {
     },
     identificationDisplay() {
       const identification = this.form.identification || {};
-      return [
-        { label: 'Nombre completo', value: this.valueOrEmpty(identification.full_name) },
-        { label: 'Edad', value: this.valueOrEmpty(identification.age) },
-        { label: 'Fecha de nacimiento', value: this.valueOrEmpty(identification.birth_date) },
-        { label: 'Sexo', value: this.valueOrEmpty(identification.sex) },
-        { label: 'Teléfono', value: this.valueOrEmpty(identification.phone) },
-        { label: 'Correo', value: this.valueOrEmpty(identification.email) },
-        { label: 'Dirección', value: this.valueOrEmpty(identification.address) },
-        { label: 'Contacto de emergencia', value: this.valueOrEmpty(identification.emergency_contact) }
-      ];
+      return identificationFields.map(([key, label]) => ({ label, value: identificationLabel(identification[key]) }));
     },
     formModeTitle() {
       if(this.isDraft) {
@@ -1508,7 +1642,7 @@ export default {
         {
           label: 'Consentimiento de datos personales sensibles',
           ok: consentOk,
-          status: this.hasSignedConsent ? 'Firmado' : (this.hasConsentRefusal ? 'Negativa' : 'Pendiente')
+          status: !this.consentVerified ? 'Sin verificar' : (this.hasSignedConsent ? 'Firmado' : (this.hasConsentRefusal ? 'Negativa vigente: se guardará como incompleta' : 'Pendiente'))
         },
         {
           label: 'Doctor responsable',
@@ -1536,6 +1670,9 @@ export default {
       if(this.doctorResponsibleWarning) {
         return this.doctorResponsibleWarning;
       }
+      if(!this.consentVerified) {
+        return 'No se pudo verificar el consentimiento vigente. Reintenta; tu captura se conserva.';
+      }
       if(!this.hasSignedConsent && !this.hasConsentRefusal) {
         return 'Para finalizar, primero registra el consentimiento firmado o una negativa.';
       }
@@ -1560,6 +1697,11 @@ export default {
     px: {
       handler(value, previous) {
         if(this.patientId && (!previous || !previous.person || previous.person.id_person !== this.patientId)) {
+          this.versionRequest++;
+          this.closedDocumentRequest++;
+          this.closedDocumentBusy = false;
+          this.closedDocumentError = '';
+          if(this.versionLoading) { this.versionLoading = false; this.isBusy = false; }
           this.loadInitialData();
         }
       },
@@ -1570,6 +1712,7 @@ export default {
     this.$emit('register-navigation-guard', this.confirmLeave);
     this.loadInitialData();
     window.addEventListener('beforeunload', this.beforeUnload);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.removeNavigationGuard = this.$router.beforeEach((to, from, next) => {
       this.confirmLeave().then(allowed => next(allowed)).catch(() => next(false));
     });
@@ -1578,6 +1721,7 @@ export default {
     this.$emit('register-navigation-guard', null);
     this.loadRequest++;
     window.removeEventListener('beforeunload', this.beforeUnload);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
     if(this.removeNavigationGuard) this.removeNavigationGuard();
     clearTimeout(this.fieldFocusTimer);
     if(this.leaveResolver) this.leaveResolver(false);
@@ -1673,12 +1817,14 @@ export default {
     async loadClinicalHistory(request = this.loadRequest, patientId = this.patientId, preserveDraft = this.dirty) {
       this.loadError = false;
       if(!this.canReadHistory) { this.denyHistoryAccess(); return; }
+      const consentRead = ++this.consentReadSeq;
       try {
         const response = await DAClinicalHistoryService.getByPatient(patientId);
         if(request !== this.loadRequest || this.historyForbidden) return;
         if(response && response.status === 403) { this.denyHistoryAccess(); return; }
         if(!response || !response.success || !response.data) throw new Error('History load failed');
         this.historyLoaded = true;
+        if(consentRead === this.consentReadSeq) this.applyEffectiveConsent(response.data);
         if(!preserveDraft) {
           this.clinicalHistory = response.data.history || null;
           if(this.clinicalHistory) this.applyHistoryToForm(this.clinicalHistory);
@@ -1790,15 +1936,34 @@ export default {
       const addressText = [address.direction, address.residence, address.cp].filter(Boolean).join(', ');
       const fullName = person.fullname || `${person.name || ''} ${person.surname || ''}`.trim();
       return {
-        full_name: fullName || 'No registrado',
-        age: this.calculateAge(person.birthday) || person.age || 'No registrado',
-        birth_date: person.birthday || 'No registrado',
-        sex: person.sex || person.gender || 'No registrado',
-        phone: person.telephone || person.local_telephone || 'No registrado',
-        email: person.email || 'No registrado',
-        address: addressText || 'No registrado',
-        emergency_contact: person.emergency_contact || 'No registrado'
+        full_name: identificationValue(fullName),
+        age: this.calculateAge(person.birthday) === '' ? identificationValue(person.age) : this.calculateAge(person.birthday),
+        birth_date: identificationValue(person.birthday),
+        sex: ({'1':'Hombre','2':'Mujer','3':'Intersexual'})[(this.px.identity || {}).biologicalSex] || '',
+        phone: identificationValue(person.telephone) || identificationValue(person.local_telephone),
+        email: identificationValue(person.email),
+        address: identificationValue(addressText),
+        emergency_contact: identificationValue(emergencyContactText(this.px && this.px.emergencyContact) || person.emergency_contact)
       };
+    },
+    identificationLabel(value) { return identificationLabel(value); },
+    openIdentificationReview() {
+      if(!this.canEditForm || this.revisionConflict) return;
+      this.selectedIdentificationFields = this.identificationChanges.map(item => item.key);
+      this.showIdentificationReview = true;
+    },
+    keepHistoryIdentification() {
+      if(!this.canEditForm) return;
+      this.keptIdentificationFingerprint = this.identificationFingerprint;
+    },
+    updateHistoryIdentification() {
+      if(!this.canEditForm || this.revisionConflict) return;
+      const current = this.buildIdentificationSnapshot();
+      const selected = this.identificationChanges.filter(item => this.selectedIdentificationFields.includes(item.key));
+      selected.forEach(({key}) => this.$set(this.form.identification, key, current[key]));
+      if(selected.some(item => item.key === 'birth_date')) this.$set(this.form.identification, 'age', current.age);
+      this.showIdentificationReview = false;
+      this.saveError = '';
     },
     buildLegacySnapshot() {
       const snapshot = emptySnapshot();
@@ -1844,11 +2009,17 @@ export default {
       if(!version || !version.id_clinical_history) {
         return;
       }
-      if(!await this.confirmLeave()) return;
+      const request = ++this.versionRequest, load = this.loadRequest, patientId = this.patientId;
+      const context = authorizationContext(this.$store);
+      const current = () => request === this.versionRequest && load === this.loadRequest && patientId === this.patientId && isCurrentAuthorization(context, this.$store) && this.canReadHistory;
+      if(!await this.confirmLeave() || !current()) return;
       this.isBusy = true;
+      this.versionLoading = true;
       try {
         const response = await DAClinicalHistoryService.getById(version.id_clinical_history);
+        if(!current()) return;
         if(response && response.success && response.data && response.data.history) {
+          this.closedDocumentError = '';
           this.clinicalHistory = response.data.history;
           this.applyHistoryToForm(this.clinicalHistory);
           this.notify('success', version.status === 'DRAFT' ? 'Borrador cargado.' : 'Versión cargada para consulta.');
@@ -1856,8 +2027,8 @@ export default {
         }
         this.notify('error', response && response.message ? response.message : 'No se pudo cargar esta versión.');
       } catch (error) {
-        this.saveError = 'No se pudo cargar esta versión. La captura actual se conserva.';
-      } finally { this.isBusy = false; }
+        if(current()) this.saveError = 'No se pudo cargar esta versión. La captura actual se conserva.';
+      } finally { if(request === this.versionRequest) { this.versionLoading = false; this.isBusy = false; } }
     },
     async printCurrentClinicalHistory() {
       if(!this.clinicalHistory || !this.clinicalHistory.id_clinical_history) {
@@ -1933,7 +2104,7 @@ export default {
       return false;
     },
     async saveDraft(showMessage = true) {
-      if(this.isBusy || !this.contextReady || !this.canEditDraftPermission || !this.isDraft || !this.clinicalHistory) {
+      if(this.isBusy || this.revisionConflict || !this.contextReady || !this.canEditDraftPermission || !this.isDraft || !this.clinicalHistory) {
         if(!this.contextReady) this.saveError = 'Reintenta la carga del contexto antes de guardar. Los cambios se conservan.';
         return false;
       }
@@ -1945,6 +2116,7 @@ export default {
       }
       this.showValidation = false;
       this.saveError = '';
+      this.lastSavedHistorySnapshot = '';
       this.isBusy = true;
       try {
         const response = await DAClinicalHistoryService.updateDraft(this.clinicalHistory.id_clinical_history, {
@@ -1953,6 +2125,10 @@ export default {
           clinical_snapshot_json: this.buildPayloadSnapshot()
         });
         if(response && response.success && response.data && response.data.history) {
+          this.lastSavedHistorySnapshot = reviewedHistorySnapshot(
+            mergeSnapshot(emptySnapshot(), response.data.history.clinical_snapshot_json),
+            response.data.history.doctor_responsible_user_id
+          );
           this.clinicalHistory = response.data.history;
           this.applyHistoryToForm(this.clinicalHistory);
           await this.loadClinicalHistoryVersions();
@@ -1963,14 +2139,68 @@ export default {
         }
         this.handleRevisionConflict(response);
         this.saveError = response && response.message ? response.message : 'No se pudo guardar el borrador. Reintenta; los cambios se conservan.';
-      } catch (error) { this.saveError = 'No se pudo guardar el borrador. Reintenta; los cambios se conservan.'; }
+      } catch (error) { this.handleRevisionConflict(error.response); this.saveError = 'No se pudo guardar el borrador. Reintenta; los cambios se conservan.'; }
       finally { this.isBusy = false; }
       return false;
     },
-    openFinalizeDialog() {
-      if(this.isBusy || !this.contextReady) return;
+    // Only consent metadata is taken from the response: the draft, sections and reviews on screen are kept.
+    applyEffectiveConsent(data) {
+      if(!data || typeof data.consent_status !== 'string') {
+        this.consentRefreshError = 'No se pudo verificar el consentimiento vigente. Tu captura se conserva; reintenta antes de finalizar.';
+        return false;
+      }
+      this.effectiveConsent = { loaded: true, status: data.consent_status, documentId: data.consent_document_id || null };
+      this.consentRefreshError = '';
+      // A newer answer that differs from the reviewed confirmation is shown, and closing will ask to review it.
+      if(this.showFinalizeDialog && this.reviewedConsentKey && this.effectiveConsentKey !== this.reviewedConsentKey) {
+        this.saveError = 'El consentimiento vigente cambió. Revisa la confirmación antes de continuar.';
+      }
+      return true;
+    },
+    // Re-reading narrows, but does not remove, the window for a consent change before the close request.
+    // Returns 'verified', 'failed' or 'superseded' (a newer read started; this answer was ignored).
+    async readEffectiveConsent() {
+      const request = this.loadRequest;
+      const patientId = this.patientId;
+      if(!patientId || !this.canReadHistory) return 'failed';
+      const consentRead = ++this.consentReadSeq;
+      const current = () => consentRead === this.consentReadSeq && request === this.loadRequest && patientId === this.patientId;
+      try {
+        const response = await DAClinicalHistoryService.getByPatient(patientId);
+        if(!current()) return 'superseded';
+        if(!response || !response.success) throw new Error('Consent refresh failed');
+        return this.applyEffectiveConsent(response.data) ? 'verified' : 'failed';
+      } catch (error) {
+        if(!current()) return 'superseded';
+        this.consentRefreshError = 'No se pudo verificar el consentimiento vigente. Tu captura se conserva; reintenta antes de finalizar.';
+        return 'failed';
+      }
+    },
+    async refreshEffectiveConsent() {
+      return (await this.readEffectiveConsent()) === 'verified';
+    },
+    onVisibilityChange() {
+      if(document.visibilityState === 'visible' && this.isDraft && !this.isBusy && !this.consentChecking) this.refreshEffectiveConsent();
+    },
+    async retryConsentVerification() {
+      if(this.consentChecking) return;
+      this.consentChecking = true;
+      try { await this.refreshEffectiveConsent(); } finally { this.consentChecking = false; }
+      if(this.showFinalizeDialog) this.reviewedConsentKey = this.effectiveConsentKey;
+    },
+    async openFinalizeDialog() {
+      if(this.isBusy || this.consentChecking || !this.contextReady) return;
       this.saveError = '';
+      this.finalizeAttempt++;
+      this.consentChecking = true;
+      try { await this.refreshEffectiveConsent(); } finally { this.consentChecking = false; }
+      this.reviewedConsentKey = this.effectiveConsentKey;
       this.showFinalizeDialog = true;
+    },
+    // Cancel really stops a close that is still verifying: nothing is saved or closed afterwards.
+    cancelFinalizeDialog() {
+      this.finalizeAttempt++;
+      this.showFinalizeDialog = false;
     },
     reviewConsent() {
       this.showFinalizeDialog = false;
@@ -1983,6 +2213,7 @@ export default {
       });
     },
     async finalizeHistory() {
+      if(this.isBusy || this.consentChecking || this.revisionConflict) return;
       if(this.criticalFieldsStatus.length) {
         this.scrollToFirstMissingRequired();
       }
@@ -1990,8 +2221,44 @@ export default {
         this.notify('warning', this.finalizeBlockReason);
         return;
       }
+      // The action shown must match the consent the server applies; a change requires reviewing it again.
+      const reviewedConsent = this.reviewedConsentKey;
+      const attempt = this.finalizeAttempt;
+      // Esc, outside click and Cancel all hide the dialog; any of them, or reopening it, ends this attempt.
+      const stillConfirmed = () => attempt === this.finalizeAttempt && this.showFinalizeDialog;
+      this.consentChecking = true;
+      let verification = 'failed';
+      try { verification = await this.readEffectiveConsent(); } finally { this.consentChecking = false; }
+      if(!stillConfirmed()) return;
+      if(verification === 'superseded') {
+        this.saveError = 'El consentimiento se volvió a verificar mientras confirmabas. Revisa la confirmación y vuelve a intentarlo.';
+        return;
+      }
+      if(verification !== 'verified') {
+        this.saveError = this.consentRefreshError;
+        return;
+      }
+      if(!reviewedConsent || this.effectiveConsentKey !== reviewedConsent) {
+        this.reviewedConsentKey = this.effectiveConsentKey;
+        this.saveError = 'El consentimiento vigente cambió. Revisa la confirmación antes de continuar.';
+        return;
+      }
+      if(this.finalizeBlockReason) {
+        this.notify('warning', this.finalizeBlockReason);
+        return;
+      }
+      const reviewed = reviewedHistorySnapshot(this.buildPayloadSnapshot(), this.doctorResponsibleUserId);
       const saved = await this.saveDraft(false);
       if(!saved) {
+        return;
+      }
+      if(!stillConfirmed()) {
+        this.notify('info', 'Borrador guardado. No se cerró la historia porque cancelaste la confirmación.');
+        return;
+      }
+      if(reviewed !== this.lastSavedHistorySnapshot || reviewed !== reviewedHistorySnapshot(this.buildPayloadSnapshot(), this.doctorResponsibleUserId)) {
+        this.showFinalizeDialog = false;
+        this.saveError = 'El guardado devolvió cambios en la historia. Revisa los datos mostrados antes de volver a finalizar.';
         return;
       }
       this.isBusy = true;
@@ -2007,7 +2274,7 @@ export default {
         }
         this.handleRevisionConflict(response);
         this.saveError = response && response.message ? response.message : 'No se pudo finalizar. El borrador guardado se conserva; puedes reintentar.';
-      } catch (error) { this.saveError = 'No se pudo finalizar. El borrador guardado se conserva; puedes reintentar.'; }
+      } catch (error) { this.handleRevisionConflict(error.response); this.saveError = 'No se pudo finalizar. El borrador guardado se conserva; puedes reintentar.'; }
       finally { this.isBusy = false; }
     },
     async cancelDraft() {
@@ -2036,7 +2303,7 @@ export default {
       finally { this.isBusy = false; }
     },
     handleRevisionConflict(response) {
-      if(response && response.data && response.data.code === 'HISTORY_REVISION_CONFLICT') {
+      if(response && (response.status === 409 || (response.data && response.data.code === 'HISTORY_REVISION_CONFLICT'))) {
         this.revisionConflict = true;
         this.showFinalizeDialog = false;
         this.showLeaveDialog = false;
@@ -2099,7 +2366,7 @@ export default {
         }
         return;
       }
-      const result = await this.confirmDialog('Crear nueva versión', 'Se creará un nuevo borrador basado en la última historia. La versión anterior se conservará sin cambios.');
+      const result = await this.confirmDialog('Crear nueva versión', 'Se creará un nuevo borrador basado en la versión que estás consultando. Esta versión se conservará sin cambios.');
       if(!result) {
         return;
       }
@@ -2115,12 +2382,7 @@ export default {
       if(this.activeSchema) {
         this.ensureDynamicSnapshotDefaults(this.activeSchema);
       }
-      const snapshot = mergeSnapshot(emptySnapshot(), this.form);
-      snapshot.identification = {
-        ...snapshot.identification,
-        ...this.buildIdentificationSnapshot()
-      };
-      return snapshot;
+      return JSON.parse(JSON.stringify(mergeSnapshot(emptySnapshot(), this.form)));
     },
     normalizeTemplateSchema(rawSchema) {
       let parsed = rawSchema;
@@ -2444,10 +2706,7 @@ export default {
     },
     resolveReadonlyFieldValue(section, field) {
       const source = field.source || '';
-      const identification = {
-        ...this.buildIdentificationSnapshot(),
-        ...((this.form && this.form.identification) || {})
-      };
+      const identification = (this.form && this.form.identification) || {};
       const sourceMap = {
         'patient.full_name': identification.full_name,
         'patient.age': identification.age,
@@ -2460,10 +2719,10 @@ export default {
         'patient.emergency_contact': identification.emergency_contact
       };
       if(source && Object.prototype.hasOwnProperty.call(sourceMap, source)) {
-        return sourceMap[source] || 'No registrado';
+        return identificationLabel(sourceMap[source]);
       }
       const sectionValues = this.form[section.key] || {};
-      return sectionValues[field.key] || 'No registrado';
+      return identificationLabel(sectionValues[field.key]);
     },
     dynamicMissingRequiredFields() {
       const missing = [];
@@ -2567,6 +2826,7 @@ export default {
       });
       if(response && response.success) {
         this.documents = response.data || [];
+        await this.refreshEffectiveConsent();
         this.notify('success', 'Consentimiento creado correctamente.');
         const createdConsent = this.documents.find((item) => item.document_type === 'SENSITIVE_DATA_CONSENT' && item.status !== 'CANCELADO') || null;
         if(createdConsent) {
@@ -2583,7 +2843,7 @@ export default {
     async refreshPreparation() {
       if(this.isBusy) return;
       this.contextError = '';
-      await this.loadConsentStatus();
+      await Promise.all([this.loadConsentStatus(), this.refreshEffectiveConsent()]);
     },
     async registerSensitiveRefusal() {
       if(!this.canViewConsent || !this.hasPermission('documents.refusal')) return;
@@ -2610,10 +2870,35 @@ export default {
       });
       if(response && response.success) {
         this.documents = response.data || [];
+        await this.refreshEffectiveConsent();
         this.notify('success', 'Negativa registrada.');
       } else {
         this.notify('error', response && response.message ? response.message : 'No se pudo registrar negativa.');
       }
+    },
+    async viewLatestClosedVersion() {
+      const latest = this.clinicalHistoryVersions.find(version => version.id_clinical_history === this.latestVersionId);
+      if(latest) await this.viewHistoryVersion(latest);
+    },
+    async openClosedConsentDocument() {
+      const historyId = this.clinicalHistory && this.clinicalHistory.id_clinical_history;
+      const documentId = this.closedHistoricalConsent.documentId, patientId = this.patientId;
+      if(!this.canViewConsent || !documentId || this.closedDocumentBusy) return;
+      const request = ++this.closedDocumentRequest, load = this.loadRequest;
+      const context = authorizationContext(this.$store);
+      const current = () => request === this.closedDocumentRequest && load === this.loadRequest && isCurrentAuthorization(context, this.$store) && this.canViewConsent && this.patientId === patientId && this.clinicalHistory && this.clinicalHistory.id_clinical_history === historyId;
+      this.closedDocumentBusy = true; this.closedDocumentError = '';
+      try {
+        const response = await DADocumentService.getPatientDocument(patientId, documentId);
+        if(!current()) return;
+        const document = response && response.data && response.data[0];
+        if(!response || !response.success || !document || document.id_patient_document !== documentId) {
+          this.closedDocumentError = 'El documento del cierre no está accesible. Esta versión conserva su referencia histórica.'; return;
+        }
+        this.$emit('open-documents', { id_patient_document: documentId, open: true });
+      } catch (_) {
+        if(current()) this.closedDocumentError = 'No se pudo consultar el documento del cierre. Puedes reintentar.';
+      } finally { if(request === this.closedDocumentRequest) this.closedDocumentBusy = false; }
     },
     openSensitiveDocument() {
       if(!this.canViewConsent) return;
@@ -2681,7 +2966,7 @@ export default {
       const history = payload.history || {};
       const snapshot = history.clinical_snapshot_json || {};
       const schema = this.normalizeTemplateSchema(history.template_snapshot_json || {});
-      const patient = this.printablePatient(payload.patient || {}, snapshot.identification || {});
+      const patient = this.printablePatient(snapshot.identification || {});
       const business = payload.business || (this.$session ? this.$session.get('business') : null) || {};
       const doctor = payload.doctor || {};
       const finalizer = payload.finalizer || null;
@@ -2705,10 +2990,10 @@ export default {
               .header { display: flex; justify-content: space-between; gap: 18px; border-bottom: 2px solid #d8e9ef; padding-bottom: 14px; margin-bottom: 14px; break-inside: avoid; }
               .brand-row { display: flex; gap: 12px; align-items: flex-start; }
               .logo { max-width: 82px; max-height: 58px; object-fit: contain; }
-              .brand { margin: 0 0 4px; color: #00728c; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+              .brand { margin: 0 0 4px; color: #00728c; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
               h1 { margin: 0 0 6px; font-size: 22px; color: #101828; }
               h2 { margin: 24px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #d8e9ef; color: #0f172a; font-size: 15px; break-after: avoid; }
-              .status { display: inline-block; border: 1px solid #b8edf7; background: #f0fbff; color: #006487; padding: 5px 9px; font-weight: 800; text-align: center; }
+              .status { display: inline-block; border: 1px solid #b8edf7; background: #f0fbff; color: #006487; padding: 5px 9px; font-weight: 600; text-align: center; }
               .status.draft { border-color: #fbbf24; background: #fffbeb; color: #92400e; }
               .status.incomplete { border-color: #f59e0b; background: #fff7ed; color: #9a3412; }
               .status.finalized { border-color: #86efac; background: #f0fdf4; color: #047857; }
@@ -2721,6 +3006,12 @@ export default {
               .field.wide { grid-column: 1 / -1; }
               .field span { white-space: pre-wrap; overflow-wrap: anywhere; }
               .footer { border-top: 1px solid #d8e9ef; margin-top: 24px; padding-top: 10px; color: #64748b; font-size: 11px; break-inside: avoid; }
+              @media screen {
+                body { padding: 24px; }
+              }
+              @media screen and (max-width: 600px) {
+                body { padding: 16px; }
+              }
               @media print {
                 body { margin: 0; }
                 .section, .header, .meta, .notice, .footer { break-inside: avoid; page-break-inside: avoid; }
@@ -2782,18 +3073,8 @@ export default {
         </html>
       `;
     },
-    printablePatient(patient, identification) {
-      const address = identification.address || [patient.direction, patient.residence, patient.cp].filter(Boolean).join(', ');
-      return [
-        { label: 'Nombre completo', value: identification.full_name || patient.full_name || `${patient.name || ''} ${patient.surname || ''}`.trim() },
-        { label: 'Edad', value: identification.age || patient.age },
-        { label: 'Fecha de nacimiento', value: identification.birth_date || patient.birthday },
-        { label: 'Sexo', value: identification.sex },
-        { label: 'Teléfono', value: identification.phone || patient.telephone || patient.local_telephone },
-        { label: 'Correo', value: identification.email },
-        { label: 'Dirección', value: address },
-        { label: 'Contacto de emergencia', value: identification.emergency_contact }
-      ];
+    printablePatient(identification) {
+      return identificationFields.map(([key, label]) => ({ label, value: identificationLabel(identification[key]) }));
     },
     printableDoctorFields(doctor, history) {
       const historicalLicenseText = history && history.status !== 'DRAFT' ? 'Sin copia histórica disponible.' : 'No registrada';
@@ -2916,7 +3197,7 @@ export default {
         'patient.address': sourceMap['dirección'],
         'patient.emergency_contact': sourceMap['contacto de emergencia']
       };
-      return values[source] || sectionValues[field.key] || '';
+      return identificationLabel(Object.prototype.hasOwnProperty.call(values, source) ? values[source] : sectionValues[field.key]);
     },
     printableFieldValue(value, type = 'text') {
       if(Array.isArray(value)) {
@@ -2981,7 +3262,7 @@ export default {
       if(month < 0 || (month === 0 && today.getDate() < birthDate.getDate())) {
         age -= 1;
       }
-      return age > 0 ? `${age} años` : '';
+      return age >= 0 ? `${age} años` : '';
     },
     formatDateTime(value) {
       if(!value) {
@@ -3022,6 +3303,7 @@ export default {
       return 'Versión histórica';
     },
     consentVersionLabel(version) {
+      if(version && version.status !== 'DRAFT') return closedConsent(version).label.split(' · ')[0];
       if(!version || !version.consent_document_id) {
         return 'No vinculado';
       }
@@ -3072,6 +3354,12 @@ export default {
 </script>
 
 <style scoped>
+.identification-notice { border-left: 4px solid var(--color-primary-700, #00728c); }
+.identification-comparison { display: grid; gap: .75rem; margin: 1rem 0; }
+.identification-change { display: flex; align-items: flex-start; gap: .75rem; border-bottom: 1px solid #d8e9ef; padding: .75rem 0; overflow-wrap: anywhere; }
+.identification-change > span { display: grid; gap: .35rem; min-width: 0; }
+.identification-change input { min-width: 1.25rem; min-height: 1.25rem; margin-top: .2rem; }
+.identification-change input:focus-visible { outline: 3px solid #00728c; outline-offset: 3px; }
 .clinical-history-page {
   display: flex;
   flex-direction: column;
@@ -3133,14 +3421,14 @@ export default {
   color: #047857 !important;
   padding: .35rem .7rem;
   font-size: .78rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .initial-subtitle {
   margin: 0;
   color: #0f172a !important;
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .initial-summary {
@@ -3161,7 +3449,7 @@ export default {
   display: block;
   color: #64748b;
   font-size: .72rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .initial-summary strong {
@@ -3202,7 +3490,7 @@ export default {
   color: #006487;
   padding: .25rem .15rem;
   font-size: .88rem;
-  font-weight: 900;
+  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
   transition: color .14s ease, text-decoration-color .14s ease;
@@ -3284,7 +3572,7 @@ export default {
   padding: .25rem .7rem;
   white-space: nowrap;
   font-size: .78rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .consent-status-badge.pending {
@@ -3315,7 +3603,7 @@ export default {
   border-radius: 999px;
   background: #f0fbff;
   color: #006487;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .status-main {
@@ -3330,7 +3618,7 @@ export default {
   margin: 0 0 .25rem;
   color: var(--color-primary-900);
   font-size: .72rem;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: .12em;
   text-transform: uppercase;
 }
@@ -3363,7 +3651,7 @@ h3 {
 .permission-note {
   margin: .45rem 0 0;
   color: #92400e !important;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .status-grid,
@@ -3398,6 +3686,57 @@ h3 {
   grid-column: span 2;
 }
 
+.status-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  align-self: start;
+  border: 1px solid #d7e8f1;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .86);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .035);
+  overflow: hidden;
+}
+
+.status-list {
+  margin: 0;
+  padding: .35rem 1.1rem;
+  min-width: 0;
+}
+
+.status-list + .status-list {
+  border-top: 1px solid #e3eef4;
+}
+
+.status-row {
+  display: grid;
+  grid-template-columns: minmax(8.5rem, 12rem) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 1rem;
+  padding: .7rem 0;
+  border-bottom: 1px solid #edf3f7;
+}
+
+.status-row:last-child {
+  border-bottom: 0;
+}
+
+.status-row dt {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: .78rem;
+  font-weight: 600;
+}
+
+.status-row dd {
+  margin: 0;
+  min-width: 0;
+  color: #0f172a;
+  font-size: .9rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .status-panel .clinical-button {
   align-self: end;
   min-height: 2.4rem;
@@ -3409,7 +3748,7 @@ h3 {
   display: block;
   color: #64748b;
   font-size: .72rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .status-item strong,
@@ -3429,7 +3768,7 @@ h3 {
   border-radius: 999px;
   padding: .35rem .7rem;
   font-size: .75rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .status-pill.neutral {
@@ -3539,7 +3878,7 @@ h3 {
   background: #fff;
   color: #006487;
   font-size: .72rem;
-  font-weight: 900;
+  font-weight: 600;
   padding: .28rem .55rem;
 }
 
@@ -3560,7 +3899,7 @@ h3 {
   display: block;
   color: #64748b;
   font-size: .7rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .version-meta-grid strong {
@@ -3681,7 +4020,7 @@ h3 {
   border-radius: 999px;
   border: 1px solid #cfe7f3;
   padding: .55rem 1rem;
-  font-weight: 900;
+  font-weight: 600;
   color: var(--color-primary-900);
   background: #fff !important;
   box-shadow: 0 8px 18px rgba(15, 23, 42, .05);
@@ -3703,6 +4042,35 @@ h3 {
   background: var(--color-primary-900) !important;
   border-color: var(--color-primary-900) !important;
   box-shadow: 0 12px 24px rgba(23, 167, 201, .24);
+}
+
+.clinical-button.primary.draft-save {
+  background: var(--color-primary-500) !important;
+  border-color: var(--color-primary-500) !important;
+}
+
+.warning-panel.profile-preparation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: .5rem;
+}
+
+.profile-preparation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem 1rem;
+  max-width: 100%;
+}
+
+.clinical-button.profile-preparation-link {
+  flex: 0 0 auto;
+  border-radius: 8px;
+  min-height: 44px;
+  padding: .55rem .75rem;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .clinical-button.success {
@@ -3834,12 +4202,12 @@ h3 {
 
 .capture-template-inline span {
   color: #64748b;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .capture-template-inline strong {
   color: #0f172a;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .capture-template-inline em {
@@ -3848,7 +4216,7 @@ h3 {
   color: #006487;
   padding: .14rem .42rem;
   font-style: normal;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .capture-progress-topline,
@@ -3872,7 +4240,7 @@ h3 {
   color: #006487;
   padding: .22rem .55rem;
   font-size: .76rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .capture-progress-track {
@@ -3892,7 +4260,7 @@ h3 {
 
 .capture-progress-footer small {
   color: #64748b;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .capture-guide-panel {
@@ -3929,7 +4297,7 @@ h3 {
   color: #92400e;
   padding: .28rem .6rem;
   font-size: .78rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .clinical-form {
@@ -4007,13 +4375,13 @@ h3 {
 .section-nav-item span {
   color: #0f172a;
   font-size: .86rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .section-nav-item small {
   color: #64748b;
   font-size: .75rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .section-nav-item.missing small {
@@ -4075,7 +4443,7 @@ h3 {
   border-radius: 999px;
   padding: .28rem .62rem;
   font-size: .76rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .section-state-pill.complete {
@@ -4103,7 +4471,7 @@ h3 {
   color: #006487;
   padding: .28rem .62rem;
   font-size: .76rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .section-inline-warning {
@@ -4117,7 +4485,7 @@ h3 {
   padding: .34rem .68rem;
   margin: 0 0 .75rem;
   font-size: .82rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .section-warning-legacy {
@@ -4138,7 +4506,7 @@ h3 {
   color: #006487;
   padding: .38rem .72rem;
   font-size: .8rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .field-required-note {
@@ -4146,7 +4514,7 @@ h3 {
   margin-top: -.35rem;
   color: #b45309 !important;
   font-size: .76rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .section-step-footer {
@@ -4190,7 +4558,7 @@ h3 {
 .pending-dialog-list span {
   color: #64748b;
   font-size: .76rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -4214,7 +4582,7 @@ h3 {
 
 .doctor-summary span {
   font-size: .72rem;
-  font-weight: 900;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .08em;
 }
@@ -4229,7 +4597,7 @@ h3 {
   color: #92400e !important;
   padding: .7rem;
   margin: .5rem 0 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .form-grid {
@@ -4274,7 +4642,7 @@ h3 {
 .readonly-field span {
   color: #52637a;
   font-size: .76rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .readonly-field strong {
@@ -4298,7 +4666,7 @@ h3 {
 .dialog-card header h3 {
   margin: .3rem 0 .6rem;
   font-size: 1.25rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .dialog-card header p:not(.section-kicker) {
@@ -4337,7 +4705,7 @@ h3 {
 .block-reason {
   margin: 1rem 0 0;
   color: #b42318;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .dialog-actions {
@@ -4372,6 +4740,11 @@ h3 {
 
   .status-panel .status-item.wide {
     grid-column: 1 / -1;
+  }
+
+  .status-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .15rem;
   }
 
   .form-grid.two,
@@ -4476,7 +4849,7 @@ h3 {
   }
 }
 
-.save-state { font-weight: 700; color: var(--color-primary-900); }
+.save-state { font-weight: 600; color: var(--color-primary-900); }
 .quick-action-feedback { padding: .6rem; background: #f0f9ff; color: #334155; }
 .dynamic-field { scroll-margin-top: 10rem; }
 .clinical-history-page button:focus-visible, .dialog-card button:focus-visible { outline: 3px solid var(--color-primary-900); outline-offset: 3px; }

@@ -240,7 +240,7 @@ export default {
   margin: 0 0 3px;
   color: #1b6b6f;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -268,7 +268,7 @@ export default {
   border-radius: 999px;
   padding: 5px 10px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   background: #edf2f7;
   color: #425466;
 }
@@ -304,7 +304,7 @@ export default {
   margin: 12px 0 0;
   color: #1b6b6f;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .qr-actions {
@@ -324,7 +324,7 @@ export default {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .qr-btn:disabled {
@@ -342,7 +342,7 @@ export default {
   margin: 8px 0 0;
   color: #027a48;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 @media (max-width: 720px) {

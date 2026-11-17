@@ -25,13 +25,21 @@
           <span>Información mínima para crear el expediente.</span>
         </div>
         <div class="patient-create-grid">
-          <v-text-field v-field-error="{ id: 'patient-name', invalid: Boolean(fieldError('name').length), required: true }" ref="name" v-model.trim="form.name" label="Nombre *" required outlined dense :error-messages="fieldError('name')" @blur="touchField('name')"></v-text-field>
-          <v-text-field v-field-error="{ id: 'patient-firstSurname', invalid: Boolean(fieldError('firstSurname').length), required: true }" ref="firstSurname" v-model.trim="form.firstSurname" label="Apellido paterno *" required outlined dense :error-messages="fieldError('firstSurname')" @blur="touchField('firstSurname')"></v-text-field>
-          <v-text-field v-model.trim="form.secondSurname" label="Apellido materno, opcional" outlined dense></v-text-field>
+          <v-text-field v-field-error="{ id: 'patient-name', invalid: Boolean(fieldError('name').length), required: true }" ref="name" v-model.trim="form.name" label="Nombre(s) *" required outlined dense :error-messages="fieldError('name')" @blur="touchField('name')"></v-text-field>
+          <v-text-field v-field-error="{ id: 'patient-firstSurname', invalid: Boolean(fieldError('firstSurname').length), required: true }" ref="firstSurname" v-model.trim="form.firstSurname" label="Primer apellido *" required outlined dense :error-messages="fieldError('firstSurname')" @blur="touchField('firstSurname')"></v-text-field>
+          <v-text-field v-model.trim="form.secondSurname" label="Segundo apellido, opcional" outlined dense></v-text-field>
           <v-text-field v-field-error="{ id: 'patient-birthDate', invalid: Boolean(fieldError('birthDate').length), required: true }" ref="birthDate" v-model="form.birthDate" label="Fecha de nacimiento *" required type="date" :max="today" outlined dense :error-messages="fieldError('birthDate')" @blur="touchField('birthDate')"></v-text-field>
           <v-text-field :value="form.age" label="Edad" outlined dense readonly></v-text-field>
           <v-text-field v-field-error="{ id: 'patient-mobilePhone', invalid: Boolean(fieldError('mobilePhone').length), required: true }" ref="mobilePhone" v-model.trim="form.mobilePhone" label="Teléfono / celular *" required type="tel" inputmode="tel" hint="10 dígitos; puedes usar espacios, guiones o paréntesis." persistent-hint outlined dense :error-messages="fieldError('mobilePhone')" @blur="touchField('mobilePhone')"></v-text-field>
         </div>
+      </article>
+
+      <article class="patient-create-section">
+        <div class="section-heading">
+          <p>Identidad del paciente</p>
+          <span>Solo el sexo biológico es obligatorio. Lo que no captures queda pendiente; no se deduce del nombre ni de otros documentos.</span>
+        </div>
+        <patient-identity-fields ref="biologicalSex" v-model="identity" :disabled="isSaving" :sex-errors="fieldError('biologicalSex')" @blur-sex="touchField('biologicalSex')" />
       </article>
 
       <article class="patient-create-section">
@@ -81,6 +89,7 @@
 </template>
 
 <script>
+import PatientIdentityFields from './components/PatientIdentityFields.vue';
 import { mapGetters } from 'vuex';
 import moduleTypes from '../../store/modules/common/module-types';
 import fnTypes from '../../store/modules/common/fn-types';
@@ -93,10 +102,12 @@ import { peekAgendaReturn, setAgendaCreatedPatient } from '../../domain/appointm
 import { authorizationContext, isCurrentAuthorization } from '../../security/authorizationContext';
 
 export default {
+  components: { PatientIdentityFields },
   directives: { fieldError },
   mixins: [VuexMixin],
   data() {
     return {
+      identity: {},
       isSaving: false,
       pendingCreate: null, retryAllowed: false, createdPatient: null, creationMessage: '', accessChanged: false,
       creationContext: authorizationContext(this.$store), alive: true, leaving: false, removeCreationGuard: null,
@@ -134,7 +145,13 @@ export default {
     creationAccessKey() { return JSON.stringify(authorizationContext(this.$store)); },
     fromAgenda() { const entry = peekAgendaReturn(this.$store); return entry && entry.kind === 'create-patient'; },
     today() { return localDateString(); },
-    formErrors() { return patientAdministrativeErrors(this.form); }
+    formErrors() {
+      // Keep the error summary in the same order as the form: identity follows the personal data.
+      const administrative = patientAdministrativeErrors(this.form), errors = {};
+      ['name', 'firstSurname', 'birthDate', 'mobilePhone'].forEach(key => { if(administrative[key]) errors[key] = administrative[key]; });
+      if(!this.identity.biologicalSex) errors.biologicalSex = 'Selecciona el sexo biológico.';
+      return Object.assign(errors, administrative);
+    }
   },
   watch: {
     creationAccessKey() { this.accessChanged = true; this.pendingCreate = null; this.createdPatient = null; Object.keys(this.form).forEach(key => { this.form[key] = '' }); this.creationMessage = 'Cambió tu acceso. Recarga para continuar.'; },
@@ -190,6 +207,8 @@ export default {
     buildPayload() {
       const surname = [this.form.firstSurname, this.form.secondSurname].filter(Boolean).join(' ');
       return {
+        // NC1 identidad simple: three plain names; the server derives the surname status (empty = pending).
+        identity: {...this.identity, givenNames:this.form.name, firstSurname:this.form.firstSurname, secondSurname:this.form.secondSurname||null, birthDate:this.form.birthDate},
         person: {
           name: this.form.name,
           surname,
@@ -277,7 +296,7 @@ html[data-theme="clinical-night"] .patient-create-page > p { color:#e2e8f0; }
   margin: 0;
   color: var(--color-primary-900);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -286,7 +305,7 @@ html[data-theme="clinical-night"] .patient-create-page > p { color:#e2e8f0; }
   margin: 0.15rem 0;
   color: #0f172a;
   font-size: 1.55rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .patient-create-hero p,
@@ -337,7 +356,7 @@ html[data-theme="clinical-night"] .patient-create-page > p { color:#e2e8f0; }
   min-height: 2.55rem;
   border-radius: 999px;
   padding: 0 1.15rem;
-  font-weight: 800;
+  font-weight: 600;
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 

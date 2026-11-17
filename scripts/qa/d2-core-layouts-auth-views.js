@@ -9,7 +9,6 @@ const rootDir = path.resolve(__dirname, '..', '..');
 const files = {
     authConfig: 'src/services/config/authTransport.config.js',
     adminLayout: 'src/core/layouts/admin.vue',
-    superAdminLayout: 'src/core/layouts/super-admin.vue',
     loginView: 'src/views/Auth/Login.vue',
     homeView: 'src/views/Home/Home.vue',
     tenantRestrictedView: 'src/views/error/TenantRestricted.vue'
@@ -120,8 +119,6 @@ const adminBusinessD2 = getD2GuardBlock(sources.adminLayout, 'businessName: func
 const adminTenantD2 = getD2GuardBlock(sources.adminLayout, 'isTenantRestrictedMode: function()');
 const adminUnauthorizedWatcher = getBlock(sources.adminLayout, 'unauthorized: async function()');
 const adminUnauthorizedD2 = getBlock(adminUnauthorizedWatcher, 'if(isD2AuthMode())');
-const superAdminUnauthorizedWatcher = getBlock(sources.superAdminLayout, 'unauthorized: async function()');
-const superAdminUnauthorizedD2 = getBlock(superAdminUnauthorizedWatcher, 'if(isD2AuthMode())');
 const loginPostRouteD2 = getD2GuardBlockWithSpace(sources.loginView, 'getPostLoginRoute: function()');
 const homeSessionUserD2 = getD2GuardBlock(sources.homeView, 'sessionUser: function()');
 const tenantOperationalD2 = getD2GuardBlock(sources.tenantRestrictedView, 'tenantOperational()');
@@ -173,14 +170,6 @@ assertIncludesAll(
     'D2 admin layout uses runtime user/business/role/tenantOperational getters.'
 );
 
-assertNoMatches(
-    'super-admin.vue D2 branch does not read refresh token JS',
-    { superAdminUnauthorizedD2 },
-    [
-        /this\.refreshtoken/
-    ],
-    'D2 super-admin unauthorized watcher returns before refresh token UX.'
-);
 
 assertNoMatches(
     'Login.vue D2 branch does not depend on session token',
@@ -229,7 +218,6 @@ assertNoMatches(
     'no new token or refresh token writes',
     {
         adminLayout: sources.adminLayout,
-        superAdminLayout: sources.superAdminLayout,
         loginView: sources.loginView,
         homeView: sources.homeView,
         tenantRestrictedView: sources.tenantRestrictedView

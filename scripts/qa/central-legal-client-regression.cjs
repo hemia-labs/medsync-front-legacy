@@ -15,14 +15,14 @@ const context=()=>({legalContext:'signed-context',legalContextExpiresAt:new Date
  const pure=async file=>import('data:text/javascript;base64,'+Buffer.from(read(file)).toString('base64'));
  const authorization=await pure('src/security/authorizationContext.js'),navigation=await pure('src/domain/settings/settings.navigation.js'),registration=await pure('src/utils/registration.js');
  const sfc=compiler.parseComponent(read('src/views/configuration/components/CentralLegalReview.vue')),compiled=compiler.compile(sfc.template.content);assert.deepEqual(compiled.errors,[]);
- let reviewReply,acceptReply,calls=[],reviewCalls=0;
- const service={centralContext:async()=>{reviewCalls++;return copy(await (typeof reviewReply==='function'?reviewReply():reviewReply));},acceptCentral:async body=>{calls.push(copy(body));return typeof acceptReply==='function'?acceptReply(body):acceptReply;}};
+ let reviewReply,acceptReply,calls=[],reviewCalls=0,requestedSet;
+ const service={centralContext:async key=>{requestedSet=key;reviewCalls++;return copy(await (typeof reviewReply==='function'?reviewReply():reviewReply));},acceptCentral:async body=>{calls.push(copy(body));return typeof acceptReply==='function'?acceptReply(body):acceptReply;}};
  const sandbox={component:null,SaaSLegalService:service,...registration,...authorization,...navigation,sanitizeHtmlForDocumentSnapshot:html=>DOMPurify(dom.window).sanitize(html),window:dom.window,document:dom.window.document,Date};
  vm.runInNewContext(strip(sfc.script.content).replace('export default','component ='),sandbox);
- function mount(){
+ function mount(props={}){
   reviewReply={success:true,data:context()};acceptReply={success:false};calls=[];reviewCalls=0;
   const guards=[],store={state:{CORE:{AUTH:Vue.observable(auth())}}};
-  const view=new Vue({...sandbox.component,propsData:{ownerKey:'owner-1',available:true},render:new Function(compiled.render),staticRenderFns:compiled.staticRenderFns.map(s=>new Function(s)),vuetify:new Vuetify(),beforeCreate(){this.$store=store;this.$router={beforeEach(fn){guards.push(fn);return()=>{};}};}});
+  const view=new Vue({...sandbox.component,propsData:{ownerKey:'owner-1',available:true,...props},render:new Function(compiled.render),staticRenderFns:compiled.staticRenderFns.map(s=>new Function(s)),vuetify:new Vuetify(),beforeCreate(){this.$store=store;this.$router={beforeEach(fn){guards.push(fn);return()=>{};}};}});
   view.$mount();document.querySelector('[data-app]').appendChild(view.$el);view.guards=guards;return view;
  }
  function destroy(view){view.$destroy();view.$el.remove();}
@@ -31,8 +31,11 @@ const context=()=>({legalContext:'signed-context',legalContextExpiresAt:new Date
   const v=mount();try{
    await v.start();await flush();assert.equal(reviewCalls,1);assert.equal(calls.length,0);assert.equal(v.canSubmit,false);
    const panel=document.querySelector('.central-legal-panel');assert.ok(panel);assert.equal(panel.querySelector('script,[onclick]'),null);
-   const boxes=[...panel.querySelectorAll('input[type="checkbox"]')];assert.equal(boxes.length,2);assert.ok(boxes.every(b=>!b.checked));
+   const boxes=[...panel.querySelectorAll('input[type="checkbox"]')];assert.equal(boxes.length,2);assert.ok(boxes.every(b=>!b.checked&&b.disabled));
+   const toggles=[...panel.querySelectorAll('.central-legal-toggle')];
+   toggles[0].click();await flush();assert.equal(boxes[0].disabled,false);assert.equal(boxes[1].disabled,true);
    boxes[0].checked=true;boxes[0].dispatchEvent(new dom.window.Event('change',{bubbles:true}));await flush();assert.equal(v.canSubmit,false);
+   toggles[1].click();await flush();assert.equal(boxes[1].disabled,false);
    boxes[1].checked=true;boxes[1].dispatchEvent(new dom.window.Event('change',{bubbles:true}));await flush();assert.equal(v.canSubmit,true);
    assert.match(panel.textContent,/acepto este documento/);assert.match(panel.textContent,/confirmo haber leído/);assert.equal(v.$children.find(c=>c.$options.name==='v-dialog').retainFocus,true);
    assert.equal(v.close(),true);assert.equal(calls.length,0);assert.equal(v.open,false);
@@ -58,6 +61,9 @@ const context=()=>({legalContext:'signed-context',legalContextExpiresAt:new Date
    await v.load();assert.equal(v.stale,false);assert.ok(Object.values(v.checked).every(x=>x===false));v.checked={v1:true,v2:true};
    acceptReply={status:409,success:false,code:'LEGAL_VERSION_STALE'};assert.equal(await v.confirm(),false);assert.equal(v.stale,true);assert.equal(v.submitted,null);assert.equal(Object.keys(v.checked).length,0);
    await v.load();assert.equal(v.canSubmit,false);assert.equal(v.error,'');
+   v.checked={v1:true,v2:true};acceptReply={status:409,success:false,code:'LEGAL_EVIDENCE_REJECTED'};
+   assert.equal(await v.confirm(),false);assert.equal(v.stale,true);assert.equal(v.submitted,null);
+   assert.match(v.error,/Vuelve a cargar/);
   }finally{destroy(v);}
  });
  await check('account/tenant/session changes discard pending responses and all review state',async()=>{
@@ -72,6 +78,15 @@ const context=()=>({legalContext:'signed-context',legalContextExpiresAt:new Date
   const v=mount();try{
    for(const response of [{status:401},{status:403},{status:429},{status:409,code:'LEGAL_SYNC_PENDING'},{status:503}]){reviewReply={...response,success:false};assert.equal(await v.load(),false);assert.ok(v.error);assert.equal(v.canSubmit,false);}
    reviewReply={success:true,data:context()};reviewReply.data.legalDocuments[0].contentHtml='<script>bad()</script>';assert.equal(await v.load(),false);assert.equal(v.review,null);assert.equal(calls.length,0);
+  }finally{destroy(v);}
+ });
+ await check('organization review names the representative and preserves its selected set on submission',async()=>{
+  const v=mount({documentSetKey:'account_contracts',setName:'Contratos'});try{
+   reviewReply.data.acceptanceScope='business';reviewReply.data.legalDocuments=[reviewReply.data.legalDocuments[0]];
+   await v.start();await flush();assert.equal(requestedSet,'account_contracts');
+   assert.match(document.querySelector('.central-legal-panel').textContent,/en representación del consultorio/);
+   v.checked={v1:true};acceptReply=body=>({success:true,data:{eventId:body.idempotencyKey,queued:true}});
+   assert.equal(await v.confirm(),true);assert.equal(calls[0].documentSetKey,'account_contracts');assert.equal(calls[0].legalAcceptances.length,1);
   }finally{destroy(v);}
  });
  console.log('PASS central legal client: '+tests.length+' groups');dom.window.close();
