@@ -37,8 +37,11 @@ Object.entries(scope.component.computed).forEach(([key, getter]) => Object.defin
   const routes = read('src/router/routes/legal.js'); assert.equal((routes.match(/PublishedLegalDocument.vue/g) || []).length, 2);
   const router = read('src/router/index.js');
   const guardSource = router.slice(router.indexOf('function canRouteInTenantRestrictedMode'), router.indexOf('const routes ='));
-  const guards = {}; vm.runInNewContext(guardSource + ';this.allowed=canRouteInTenantRestrictedMode;', guards);
+  const guards = {store:{getters:{'CORE/AUTH/getRole':'admin'}},AUTH_NAMESPACE:'CORE/AUTH',canManageCheckout:role=>['admin','business_admin'].includes(role)}; vm.runInNewContext(guardSource + ';this.allowed=canRouteInTenantRestrictedMode;', guards);
   assert.equal(guards.allowed({ name: 'admin', query: { section: 'account-legal' }, matched: [] }), true);
+  assert.equal(guards.allowed({ name: 'admin', query: { section: 'plan-billing' }, matched: [] }), true);
+  guards.store.getters['CORE/AUTH/getRole']='assistant';
+  assert.equal(guards.allowed({ name: 'admin', query: { section: 'plan-billing' }, matched: [] }), false);
   assert.equal(guards.allowed({ name: 'admin', query: { section: 'users' }, matched: [] }), false);
   assert.equal(guards.allowed({ name: 'admin', query: {}, matched: [] }), false);
   assert.equal(guards.allowed({ name: 'other', query: { section: 'account-legal' }, matched: [] }), false);

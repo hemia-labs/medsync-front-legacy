@@ -67,8 +67,16 @@ function load(file,bindings={},component=false) {
   fail={response:{status:429,data:{code:'REGISTRATION_RATE_LIMITED',retryAfterSeconds:47},headers:{}}};
   await assert.rejects(service.sendCode(),error=>error.retryAfterSeconds===47);assert.equal(refreshes,0);
   fail={response:{status:401,data:{code:'AUTH_ACCESS_EXPIRED'},headers:{}}};await service.activation();assert.equal(refreshes,1);
+  await service.acknowledgeWelcome(false);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1).data)),{acknowledged:true,trialWelcome:false});
+  assert.equal(calls.at(-1).url,'api/account/setup-welcome/acknowledge');
+  assert.ok(calls.at(-1).headers['X-CSRF-Token']);
+  await service.acknowledgeWelcome(true);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1).data)),{acknowledged:true,trialWelcome:true});
+  await service.acknowledgeWelcome();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1).data)),{acknowledged:true,trialWelcome:true},'Legacy callers keep the explicit default');
   let submitted;
-  const Register=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PlanCatalog:{},LEGAL_KEYS:rules.LEGAL_KEYS,
+  const Register=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PasswordStrength:{},PlanCatalog:{},LEGAL_KEYS:rules.LEGAL_KEYS,
     registrationErrors:rules.registrationErrors,registrationAttemptId:()=> 'test-attempt',
     Registration:{register:async payload=>{submitted=payload;return {accountCreated:true,sessionEstablished:false};}}},true);
   const registration={...Register.data(),loading:false,form:{...valid,name:' Médica ',lastName:' Ñ ',telephone:''},available:true,context:complete,documents:complete.legalDocuments,accepted:{terms_conditions:true,privacy_notice:true}};
@@ -86,7 +94,7 @@ function load(file,bindings={},component=false) {
   assert.equal(submitted.account.telephone,'');
   assert.equal(registration.created,true);
   for(const file of ['Register','AccountActivation']) {
-    const component=load('src/views/Auth/'+file+'.vue',{AccountFlowShell:{},ActivationWelcome:{}},true);
+    const component=load('src/views/Auth/'+file+'.vue',{AccountFlowShell:{},PasswordStrength:{},ActivationWelcome:{}},true);
     const destroyed={_isDestroyed:true};await component.methods.showError.call(destroyed,{code:'REGISTRATION_RATE_LIMITED',retryAfterSeconds:60});
     assert.deepEqual(destroyed,{_isDestroyed:true},'Late failure cannot start timers or update a destroyed view');
   }

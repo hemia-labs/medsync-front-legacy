@@ -24,7 +24,9 @@ const helperContext = {
   process: { env: {} }
 };
 vm.runInNewContext(fs.readFileSync('src/utils/publicAuthRoute.js', 'utf8').replace(/^import .*;$/gm, '').replace(/export /g, '') + '\nthis.check = isPublicAuthPath;', helperContext);
-const context = { isPublicAuthPath: helperContext.check, window: { location: { pathname: '', href: '' } } };
+const checkout = { URL, URLSearchParams, process: { env: {} } };
+vm.runInNewContext(fs.readFileSync('src/domain/billing/checkout.js', 'utf8').replace(/export /g, '') + '\nthis.loginPath = checkoutLoginPath;', checkout);
+const context = { checkoutLoginPath: checkout.loginPath, isPublicAuthPath: helperContext.check, window: { location: { pathname: '', href: '' } } };
 vm.runInNewContext(source + '\nthis.redirect = redirectToAuthIfNeeded;', context);
 for (const path of ['/login', '/login/', '/register', '/forgot-password', '/auth/login', '/auth/registro']) {
   context.window.location.pathname = path;
@@ -35,4 +37,13 @@ for (const path of ['/login', '/login/', '/register', '/forgot-password', '/auth
 context.window.location.pathname = '/inicio';
 assert.equal(context.redirect(), true);
 assert.equal(context.window.location.href, '/login');
+context.window.location.pathname = '/cuenta/planes';
+context.window.location.search = '?attempt_id=11111111-1111-4111-8111-111111111111&token=discard-me&result=approved';
+assert.equal(context.redirect(), true);
+assert.equal(context.window.location.href, '/login?checkout_attempt=11111111-1111-4111-8111-111111111111');
+context.window.location.pathname = '/cuenta/cambiar-plan';
+assert.equal(context.redirect(), true);
+assert.equal(context.window.location.href, '/login?checkout_attempt=11111111-1111-4111-8111-111111111111&checkout_operation=change_plan');
+const changeRoute = router.match('/cuenta/cambiar-plan?attempt_id=11111111-1111-4111-8111-111111111111');
+assert.equal(changeRoute.name, 'accountPlanChange'); assert.equal(changeRoute.meta.requireAuth, true); assert.equal(changeRoute.meta.paymentsAccess, true);
 console.log('PASS public auth routes, legacy redirects, query/hash preservation and expired-session redirects');

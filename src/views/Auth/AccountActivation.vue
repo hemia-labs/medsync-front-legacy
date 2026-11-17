@@ -43,7 +43,7 @@ import AccountFlowShell from './AccountFlowShell.vue';
 import ActivationWelcome from '../configuration/components/ActivationWelcome.vue';
 import Registration from '../../services/core/auth/DARegistrationService';
 import { registrationErrorMessage, verificationStorageKey, saveVerification, loadVerification } from '../../utils/registration';
-import { activationDestination } from '../../utils/activationDestination';
+import { activationDestination, activationChoiceDestination } from '../../utils/activationDestination';
 export default {
   components: { AccountFlowShell, ActivationWelcome },
   data: () => ({ activation: null, loading: true, busy: false, error: '', challenge: null,
@@ -167,6 +167,12 @@ export default {
           clearInterval(this.timer); this.remaining = 0;
         }
         if (!session || !session.success) throw { code: 'NETWORK_ERROR' };
+        const choice = activationChoiceDestination(result);
+        if (choice) {
+          try { await this.$router.replace(choice); }
+          catch (_) { await this.showError('No pudimos abrir los planes. Actualiza el estado para continuar.', true); }
+          return;
+        }
         if (this.accountReady) {
           this.loading = false;
           await this.$nextTick();

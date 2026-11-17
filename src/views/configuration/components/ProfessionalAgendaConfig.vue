@@ -6,13 +6,13 @@
       <p v-for="issue in agendaIssues" :key="issue.code">{{ issue.message }}</p>
       <button v-if="needsPersistedReview" type="button" class="agenda-link" @click="focusGuideTarget('hours')">Revisar horarios semanales</button>
     </div>
-    <header class="agenda-header border-b border-primary-200 bg-primary-100">
+    <header class="agenda-header settings-section-header border-b border-primary-200 bg-primary-100">
       <div>
         <p class="agenda-eyebrow">Agenda clínica</p>
         <h2 class="m-0 text-2xl font-normal text-gray-700">Configuración de citas</h2>
         <p class="m-0 mt-2 text-sm text-gray-500">Horarios, duración de citas y bloqueos de disponibilidad.</p>
       </div>
-      <div v-if="selected && loaded" class="agenda-header-actions">
+      <div v-if="selected && loaded" class="agenda-header-actions settings-header-actions">
         <v-switch ref="guideActivation" v-model="form.enabled" inset hide-details :label="isBusiness ? 'Consultorio disponible' : 'Agenda activa'" :disabled="saving" :color="themeColor" class="m-0" :class="guideClass('activation')"></v-switch>
         <v-btn ref="guideSave" rounded depressed :color="themeColor" dark :loading="saving" :disabled="loading || timezoneSaving" :class="guideClass('save')" @click="save">Guardar cambios</v-btn>
       </div>

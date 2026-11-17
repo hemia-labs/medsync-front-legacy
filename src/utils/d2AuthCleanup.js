@@ -1,3 +1,4 @@
+import { checkoutLoginPath } from '../domain/billing/checkout';
 import DACsrfService from '../services/core/auth/DACsrfService';
 import { isD2AuthMode } from '../services/config/authTransport.config';
 import { clearLegacyAuthStorageForD2 } from './authStorageCleanup';
@@ -9,7 +10,6 @@ export const D2_UNAUTHORIZED_REDIRECT_SKIP_ENDPOINTS = Object.freeze([
   'api/auth/csrf'
 ]);
 
-const AUTH_LOGIN_PATH = '/login';
 
 const normalizeRequestUrl = (url) => {
   if (!url) {
@@ -59,7 +59,7 @@ export const redirectToAuthIfNeeded = () => {
     return false;
   }
 
-  window.location.href = AUTH_LOGIN_PATH;
+  window.location.href = checkoutLoginPath(window.location);
   return true;
 };
 

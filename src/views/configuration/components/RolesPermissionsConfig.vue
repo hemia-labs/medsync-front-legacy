@@ -1,14 +1,14 @@
 <template>
   <section class="roles-permissions">
-    <div class="roles-header">
+    <div class="roles-header settings-section-header">
       <div>
         <h2>Puestos y accesos</h2>
         <p>Elige un puesto y revisa qué puede hacer en tu consultorio.</p>
       </div>
-      <v-btn text color="primary" :loading="isLoadingRoles" :disabled="isSaving || isLoadingPermissions" @click="reloadRoles">
+      <div class="settings-header-actions"><v-btn text color="primary" :loading="isLoadingRoles" :disabled="isSaving || isLoadingPermissions" @click="reloadRoles">
         <v-icon left small>mdi-refresh</v-icon>
         Actualizar lista
-      </v-btn>
+      </v-btn></div>
     </div>
 
     <details class="access-help">
@@ -53,17 +53,17 @@
         </div>
 
         <template v-else>
-          <div class="permissions-heading">
+          <div class="permissions-heading settings-section-header">
             <div>
               <p class="eyebrow">Accesos del puesto</p>
               <h3>{{ selectedRoleName }}</h3>
               <p class="scope-note">Los cambios se aplican al guardar y afectan a todas las personas con este puesto.</p>
               <p role="status" class="capture-state">{{ dirty ? `${changedPermissionCodes.length} ${changedPermissionCodes.length === 1 ? 'cambio sin guardar' : 'cambios sin guardar'}` : 'Sin cambios pendientes' }}</p>
             </div>
-            <v-btn color="primary" depressed :dark="dirty" :loading="isSaving" :disabled="isSaving || isLoadingPermissions || !permissionsLoaded || !dirty" @click="savePermissions">
+            <div class="settings-header-actions"><v-btn color="primary" depressed :dark="dirty" :loading="isSaving" :disabled="isSaving || isLoadingPermissions || !permissionsLoaded || !dirty" @click="savePermissions">
               <v-icon left small>mdi-content-save-outline</v-icon>
               Guardar cambios
-            </v-btn>
+            </v-btn></div>
           </div>
 
           <v-progress-linear v-if="isLoadingPermissions" indeterminate color="primary" height="3" />

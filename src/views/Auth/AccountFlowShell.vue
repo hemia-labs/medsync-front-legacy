@@ -1,11 +1,11 @@
 <template>
-  <main class="medsync-auth-screen auth-clinic-screen account-flow" lang="es">
-    <section class="auth-card-panel" aria-labelledby="account-title">
+  <main class="medsync-auth-screen auth-clinic-screen account-flow" :class="{ 'account-flow--wide': wide }" lang="es">
+    <section class="auth-card-panel" :aria-labelledby="titleId">
       <div class="auth-card">
         <header class="auth-brand">
           <div class="auth-logo-lockup"><medsync-brand :custom-logo="customLogo" @error="customLogo = ''" /></div>
         </header>
-        <nav class="account-steps" aria-label="Pasos del registro">
+        <nav v-if="step > 0" class="account-steps" aria-label="Pasos del registro">
           <ol>
             <li v-for="(label, index) in ['Crear cuenta', 'Verificar correo', 'Cuenta lista']" :key="label"
               :aria-current="step === index + 1 ? 'step' : null" :class="{ complete: step > index + 1 }">
@@ -47,7 +47,7 @@
 <script>
 import { getStoredLoginLogo } from '../../utils/branding';
 export default {
-  props: { step: { type: Number, default: 1 } },
+  props: { step: { type: Number, default: 1 }, wide: Boolean, titleId: { type: String, default: 'account-title' } },
   data: () => ({ customLogo: getStoredLoginLogo() || '' })
 };
 </script>
@@ -70,4 +70,21 @@ export default {
 .account-steps .complete .account-steps__number { background:var(--color-primary-100); border-color:var(--color-primary-200); }
 .account-steps .complete .v-icon { color:inherit; font-size:18px!important; }
 @media(max-width:360px) { .account-steps__label { font-size:11px; } }
+
+.account-flow--wide { grid-template-columns:minmax(270px,.75fr) minmax(0,1.6fr); align-items:start; }
+.account-flow--wide .auth-card-panel { padding:32px clamp(20px,3vw,48px) 32px 8px; }
+.account-flow--wide .auth-card { width:100%; max-width:900px; padding:32px; border-radius:20px; }
+.account-flow--wide .auth-visual-panel { position:sticky; top:0; align-self:start; height:100vh; padding:48px 32px; }
+.account-flow--wide .visual-content h2 { font-size:clamp(30px,2.6vw,42px); }
+.account-flow--wide .account-steps { max-width:540px; margin:0 auto 32px; }
+@media(max-width:1025px) {
+  .account-flow--wide { grid-template-columns:minmax(0,1fr); }
+  .account-flow--wide .auth-card-panel { padding:28px 20px; }
+  .account-flow--wide .auth-visual-panel { display:none; }
+}
+@media(max-width:600px) {
+  .account-flow--wide .auth-card-panel { padding:16px 12px; }
+  .account-flow--wide .auth-card { padding:24px 18px; border-radius:16px; }
+  .account-flow--wide .account-steps { margin-bottom:28px; }
+}
 </style>

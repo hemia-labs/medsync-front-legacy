@@ -7,7 +7,7 @@ function load(file,bindings={},sfc=false) {
   vm.runInNewContext(code.replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default','module.exports ='),sandbox);return sandbox.module.exports;
 }
 (async()=>{
-  const {activationDestination}=await import('data:text/javascript;base64,'+Buffer.from(read('src/utils/activationDestination.js')).toString('base64'));
+  const {activationDestination,activationChoiceDestination}=await import('data:text/javascript;base64,'+Buffer.from(read('src/utils/activationDestination.js')).toString('base64'));
   const {isPendingActivation}=await import('data:text/javascript;base64,'+Buffer.from(read('src/utils/registration.js')).toString('base64'));
   let status={commercialState:'activated',nextAction:'setup_summary',destination:'summary',contact:{emailVerified:true},welcomePending:true};
   let pending=false,superAdmin=false,authorized=true,welcome=true,restricted=false;
@@ -40,7 +40,7 @@ function load(file,bindings={},sfc=false) {
     activation:async()=>status,
     acknowledgeWelcome:async()=>{ackCalls++;return {acknowledged:!ackFailure};}
   };
-  const component=load('src/views/Auth/AccountActivation.vue',{AccountFlowShell:{},ActivationWelcome:{},Registration,activationDestination},true);
+  const component=load('src/views/Auth/AccountActivation.vue',{AccountFlowShell:{},ActivationWelcome:{},Registration,activationDestination,activationChoiceDestination},true);
   const destinations=[];
   const view={...component.data(),verified:true,accountReady:true,clearVerification(){},$refs:{},$nextTick:async()=>{},
     $store:{dispatch:async()=>({success:true})},$router:{replace:async destination=>destinations.push(JSON.stringify(destination))},

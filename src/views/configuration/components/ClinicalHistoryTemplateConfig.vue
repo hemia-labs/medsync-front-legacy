@@ -1,7 +1,7 @@
 <template>
   <section class="clinical-template-config bg-white bg-opacity-95 border border-primary-200 shadow-xl" :aria-busy="String(isLoading || isSaving)">
     <preparation-guide branch="clinical-history-template" :control-labels="{customize:usesSystemTemplate && canManageTemplate && !isCustomTemplateLocked ? 'Personalizar plantilla' : 'Plantilla actual',save:canEditTemplate ? 'Guardar nueva versión' : 'Plantilla actual'}" :dirty="hasPendingCapture" :busy="isLoading || isSaving" @focus-control="focusGuideControl" />
-    <div ref="guideControls" class="section-header">
+    <div ref="guideControls" class="section-header settings-section-header">
       <div class="header-copy">
         <p class="eyebrow">Configuración clínica</p>
         <h2>Plantilla de historia clínica</h2>
@@ -11,11 +11,9 @@
         <p class="header-note">
           Selecciona una sección para revisar sus campos. Los cambios se guardan como una nueva versión y no modifican historias ya finalizadas.
         </p>
+        <span v-if="hasUnsavedChanges && canEditTemplate" class="unsaved-indicator" role="status">Cambios sin guardar</span>
       </div>
-      <div class="header-actions">
-        <span v-if="hasUnsavedChanges && canEditTemplate" class="unsaved-indicator">
-          Cambios sin guardar
-        </span>
+      <div class="header-actions settings-header-actions">
         <button class="btn-outline" type="button" :disabled="isLoading || isSaving" @click="reloadTemplate">
           <v-icon size="17">mdi-refresh</v-icon>
           Recargar
@@ -77,7 +75,7 @@
         <div>
           <strong>Disponible en Profesional.</strong>
           <p>{{ customTemplateLockedMessage }}</p>
-          <button type="button" class="locked-cta" @click="$emit('contact-plan', { feature: 'clinical_history_templates', minimumPlan: 'pro', section: 'clinical-history-template' })">Contactar para cambiar plan</button>
+          <button type="button" class="locked-cta" @click="$emit('contact-plan', { feature: 'clinical_history_templates', minimumPlan: 'pro', section: 'clinical-history-template' })">Ver planes disponibles</button>
         </div>
       </section>
 
@@ -1181,7 +1179,7 @@ export default {
   align-items: flex-start;
   padding: 1.35rem 1.5rem;
   border-bottom: 1px solid var(--color-primary-200, #d8e9ef);
-  background: linear-gradient(180deg, var(--color-primary-100, #eefbff) 0%, #ffffff 100%);
+  background: var(--settings-surface, #ffffff);
 }
 
 .header-copy {
@@ -2043,7 +2041,7 @@ html[data-theme="clinical-night"] .clinical-template-config {
 }
 
 html[data-theme="clinical-night"] .clinical-template-config .section-header {
-  background: linear-gradient(180deg, rgba(38, 52, 73, .98) 0%, rgba(30, 41, 59, .98) 100%);
+  background: var(--settings-surface, #1e293b);
   border-color: #334155;
 }
 

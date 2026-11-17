@@ -33,12 +33,15 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
   const sfc=compiler.parseComponent(read(file));
   const compiled=compiler.compile(sfc.template.content);
   assert.deepEqual(compiled.errors,[],`${file} template compiles`);
-  const context={component:null,window,mapGetters:()=>({}),mapActions:()=>({}),moduleTypes:{AUTH:'AUTH'},fnTypes:{},...settings,...bindings};
+  const context={component:null,window,document,mapGetters:()=>({}),mapActions:()=>({}),moduleTypes:{AUTH:'AUTH'},fnTypes:{},...settings,...bindings};
   const ast=parser.parse(sfc.script.content,{sourceType:'module'});
   for(const node of ast.program.body.filter(node=>node.type==='ImportDeclaration')) for(const specifier of node.specifiers) if(!(specifier.local.name in context)) context[specifier.local.name]={};
   vm.runInNewContext(strip(sfc.script.content).replace('export default','component ='),context,{filename:file});
   return {options:context.component,sfc,render:new Function(compiled.render),staticRenderFns:compiled.staticRenderFns.map(source=>new Function(source))};
  }
+ const focus=await import(`data:text/javascript;base64,${Buffer.from(read('src/utils/mobileNavigationFocus.js')).toString('base64')}`);
+ const side=load('src/views/admin/components/AdminSettingsSidebar.vue',focus);
+ const sidebarComponent={...side.options,render:side.render,staticRenderFns:side.staticRenderFns};
  const shell=load('src/views/admin/index.vue');
  const header=load('src/views/admin/components/AdminSettingsHeader.vue');
  const headerComponent={...header.options,render:header.render,staticRenderFns:header.staticRenderFns};
@@ -46,7 +49,7 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  let dirty=false,confirm=false,notifications=[];
  const router=new VueRouter({mode:'abstract',routes:[{path:'/admin',name:'admin'},{path:'/px/dates',name:'appointments'},{path:'/login',name:'login'}]});
  const view=new Vue({...shell.options,router,vuetify:new Vuetify(),render:shell.render,staticRenderFns:shell.staticRenderFns,
-  components:{AdminSettingsHeader:headerComponent,AdminSettingsSidebar:emptyPanel,'da-user-index':emptyPanel,'da-config-index':emptyPanel},
+  components:{AdminSettingsHeader:headerComponent,AdminSettingsSidebar:sidebarComponent,'da-user-index':emptyPanel,'da-config-index':emptyPanel},
   beforeCreate(){this.$swal={fire:async options=>{notifications.push(options);return {isConfirmed:confirm};}};this.$store={state:{CORE:{AUTH:{authenticated:true,user:{id_login:'SYNTHETIC_ACTOR'}}}}};},
   data(){return {...shell.options.data(),role:'admin',hasPermission:()=>true};}
  });
@@ -58,32 +61,38 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  view.goToSection('users');await settle();
  assert.equal(router.currentRoute.query.section,'users');
  assert.equal(router.currentRoute.query.returnTo,'/px/dates','The explicit return target survives changing to Personal');
- assert.equal(view.mobileSection,'users');
  assert.deepEqual(scrolls,[[0,0]],'A successful section change returns to the start after rendering');
  confirm=true;await view.goToSection('appearance');await settle();
  assert.equal(router.currentRoute.query.section,'appearance');assert.equal(router.currentRoute.query.returnTo,'/px/dates');
  assert.equal(scrolls.length,2);
  dirty=true;
- const headerView=view.$children.find(child=>child.$options===headerComponent||child.$options.props&&child.$options.props.sections);
+ const headerView=view.$children.find(child=>child.$options.props&&child.$options.props.navigationOpen);
  assert.ok(headerView,'The actual settings header is rendered');
- const selector=headerView.$children.find(child=>child.$options.name==='v-select');
- assert.ok(selector,'The header renders a real Vuetify VSelect');
- assert.equal(selector.internalValue,'appearance');
+ assert.equal(headerView.$children.some(child=>child.$options.name==='v-select'),false,'The mobile selector is replaced by a drawer trigger');
+ const mobileSidebar=view.$children.find(child=>child.$options.props&&child.$options.props.activeSection&&child.$options.props.value);
+ assert.ok(mobileSidebar);
+ headerView.$el.querySelector('.admin-mobile-section').click();await settle();
+ assert.equal(view.isSettingsNavigationOpen,true,'The header button opens the mobile settings drawer');
+ const mobileDrawer=mobileSidebar.$children.find(child=>child.$options.name==='v-navigation-drawer');
+ assert.equal(mobileDrawer.temporary,true);assert.equal(mobileDrawer.permanent,false);
+ assert.equal(mobileDrawer.isActive,true);
  const rejectSelection=deferredChoice();
  const ordinaryPrompt=view.$swal.fire;
  view.$swal.fire=()=>rejectSelection.promise;
- selector.selectItem(view.availableSections.find(section=>section.key==='identity'));
+ [...mobileSidebar.$el.querySelectorAll('.settings-nav-item')].find(item=>/Información del consultorio/.test(item.textContent)).click();
  await settle();
- assert.equal(selector.internalValue,'identity','Real VSelect updates its own value before the guard resolves');
- assert.equal(view.mobileSection,'identity','The attempted header selection reaches parent state through its real change listener');
+ assert.equal(view.isSettingsNavigationOpen,false,'Selecting an entry closes the mobile drawer before navigation confirmation');
+ assert.equal(mobileDrawer.isActive,false);
  assert.equal(router.currentRoute.query.section,'appearance');
  assert.equal(scrolls.length,2,'Pending discard confirmation cannot move the current editor');
  rejectSelection.resolve({isConfirmed:false});await settle();await settle();
  assert.equal(router.currentRoute.query.section,'appearance','Seguir editando keeps the appearance route');
- assert.equal(view.mobileSection,'appearance');
- assert.equal(selector.internalValue,'appearance','Cancelled navigation restores the real VSelect, without manually changing parent data');
- assert.match(selector.$el.textContent,/Apariencia/,'The visible select label agrees with the retained route');
+ assert.equal(mobileSidebar.activeSection,'appearance','Cancelled navigation preserves the selected item');
+ assert.match(mobileSidebar.$el.querySelector('[aria-current="page"]').textContent,/Apariencia/);
  assert.equal(scrolls.length,2,'Seguir editando preserves the current scroll position');
+ headerView.$el.querySelector('.admin-mobile-section').click();await settle();
+ mobileSidebar.$el.querySelector('[aria-current="page"]').click();await settle();
+ assert.equal(view.isSettingsNavigationOpen,false,'Choosing the current section also closes the drawer');
  view.$swal.fire=ordinaryPrompt;
  let finishConfirmation;
  const pendingConfirmation=new Promise(resolve=>{finishConfirmation=resolve;});
@@ -94,7 +103,7 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  finishConfirmation({isConfirmed:true});
  assert.equal(await firstNavigation,false,'A superseded real Vue Router navigation is a handled NavigationCancelled');
  assert.equal(await lastNavigation,true);await settle();
- assert.equal(router.currentRoute.query.section,'identity');assert.equal(view.mobileSection,'identity');
+ assert.equal(router.currentRoute.query.section,'identity');
  assert.equal(scrolls.length,3,'Only the successful concurrent navigation scrolls; NavigationCancelled does not');
  assert.equal(await view.goToSection('identity'),false);
  assert.equal(scrolls.length,3,'Selecting the current section does not reset its scroll');
@@ -104,30 +113,85 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  assert.equal(view.returnToAppointments,false,'Only the allowlisted appointment route is offered as a return target');
  view.goToSection('users');await settle();assert.equal(router.currentRoute.query.returnTo,undefined);
  assert.equal(scrolls.length,4);
- const beforeContact=router.currentRoute.fullPath;
- notifications=[];view.openPlanContact();await settle();
- assert.equal(notifications.length,1);assert.equal(notifications[0].icon,'info');
- assert.match(notifications[0].text,/canal donde contrataste/);
- assert.equal(router.currentRoute.fullPath,beforeContact,'Plan contact offers instructions without navigating or sending a message');
+ notifications=[];await view.openPlanContact();await settle();
+ assert.equal(notifications.length,0,'Changing plans does not require contacting the team');
+ assert.equal(router.currentRoute.query.section,'plan-billing','Locked features lead directly to self-service billing');
  const unknownError=new Error('Synthetic unexpected router fault');
  const broken={$router:{push:()=>Promise.reject(unknownError)},activeSection:'summary',returnToAppointments:false,$nextTick:()=>Promise.resolve()};
  await assert.rejects(shell.options.methods.goToSection.call(broken,'identity'),error=>error===unknownError,'Unexpected errors must not be mistaken for an intentional navigation cancellation');
- assert.equal(scrolls.length,4,'Unexpected router failure cannot move the current editor');
+ assert.equal(scrolls.length,5,'Unexpected router failure cannot move the current editor');
  assert.ok(scrolls.every(coordinates=>coordinates.length===2&&coordinates[0]===0&&coordinates[1]===0));
  cleanup();view.$destroy();view.$el.remove();
 
- const side=load('src/views/admin/components/AdminSettingsSidebar.vue');
+ Object.defineProperty(window,'innerWidth',{value:1280,writable:true});
  const sections=settings.getSettingsSections('admin',()=>true);
- const sidebar=new Vue({...side.options,render:side.render,staticRenderFns:side.staticRenderFns,propsData:{sections,activeSection:'users'},components:{'v-icon':{functional:true,render:h=>h('span')}}});
- sidebar.$mount();document.body.appendChild(sidebar.$el);
+ const sidebar=new Vue({...side.options,vuetify:new Vuetify(),render:side.render,staticRenderFns:side.staticRenderFns,propsData:{sections,activeSection:'users'},components:{'v-icon':{functional:true,render:h=>h('span')}}});
+ sidebar.$mount();document.body.appendChild(sidebar.$el);await settle();
+ const settingsDrawer=sidebar.$children.find(child=>child.$options.name==='v-navigation-drawer');
+ assert.ok(settingsDrawer,'Settings uses the real Vuetify navigation drawer');
+ assert.equal(settingsDrawer.permanent,true);assert.equal(settingsDrawer.fixed,true);
+ assert.equal(settingsDrawer.app,false,'The secondary drawer must not register another application layout offset');
+ assert.equal(settingsDrawer.$vuetify.application.left,0,'The existing grid continues to own the content offset');
+ assert.ok(sidebar.$el.querySelector('.v-navigation-drawer__content'),'Vuetify owns the internal scroll container');
+ assert.ok(sidebar.$el.querySelector('.v-navigation-drawer__border'),'Vuetify renders the drawer divider');
+
  const navigation=sidebar.$el.querySelector('nav[aria-label="Apartados de configuración"]');assert.ok(navigation);
  assert.equal(sidebar.$el.querySelectorAll('[aria-current="page"]').length,1);
  const active=sidebar.$el.querySelector('[aria-current="page"]');assert.match(active.textContent,/Personal y usuarios/);
  let selection;sidebar.$on('select',value=>{selection=value;});active.click();assert.equal(selection,'users');
+ sidebar.$vuetify.breakpoint.width=390;await settle();
+ assert.equal(settingsDrawer.temporary,true);assert.equal(settingsDrawer.permanent,false);
+ assert.equal(sidebar.$el.querySelector('#admin-settings-navigation').getAttribute('aria-hidden'),'true','Closed mobile drawer is hidden from assistive technology');
+ assert.equal(sidebar.$el.querySelector('#admin-settings-navigation').hasAttribute('inert'),true,'Closed mobile entries cannot receive keyboard focus');
+ sidebar.$vuetify.breakpoint.width=1280;await settle();
+ assert.equal(settingsDrawer.permanent,true);assert.equal(settingsDrawer.temporary,false);
  sidebar.$destroy();sidebar.$el.remove();
- assert.ok(header.options.props.value,'The mobile selector remains controlled by the resolved route section');
+ assert.ok(header.options.props.navigationOpen,'The mobile trigger exposes the drawer state');
 
- const layout=load('src/core/layouts/admin.vue');
+ const layout=load('src/core/layouts/admin.vue',{TENANT_NAVIGATION_TYPES:{SESSION:'session'}});
+ const desktopDrawer=compiler.compile(layout.sfc.template.content).ast.children.find(node=>node.attrsMap&&node.attrsMap.id==='tenant-desktop-navigation');
+ assert.equal(desktopDrawer.tag,'v-navigation-drawer');
+ assert.ok('permanent' in desktopDrawer.attrsMap);assert.ok('fixed' in desktopDrawer.attrsMap);
+ assert.ok(!('app' in desktopDrawer.attrsMap),'The existing shell retains control of content offsets');
+ assert.ok(desktopDrawer.children.some(node=>node.tag==='tenant-navigation-rail'));
+ const accountItems=layout.options.computed.sessionNavigationItems.call({role:'admin',hasPermission:()=>true,isTenantRestrictedMode:false,allowedNavigationItems:[{key:'logout',label:'Cerrar sesión',icon:'mdi-logout',type:'session'}]});
+ const rail=load('src/core/components/navigation/TenantNavigationRail.vue');
+ const railView=new Vue({...rail.options,vuetify:new Vuetify(),render:rail.render,staticRenderFns:rail.staticRenderFns,propsData:{businessName:'Clínica de ejemplo',sessionItems:accountItems}});
+ railView.$mount();document.body.appendChild(railView.$el);await settle();
+ assert.equal(railView.$el.querySelector('.navigation-brand strong').textContent,'Clínica de ejemplo');
+ assert.equal(railView.$el.querySelectorAll('.navigation-brand img,.navigation-brand .v-icon').length,0,'Clinic identity contains text without a logo or fallback icon');
+ const accountMenu=railView.$children.find(child=>child.$options.name==='v-menu');assert.ok(accountMenu);
+ assert.ok(accountMenu.$children.some(child=>child.$options.name==='v-btn'),'Account activator is a real Vuetify button');
+ const trigger=railView.$el.querySelector('.session-trigger');assert.ok(trigger.classList.contains('v-btn'));
+ assert.ok(trigger.querySelector('.v-avatar'),'Account initials use Vuetify avatar');
+ trigger.click();await settle();assert.equal(accountMenu.isActive,true,'Vuetify button opens the account menu');
+ let sessionAction;railView.$on('session-action',item=>{sessionAction=item.key;});
+ const renderedItems=[...railView.$el.querySelectorAll('.session-menu-item')];
+ assert.deepEqual(renderedItems.map(item=>item.textContent.trim()),['Mi perfil','Plan y facturación','Cerrar sesión']);
+ for(let index=0;index<renderedItems.length;index++) {
+  if(index) {trigger.click();await settle();}
+  renderedItems[index].click();await settle();
+  assert.equal(sessionAction,accountItems[index].key,'Each Vuetify entry emits its matching account action');assert.equal(accountMenu.isActive,false);
+ }
+ railView.$destroy();railView.$el.remove();
+ const confirmation=load('src/core/components/navigation/LogoutConfirmDialog.vue');
+ const confirmationComponent={...confirmation.options,render:confirmation.render,staticRenderFns:confirmation.staticRenderFns};
+ let confirmedLogouts=0;
+ const logoutOwner=new Vue({vuetify:new Vuetify(),data:()=>({showLogoutConfirmation:false,isMobileNavigationOpen:false}),
+  methods:{handleSessionAction:layout.options.methods.handleSessionAction,confirmLogout:layout.options.methods.confirmLogout,logout:()=>{confirmedLogouts++;}},
+  render(h){return h('div',{attrs:{'data-app':'true'}},[h(confirmationComponent,{props:{value:this.showLogoutConfirmation},on:{input:value=>{this.showLogoutConfirmation=value;},confirm:this.confirmLogout}})]);}
+ });
+ logoutOwner.$mount();document.body.appendChild(logoutOwner.$el);await settle();
+ const logoutDialog=logoutOwner.$children[0].$children.find(child=>child.$options.name==='v-dialog');assert.ok(logoutDialog,'Logout uses the real Vuetify dialog');
+ logoutOwner.handleSessionAction({key:'logout'});await settle();assert.equal(logoutDialog.isActive,true);assert.equal(confirmedLogouts,0);
+ document.querySelector('.logout-confirm-cancel').click();await settle();assert.equal(logoutDialog.isActive,false);assert.equal(confirmedLogouts,0,'Cancel never calls the authentication action');
+ logoutOwner.handleSessionAction({key:'logout'});await settle();
+ logoutDialog.$refs.content.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',keyCode:27,bubbles:true}));await settle();
+ assert.equal(logoutDialog.isActive,false);assert.equal(confirmedLogouts,0,'Escape cancels the native dialog');
+ logoutOwner.handleSessionAction({key:'logout'});await settle();
+ document.querySelector('.logout-confirm-submit').click();await settle();assert.equal(logoutDialog.isActive,false);assert.equal(confirmedLogouts,1,'Only the explicit confirm button signs out');
+ logoutOwner.confirmLogout();assert.equal(confirmedLogouts,1);
+ logoutOwner.$destroy();logoutOwner.$el.remove();
  const methods=layout.options.methods;
  const visits=[];const frame={$route:{path:'/inicio',name:'home'},isMobileNavigationOpen:true,isTenantRestrictedMode:true,$router:{push:target=>{visits.push(target);return Promise.resolve();}}};
  methods.navigateToItem.call(frame,{path:'/admin',isTenantRestrictedDisabled:true});assert.equal(visits.length,0);assert.equal(frame.isMobileNavigationOpen,false);
@@ -137,7 +201,7 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  assert.deepEqual(settings.getSettingsSections('assistant',()=>false).map(section=>section.key),['account-legal','change-password'],'Personal account access does not grant administrative settings');
 
  // Apply the actual style blocks in their real order, including Vue scoped
- // selector rewriting. This catches a later fixed footer overriding settings.
+ // selector rewriting. Content no longer reserves space for a global footer.
  const scope='data-v-ux13-layout';
  for(const block of layout.sfc.styles){
   const css=compileStyle({source:block.content,id:scope,scoped:Boolean(block.scoped)});
@@ -145,11 +209,11 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
   const style=document.createElement('style');style.textContent=css.code;document.head.appendChild(style);
  }
  const sample=document.createElement('div');sample.className='tenant-layout tenant-settings-layout';sample.setAttribute(scope,'');
- sample.innerHTML=`<div class="tenant-main-shell" ${scope}></div><footer class="tenant-footer" ${scope}></footer>`;document.body.appendChild(sample);
- const footer=sample.querySelector('footer');
- assert.equal(window.getComputedStyle(footer).position,'relative','Settings footer participates in document flow after all scoped styles');
+ sample.innerHTML=`<div class="tenant-main-shell" ${scope}></div>`;document.body.appendChild(sample);
+ assert(!layout.sfc.template.content.includes('tenant-footer'),'Global footer is removed from the shared layout');
+ assert.equal(window.getComputedStyle(sample.firstElementChild).paddingBottom,'0px','Settings do not reserve footer space');
  sample.classList.remove('tenant-settings-layout');
- assert.equal(window.getComputedStyle(footer).position,'fixed','Other modules retain their existing footer behavior');
+ assert.equal(window.getComputedStyle(sample.firstElementChild).paddingBottom,'0px','Other modules do not reserve footer space');
  sample.remove();
 
  // Compile the component through the same Vue scoped-style compiler used by
@@ -229,5 +293,5 @@ const deferredChoice=()=>{let resolve;const promise=new Promise(done=>{resolve=d
  fallbackView.$el.getBoundingClientRect=()=>({width:375});window.dispatchEvent(new window.Event('resize'));
  assert.equal(fallbackView.isCompactLayout,false,'Destroyed directory removes its window resize listener');
  staffSheet.remove();
- console.log('PASS UX13 settings layout: real Vue Router query/discard behavior, scroll only after successful section changes, real Vuetify VSelect change/cancel restoration, allowlisted return to Citas, informative plan contact, sidebar ARIA/event rendering, permission scoped navigation, scoped footer cascade, rendered/scoped staff table-card visibility at 375/864/865 px, ResizeObserver and resize fallback/cleanup, summary wrapping and singular labels. DOM simulation only; viewport overflow/scroll still requires browser QA. No network, credentials or database.');
+ console.log('PASS UX13 settings layout: real Vue Router query/discard behavior, scroll only after successful section changes, real mobile Vuetify drawer open/select/close and cancelled navigation, allowlisted return to Citas, self-service billing navigation, real Vuetify drawer with no duplicate layout offset, sidebar ARIA/event rendering, permission scoped navigation, footer-free layout cascade, rendered/scoped staff table-card visibility at 375/864/865 px, ResizeObserver and resize fallback/cleanup, summary wrapping and singular labels. DOM simulation only; viewport overflow/scroll still requires browser QA. No network, credentials or database.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>browser.window.close());

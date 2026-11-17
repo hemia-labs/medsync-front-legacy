@@ -1,15 +1,15 @@
 <template>
-    <div v-if="sectionAllowed" class="w-full pb-8">
+    <div v-if="sectionAllowed" class="configuration-page w-full pb-8">
         <v-alert v-if="activeSection === 'summary' && (appearanceError || clinicalModulesError)" type="error" text role="alert">Algunos ajustes opcionales no se pudieron consultar. <button type="button" class="underline font-semibold" @click="init">Reintentar consulta</button></v-alert>
         <preparation-guide v-if="['identity','documents'].includes(activeSection) && !documentTemplateDialog" :key="activeSection" :branch="activeSection" :stage="activeSection==='identity' && businessInfoEditing ? 'edit' : ''" :dirty="hasUnsavedChanges" :busy="settingsSaving" @focus-control="focusPreparationControl" />
-        <admin-summary v-if="activeSection === 'summary'" :items="configurationSummary"></admin-summary>
+        <admin-summary v-if="activeSection === 'summary'" :items="configurationSummary" :business="authBusiness || {}" :sections="settingsSections"></admin-summary>
 
         <roles-permissions-config
-            v-if="activeSection === 'roles-permissions'" @contact-plan="$emit('contact-plan', $event)"
+            v-if="activeSection === 'roles-permissions'" @contact-plan="$emit('contact-plan')"
         ></roles-permissions-config>
 
         <section ref="preparationEditor" v-if="activeSection === 'doctor-identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="px-7 py-5 border-b border-primary-200 bg-primary-100">
+            <div class="px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header">
                 <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Identidad del doctor</p>
                 <h2 class="m-0 text-gray-600 text-2xl font-normal">Perfil profesional</h2>
                 <p class="m-0 mt-2 text-gray-500 text-sm">Completa tus datos profesionales para emitir recetas y firmar documentos clínicos.</p>
@@ -26,13 +26,13 @@
         </section>
 
         <section v-if="activeSection === 'clinical-modules'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
                 <div>
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Secciones clínicas</p>
                     <h2 class="m-0 text-gray-600 text-2xl font-normal">Expediente del paciente</h2>
                     <p class="m-0 mt-2 text-gray-500 text-sm">Elige qué apartados aparecen dentro del expediente del paciente.</p>
                 </div>
-                <div class="flex flex-wrap justify-start lg:justify-end gap-2">
+                <div class="flex flex-wrap justify-start lg:justify-end gap-2 settings-header-actions">
                     <da-button-primary @click.native="onSaveClinicalModules()" :disabled="clinicalModulesLoading || !!clinicalModulesError || clinicalModulesSaving" :label="clinicalModulesSaving ? 'Guardando...' : 'Guardar secciones'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
                 </div>
             </div>
@@ -103,13 +103,13 @@
         </section>
 
         <section ref="preparationEditor" v-if="activeSection === 'identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
                 <div>
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Informacion del consultorio</p>
-                    <h2 class="m-0 text-gray-600 text-2xl font-normal">Perfil de cuenta del consultorio</h2>
+                    <h2 class="m-0 text-gray-600 text-2xl font-normal">Datos generales del consultorio</h2>
                     <p class="m-0 mt-2 text-gray-500 text-sm">Datos visibles del consultorio y estado operativo de la cuenta.</p>
                 </div>
-                <div class="flex flex-wrap items-center justify-start lg:justify-end gap-3">
+                <div class="flex flex-wrap items-center justify-start lg:justify-end gap-3 settings-header-actions">
                     <da-button-primary
                         ref="guideIdentityAction" v-if="!businessInfoEditing"
                         @click.native="onStartBusinessInfoEdit()"
@@ -227,7 +227,7 @@
                         <div>
                             <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Estado de la cuenta</p>
                             <h3 class="m-0 text-gray-700 text-lg font-semibold">{{ businessInfo.name || 'Consultorio' }}</h3>
-                            <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Datos de cuenta, licencia y facturación administrados por MedSync.</p>
+                            <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Datos de cuenta y estado operativo del consultorio.</p>
                         </div>
                         <span class="self-start inline-flex items-center px-3 py-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold uppercase tracking-wider">Solo lectura</span>
                     </div>
@@ -250,24 +250,26 @@
                         </div>
                         <div class="border-l-4 border-gray-300 bg-white px-4 py-3 min-w-0">
                             <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Licencia y facturación</p>
-                            <p class="m-0 mt-1 text-gray-700">Gestionado por MedSync</p>
+                            <router-link to="/admin?section=plan-billing" class="m-0 mt-1 inline-block text-primary-900 underline">Ver plan y facturación</router-link>
                         </div>
                     </div>
                 </article>
             </div>
         </section>
 
+        <plan-billing v-if="activeSection === 'plan-billing'" @contact-plan="$emit('contact-plan', $event)" />
+
         <account-legal-documents v-if="activeSection === 'account-legal'" />
         <change-password v-if="activeSection === 'change-password'" :key="authUser && authUser.id_login" />
 
         <section ref="preparationEditor" v-if="activeSection === 'documents'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
                 <div>
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Documentos y consentimientos</p>
                     <h2 class="m-0 text-gray-600 text-2xl font-normal">Textos y formatos del consultorio</h2>
                     <p class="m-0 mt-2 text-gray-500 text-sm">Centraliza consentimientos, datos sensibles, atención general y formatos personalizados del consultorio.</p>
                 </div>
-                <div class="flex flex-wrap justify-start lg:justify-end gap-2">
+                <div class="flex flex-wrap justify-start lg:justify-end gap-2 settings-header-actions">
                     <da-button-primary ref="guideDocumentsAction" @click.native="openDocumentTemplateDialog()" :label="'+ Crear formato'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
                 </div>
             </div>
@@ -334,13 +336,13 @@
         </section>
 
         <section v-if="activeSection === 'appearance'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
                 <div>
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Pantalla de acceso</p>
                     <h2 class="m-0 text-gray-600 text-2xl font-normal">Logo de acceso</h2>
                     <p class="m-0 mt-2 text-gray-500 text-sm">Recomendado: PNG o WEBP horizontal de 700x250, maximo 2 MB despues de optimizar.</p>
                 </div>
-                <div class="flex flex-wrap justify-start lg:justify-end gap-2">
+                <div class="flex flex-wrap justify-start lg:justify-end gap-2 settings-header-actions">
                     <input
                         :key="loginImageInputKey"
                         ref="loginImageFile"
@@ -377,20 +379,20 @@
         ></prescription-config>
 
         <clinical-history-template-config
-            v-if="activeSection === 'clinical-history-template'" @contact-plan="$emit('contact-plan', $event)"
+            v-if="activeSection === 'clinical-history-template'" @contact-plan="$emit('contact-plan')"
             :theme-color="themePrimaryColor"
             @saved="toastFunction('success',$event)"
             @error="toastFunction('error',$event)"
         ></clinical-history-template-config>
 
         <section v-if="activeSection === 'appearance'" class="mt-6 bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
                 <div>
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Apariencia</p>
                     <h2 class="m-0 text-gray-600 text-2xl font-normal">Tema del sistema</h2>
                     <p class="m-0 mt-2 text-gray-500 text-sm">Elige la paleta de colores que verán los usuarios en el sistema.</p>
                 </div>
-                <div class="flex flex-wrap justify-start lg:justify-end gap-2">
+                <div class="flex flex-wrap justify-start lg:justify-end gap-2 settings-header-actions">
                     <da-button-primary @click.native="onSaveTheme()" :disabled="isThemeSaving || appearanceLoading || !!appearanceError" :label="isThemeSaving ? 'Guardando...' : 'Guardar tema'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
                 </div>
             </div>
@@ -426,7 +428,7 @@
         </section>
 
         <professional-agenda-config v-if="activeSection === 'agenda'" :initial-doctor-id="typeof $route.query.doctor === 'string' ? $route.query.doctor : ''" :theme-color="themePrimaryColor" @saved="onGetAppointmentConfig" />
-    <v-dialog v-if="activeSection === 'agenda'" v-model="dayDialog" persistent max-width="680">
+    <v-dialog content-class="admin-settings-dialog" v-if="activeSection === 'agenda'" v-model="dayDialog" persistent max-width="680">
             <v-card>
                 <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
                     <div>
@@ -457,7 +459,7 @@
             </v-card>
         </v-dialog>
 
-        <v-dialog v-if="activeSection === 'agenda'" v-model="copyDialog" max-width="520">
+        <v-dialog content-class="admin-settings-dialog" v-if="activeSection === 'agenda'" v-model="copyDialog" max-width="520">
             <v-card>
                 <div class="px-6 py-5 border-b border-gray-200">
                     <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Copiar horario</p>
@@ -482,7 +484,7 @@
             </v-card>
         </v-dialog>
 
-        <v-dialog v-if="activeSection === 'agenda'" v-model="blockDialog" max-width="620">
+        <v-dialog content-class="admin-settings-dialog" v-if="activeSection === 'agenda'" v-model="blockDialog" max-width="620">
             <v-card>
                 <div class="px-6 py-5 border-b border-gray-200">
                     <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Bloqueos</p>
@@ -507,7 +509,7 @@
             </v-card>
         </v-dialog>
 
-        <v-dialog v-if="activeSection === 'documents'" v-model="documentTemplateDialog" persistent scrollable :retain-focus="false" max-width="1180" role="dialog" aria-modal="true" aria-labelledby="document-template-title" @keydown.esc="onCancelDocumentTemplate">
+        <v-dialog content-class="admin-settings-dialog" v-if="activeSection === 'documents'" v-model="documentTemplateDialog" persistent scrollable :retain-focus="false" max-width="1180" role="dialog" aria-modal="true" aria-labelledby="document-template-title" @keydown.esc="onCancelDocumentTemplate">
             <v-card>
                 <div class="px-6 py-5 border-b border-gray-200 bg-primary-100">
                     <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Formato clínico</p>
@@ -546,7 +548,7 @@
                     <div v-if="selectedDocumentTierLocked" class="border border-gray-300 bg-gray-50 text-gray-700 p-4 mb-4">
                         <p class="m-0 font-semibold">{{ selectedDocumentTierLocked.title }}</p>
                         <p class="m-0 mt-1 text-sm">{{ selectedDocumentTierLocked.message }}</p>
-                        <button type="button" class="mt-3 border border-primary-700 bg-white text-primary-900 px-4 py-2 text-sm font-semibold" @click="$emit('contact-plan')">Contactar para cambiar plan</button>
+                        <button type="button" class="mt-3 border border-primary-700 bg-white text-primary-900 px-4 py-2 text-sm font-semibold" @click="$emit('contact-plan')">Ver planes disponibles</button>
                     </div>
                     <v-textarea v-model="documentTemplateForm.description" :disabled="documentTemplateSaving" label="Descripción opcional" rows="2" outlined :color="themePrimaryColor"></v-textarea>
 
@@ -721,7 +723,7 @@
             </v-card>
         </v-dialog>
 
-        <v-dialog v-if="activeSection === 'documents'" v-model="confirmExampleDialog" max-width="520">
+        <v-dialog content-class="admin-settings-dialog" v-if="activeSection === 'documents'" v-model="confirmExampleDialog" max-width="520">
             <v-card>
                 <div class="px-6 py-5 border-b border-gray-200 bg-primary-100">
                     <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Insertar ejemplo</p>
@@ -737,7 +739,7 @@
             </v-card>
         </v-dialog>
 
-        <v-dialog v-if="activeSection === 'documents'" v-model="automaticDataHelpDialog" scrollable max-width="760" role="dialog" aria-modal="true" aria-labelledby="automatic-data-help-title">
+        <v-dialog content-class="admin-settings-dialog" v-if="activeSection === 'documents'" v-model="automaticDataHelpDialog" scrollable max-width="760" role="dialog" aria-modal="true" aria-labelledby="automatic-data-help-title">
             <v-card>
                 <div class="px-6 py-5 border-b border-gray-200 bg-primary-100">
                     <p class="m-0 text-primary-900 text-xs font-bold tracking-widest uppercase">Ayuda</p>
@@ -811,6 +813,7 @@ import {
 export default {
     mixins:[VuexMixin],
     components: {
+        PlanBilling: () => import('./components/PlanBilling.vue'),
         OdontogramModeSettings: () => import('./components/OdontogramModeSettings.vue'),
         PrivateClinicLogo,
         PreparationGuide,
@@ -1051,7 +1054,8 @@ export default {
             role: fnTypes.getRole,
             hasPermission: fnTypes.hasPermission
         }),
-        sectionAllowed() { return getSettingsSections(this.role,this.hasPermission).some(section=>section.key===this.activeSection) },
+        settingsSections() { return getSettingsSections(this.role,this.hasPermission) },
+        sectionAllowed() { return this.settingsSections.some(section=>section.key===this.activeSection) },
         activeTheme() { return themeState.currentTheme },
 
         loginImagePreviewStyle: function() {
@@ -1198,7 +1202,7 @@ export default {
                 {
                     label: 'Tema',
                     path: '/admin?section=appearance',
-                    value: theme || 'Predeterminado',
+                    value: theme === 'medical-blue' ? 'MedSync' : theme || 'Predeterminado',
                     detail: 'Paleta visual activa',
                     statusClass: 'bg-green-500'
                 },
