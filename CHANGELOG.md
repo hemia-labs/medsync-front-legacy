@@ -1,5 +1,11 @@
 # hmdentalassistant_front
 
+## 0.4.1
+
+### Patch Changes
+
+- cb13c4c: Let users recover an expired registration session without losing captured fields or automatically resubmitting account creation.
+
 ## 0.4.0
 
 ### Minor Changes
