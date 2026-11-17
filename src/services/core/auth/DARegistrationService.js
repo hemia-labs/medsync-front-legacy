@@ -49,6 +49,13 @@ export default {
     DACsrfService.clearCsrfToken();
     return result;
   },
+  async recoverSession() {
+    // Refresh CSRF only; do not hydrate auth/store or remount the capture view.
+    DACsrfService.clearCsrfToken();
+    const result = await request('post', 'registration/recover-session', {});
+    DACsrfService.clearCsrfToken();
+    return result;
+  },
   publicPlans: () => request('get', 'registration/plans'),
   activation: () => request('get', 'account/activation', undefined, {}, true),
   plans: () => request('get', 'account/activation/plans', undefined, {}, true),
