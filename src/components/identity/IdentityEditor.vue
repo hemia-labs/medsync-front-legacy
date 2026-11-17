@@ -59,7 +59,7 @@ export default {
     async reload() { if (this.dirty && !window.confirm('¿Descartar los cambios de identidad sin guardar?')) return; await this.load(); },
     async load() {
       const seq = ++this.sequence, context = authorizationContext(this.$store);
-      this.loading = true; this.loaded = false; this.error = ''; this.fieldErrors = {}; this.conflict = false;
+      this.loading = true; this.saving = false; this.loaded = false; this.error = ''; this.fieldErrors = {}; this.conflict = false;
       try {
         const r = await DACore.get(this.url);
         if (seq !== this.sequence || !isCurrentAuthorization(context, this.$store)) return;
@@ -69,10 +69,12 @@ export default {
         this.draft = editableIdentity(r.data);
         this.baseline = editableIdentity(r.data);
         this.loaded = true; this.message = 'La verificación de CURP y catálogos sigue pendiente.';
-      } catch (e) { this.error = e.message || 'No se pudo consultar.'; } finally { if (seq === this.sequence) this.loading = false; }
+      } catch (e) {
+        if (seq === this.sequence && isCurrentAuthorization(context, this.$store)) this.error = e.message || 'No se pudo consultar.';
+      } finally { if (seq === this.sequence && isCurrentAuthorization(context, this.$store)) this.loading = false; }
     },
     async save() {
-      if (this.saving) return;
+      if (this.saving || this.loading || !this.loaded) return;
       const context = authorizationContext(this.$store), seq = this.sequence;
       this.saving = true; this.error = ''; this.fieldErrors = {}; this.conflict = false;
       const patch = identityPatch(this.draft, this.baseline);
@@ -86,7 +88,9 @@ export default {
         }
         this.baseline = editableIdentity(r.data); this.draft = editableIdentity(r.data); this.revision = r.data.revision;
         this.message = 'Identidad guardada; validación de catálogos pendiente.'; this.$emit('saved', r.data);
-      } catch (e) { this.error = e.message || 'No se pudo guardar. Conservamos tu captura.'; } finally { this.saving = false; }
+      } catch (e) {
+        if (seq === this.sequence && isCurrentAuthorization(context, this.$store)) this.error = e.message || 'No se pudo guardar. Conservamos tu captura.';
+      } finally { if (seq === this.sequence && isCurrentAuthorization(context, this.$store)) this.saving = false; }
     }
   }
 };

@@ -109,7 +109,7 @@ const test = async (name, fn) => { await fn(); results.push(name); console.log('
     vm.identity = { ...vm.identity, birthCountry: { family: 'sis.country', code: ' 223' } };
     nextSave = () => ({ success: false, status: 400, message: 'Revisa el campo de identidad: birthCountry', data: { code: 'IDENTITY_INVALID', field: 'birthCountry' } });
     await vm.save(); await tick();
-    assert.deepEqual(JSON.parse(JSON.stringify(vm.identityErrors)), { birthCountry: ['Revisa el formato de este dato.'] });
+    assert.deepEqual(JSON.parse(JSON.stringify(vm.identityErrors)), { birthCountry: ['Revisa este dato.'] });
     assert.deepEqual(focused, ['birthCountry']); assert.match(vm.saveError, /Revisa «País de nacimiento»/);
     nextSave = () => ({ success: false, status: 403, message: 'No tienes permiso para editar este perfil profesional.', data: { code: 'PERMISSION_DENIED' } });
     await vm.save();

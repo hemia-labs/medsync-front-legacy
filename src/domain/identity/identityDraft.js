@@ -54,7 +54,7 @@ const FIELD_LABELS = {
 export function identityFieldError(response) {
     const data = response && response.data;
     const field = data && data.field;
-    if (!field || !FIELD_LABELS[field] || [401, 403, 409].includes(response.status)) return null;
-    const message = data.code === 'CATALOG_SENTINEL_NOT_STORABLE' ? 'Esta clave no se puede guardar; deja el dato pendiente.' : 'Revisa el formato de este dato.';
+    if (!field || !FIELD_LABELS[field] || response.status !== 400 || !['IDENTITY_INVALID', 'CATALOG_SENTINEL_NOT_STORABLE', 'BIOLOGICAL_SEX_REQUIRED'].includes(data.code)) return null;
+    const message = data.code === 'CATALOG_SENTINEL_NOT_STORABLE' ? 'Esta clave no se puede guardar; deja el dato pendiente.' : 'Revisa este dato.';
     return { field, label: FIELD_LABELS[field], message, errors: { [field]: [message] } };
 }
