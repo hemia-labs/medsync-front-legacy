@@ -34,15 +34,25 @@ async function recoverSession(owner, serverCode) {
     redirectToAuthIfNeeded();
     return { code: 'AUTH_REQUIRED', sessionRecovery: 'invalid' };
   }
-  let session = null;
-  try { session = await store.dispatch('CORE/AUTH/refreshAccess', { hydrate: true }); } catch (_) { session = null; }
-  const auth = store.state.CORE.AUTH;
-  if (!auth.authenticated) return { code: 'AUTH_REQUIRED', sessionRecovery: 'invalid' };
-  // From an anonymous owner (session established by the signup itself) there is no earlier authorization to protect.
-  if (owner.fingerprint && !isCurrentAuthorization(owner, store)) return { code: 'AUTH_CONTEXT_CHANGED', sessionRecovery: 'changed' };
-  if (session && session.success && session.data && session.data.authenticated) return { code: 'AUTH_SESSION_RECOVERED', sessionRecovery: 'valid' };
+  // The shared check reports what it did. The classification never relies on the store being anonymous or on
+  // an answer the check discarded: right after signup the server may hold a session that Vuex has not hydrated.
+  const report = {};
+  try { await store.dispatch('CORE/AUTH/refreshAccess', { hydrate: true, report }); } catch (_) { /* uncertain */ }
+  const changed = { code: 'AUTH_CONTEXT_CHANGED', sessionRecovery: 'changed' };
+  // Login, logout or another context change while waiting (owner revision/epoch included, even when anonymous).
+  if (report.stale) return changed;
+  if (report.terminal || report.applied) {
+    // What the check applied must still be the current state; a later change belongs to someone else.
+    if ((store.state.CORE.AUTH.accessRevision || 0) !== (report.revision || 0)) return changed;
+    return report.terminal ? { code: 'AUTH_REQUIRED', sessionRecovery: 'invalid' } : { code: 'AUTH_SESSION_RECOVERED', sessionRecovery: 'valid' };
+  }
+  // Nothing applied (network or 5xx): neither revocation nor recovery, unless the context changed meanwhile.
+  if (!isCurrentAuthorization(owner, store)) return changed;
   return { code: 'AUTH_SESSION_UNCONFIRMED', sessionRecovery: 'uncertain' };
 }
+
+// Delay announced by the server (body or Retry-After), kept for every status including 401.
+const retryAfter = response => Math.max(0, Number(response && ((response.data && response.data.retryAfterSeconds) || (response.headers && response.headers['retry-after']))) || 0);
 
 async function request(method, url, data, headers = {}, authenticated = false) {
   const owner = authorizationContext(store);
@@ -57,12 +67,12 @@ async function request(method, url, data, headers = {}, authenticated = false) {
     const response = error.response;
     const serverCode = response && response.data && (response.data.code || response.data.data && response.data.data.code);
     if (authenticated && response && response.status === 401) {
-      throw { ...(await recoverSession(owner, serverCode)), serverCode: serverCode || null, status: 401, retryAfterSeconds: 0 };
+      throw { ...(await recoverSession(owner, serverCode)), serverCode: serverCode || null, status: 401, retryAfterSeconds: retryAfter(response) };
     }
     throw {
       code: error.code === 'AUTH_CONTEXT_CHANGED' ? error.code : serverCode || 'NETWORK_ERROR',
       status: response && response.status,
-      retryAfterSeconds: Math.max(0, Number(response && (response.data.retryAfterSeconds || response.headers && response.headers['retry-after'])) || 0)
+      retryAfterSeconds: retryAfter(response)
     };
   }
 }
