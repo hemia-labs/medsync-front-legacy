@@ -63,6 +63,8 @@ export function registrationErrorMessage(error) {
     CSRF_FORBIDDEN: 'No se pudo validar la solicitud segura. Vuelve a intentarlo.',
     AUTH_CONTEXT_CHANGED: 'La sesión cambió. Inicia sesión de nuevo para continuar con tu cuenta.',
     AUTH_REQUIRED: 'Tu sesión terminó. Inicia sesión para continuar.',
+    AUTH_SESSION_RECOVERED: 'Actualizamos tu sesión, pero la acción no se completó. Puedes volver a intentarlo.',
+    AUTH_SESSION_UNCONFIRMED: 'No pudimos confirmar tu sesión. Conservamos lo que escribiste; revisa tu conexión e inténtalo de nuevo.',
     REGISTRATION_UNAVAILABLE: 'El servicio no está disponible por el momento. Conservamos los datos en esta pantalla para que puedas reintentar.',
     LEGAL_UNAVAILABLE: 'Los documentos legales no están disponibles. Intenta nuevamente en unos momentos.'
   };
