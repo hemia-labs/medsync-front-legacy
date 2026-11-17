@@ -17,7 +17,7 @@ async function main() {
   const source = fs.readFileSync(path.join(root, 'src/views/Patient/Sections/MedicalHistory.vue'), 'utf8');
   const script = source.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component =');
   const service = {};
-  const context = { component: null, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, isD2AuthMode: () => true,
+  const context = { component: null, ClosedHistoryReader: {}, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, isD2AuthMode: () => true,
     dialogName: {}, fieldError: {}, ...modules, DAClinicalHistoryService: service, DADocumentService: {}, DAPrescriptionService: {}, DAClinicalHistoryTemplateService: {}, window: {}, document: {}, setTimeout, clearTimeout };
   vm.runInNewContext(script, context);
   const options = context.component;

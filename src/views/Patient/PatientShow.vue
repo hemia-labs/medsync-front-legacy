@@ -30,7 +30,7 @@
     </div>
 
     <div v-if="!isEdit" :class="{'animate-fade-in-left ease-in-out': !isEdit}">
-        <div class="patient-record-shell">
+        <div class="patient-record-shell" :class="{'patient-history-shell': tab === 'da-medical-history'}">
             <v-tabs 
             :value="tab"
             :key="tabNavigationRevision"
@@ -533,6 +533,13 @@ export default {
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 16px 35px rgba(15, 23, 42, 0.1);
 }
+
+/* History's section index sticks to the page scroll, not a non-scrolling tabs wrapper. */
+.patient-history-shell,
+.patient-history-shell > .patient-record-content {
+    overflow: visible;
+}
+.patient-history-shell > .patient-record-tabs { border-radius: 14px 14px 0 0; }
 
 .patient-record-tabs {
     padding: 0.75rem;
