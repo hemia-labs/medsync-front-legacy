@@ -251,6 +251,16 @@ export default {
             if(input && input.$el) input.$el.scrollIntoView({ block: 'center', behavior: 'smooth' });
             if(input && input.focus) input.focus();
         },
+        acceptContactSave(payload, snapshot) {
+            const saved = JSON.parse(snapshot);
+            saved.last_name = payload.last_name;
+            this.user.last_name = payload.last_name;
+            if(Object.prototype.hasOwnProperty.call(payload, 'first_surname') || Object.prototype.hasOwnProperty.call(payload, 'second_surname')) this.storedStructured=true;
+            this.storedLastName=payload.last_name || '';
+            this.baseline=JSON.stringify(saved);
+            this.pendingContact=null;
+            this.pendingSnapshot=null;
+        },
         ...mapActions(moduleTypes.ROLE, [
             fnTypes.getRoles
         ]),
@@ -284,8 +294,10 @@ export default {
                     if(this.disposed || subject!==this.id || !isCurrentAuthorization(context,this.$store))return false;
                     if(!response || !response.success || !response.data || response.data.id_login!==subject)throw Error();
                     const expected=this.pendingContact;
-                    const matches=['first_name','last_name','email','phone','id_rol','active'].every(key=>String(response.data[key] == null ? '' : response.data[key])===String(expected[key] == null ? '' : expected[key]));
-                    if(matches){this.baseline=this.pendingSnapshot||JSON.stringify(expected);this.pendingContact=null;this.pendingSnapshot=null;this.saveError='Contacto confirmado. Revisa las autorizaciones pendientes y usa Guardar usuario para continuar.';}
+                    const keys=['first_name','last_name','email','phone','id_rol','active'];
+                    if(Object.prototype.hasOwnProperty.call(expected,'first_surname') || Object.prototype.hasOwnProperty.call(expected,'second_surname')) keys.push('first_surname','second_surname');
+                    const matches=keys.every(key=>String(response.data[key] == null ? '' : response.data[key])===String(expected[key] == null ? '' : expected[key]));
+                    if(matches){this.acceptContactSave(expected,this.pendingSnapshot||JSON.stringify(expected));this.saveError='Contacto confirmado. Revisa las autorizaciones pendientes y usa Guardar usuario para continuar.';}
                     else this.saveError='El contacto guardado es distinto. Conservamos tu captura; revisa el usuario antes de reemplazarlo.';
                 }catch(_){if(!this.disposed && isCurrentAuthorization(context,this.$store))this.saveError='No pudimos comprobar el guardado anterior. Reintenta la consulta; no reenviamos los cambios.';}
                 finally{if(!this.disposed && subject===this.id && isCurrentAuthorization(context,this.$store))this.isSaving=false;}return false;
@@ -315,8 +327,7 @@ export default {
                         this.saveError = this.pendingContact ? 'No se pudo confirmar el contacto. El siguiente intento consultará lo guardado antes de reenviar.' : buildLicenseLimitMessage(response, response && response.message ? response.message : 'No se pudo actualizar el usuario. Tu captura se conserva; puedes reintentar.');
                         return false;
                     }
-                    this.pendingContact=null;
-                    this.baseline = submitted;
+                    this.acceptContactSave(payload,submitted);
                     if(!await this.saveProfessionalProfileIfNeeded()) {
                         this.saveError='Los datos de contacto se guardaron, pero las autorizaciones siguen pendientes. Revisa su mensaje y reintenta sin salir de esta pantalla.';
                         return false;
