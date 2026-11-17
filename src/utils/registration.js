@@ -51,6 +51,7 @@ export function registrationErrorMessage(error) {
     IDEMPOTENCY_EXPIRED: 'El intento venció. Intenta iniciar sesión antes de comenzar otro registro.',
     REGISTRATION_ATTEMPT_INVALID: 'El intento de registro venció. Recarga la página; si ya enviaste tus datos, intenta iniciar sesión primero.',
     ACCOUNT_ALREADY_AUTHENTICATED: 'Ya hay una sesión abierta. Continúa con esa cuenta o cierra la sesión para crear otra.',
+    REGISTRATION_SESSION_EXPIRED: 'Tu sesión anterior terminó. Puedes continuar con el registro; tus datos siguen en este formulario.',
     REGISTRATION_RATE_LIMITED: 'Has realizado varios intentos. Espera el tiempo indicado antes de volver a intentar.',
     CONTACT_CODE_INVALID: 'El código no es válido o ya venció. Revísalo o solicita uno nuevo.',
     REGISTRATION_CODE_SEND_UNCONFIRMED: 'No pudimos confirmar el envío. Espera para solicitar otro código.',

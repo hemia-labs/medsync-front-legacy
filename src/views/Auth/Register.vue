@@ -60,14 +60,16 @@
           <button class="flow-secondary" type="button" :disabled="busy" @click="loadContext">Volver a consultar</button>
         </div>
       </div>
-      <v-btn class="auth-submit registration-submit" type="submit" block depressed :loading="busy" :disabled="busy || loading || !available || remaining > 0">
+      <v-btn class="auth-submit registration-submit" type="submit" block depressed :loading="busy" :disabled="busy || loading || !available || remaining > 0 || sessionExpired || alreadyAuthenticated">
         {{ remaining > 0 ? 'Reintentar en ' + remaining + ' s' : 'Crear cuenta' }}
         <v-icon right aria-hidden="true">mdi-arrow-right</v-icon>
       </v-btn>
     </form>
     <div v-if="error" ref="alert" class="flow-alert" role="alert" tabindex="-1">{{ error }}
       <button v-if="alreadyAuthenticated" class="flow-link" :disabled="busy" @click="resumeSession">Continuar con la sesión abierta</button>
+      <button v-if="sessionExpired" class="flow-link" :disabled="busy || loading || remaining > 0" @click="recoverRegistrationSession">Continuar con el registro</button>
     </div>
+    <p v-if="recoveryNotice" class="flow-copy" role="status">{{ recoveryNotice }}</p>
     <div class="login-register">
       <p>¿Ya tienes cuenta?</p>
       <v-btn text :to="{ name: 'login' }" :disabled="busy" color="var(--auth-link)" class="login-register-button">Iniciar sesión</v-btn>
@@ -115,7 +117,7 @@ export default {
     accepted: {}, showPassword: false,
     legalOpen: false, selectedDocument: null, attemptId: null, created: false,
     sessionEstablished: false, registrationActivation: null, initialVerification: null, sendingCode: false,
-    alreadyAuthenticated: false, remaining: 0, timer: null
+    alreadyAuthenticated: false, sessionExpired: false, recoveryNotice: '', remaining: 0, timer: null
   }),
   computed: {
     available() { return usableRegistrationContext(this.context); },
@@ -153,6 +155,11 @@ export default {
         }
         if (previous && previous.legalSnapshotToken !== next.legalSnapshotToken) { this.legalOpen = false; this.selectedDocument = null; }
         this.context = next;
+        this.alreadyAuthenticated = next.sessionState === 'active';
+        this.sessionExpired = next.sessionState === 'expired';
+        if (this.alreadyAuthenticated || this.sessionExpired) {
+          this.error = registrationErrorMessage({ code: this.alreadyAuthenticated ? 'ACCOUNT_ALREADY_AUTHENTICATED' : 'REGISTRATION_SESSION_EXPIRED' });
+        }
       } catch (error) {
         this.context = null;
         this.contextError = ['LEGAL_UNAVAILABLE', 'NETWORK_ERROR'].includes(error.code)
@@ -185,8 +192,8 @@ export default {
       await this.$nextTick(); if (this.$refs.alert) this.$refs.alert.focus();
     },
     async submit() {
-      if (this.busy || this.loading || this.remaining || !this.available || this.created) return;
-      this.errors = registrationErrors(this.form); this.error = '';
+      if (this.busy || this.loading || this.remaining || !this.available || this.created || this.sessionExpired || this.alreadyAuthenticated) return;
+      this.errors = registrationErrors(this.form); this.error = ''; this.recoveryNotice = '';
       this.legalError = this.documents.every(doc => this.accepted[doc.documentKey]) ? '' : 'Confirma todos los documentos para crear tu cuenta.';
       if (Object.keys(this.errors).length || this.legalError) {
         await this.$nextTick(); const invalid = this.$el.querySelector('input[aria-invalid=true]'); if (invalid) invalid.focus(); return;
@@ -209,6 +216,24 @@ export default {
         if (this._isDestroyed) return;
         if (error.code === 'LEGAL_VERSION_CHANGED') await this.loadContext();
         this.alreadyAuthenticated = error.code === 'ACCOUNT_ALREADY_AUTHENTICATED';
+        this.sessionExpired = error.code === 'REGISTRATION_SESSION_EXPIRED';
+        await this.showError(error);
+      } finally { this.busy = false; }
+    },
+    async recoverRegistrationSession() {
+      if (this.busy || this.loading || this.remaining || !this.sessionExpired || this.created) return;
+      this.busy = true; this.recoveryNotice = '';
+      try {
+        await Registration.recoverSession();
+        if (this._isDestroyed) return;
+        await this.loadContext();
+        if (this._isDestroyed) return;
+        if (this.available && !this.sessionExpired && !this.alreadyAuthenticated) {
+          this.recoveryNotice = 'Ya puedes continuar. Tus datos se conservaron. Revisa las confirmaciones de los documentos y pulsa Crear cuenta cuando estés listo.';
+        }
+      } catch (error) {
+        if (this._isDestroyed) return;
+        if (error.code === 'ACCOUNT_ALREADY_AUTHENTICATED') { this.alreadyAuthenticated = true; this.sessionExpired = false; }
         await this.showError(error);
       } finally { this.busy = false; }
     },
