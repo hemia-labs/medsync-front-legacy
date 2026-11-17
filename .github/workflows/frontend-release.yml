@@ -37,6 +37,12 @@ jobs:
           node scripts/qa/ux11-login-staff-regression.cjs
           node scripts/qa/ux12-staff-permissions-regression.cjs
           node scripts/qa/s24-registration-regression.cjs
+      - name: Verify authentication recovery without action replay
+        run: |
+          node scripts/qa/nc1-no-replay-regression.cjs
+          node scripts/qa/s18-authorization-session-regression.cjs
+          node scripts/qa/d2-session-lifecycle-frontend.js
+          node scripts/qa/nc1-client-403-session-regression.cjs
       - run: |
           bash -n scripts/release-frontend.sh
           bash -n ops/frontend/deploy.sh
