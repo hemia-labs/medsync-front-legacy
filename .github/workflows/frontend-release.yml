@@ -43,6 +43,7 @@ jobs:
           node scripts/qa/s18-authorization-session-regression.cjs
           node scripts/qa/d2-session-lifecycle-frontend.js
           node scripts/qa/nc1-client-403-session-regression.cjs
+          node scripts/qa/registration-expired-session-regression.cjs
       - run: |
           bash -n scripts/release-frontend.sh
           bash -n ops/frontend/deploy.sh
