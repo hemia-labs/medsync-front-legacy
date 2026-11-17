@@ -326,6 +326,85 @@ const ended = () => { assert.equal(state.authenticated, false, 'session cleared'
     }
   });
 
+  // R1 (Codex review of ac52ee04): the renewal goes through the REAL DAAuthService.refreshToken, HTTP client
+  // (core.instance) and interceptor/status handler. A late answer of the renewal, positive or negative, must not
+  // touch a session/context started afterwards; a terminal answer for the current context still ends the session.
+  const realRenewal = () => {
+    const effects = { csrfClears: 0, bootstraps: 0 };
+    const service = load('src/services/core/auth/DAAuthService.js', {
+      DACore: client, DAC_AUTH_REFRESH_TOKEN: '/api/auth/refreshToken', isD2AuthMode: () => d2,
+      DACsrfService: { ensureCsrfToken: async () => {}, clearCsrfToken() { effects.csrfClears += 1; } },
+      DASessionService: { bootstrapSession: () => { effects.bootstraps += 1; return authService.session(); } }
+    });
+    return { effects, refreshToken: (...args) => service.refreshToken(...args) };
+  };
+  const waitFor = async (predicate, label) => {
+    for (let i = 0; i < 200 && !predicate(); i += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.ok(predicate(), 'bounded wait: ' + label);
+  };
+  const legacySession = overrides => ({ ...valid(overrides).data, accessToken: JSON.stringify({ id_login: 'qa-doctor' }), refreshToken: 'synthetic-refresh' });
+  const startLegacy = overrides => { d2 = false; storage.set('token', 'fixture'); realStore.commit(modules.AUTH + '/' + types.SET_AUTH_ACCESS_SESSION, legacySession(overrides)); };
+  const renewalSent = () => sent.some(request => request.url.includes('refreshToken'));
+  // Runs: ambiguous 401 → auth/session says AUTH_ACCESS_EXPIRED → real renewal pending → change() → renewal answers.
+  const lateRenewal = async ({ legacy = false, change, renewalAnswer }) => {
+    const renewal = realRenewal(), original = authService.refreshToken, pending = deferred();
+    authService.refreshToken = renewal.refreshToken;
+    try {
+      if (legacy) startLegacy();
+      sessionReplies = [sessionFailure(401, 'AUTH_ACCESS_EXPIRED')];
+      answer = url => (url.includes('refreshToken') ? pending : ambiguous401());
+      const replying = save();
+      await waitFor(renewalSent, 'real renewal sent');
+      if (change) change();
+      const effectsBefore = { ...renewal.effects };
+      pending.resolve(renewalAnswer);
+      const reply = await replying;
+      return { reply, effectsBefore, effects: renewal.effects };
+    } finally { authService.refreshToken = original; }
+  };
+  const relogin = (legacy, overrides) => {
+    realStore.commit(modules.AUTH + '/' + types.SET_AUTH_ACCESS_SESSION, null);
+    if (legacy) realStore.commit(modules.AUTH + '/' + types.SET_AUTH_ACCESS_SESSION, legacySession(overrides));
+    else realStore.commit(modules.AUTH + '/' + types.SET_D2_AUTH_SESSION, sessionData(overrides));
+  };
+  const NEW_LOGIN = { user: { id_login: 'qa-doctor', id_session: 'qa-session-new', id_business: 'qa-clinic', rol: 'doctor' } };
+  const legacyRenewed = { status: 200, data: { status: 200, data: { token: JSON.stringify({ id_login: 'qa-doctor', id_session: 'qa-session', id_business: 'qa-clinic', rol: 'doctor' }), refresh_token: 'renewed', permisos: ['px.all'] }, message: 'ok' } };
+  const d2Renewed = { status: 200, data: { status: 200, data: {}, message: 'ok' } };
+
+  for (const legacy of [false, true]) {
+    const mode = legacy ? 'legacy' : 'D2';
+    await test(`R1a ${mode} real renewal: late terminal 401 after logout and new login does not close the new session`, async () => {
+      const { reply } = await lateRenewal({ legacy, change: () => relogin(legacy, NEW_LOGIN), renewalAnswer: coded401('AUTH_SESSION_INVALID') });
+      keptSession('new login survives'); assert.equal(state.user.id_session, 'qa-session-new');
+      assert.equal(reply.status, 409); assert.equal(sent.filter(r => !r.url.includes('refreshToken')).length, 1, 'business request sent once');
+      assert.equal(sent.filter(r => r.url.includes('refreshToken')).length, 1, 'one renewal, no retry');
+    });
+    await test(`R1b ${mode} real renewal: late positive answer after logout and new login changes nothing`, async () => {
+      const { reply, effectsBefore, effects } = await lateRenewal({ legacy, change: () => relogin(legacy, NEW_LOGIN), renewalAnswer: legacy ? legacyRenewed : d2Renewed });
+      keptSession(); assert.equal(state.user.id_session, 'qa-session-new'); assert.equal(reply.status, 409);
+      assert.deepEqual(effects, effectsBefore, 'no CSRF clearing or session bootstrap from the stale renewal');
+      assert.equal(sent.length, 2);
+    });
+    await test(`R1c ${mode} real renewal: late terminal after business, role or permission change keeps the new context`, async () => {
+      for (const overrides of [{ business: { id_business: 'qa-other' } }, { role: 'assistant', user: { id_login: 'qa-doctor', id_session: 'qa-session', id_business: 'qa-clinic', rol: 'assistant' } }, { permissions: ['px.all'] }]) {
+        signIn();
+        const change = () => (legacy ? realStore.commit(modules.AUTH + '/' + types.SET_AUTH_ACCESS_SESSION, legacySession(overrides)) : realStore.commit(modules.AUTH + '/' + types.SET_D2_AUTH_SESSION, sessionData(overrides)));
+        const expected = JSON.stringify(Object.keys(overrides));
+        const { reply } = await lateRenewal({ legacy, change, renewalAnswer: coded401('AUTH_SESSION_INVALID') });
+        keptSession('context kept after ' + expected); assert.equal(reply.status, 409, expected);
+        if (overrides.business) assert.equal(state.business.id_business, 'qa-other');
+        if (overrides.role) assert.equal(state.role, 'assistant');
+        if (overrides.permissions) assert.deepEqual([...state.permissions], ['px.all']);
+      }
+    });
+    await test(`R1d ${mode} real renewal: a terminal answer for the current context still ends the session`, async () => {
+      const { reply } = await lateRenewal({ legacy, renewalAnswer: coded401('AUTH_SESSION_INVALID') });
+      assert.equal(state.authenticated, false); assert.ok(redirects >= 1, 'redirected to authentication');
+      assert.equal(reply.status, 401); assert.equal(reply.authRevalidation, 'invalid');
+      assert.equal(sent.length, 2, 'no replay');
+    });
+  }
+
   // 7. 403 flow preserved (registration recovery has its own suite and transport).
   await test('7 403 denial keeps its flow: session kept, one revalidation, no replay', async () => {
     answer = denial();
