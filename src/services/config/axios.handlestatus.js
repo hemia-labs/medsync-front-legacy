@@ -6,6 +6,7 @@ import { isD2AuthMode } from './authTransport.config';
 import { clearD2ClientAuthArtifacts, redirectToAuthIfNeeded, shouldSkipD2UnauthorizedRedirect } from '../../utils/d2AuthCleanup';
 import { isAuthControlRequest } from '../../security/authorizationContext';
 import { clearLegacyAuthStorageForD2 } from '../../utils/authStorageCleanup';
+import { isAmbiguousUnauthorized, revalidateAmbiguousUnauthorized } from '../../security/ambiguousUnauthorized';
  
 export const actions = {
     unauthorized: async (error) => {
@@ -26,6 +27,12 @@ export const actions = {
         // renewal through the legacy unauthorized watcher.
         if(/\/auth\/refreshToken(?:\?|$)/i.test(String(error.config && error.config.url || ''))) {
             return Promise.reject(error);
+        }
+        // NC1-AUTH-401-AMB: a business 401 without a terminal/recoverable code does not close a valid
+        // session. One shared auth/session revalidation per authorization context decides; the original
+        // request stays rejected and is never replayed. Auth controls keep the branches below.
+        if(isAmbiguousUnauthorized(error, store)) {
+            return revalidateAmbiguousUnauthorized(error, store);
         }
         if(isD2AuthMode()) {
             store.commit(modules.AUTH+'/'+types.SET_D2_AUTH_SESSION, null, {root: true})

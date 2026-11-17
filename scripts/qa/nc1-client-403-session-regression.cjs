@@ -3,8 +3,8 @@
 // PrescriptionForm.saveDraft / DocumentsAndSignatures.createDocument methods against a simulated network.
 //   - 403 permission denial (new backend contract): session kept, capture kept, the server message is
 //     shown, one session revalidation, no replay and no authentication loop.
-//   - 401 without an AUTH_* code (old backend answer to a denial): the session is dropped and the user is
-//     sent to authentication. This is why the backend must not answer 401 to a valid session.
+//   - 401 without an AUTH_* code (old backend answer to a denial): until NC1-AUTH-401-AMB it dropped the session.
+//     Now it revalidates once with auth/session; a valid session is kept and the request is not replayed.
 //   - Real authentication 401s (AUTH_SESSION_INVALID / AUTH_ACCESS_EXPIRED) keep their recovery.
 // Synthetic data only; no network, no backend.
 const assert = require('node:assert/strict');
@@ -78,8 +78,10 @@ const store = {
 };
 
 // ---- Real status handler, interceptor and HTTP client ----
+const ambiguous = named('src/security/ambiguousUnauthorized.js', ['isAmbiguousUnauthorized', 'revalidateAmbiguousUnauthorized', 'resetAmbiguousUnauthorized'], rights);
 const statusModule = named('src/services/config/axios.handlestatus.js', ['actions', 'options'], {
   store, types, modules, isD2AuthMode: () => true,
+  isAmbiguousUnauthorized: ambiguous.isAmbiguousUnauthorized, revalidateAmbiguousUnauthorized: ambiguous.revalidateAmbiguousUnauthorized,
   clearD2ClientAuthArtifacts: () => {}, redirectToAuthIfNeeded: () => { redirects += 1; }, shouldSkipD2UnauthorizedRedirect: () => false,
   isAuthControlRequest: rights.isAuthControlRequest, clearLegacyAuthStorageForD2: () => storage.clear(),
   window: { location: { pathname: '/px/history/qa', href: '' } }
@@ -135,12 +137,18 @@ const test = async (name, fn) => { signIn(); await fn(); results.push(name); con
     assert.equal(state.authenticated, true);
   });
 
-  await test('old contract: a 401 without an AUTH_* code ends a valid session (the defect)', async () => {
+  // Contract changed by NC1-AUTH-401-AMB: this group used to assert the defect (a codeless 401 dropped a valid
+  // session). It now asserts the agreed behaviour, with the same counters.
+  await test('old contract: a 401 without an AUTH_* code no longer ends a valid session (NC1-AUTH-401-AMB)', async () => {
+    ambiguous.resetAmbiguousUnauthorized();
     answer = oldDenial('No tienes permiso para guardar recetas.');
     const response = await client.post('/api/prescription/save', { prescription: {} });
     assert.equal(response.status, 401);
-    assert.equal(redirects, 1, 'The client sends the user to authentication');
-    assert.equal(state.authenticated, false, 'and drops the session: this is why denials must be 403');
+    assert.equal(response.message, 'No tienes permiso para guardar recetas.', 'The original error is returned');
+    assert.equal(redirects, 0, 'No redirect: auth/session confirmed the session');
+    assert.equal(state.authenticated, true, 'The valid session is kept');
+    assert.equal(sessionCalls, 1, 'One revalidation');
+    assert.equal(sent.length, 1, 'The request is not replayed');
   });
 
   await test('real authentication 401s keep their recovery', async () => {
