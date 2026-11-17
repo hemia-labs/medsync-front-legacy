@@ -62,14 +62,20 @@ function load(file,bindings={},component=false) {
     context:{APP_CORE_URL:'https://qa.invalid/'},isCsrfEnabled:()=>true,
     axiosHelper:{buildRequestConfig:async (method,{headers})=>({headers:method==='get'?headers:{...headers,'X-CSRF-Token':`synthetic-${++csrf}`}})},
     DACsrfService:{clearCsrfToken(){}},
-    store:{getters:{'CORE/AUTH/isAuthorized':true},dispatch:async()=>{refreshes++;}},
-    authorizationContext:()=>revision,isCurrentAuthorization:owner=>owner===revision
+    store:{state:{CORE:{AUTH:{authenticated:true}}},getters:{'CORE/AUTH/isAuthorized':true},dispatch:async()=>{refreshes++;}},
+    authorizationContext:()=>revision,isCurrentAuthorization:owner=>owner===revision,
+    TERMINAL_AUTH_CODES:['AUTH_SESSION_INVALID','AUTH_ACCESS_INVALID'],types:{},clearLegacyAuthStorageForD2(){},clearD2ClientAuthArtifacts(){},redirectToAuthIfNeeded(){}
   });
   fail={};await assert.rejects(service.register({synthetic:true},'attempt'),error=>error.code==='NETWORK_ERROR');assert.equal(calls.length,1);
   await service.register({synthetic:true},'attempt');assert.equal(calls[1].headers['Idempotency-Key'],calls[0].headers['Idempotency-Key']);assert.equal(csrf,2);
   fail={response:{status:429,data:{code:'REGISTRATION_RATE_LIMITED',retryAfterSeconds:47},headers:{}}};
   await assert.rejects(service.sendCode(),error=>error.retryAfterSeconds===47);assert.equal(refreshes,0);
-  fail={response:{status:401,data:{code:'AUTH_ACCESS_EXPIRED'},headers:{}}};await service.activation();assert.equal(refreshes,1);
+  // NC1-AUTH-ACTIVATION-NO-REPLAY: this assertion used to accept the replay (the 401 call resolved through a
+  // second send). Now the session is recovered once and the original call still fails, sent exactly once.
+  const sentBefore=calls.length;
+  fail={response:{status:401,data:{code:'AUTH_ACCESS_EXPIRED'},headers:{}}};
+  await assert.rejects(service.activation(),error=>error.status===401&&error.serverCode==='AUTH_ACCESS_EXPIRED');
+  assert.equal(refreshes,1);assert.equal(calls.length,sentBefore+1,'the 401 operation is not resent');
   let submitted;
   const Register=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PlanCatalog:{},
     registrationErrors:rules.registrationErrors,registrationAttemptId:()=> 'test-attempt',
