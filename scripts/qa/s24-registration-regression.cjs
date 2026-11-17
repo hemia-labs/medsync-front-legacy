@@ -9,11 +9,13 @@ function load(file,bindings={},component=false) {
 }
 (async()=>{
   const rules=await import('data:text/javascript;base64,'+Buffer.from(read('src/utils/registration.js')).toString('base64'));
-  const valid={name:'Médica',lastName:'Ñ',businessName:'Clínica Ñ',telephone:'5512345678',email:'QA@example.test',password:'  Una frase extensa y privada  '};
+  const valid={name:'Médica',firstSurname:'Ñ',secondSurname:'',businessName:'Clínica Ñ',telephone:'5512345678',email:'QA@example.test',password:'  Una frase extensa y privada  '};
   valid.confirmPassword=valid.password;
   assert.deepEqual(rules.registrationErrors(valid),{});
-  assert.ok(rules.registrationErrors({...valid,lastName:''}).lastName);
-  assert.ok(rules.registrationErrors({...valid,name:'a'.repeat(100),lastName:'b'.repeat(100)}).lastName);
+  // NC1 identidad simple: Primer apellido required, Segundo apellido optional, 200 characters in total.
+  assert.ok(rules.registrationErrors({...valid,firstSurname:''}).firstSurname);
+  assert.equal(rules.registrationErrors({...valid,secondSurname:'De la Luz'}).firstSurname,undefined);
+  assert.ok(rules.registrationErrors({...valid,name:'a'.repeat(100),firstSurname:'b'.repeat(60),secondSurname:'c'.repeat(40)}).firstSurname);
   assert.deepEqual(rules.registrationErrors({...valid,telephone:''}),{});
   assert.deepEqual(rules.registrationErrors({...valid,password:'Eight123',confirmPassword:'Eight123'}),{});
   assert.ok(rules.registrationErrors({...valid,confirmPassword:'different'}).confirmPassword);
@@ -72,7 +74,7 @@ function load(file,bindings={},component=false) {
   const Register=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PlanCatalog:{},
     registrationErrors:rules.registrationErrors,registrationAttemptId:()=> 'test-attempt',
     Registration:{register:async payload=>{submitted=payload;return {accountCreated:true,sessionEstablished:false};}}},true);
-  const registration={...Register.data(),loading:false,form:{...valid,name:' Médica ',lastName:' Ñ ',telephone:''},available:true,context:complete,documents:complete.legalDocuments,accepted:Object.fromEntries(documentKeys.map(key=>[key,true]))};
+  const registration={...Register.data(),loading:false,form:{...valid,name:' Médica ',firstSurname:' Ñ ',secondSurname:' de la Luz ',telephone:''},available:true,context:complete,documents:complete.legalDocuments,accepted:Object.fromEntries(documentKeys.map(key=>[key,true]))};
   await Register.methods.submit.call({...registration,loading:true});
   assert.equal(submitted,undefined,'Pending legal refresh must block submission');
   await Register.methods.submit.call(registration);
@@ -83,7 +85,9 @@ function load(file,bindings={},component=false) {
   assert.ok(Register.methods.documentConfirmation({requiredAction:'acknowledge',title:'Aviso'}).includes('se me presentó'));
   assert.ok(Register.methods.documentConfirmation({requiredAction:'accept',title:'Términos'}).startsWith('Acepto'));
   assert.equal(submitted.account.first_name,'Médica');
-  assert.equal(submitted.account.last_name,'Ñ');
+  assert.equal(submitted.account.first_surname,'Ñ');
+  assert.equal(submitted.account.second_surname,'de la Luz');
+  assert.equal(submitted.account.last_name,'Ñ de la Luz','joined, so an older server still accepts the request');
   assert.equal(submitted.account.telephone,'');
   assert.equal(registration.created,true);
   for(const file of ['Register','AccountActivation']) {
