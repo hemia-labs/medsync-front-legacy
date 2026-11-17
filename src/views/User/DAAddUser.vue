@@ -382,7 +382,7 @@ export default {
     gap: 1rem;
     padding: clamp(1.15rem, 2vw, 1.45rem);
     border-bottom: 1px solid var(--color-primary-200);
-    background: linear-gradient(135deg, var(--color-primary-100) 0%, rgba(255, 255, 255, 0.94) 72%);
+    background: var(--settings-surface, #ffffff);
 }
 
 .staff-editor-eyebrow,

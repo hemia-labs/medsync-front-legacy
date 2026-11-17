@@ -132,8 +132,8 @@ const Registration = load('src/services/core/auth/DARegistrationService.js', {
 const sessionStore = new Map();
 const sessionStorage = { getItem: k => (sessionStore.has(k) ? sessionStore.get(k) : null), setItem: (k, v) => sessionStore.set(k, String(v)), removeItem: k => sessionStore.delete(k) };
 const rules = named('src/utils/registration.js', ['registrationErrorMessage', 'verificationStorageKey', 'saveVerification', 'loadVerification', 'registrationErrors', 'registrationAttemptId', 'usableRegistrationContext', 'validRegistrationEmail', 'registrationPasswordError', 'isPendingActivation'], { sessionStorage, crypto: globalThis.crypto });
-const { activationDestination } = named('src/utils/activationDestination.js', ['activationDestination']);
-const componentBindings = { AccountFlowShell: {}, ActivationWelcome: {}, Registration, ...rules, activationDestination, sessionStorage, setInterval: () => 1, clearInterval: () => {} };
+const { activationDestination, activationChoiceDestination } = named('src/utils/activationDestination.js', ['activationDestination', 'activationChoiceDestination']);
+const componentBindings = { AccountFlowShell: {}, ActivationWelcome: {}, Registration, ...rules, activationDestination, activationChoiceDestination, sessionStorage, setInterval: () => 1, clearInterval: () => {} };
 const Activation = component('src/views/Auth/AccountActivation.vue', componentBindings);
 const RegisterView = component('src/views/Auth/Register.vue', { ...componentBindings, LegalDocumentDialog: {}, PlanCatalog: {} });
 const navigations = [];

@@ -1,5 +1,17 @@
 export default [
     {
+        path: '/cuenta/planes',
+        name: 'accountPlans',
+        component: () => import('../../views/Auth/AccountPlans.vue'),
+        meta: { title: 'Planes y suscripción - medsync', requireAuth: true, allowTenantRestricted: true, paymentsAccess: true, layout: 'default' }
+    },
+    {
+        path: '/cuenta/cambiar-plan',
+        name: 'accountPlanChange',
+        component: () => import('../../views/Auth/AccountPlanChange.vue'),
+        meta: { title: 'Cambiar plan - medsync', requireAuth: true, allowTenantRestricted: true, paymentsAccess: true, layout: 'default' }
+    },
+    {
         path: '/login',
         name: 'login',
         component: () => import('../../views/Auth/Login.vue'),

@@ -11,6 +11,7 @@ import prescription from './routes/prescription';
 import publicSignature from './routes/public-signature';
 import licensingDemo from './routes/licensing-demo';
 import help from './routes/help';
+import { canManageCheckout, checkoutLoginRoute, checkoutResumeRoute } from '../domain/billing/checkout';
 import { isPendingActivation } from '../utils/registration';
 import { getSessionPermissions, hasAnyPermission, hasPermission } from '../security/permissions';
 import { canAccessSettings } from '../security/settingsAccess';
@@ -89,7 +90,7 @@ function isD2TenantRestrictedSession() {
 }
 
 function canRouteInTenantRestrictedMode(to) {
-    if (to.name === 'admin' && to.query && to.query.section === 'account-legal') {
+    if (to.name === 'admin' && to.query && (to.query.section === 'account-legal' || to.query.section === 'plan-billing' && canManageCheckout(store.getters[`${AUTH_NAMESPACE}/getRole`]))) {
         return true;
     }
     if (to.matched.some(record => record.meta.allowTenantRestricted)) {
@@ -152,12 +153,12 @@ const router = new VueRouter({
     const hasSession = shouldHydrate ? await ensureD2SessionHydrated() : isD2Authorized();
 
     if (requiredAuth && to.name !== 'login' && !hasSession){
-        next({ name: 'auth' })
+        next(['accountPlans', 'accountPlanChange'].includes(to.name) ? checkoutLoginRoute(to.query && to.query.attempt_id, to.name === 'accountPlanChange' ? 'change_plan' : undefined) : { name: 'auth' })
         return;
     }
 
     if(['login', 'register', 'forgotPassword'].includes(to.name) && hasSession){
-        next(getDefaultAuthenticatedRoute())
+        next(!isPendingAccountSession() && canManageCheckout(store.getters[`${AUTH_NAMESPACE}/getRole`]) && checkoutResumeRoute(to.query && to.query.checkout_attempt, to.query && to.query.checkout_operation) || getDefaultAuthenticatedRoute())
         return;
     }
 
@@ -170,6 +171,7 @@ const router = new VueRouter({
     if(isPendingAccountSession() && to.name !== 'accountActivation') {
         next({ name: 'accountActivation' }); return;
     }
+    if(to.matched.some(record => record.meta.paymentsAccess) && !canManageCheckout(store.getters[`${AUTH_NAMESPACE}/getRole`])) { next(getDefaultAuthenticatedRoute()); return; }
     const welcomePending = Boolean((store.getters[`${AUTH_NAMESPACE}/getBusiness`] || {}).registrationWelcomePending);
     if(to.name === 'accountActivation' && !isPendingAccountSession() && !welcomePending) {
         next(getDefaultAuthenticatedRoute()); return;
@@ -242,12 +244,12 @@ const router = new VueRouter({
 
   function legacyBeforeEach(to, next, requiredAuth) {
      if (requiredAuth && to.name !== 'login' && !isLegacyAuthorized()){
-          next({ name: 'auth' })
+          next(['accountPlans', 'accountPlanChange'].includes(to.name) ? checkoutLoginRoute(to.query && to.query.attempt_id, to.name === 'accountPlanChange' ? 'change_plan' : undefined) : { name: 'auth' })
           return;
       }
 
     if(['login', 'register', 'forgotPassword'].includes(to.name) && isLegacyAuthorized()){
-        next(getDefaultAuthenticatedRoute())
+        next(!isPendingAccountSession() && canManageCheckout((getLegacyTokenPayload() || {}).rol) && checkoutResumeRoute(to.query && to.query.checkout_attempt, to.query && to.query.checkout_operation) || getDefaultAuthenticatedRoute())
         return;
     }
 
@@ -263,6 +265,7 @@ const router = new VueRouter({
         next(getDefaultAuthenticatedRoute()); return;
     }
 
+    if(requiredAuth && to.matched.some(record => record.meta.paymentsAccess) && !canManageCheckout((getLegacyTokenPayload() || {}).rol)) { next(getDefaultAuthenticatedRoute()); return; }
     if(requiredAuth && isLegacyTenantRestrictedSession() && !isLegacySuperAdminSession() && !canRouteInTenantRestrictedMode(to)) {
         next({ name: 'tenantRestricted' })
         return;

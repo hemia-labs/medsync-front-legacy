@@ -20,23 +20,27 @@
         <div v-for="field in fields" :key="field.key" :class="{ 'registration-field-wide': ['email', 'businessName'].includes(field.key) }">
           <label class="login-field-label" :for="'register-' + field.key">{{ field.label }}</label>
           <v-text-field :id="'register-' + field.key" v-model="form[field.key]" class="auth-input" :name="field.key"
-            :type="['password', 'confirmPassword'].includes(field.key) ? (showPassword ? 'text' : 'password') : field.type"
+            :type="['password', 'confirmPassword'].includes(field.key) ? (visible[field.key] ? 'text' : 'password') : field.type"
             :placeholder="field.placeholder" :prepend-inner-icon="field.icon"
             :autocomplete="field.autocomplete" :inputmode="field.key === 'telephone' ? 'numeric' : undefined"
             :autocapitalize="['email', 'password', 'confirmPassword'].includes(field.key) ? 'none' : undefined"
             :spellcheck="false" :disabled="busy" :required="!['telephone', 'secondSurname'].includes(field.key)" outlined dense color="var(--auth-focus)"
             :error-messages="errors[field.key] || []" hide-details="auto"
             :aria-invalid="errors[field.key] ? 'true' : 'false'"
+            :aria-describedby="field.key === 'password' ? 'register-password-strength' : undefined"
             @input="onFieldInput(field.key)">
             <template v-if="['password', 'confirmPassword'].includes(field.key)" v-slot:append>
-              <v-btn icon small type="button" :disabled="busy" :aria-pressed="showPassword ? 'true' : 'false'"
-                :aria-label="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" @click="showPassword = !showPassword">
-                <v-icon small>{{ showPassword ? 'mdi-eye-outline' : 'mdi-eye-off-outline' }}</v-icon>
+              <v-btn icon small type="button" :disabled="busy" :aria-pressed="String(visible[field.key])"
+                :aria-controls="'register-' + field.key"
+                :aria-label="(visible[field.key] ? 'Ocultar ' : 'Mostrar ') + (field.key === 'password' ? 'contraseña' : 'confirmación de contraseña')"
+                @click="visible[field.key] = !visible[field.key]">
+                <v-icon small aria-hidden="true">{{ visible[field.key] ? 'mdi-eye-off-outline' : 'mdi-eye-outline' }}</v-icon>
               </v-btn>
             </template>
           </v-text-field>
         </div>
       </div>
+      <password-strength id="register-password-strength" class="registration-password-helper" :value="form.password" />
       <div class="registration-agreements">
         <div v-if="loading" class="registration-loading" role="status">
           <v-progress-circular indeterminate :size="14" :width="2" color="var(--color-primary-700)" aria-hidden="true" />
@@ -97,11 +101,12 @@
 <script>
 import DOMPurify from 'dompurify';
 import AccountFlowShell from './AccountFlowShell.vue';
+import PasswordStrength from '../../components/common/PasswordStrength.vue';
 import Registration from '../../services/core/auth/DARegistrationService';
 import { usableRegistrationContext, registrationAttemptId, registrationErrors, registrationErrorMessage, verificationStorageKey, saveVerification } from '../../utils/registration';
 
 export default {
-  components: { AccountFlowShell },
+  components: { AccountFlowShell, PasswordStrength },
   data: () => ({
     form: { email: '', telephone: '', name: '', firstSurname: '', secondSurname: '', businessName: '', password: '', confirmPassword: '' },
     fields: [
@@ -114,7 +119,7 @@ export default {
       { key: 'confirmPassword', placeholder: 'Repite tu contraseña', icon: 'mdi-lock-outline', label: 'Repetir contraseña', autocomplete: 'new-password' }
     ],
     context: null, contextError: '', loading: true, busy: false, error: '', errors: {}, legalError: '',
-    accepted: {}, showPassword: false,
+    accepted: {}, visible: { password: false, confirmPassword: false },
     legalOpen: false, selectedDocument: null, attemptId: null, created: false,
     sessionEstablished: false, registrationActivation: null, initialVerification: null, sendingCode: false,
     alreadyAuthenticated: false, sessionExpired: false, recoveryNotice: '', remaining: 0, timer: null
@@ -312,6 +317,7 @@ export default {
 .registration-field-wide { grid-column:1 / -1; }
 .registration-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .registration-fields ::v-deep .v-messages { font-weight:400; line-height:1.5; }
+.registration-page .registration-password-helper { margin-top:16px; }
 .registration-agreements { margin-top:20px; }
 .registration-legal-choice + .registration-legal-choice { margin-top:10px; }
 .registration-legal-choice ::v-deep .v-input--checkbox { margin-top:0; padding-top:0; }

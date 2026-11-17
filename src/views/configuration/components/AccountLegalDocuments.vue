@@ -1,12 +1,12 @@
 <template>
   <section class="account-legal bg-white text-gray-700 border border-primary-200 shadow-xl" aria-labelledby="account-legal-title" :aria-busy="String(currentLoading || historyLoading)">
-    <header class="legal-heading">
+    <header class="legal-heading settings-section-header">
       <div>
         <p class="legal-eyebrow">Cuenta y legal</p>
         <h2 id="account-legal-title">Documentos de tu cuenta</h2>
         <p>Revisa las versiones publicadas y conserva el comprobante de cada aceptación. Una actualización requiere una nueva revisión.</p>
       </div>
-      <button type="button" class="legal-button legal-button--outline" :disabled="currentLoading || historyLoading || saving || reviewSaving" @click="refreshAll">Actualizar documentos</button>
+      <div class="settings-header-actions"><button type="button" class="legal-button legal-button--outline" :disabled="currentLoading || historyLoading || saving || reviewSaving" @click="refreshAll">Actualizar documentos</button></div>
     </header>
 
     <p v-if="!sessionEligible" class="legal-message" role="status">Inicia sesión con un usuario de tu consultorio para consultar estos documentos.</p>

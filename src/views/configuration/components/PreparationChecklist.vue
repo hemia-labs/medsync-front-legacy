@@ -1,12 +1,13 @@
 <template>
-  <section v-if="error || (showCompleted && loading) || (status && (status.pending || showCompleted))" class="preparation-card" aria-labelledby="preparation-title">
+  <section v-if="error || (showCompleted && loading) || (status && (status.pending || showCompleted))" class="preparation-card" :class="{ 'preparation-card--settings': showCompleted }" aria-labelledby="preparation-title">
     <template v-if="status && !status.pending && showCompleted && !error">
-      <header class="preparation-heading complete-summary">
-        <div><h2 id="preparation-title">Preparación inicial completa</h2><p>{{ status.completed }} de {{ status.steps.length }} completos. Tus ajustes están guardados.</p></div>
+      <details class="preparation-details preparation-complete-details">
+        <summary class="preparation-complete-summary">
+          <span class="preparation-complete-icon" aria-hidden="true">✓</span>
+          <span><span id="preparation-title" class="preparation-complete-title" role="heading" aria-level="2">Preparación inicial completa</span><span class="preparation-complete-copy">{{ status.completed }} de {{ status.steps.length }} completos. Tus ajustes están guardados.</span></span>
+          <span class="preparation-complete-review">Revisar</span>
+        </summary>
         <button type="button" class="preparation-link" :disabled="loading" @click="load">{{ loading ? 'Revisando…' : 'Actualizar preparación' }}</button>
-      </header>
-      <details class="preparation-details">
-        <summary>Revisar configuración y guías</summary>
         <p>Revisar abre los ajustes. Revisar con guía abre la ayuda conservando tu avance.</p>
         <div v-if="resumptions.length" class="other-guides"><router-link v-for="guide in resumptions" :key="guide.key" :to="guide.path" class="preparation-link">Retomar {{ guide.title }} · Paso {{ guide.step }} de {{ guide.total }}</router-link></div>
         <ol class="preparation-tasks" aria-label="Configuración completada">

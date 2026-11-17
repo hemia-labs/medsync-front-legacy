@@ -13,6 +13,7 @@ const load = (p, bindings, sfc = false) => {
   return sandbox.module.exports;
 };
 (async () => {
+  const checkout = await import('data:text/javascript;base64,' + Buffer.from(read('src/domain/billing/checkout.js')).toString('base64'));
   for (const file of ['src/router/routes/super-admin.js', 'src/router/routes/business.js', 'src/core/layouts/super-admin.vue', 'src/services/core/superAdmin/DASuperAdminService.js']) {
     assert.equal(fs.existsSync(path.join(root, file)), false, file + ' removed');
   }
@@ -34,7 +35,7 @@ const load = (p, bindings, sfc = false) => {
   class Router { constructor(options) { this.options = options; } beforeEach(fn) { this.guard = fn; } afterEach() {} }
   const router = load('src/router/index.js', {
     Vue: { use() {}, prototype: { $session: session } }, VueRouter: Router, store,
-    isD2AuthMode: () => cookie, isPendingActivation: () => false,
+    ...checkout, isD2AuthMode: () => cookie, isPendingActivation: () => false,
     getSessionPermissions: () => [], hasPermission: () => true, hasAnyPermission: () => true,
     canAccessSettings: () => true, canAccessPulse: () => true,
     ...Object.fromEntries(['dashboard', 'admin', 'auth', 'patient', 'error', 'legal', 'prescription', 'publicSignature', 'licensingDemo', 'help'].map(n => [n, []])),
@@ -57,7 +58,7 @@ const load = (p, bindings, sfc = false) => {
   cookie = true; authorized = false; role = null; hydrateRole = 'super_admin';
   assert.equal((await navigate('ShowPx')).name, 'accessUnavailable', 'Reload hydration cannot mount tenant views for platform accounts');
   const loginSource = read('src/views/Auth/Login.vue').split('getPostLoginRoute: function() {')[1].split('    sendRecoveryCode:')[0].trim().replace(/,$/, '');
-  const postLogin = vm.runInNewContext('(function() {' + loginSource + ')', { isD2AuthMode: () => cookie, isPendingActivation: () => false, atob: value => Buffer.from(value, 'base64').toString() });
+  const postLogin = vm.runInNewContext('(function() {' + loginSource + ')', { ...checkout, isD2AuthMode: () => cookie, isPendingActivation: () => false, atob: value => Buffer.from(value, 'base64').toString() });
   const view = { role: 'super_admin', $session: session };
   for (const mode of [true, false]) { cookie = mode; assert.equal(postLogin.call(view), '/acceso-no-disponible'); }
   const page = load('src/views/error/AccessUnavailable.vue', {}, true);

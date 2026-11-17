@@ -193,7 +193,8 @@ const state = (options, extras) => {
     let profileResponse = { success: true, data: null }, saveResponse = null, saves = 0;
     const userService = { getProfessionalProfile: () => typeof profileResponse === 'function' ? profileResponse() : profileResponse,
         saveProfessionalProfile: () => { saves++; return saveResponse; } };
-    const profileOptions = load('src/views/User/components/DAProfessionalProfile.vue', { PreparationGuide:{}, component: null, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, getSettingsSections, DAUserService: userService, buildLicenseLimitMessage: (_response, fallback) => fallback });
+    const identityDraft = await importSource('src/domain/identity/identityDraft.js');
+    const profileOptions = load('src/views/User/components/DAProfessionalProfile.vue', { PreparationGuide:{}, IdentityFields:{}, ...identityDraft, component: null, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, getSettingsSections, DAUserService: userService, buildLicenseLimitMessage: (_response, fallback) => fallback });
     const events = [];
     const profile = state(profileOptions, { idLogin: 'qa-doctor', adminControlsOnly: false, showAdminControls: false, hideSaveButton: false, role: 'doctor', hasPermission: () => false, $emit: (...args) => events.push(args) });
     await profile.load();

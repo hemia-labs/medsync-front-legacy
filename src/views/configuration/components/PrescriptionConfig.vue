@@ -1,13 +1,13 @@
 <template>
     <section class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
         <preparation-guide branch="prescriptions" :subject="selectedDoctorId" :personal-scope="!doctorProfile || doctorProfile.id_login === (authUser || {}).id_login" :dirty="dirty" :busy="loading || saving" :verify-editor="verifySavedFormat" @focus-control="focusGuideControl" />
-        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100">
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
             <div>
                 <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Recetas medicas</p>
                 <h2 class="m-0 text-gray-600 text-2xl font-normal">Datos para receta medica</h2>
                 <p class="m-0 mt-2 text-gray-500 text-sm">Cada doctor tiene su propio formato de receta. Su identidad, cedula y firma vienen de su perfil profesional.</p>
             </div>
-            <da-button-primary ref="guideSave" :disabled="!selectedDoctorId || loading || saving || !!loadError" @click.native="save()" :label="saving ? 'Guardando…' : 'Guardar recetas'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
+            <div class="settings-header-actions"><da-button-primary ref="guideSave" :disabled="!selectedDoctorId || loading || saving || !!loadError" @click.native="save()" :label="saving ? 'Guardando…' : 'Guardar recetas'" rxl swpr class="py-1 px-3 font-light"></da-button-primary></div>
         </div>
 
         <div ref="guideDoctor" class="px-7 pt-5">

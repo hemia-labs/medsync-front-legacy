@@ -349,18 +349,7 @@
               </template>
             </v-text-field>
 
-            <div class="password-helper" aria-live="polite">
-              <div class="password-strength" :class="'score-' + passwordStrength.score">
-                <span v-for="index in 4" :key="index"></span>
-              </div>
-              <p>{{ passwordStrength.label }}</p>
-              <ul class="password-requirements">
-                <li :class="{ complete: passwordChecks.length }">
-                  <v-icon x-small>{{ passwordChecks.length ? 'mdi-check-circle' : 'mdi-circle-outline' }}</v-icon>
-                  M&iacute;nimo 8 caracteres
-                </li>
-              </ul>
-            </div>
+            <password-strength :value="newPwd" />
 
             <div class="recovery-actions">
               <v-btn type="submit" block depressed class="auth-submit" :loading="isLoading" :disabled="isLoading">
@@ -435,6 +424,7 @@ import { validationMixin } from 'vuelidate';
 import { required, email, maxLength, or } from 'vuelidate/lib/validators';
 import { loginPhonePattern } from '../../utils/common/regex';
 import { registrationPasswordError } from '../../utils/registration';
+import PasswordStrength from '../../components/common/PasswordStrength.vue';
 import { getLoginImageData, getStoredLoginLogo, setStoredLoginLogo } from '../../utils/branding';
 import defaultLoginLogo from '@/assets/login/med-sync-logo.svg';
 import {
@@ -443,12 +433,14 @@ import {
   normalizeRememberedIdentifier,
   setRememberedIdentifier
 } from '../../utils/authRememberedIdentifier';
+import { canManageCheckout, checkoutResumeRoute } from '../../domain/billing/checkout';
 import { isD2AuthMode } from '../../services/config/authTransport.config';
 import { isPendingActivation, verificationStorageKey } from '../../utils/registration';
 
 
 
 export default {
+  components: { PasswordStrength },
   mixins: [validationMixin],
   data: function() {
     return {
@@ -601,28 +593,6 @@ export default {
       }
 
       return [];
-    },
-    passwordChecks() {
-      const value = String(this.newPwd || '');
-      return {
-        length: !registrationPasswordError(value),
-        letter: /[A-Za-z]/.test(value),
-        number: /\d/.test(value)
-      };
-    },
-    passwordStrength() {
-      const value = String(this.newPwd || '');
-      let score = 0;
-      if (this.passwordChecks.length) score += 1;
-      if (this.passwordChecks.letter) score += 1;
-      if (this.passwordChecks.number) score += 1;
-      if (value.length >= 12 || /[^A-Za-z0-9]/.test(value)) score += 1;
-
-      const labels = ['Ingresa una contrase\u00f1a segura.', 'Seguridad baja.', 'Seguridad media.', 'Seguridad buena.', 'Seguridad alta.'];
-      return {
-        score,
-        label: labels[score]
-      };
     },
     newPasswordErrors() {
       const errors = [];
@@ -1016,6 +986,8 @@ export default {
 
     getPostLoginRoute: function() {
       if (this.role !== 'super_admin' && isPendingActivation(this.tenantOperational, this.business)) return '/activar-cuenta';
+      const checkoutReturn = canManageCheckout(this.role) && checkoutResumeRoute(this.$route.query && this.$route.query.checkout_attempt, this.$route.query && this.$route.query.checkout_operation);
+      if (checkoutReturn) return checkoutReturn;
       if (isD2AuthMode()) {
         if (this.role !== 'super_admin' && this.tenantOperational && this.tenantOperational.allowed === false && this.tenantOperational.code === 'TENANT_NOT_OPERATIONAL') {
           return '/tenant-restricted';

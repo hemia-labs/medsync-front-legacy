@@ -16,7 +16,7 @@ export default {
     section(){return this.$route.path==='/admin' ? this.$route.query.section : '';}
   },
   watch:{
-    context:{immediate:true,async handler(value){await this.$store.dispatch(ONBOARDING+'context',value);if(this.$route.query.guide!=='1' && this.state.guide==='active')this.pause();}},
+    'context.key':{immediate:true,async handler(){await this.$store.dispatch(ONBOARDING+'context',this.context);if(this.$route.query.guide!=='1' && this.state.guide==='active')this.pause();}},
     '$route.fullPath'(){
       this.dismiss();
       if(this.state.guide==='active' && (this.$route.query.guide!=='1' || this.section!=='agenda')) this.pause();

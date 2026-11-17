@@ -1,22 +1,25 @@
 <template>
-    <div class="admin-page-shell mx-auto px-5 py-5">
-        <router-link v-if="returnToAppointments" to="/px/dates" class="inline-block mb-4 px-4 py-2 rounded-lg bg-white border border-primary-200 text-primary-900">Volver a Citas</router-link>
-        <admin-settings-header
-            :value="mobileSection"
-            :administrator="administrator"
-            :sections="availableSections"
-            @change="goToSection"
-        ></admin-settings-header>
-
-        <v-alert v-if="deniedSection" type="warning" dense text role="alert">No tienes acceso a ese apartado. Se muestran los ajustes que tienes autorizados.</v-alert>
-        <div v-if="availableSections.length" class="admin-settings-grid grid grid-cols-1 lg:grid-cols-12 gap-5">
+    <div class="admin-page-shell">
+        <div v-if="availableSections.length" class="admin-settings-grid">
             <admin-settings-sidebar
+                v-model="isSettingsNavigationOpen"
                 :sections="availableSections"
                 :active-section="activeSection"
                 @select="goToSection"
             ></admin-settings-sidebar>
 
-            <main class="lg:col-span-9 min-w-0">
+            <main class="admin-settings-content" :inert="isSettingsNavigationOpen ? '' : null">
+                <router-link v-if="returnToAppointments" to="/px/dates" class="inline-block mb-4 px-4 py-2 rounded-lg bg-white border border-primary-200 text-primary-900">Volver a Citas</router-link>
+                <v-alert v-if="deniedSection" type="warning" dense text role="alert">No tienes acceso a ese apartado. Se muestran los ajustes que tienes autorizados.</v-alert>
+
+                <admin-settings-header
+                    :navigation-open="isSettingsNavigationOpen"
+                    :active-section="activeSection"
+                    :administrator="administrator"
+                    :sections="availableSections"
+                    @open-navigation="isSettingsNavigationOpen = true"
+                ></admin-settings-header>
+
                 <da-user-index v-if="activeSection === 'users'"></da-user-index>
                 <da-config-index v-else :active-section="activeSection" @contact-plan="openPlanContact"></da-config-index>
             </main>
@@ -25,6 +28,7 @@
 </template>
 
 <script>
+import './adminSettings.css';
 import { mapGetters } from 'vuex';
 import { getSettingsSections, isTenantAdministrator } from '../../security/settingsAccess';
 import moduleTypes from '../../store/modules/common/module-types';
@@ -41,7 +45,7 @@ export default {
     },
     data: function() {
         return {
-            mobileSection: 'summary',
+            isSettingsNavigationOpen: false,
         }
     },
     computed: {
@@ -59,15 +63,12 @@ export default {
             return exists ? requested : (this.availableSections[0] || {}).key || ''
         }
     },
-    created() {
-        this.mobileSection = this.activeSection
-    },
     methods: {
         openPlanContact() {
-            this.$swal.fire({ icon: 'info', title: 'Solicitar un cambio de plan', text: 'Comunícate con el equipo de MedSync por el canal donde contrataste el servicio. Indica el nombre de tu consultorio y el plan que necesitas. Puedes seguir trabajando con tu plan actual mientras revisan la solicitud.', confirmButtonText: 'Entendido' })
+            if (!this.administrator) return this.$swal.fire({ icon: 'info', title: 'Cambiar plan', text: 'El administrador de tu consultorio puede cambiar el plan desde Plan y facturación.', confirmButtonText: 'Entendido' });
+            return this.goToSection('plan-billing');
         },
         goToSection: async function(section) {
-            this.mobileSection = section
             if(section === this.activeSection && this.$route.query.guide !== '1') {
                 return false
             }
@@ -89,27 +90,21 @@ export default {
                     || error && ['NavigationDuplicated', 'NavigationAborted', 'NavigationCancelled', 'NavigationRedirected'].includes(error.name)
                 if(!knownFailure) throw error
                 return false
-            } finally {
-                await this.$nextTick()
-                this.mobileSection = this.activeSection
             }
         }
     },
     watch: {
-        activeSection: function(value) {
-            this.mobileSection = value
+        activeSection: function() {
+            this.isSettingsNavigationOpen = false
         }
     }
 }
 </script>
 
 <style scoped>
-.admin-page-shell {
-    width: 100%;
-    max-width: 96rem;
-}
-.admin-settings-grid { align-items: start; }
-@media (max-width: 639px) {
-    .admin-page-shell { padding: 1rem .75rem; }
-}
+.admin-page-shell { width:100%; margin:0; padding:28px 28px 40px var(--settings-sidebar-inset); }
+.admin-settings-grid { display:grid; grid-template-columns:var(--settings-sidebar-width) minmax(0,1fr); gap:32px; align-items:start; }
+.admin-settings-content { min-width:0; width:100%; }
+@media(max-width:1025px) { .admin-settings-grid { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:639px) { .admin-page-shell { padding:18px 14px 28px; } }
 </style>

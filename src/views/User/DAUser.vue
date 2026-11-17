@@ -11,10 +11,10 @@
           </p>
         </div>
 
-        <div class="staff-actions">
-          <button v-if="ownAuthorizationReview" ref="guideOwnAuthorization" type="button" class="staff-primary-action" @click="onEvent(ACTIONS.EDIT, ownUser.id_login)">Revisar mis autorizaciones</button>
+        <div class="staff-actions settings-header-actions">
+          <button v-if="ownAuthorizationReview" ref="guideOwnAuthorization" type="button" class="staff-primary-action settings-action-secondary" @click="onEvent(ACTIONS.EDIT, ownUser.id_login)">Revisar mis autorizaciones</button>
           <button type="button" class="staff-icon-button" aria-label="Actualizar usuarios" :disabled="isUsersLoading || !!deactivatingId" @click="init">
-            <v-icon size="20">mdi-refresh</v-icon>
+            <v-icon size="20">mdi-refresh</v-icon><span>Actualizar</span>
           </button>
           <button type="button" class="staff-primary-action" @click="openNewUser">
             <v-icon size="19">mdi-account-plus-outline</v-icon>
@@ -572,8 +572,7 @@ export default {
   gap: 1.25rem;
   padding: clamp(1.15rem, 2vw, 1.6rem);
   border-color: var(--color-primary-200);
-  background:
-    linear-gradient(135deg, var(--color-primary-100) 0%, rgba(255, 255, 255, 0.94) 68%);
+  background: var(--settings-surface, #ffffff);
 }
 
 .staff-hero-copy {

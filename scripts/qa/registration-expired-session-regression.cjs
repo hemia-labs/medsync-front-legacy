@@ -13,7 +13,7 @@ function load(file,bindings={},component=false) {
     {documentKey:'terms',versionId:'v1',contentHash:'qa-hash',requiredAction:'accept',title:'Synthetic terms',contentHtml:'<p>Synthetic</p>'}
   ]};
   let next=context,recoveries=0,registrations=0,error=null;
-  const component=load('src/views/Auth/Register.vue',{AccountFlowShell:{},...rules,clearInterval,setInterval,
+  const component=load('src/views/Auth/Register.vue',{AccountFlowShell:{},PasswordStrength:{},...rules,clearInterval,setInterval,
     Registration:{context:async()=>{if(error)throw error;return next;},recoverSession:async()=>{recoveries++;if(error)throw error;return {recovered:true};},register:async()=>{registrations++;throw {code:'REGISTRATION_SESSION_EXPIRED'};}}},true);
   const make=()=>{
     const instance={...component.data(),loading:false,context:structuredClone(context),$set:(obj,k,value)=>{obj[k]=value;},$nextTick:async()=>{},$refs:{},$el:{querySelector:()=>null}};

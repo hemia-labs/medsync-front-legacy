@@ -99,7 +99,7 @@ export default {
   publicPlans: () => request('get', 'registration/plans'),
   activation: () => request('get', 'account/activation', undefined, {}, true),
   plans: () => request('get', 'account/activation/plans', undefined, {}, true),
-  acknowledgeWelcome: () => request('post', 'account/setup-welcome/acknowledge', { acknowledged: true }, {}, true),
+  acknowledgeWelcome: (trialWelcome = true) => request('post', 'account/setup-welcome/acknowledge', { acknowledged: true, trialWelcome }, {}, true),
   sendCode: () => request('post', 'account/contact-verifications', { channel: 'email' }, {}, true),
   confirm: (challengeId, code) => request('post', 'account/contact-verifications/confirm', { challengeId, code }, {}, true),
   changeEmail: value => request('patch', 'account/activation/contact', { channel: 'email', value }, {}, true)

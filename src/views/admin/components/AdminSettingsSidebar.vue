@@ -1,43 +1,86 @@
 <template>
-    <aside class="admin-settings-sidebar">
-        <nav class="admin-settings-nav bg-white border border-gray-200 shadow-md p-3" aria-label="Apartados de configuración">
-          <div v-for="group in groups" :key="group.label">
-            <p class="px-4 pt-3 pb-1 text-xs font-bold text-gray-500 uppercase tracking-wider">{{ group.label }}</p>
-            <button
-                v-for="section in group.sections"
-                :key="section.key"
-                type="button"
-                class="w-full text-left px-4 py-3 mb-2 border transition duration-150 ease-in-out"
-                :class="activeSection === section.key ? 'bg-primary-100 border-primary-300 shadow-sm' : 'bg-white border-transparent hover:bg-gray-50 hover:border-gray-200'"
-                :aria-current="activeSection === section.key ? 'page' : null"
-                @click="$emit('select', section.key)"
-            >
-                <div class="flex items-start gap-3">
-                    <v-icon :color="activeSection === section.key ? 'var(--color-primary-900)' : '#6B7280'">{{ section.icon }}</v-icon>
-                    <div class="min-w-0">
-                        <p class="m-0 text-sm font-semibold" :class="activeSection === section.key ? 'text-primary-900' : 'text-gray-700'">{{ section.title }}</p>
-                        <p class="m-0 mt-1 text-xs text-gray-500 leading-snug">{{ section.description }}</p>
-                    </div>
+    <div class="admin-settings-sidebar">
+        <v-navigation-drawer
+            class="admin-settings-drawer"
+            ref="drawer"
+            id="admin-settings-navigation"
+            :value="!isMobile || value"
+            :permanent="!isMobile"
+            :temporary="isMobile"
+            :role="isMobile ? 'dialog' : null"
+            :aria-modal="isMobile && value ? 'true' : null"
+            :inert="isMobile && !value ? '' : null"
+            :aria-hidden="isMobile && !value ? 'true' : null"
+            aria-label="Apartados de configuración"
+            tabindex="-1"
+            fixed touchless
+            @input="isMobile && $emit('input', $event)"
+            disable-resize-watcher disable-route-watcher
+            :width="isMobile ? 296 : 'var(--settings-sidebar-width)'"
+            :height="isMobile ? '100%' : 'calc(100% - var(--settings-header-height))'"
+            :style="{ top: isMobile ? '0' : 'var(--settings-header-height)' }"
+        >
+            <nav class="admin-settings-nav" aria-label="Apartados de configuración">
+                <div class="settings-nav-heading">
+                    <h2>Configuración</h2>
+                    <v-btn v-if="isMobile" icon aria-label="Cerrar apartados de configuración" @click="$emit('input', false)">
+                        <v-icon>mdi-close</v-icon>
+                    </v-btn>
                 </div>
-            </button>
-          </div>
-        </nav>
-    </aside>
+                <div v-for="group in groups" :key="group.label" class="settings-nav-group">
+                    <p class="settings-group-label">{{ group.label }}</p>
+                    <button v-for="section in group.sections" :key="section.key" type="button"
+                        class="settings-nav-item" :aria-current="activeSection === section.key ? 'page' : null"
+                        :title="section.description" @click="selectSection(section.key)">
+                        <v-icon size="18" color="inherit" aria-hidden="true">{{ section.icon }}</v-icon>
+                        <span>{{ section.title }}</span>
+                    </button>
+                </div>
+            </nav>
+        </v-navigation-drawer>
+    </div>
 </template>
 
 <script>
+import { containNavigationFocus } from '../../../utils/mobileNavigationFocus';
 export default {
+    beforeDestroy() {
+        if(this.releaseFocus) this.releaseFocus()
+    },
+    methods: {
+        selectSection(section) {
+            if(this.isMobile) this.$emit('input', false)
+            this.$emit('select', section)
+        }
+    },
+    watch: {
+        isMobile() { this.$emit('input', false) },
+        value(open) {
+            if(this.releaseFocus) { this.releaseFocus(); this.releaseFocus = null }
+            if(open) this.trigger = document.querySelector('button[aria-controls="admin-settings-navigation"]')
+            this.$nextTick(() => {
+                if(this._isDestroyed) return
+                if(open && this.value && this.isMobile) {
+                    this.releaseFocus = containNavigationFocus(this.$refs.drawer.$el, () => this.$emit('input', false))
+                } else if(!open && !this.value && this.trigger && this.trigger.isConnected && this.trigger.getClientRects().length) {
+                    this.trigger.focus()
+                }
+            })
+        }
+    },
     computed: {
+        isMobile() { return this.$vuetify.breakpoint.width < 1026 },
         groups() {
             return this.sections.reduce((groups,section)=>{
                 let group=groups.find(item=>item.label===section.scope)
                 if(!group) {group={label:section.scope,sections:[]};groups.push(group)}
                 group.sections.push(section)
                 return groups
-            },[])
+            },[]).sort((a,b)=>['Consultorio','Configuración clínica','Mi cuenta'].indexOf(a.label)-['Consultorio','Configuración clínica','Mi cuenta'].indexOf(b.label))
         }
     },
     props: {
+        value: Boolean,
         sections: {
             type: Array,
             default: () => []
@@ -51,19 +94,29 @@ export default {
 </script>
 
 <style scoped>
-.admin-settings-sidebar {
-    display: none;
-}
-
-@media (min-width: 1026px) {
-    .admin-settings-sidebar {
-        display: block;
-        grid-column: span 3 / span 3;
-        position: sticky;
-        top: 5rem;
-        min-width: 0;
+.admin-settings-sidebar { display:contents; min-width:0; }
+.admin-settings-drawer.v-navigation-drawer { background:var(--settings-background); max-width:calc(100vw - 32px); z-index:200; }
+.admin-settings-nav { padding:18px 16px 24px; }
+.settings-nav-heading { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+.admin-settings-drawer ::v-deep .v-navigation-drawer__border { background-color:var(--settings-border); }
+.admin-settings-drawer ::v-deep .v-navigation-drawer__content { overscroll-behavior:contain; scrollbar-gutter:stable; }
+.admin-settings-nav h2 { margin:0 10px; color:var(--settings-ink); font-size:15px; font-weight:600; line-height:1.5; }
+.settings-nav-group + .settings-nav-group { margin-top:22px; }
+.settings-group-label { margin:0 10px 7px; color:var(--settings-muted); font-size:11px; font-weight:600; line-height:1.5; }
+.settings-nav-item { display:flex; align-items:center; gap:9px; width:100%; min-height:44px; padding:8px 10px; border:0; border-radius:6px; background:transparent; color:var(--settings-muted); text-align:left; font-size:13px; line-height:1.4; }
+.settings-nav-item span { min-width:0; overflow-wrap:anywhere; }
+.settings-nav-item .v-icon { flex-shrink:0; color:inherit; }
+.settings-nav-item:hover { background:var(--settings-soft); color:var(--settings-ink); }
+.settings-nav-item[aria-current="page"] { background:var(--settings-selected); color:var(--settings-ink); font-weight:600; }
+.settings-nav-item:focus-visible { outline:3px solid var(--color-primary-700); outline-offset:2px; }
+@media(min-width:1026px) {
+    .admin-settings-sidebar { display:block; }
+    .admin-settings-drawer.v-navigation-drawer {
+        inset-inline-start:calc(var(--tenant-sidebar-width, 4.5rem) + var(--settings-sidebar-inset));
+        background:var(--settings-background);
+        z-index:20;
+        transition:inset-inline-start var(--tenant-sidebar-duration) var(--tenant-sidebar-easing), transform var(--tenant-sidebar-duration) var(--tenant-sidebar-easing);
     }
-    .admin-settings-nav { max-height: max(15rem, calc(100vh - 19rem)); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .admin-settings-nav { padding:28px 16px 20px 0; }
 }
-.admin-settings-nav button:focus-visible { outline: 3px solid var(--color-primary-700); outline-offset: 2px; }
 </style>
