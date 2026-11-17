@@ -12,6 +12,8 @@ export default class DAUserModel {
         this.name = name ? name : '',
         this.first_name = name ? name : '',
         this.last_name = '',
+        this.first_surname = '',
+        this.second_surname = '',
         this.password = password ? password : ''
     }
 }

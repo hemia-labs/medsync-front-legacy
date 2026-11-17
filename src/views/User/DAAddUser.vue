@@ -24,11 +24,15 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <v-text-field ref="first_name" label="Nombre *" autocomplete="given-name" maxlength="200" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('first_name')"
+          <v-text-field ref="first_name" label="Nombre(s) *" autocomplete="given-name" maxlength="200" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('first_name')"
             v-model="$v.user.first_name.$model"
           />
-          <v-text-field ref="last_name" label="Apellidos *" autocomplete="family-name" maxlength="200" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('last_name')"
-            v-model="$v.user.last_name.$model"
+          <!-- NC1 identidad simple: Primer y Segundo apellido; «Apellidos» se forma con ellos. -->
+          <v-text-field ref="first_surname" :label="requireFirstSurname ? 'Primer apellido *' : 'Primer apellido'" autocomplete="family-name" maxlength="200" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('first_surname')"
+            v-model="$v.user.first_surname.$model"
+          />
+          <v-text-field ref="second_surname" label="Segundo apellido, opcional" maxlength="200" outlined dense :disabled="saving" :color="themePrimary"
+            v-model="user.second_surname" @input="$v.user.first_surname.$touch()"
           />
           <v-text-field ref="phone" label="Teléfono *" type="tel" inputmode="numeric" maxlength="10" outlined dense :disabled="saving" :color="themePrimary" :error-messages="fieldErrors('phone')" hint="Ingresa un teléfono de 10 dígitos." persistent-hint
             v-model="$v.user.phone.$model"
@@ -118,6 +122,7 @@
 </template>
 
 <script>
+import { surnameErrors, userNamesPayload } from '../../domain/user/userSurnames';
 import PreparationGuide from '../configuration/components/PreparationGuide.vue';
 import { focusControl } from '../../domain/onboarding/focusControl';
 import { mapGetters, mapActions } from 'vuex';
@@ -164,9 +169,8 @@ export default {
                  required
             },
             first_name: { required },
-            last_name: {
-                required,
-                namesLength() { return [...String(this.user.first_name || '').trim(), ' ', ...String(this.user.last_name || '').trim()].length <= 200; }
+            first_surname: {
+                surnames() { return !Object.keys(surnameErrors(this.user, { requireFirst: true, storedStructured: true })).length; }
             },
             password: {
                  required
@@ -182,8 +186,9 @@ export default {
     beforeDestroy() { this.disposed=true; if(this.navigationCleanup) this.navigationCleanup(); },
     computed: {
         dirty() { return !!this.baseline && this.baseline !== JSON.stringify(this.user); },
+        requireFirstSurname() { return true; },
         validationErrors() {
-            return ['first_name','last_name','phone','email','id_rol','password'].flatMap(field=>this.fieldErrors(field).map(message=>({field,message})));
+            return ['first_name','first_surname','phone','email','id_rol','password'].flatMap(field=>this.fieldErrors(field).map(message=>({field,message})));
         },
         ...mapGetters(moduleTypes.ROLE, {
             roles: fnTypes.getRoles,
@@ -275,7 +280,8 @@ export default {
         fieldErrors(field) {
             const value=this.$v.user[field];
             if(!value || !value.$dirty || !value.$invalid) return [];
-            const labels={first_name:'El nombre es obligatorio.',last_name:'Escribe los apellidos; nombre y apellidos deben sumar hasta 200 caracteres.',phone:'Ingresa un teléfono de 10 dígitos.',email:'Ingresa un correo válido.',id_rol:'Selecciona un puesto.',password:'La contraseña inicial es obligatoria.'};
+            if(field==='first_surname')return Object.values(surnameErrors(this.user, { requireFirst: true, storedStructured: true }));
+            const labels={first_name:'El nombre es obligatorio.',phone:'Ingresa un teléfono de 10 dígitos.',email:'Ingresa un correo válido.',id_rol:'Selecciona un puesto.',password:'La contraseña inicial es obligatoria.'};
             return [labels[field]];
         },
         focusField(field) {const input=this.$refs[field];if(input && input.focus)input.focus();},
@@ -324,13 +330,14 @@ export default {
                 this.saving=true;
                 try {
                 this.saveError='';
-                const payload=JSON.parse(JSON.stringify(this.user));
+                const submitted=JSON.stringify(this.user);
+                const payload=userNamesPayload(JSON.parse(submitted), { storedStructured: true });
                 this.uncertainUser={email:payload.email,phone:payload.phone};
                 const response=await this.save(payload)
                 if(!current())return false;
                 if(response && response.success) {
                     this.uncertainUser=null;
-                    this.baseline=JSON.stringify(payload);
+                    this.baseline=submitted;
                     this.$emit('success', true);
                     return true;
                 }

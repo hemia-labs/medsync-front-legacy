@@ -24,7 +24,7 @@
             :placeholder="field.placeholder" :prepend-inner-icon="field.icon"
             :autocomplete="field.autocomplete" :inputmode="field.key === 'telephone' ? 'numeric' : undefined"
             :autocapitalize="['email', 'password', 'confirmPassword'].includes(field.key) ? 'none' : undefined"
-            :spellcheck="false" :disabled="busy" :required="field.key !== 'telephone'" outlined dense color="var(--auth-focus)"
+            :spellcheck="false" :disabled="busy" :required="!['telephone', 'secondSurname'].includes(field.key)" outlined dense color="var(--auth-focus)"
             :error-messages="errors[field.key] || []" hide-details="auto"
             :aria-invalid="errors[field.key] ? 'true' : 'false'"
             @input="onFieldInput(field.key)">
@@ -101,11 +101,12 @@ import { usableRegistrationContext, registrationAttemptId, registrationErrors, r
 export default {
   components: { AccountFlowShell },
   data: () => ({
-    form: { email: '', telephone: '', name: '', lastName: '', businessName: '', password: '', confirmPassword: '' },
+    form: { email: '', telephone: '', name: '', firstSurname: '', secondSurname: '', businessName: '', password: '', confirmPassword: '' },
     fields: [
       { key: 'email', placeholder: 'tu@correo.com', icon: 'mdi-email-outline', label: 'Correo electrónico', type: 'email', autocomplete: 'email' },
-      { key: 'name', placeholder: 'Nombre', icon: 'mdi-account-outline', label: 'Nombre', type: 'text', autocomplete: 'given-name' },
-      { key: 'lastName', placeholder: 'Apellidos', icon: 'mdi-account-outline', label: 'Apellidos', type: 'text', autocomplete: 'family-name' },
+      { key: 'name', placeholder: 'Nombre(s)', icon: 'mdi-account-outline', label: 'Nombre(s)', type: 'text', autocomplete: 'given-name' },
+      { key: 'firstSurname', placeholder: 'Primer apellido', icon: 'mdi-account-outline', label: 'Primer apellido', type: 'text', autocomplete: 'family-name' },
+      { key: 'secondSurname', placeholder: 'Opcional', icon: 'mdi-account-outline', label: 'Segundo apellido, opcional', type: 'text', autocomplete: 'off' },
       { key: 'businessName', placeholder: 'Nombre del consultorio', icon: 'mdi-hospital-building', label: 'Consultorio', type: 'text', autocomplete: 'organization' },
       { key: 'password', placeholder: 'Mínimo 8 caracteres', icon: 'mdi-lock-outline', label: 'Contraseña', autocomplete: 'new-password' },
       { key: 'confirmPassword', placeholder: 'Repite tu contraseña', icon: 'mdi-lock-outline', label: 'Repetir contraseña', autocomplete: 'new-password' }
@@ -168,7 +169,7 @@ export default {
     clearLegalError() { if (this.documents.every(doc => this.accepted[doc.documentKey])) this.legalError = ''; },
     onFieldInput(key) {
       if (this.errors[key]) this.validateField(key);
-      if (key === 'name' && this.errors.lastName) this.validateField('lastName');
+      if (['name', 'secondSurname'].includes(key) && this.errors.firstSurname) this.validateField('firstSurname');
       if (key === 'password' && this.form.confirmPassword) this.validateField('confirmPassword');
     },
     validateField(key) { this.$set(this.errors, key, registrationErrors(this.form)[key] || ''); },
@@ -194,7 +195,7 @@ export default {
       try {
         if (!this.attemptId) this.attemptId = registrationAttemptId();
         const result = await Registration.register({
-          account: { first_name: this.form.name.trim(), last_name: this.form.lastName.trim(), telephone: this.form.telephone.trim(), email: this.form.email.trim(), password: this.form.password },
+          account: { first_name: this.form.name.trim(), first_surname: this.form.firstSurname.trim(), second_surname: this.form.secondSurname.trim(), last_name: [this.form.firstSurname.trim(), this.form.secondSurname.trim()].filter(Boolean).join(' '), telephone: this.form.telephone.trim(), email: this.form.email.trim(), password: this.form.password },
           business: { name: this.form.businessName.trim() },
           legalContext: this.context.legalContext,
           legalAcceptances: this.documents.map(doc => ({ documentKey: doc.documentKey, versionId: doc.versionId, acknowledged: this.accepted[doc.documentKey] }))
