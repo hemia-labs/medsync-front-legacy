@@ -3006,6 +3006,12 @@ export default {
               .field.wide { grid-column: 1 / -1; }
               .field span { white-space: pre-wrap; overflow-wrap: anywhere; }
               .footer { border-top: 1px solid #d8e9ef; margin-top: 24px; padding-top: 10px; color: #64748b; font-size: 11px; break-inside: avoid; }
+              @media screen {
+                body { padding: 24px; }
+              }
+              @media screen and (max-width: 600px) {
+                body { padding: 16px; }
+              }
               @media print {
                 body { margin: 0; }
                 .section, .header, .meta, .notice, .footer { break-inside: avoid; page-break-inside: avoid; }
