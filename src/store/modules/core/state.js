@@ -1,7 +1,5 @@
-import DACurrentActionModel from '../../../models/actions/DACurrentActionModel';
-
 const state = () => ({
-    currentAction: new DACurrentActionModel(),
+    currentAction: null,
 })
 
 export default state

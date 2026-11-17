@@ -1,21 +1,16 @@
-import DACurrentActionModel from '../../../models/actions/DACurrentActionModel';
 import types from '../common/mutation-types';
 
 const actions = {
 
-    async ActionWrapper({commit, dispatch}, {module, action, payload}) {
-        const response = await dispatch(module + '/' + action, payload, {root: true} )
-        commit(types.SET_CURRENT_ACTION, new DACurrentActionModel(module, action, payload));
-        return response;
+    async ActionWrapper({dispatch}, {module, action, payload}) {
+        // Execute only the user's explicit action. Do not retain a payload for
+        // authentication recovery, including when this request finishes late.
+        return dispatch(module + '/' + action, payload, {root: true});
     },
 
-    async rollback({state, commit, dispatch}) {
-
-        if(state.currentAction && (state.currentAction.module && state.currentAction.action)) {
-            dispatch('ActionWrapper', {module: state.currentAction.module, action: state.currentAction.action, payload: state.currentAction.payload})
-            commit(types.SET_CURRENT_ACTION, new DACurrentActionModel())
-        }
-       
+    async rollback({commit}) {
+        // Compatibility for callers/state surviving an upgrade: discard, never replay.
+        commit(types.SET_CURRENT_ACTION, null);
     }
 
 }
