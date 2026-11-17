@@ -12,7 +12,7 @@ const vm = require('node:vm');
     const sfc = fs.readFileSync(path.join(__dirname, '../../src/views/Patient/Sections/MedicalHistory.vue'), 'utf8');
     const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component =');
     const services = {};
-    const context = { component: null, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {},
+    const context = { component: null, ClosedHistoryReader: {}, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {},
         isD2AuthMode: () => true, dialogName: {}, fieldError: {}, ...helper, ...vitalSigns, ...settings, ...identification,
         DAClinicalHistoryService: services, DADocumentService: {}, DAPrescriptionService: {}, DAClinicalHistoryTemplateService: {},
         window: {}, document: {}, setTimeout, clearTimeout };

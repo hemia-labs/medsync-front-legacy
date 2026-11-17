@@ -29,6 +29,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Verify closed histories and draft consent flow
+        run: |
+          node scripts/qa/nc1-ux5-closed-history.cjs
+          node scripts/qa/nc1-c05-effective-consent.cjs
       - run: |
           bash -n scripts/release-frontend.sh
           bash -n ops/frontend/deploy.sh

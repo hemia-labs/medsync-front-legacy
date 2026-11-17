@@ -10,9 +10,10 @@
     <v-form ref="form" @submit.prevent="save">
       <v-expansion-panels v-model="panels" multiple flat class="nc1-groups">
         <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-account-outline</v-icon>Datos personales</span><small>{{ identityGroupStatus }}</small></div></v-expansion-panel-header><v-expansion-panel-content>
-          <v-row><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="identity.givenNames" label="Nombres *" outlined dense hide-details="auto" :rules="[required]" /></v-col><v-col cols="12" sm="6" md="3"><v-text-field :disabled="saving || awaitingReload" v-model="identity.birthDate" type="date" :max="today" :rules="[validBirthDate]" label="Fecha de nacimiento *" outlined dense hide-details="auto" /></v-col><v-col cols="12" sm="6" md="3"><v-select :disabled="saving || awaitingReload" v-model="identity.biologicalSex" :items="sexField.items" :label="sexField.label" outlined dense clearable hide-details="auto" /></v-col></v-row>
-          <div v-if="legacySurname && !storedSurnamesSplit" class="nc1-legacy"><v-icon small color="primary" class="mr-2">mdi-information-outline</v-icon><span>Apellidos actuales en el expediente: <strong>{{ legacySurname }}</strong>. Escribe cada apellido en su campo; mientras no completes los dos, se conservan como están.</span></div>
-          <v-row><v-col v-for="(label,key) in surnames" :key="key" cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" :value="identity[key] || ''" :label="label" :placeholder="identity[key+'Status'] === 'absent_declared' ? 'El paciente no tiene ' + label.toLowerCase() : ''" :readonly="identity[key+'Status'] === 'absent_declared'" persistent-placeholder outlined dense hide-details="auto" @input="setSurnameText(key,$event)" /><v-checkbox :key="key + selectionRevision" :disabled="saving || awaitingReload" :input-value="identity[key+'Status'] === 'absent_declared'" :label="'No tiene ' + label.toLowerCase()" dense hide-details class="nc1-surname-absent" @change="toggleSurnameAbsent(key,$event)" /></v-col></v-row>
+          <v-row><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="identity.givenNames" label="Nombre(s) *" outlined dense hide-details="auto" :rules="[required]" /></v-col><v-col cols="12" sm="6" md="3"><v-text-field :disabled="saving || awaitingReload" v-model="identity.birthDate" type="date" :max="today" :rules="[validBirthDate]" label="Fecha de nacimiento *" outlined dense hide-details="auto" /></v-col><v-col cols="12" sm="6" md="3"><v-select :disabled="saving || awaitingReload" v-model="identity.biologicalSex" :items="sexField.items" :label="sexField.label" outlined dense clearable hide-details="auto" /></v-col></v-row>
+          <div v-if="legacySurname && !storedSurnamesPresent" class="nc1-legacy"><v-icon small color="primary" class="mr-2">mdi-information-outline</v-icon><span>Apellidos actuales en el expediente: <strong>{{ legacySurname }}</strong>. Escribe cada apellido en su campo; no se separan automáticamente. Mientras no captures ninguno, se conservan como están.</span></div>
+          <!-- NC1 identidad simple: three plain fields; an empty surname stays pending (never a declaration). -->
+          <v-row><v-col v-for="(label,key) in surnames" :key="key" cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" :value="identity[key] || ''" :label="label" :autocomplete="key === 'firstSurname' ? 'family-name' : 'off'" outlined dense hide-details="auto" @input="setSurnameText(key,$event)" /></v-col></v-row>
           <p v-if="surnameHint" role="status" class="nc1-surname-notice">{{ surnameHint }}</p>
         </v-expansion-panel-content></v-expansion-panel>
         <v-expansion-panel><v-expansion-panel-header><div class="nc1-group-title"><span><v-icon small class="mr-2">mdi-phone-outline</v-icon>Contacto</span><small>{{ contactChanged ? 'Cambios pendientes' : 'Sin cambios' }}</small></div></v-expansion-panel-header><v-expansion-panel-content><v-row><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="person.telephone" :rules="[validPhone]" label="Celular *" hint="10 dígitos" persistent-hint outlined dense inputmode="tel" /></v-col><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model.trim="person.local_telephone" :rules="[optionalPhone]" label="Teléfono local, opcional" outlined dense inputmode="tel" hide-details="auto" /></v-col></v-row><section class="nc1-emergency" aria-labelledby="nc1-emergency-title"><h3 id="nc1-emergency-title"><v-icon small color="primary" class="mr-2">mdi-account-heart-outline</v-icon>Contacto de emergencia <span>opcional</span></h3><p>La persona a quien llamar si el paciente lo necesita durante su atención.</p><v-row><v-col cols="12" md="5"><v-text-field :disabled="saving || awaitingReload" v-model="emergency.name" :rules="[emergencyNameRule]" label="Nombre completo" outlined dense autocomplete="off" maxlength="255" hide-details="auto" /></v-col><v-col cols="12" sm="6" md="3"><v-combobox :disabled="saving || awaitingReload" v-model="emergency.relationship" :items="relationshipItems" label="Parentesco" outlined dense hide-details="auto" maxlength="150" /></v-col><v-col cols="12" sm="6" md="4"><v-text-field :disabled="saving || awaitingReload" v-model.trim="emergency.phone" :rules="[optionalPhone]" label="Teléfono" hint="10 dígitos" persistent-hint outlined dense inputmode="tel" /></v-col></v-row><v-btn v-if="hasEmergencyContact" text small color="primary" class="nc1-emergency-clear" :disabled="saving || awaitingReload" @click="clearEmergency"><v-icon small left>mdi-close</v-icon>Quitar contacto de emergencia</v-btn></section></v-expansion-panel-content></v-expansion-panel>
@@ -29,7 +30,7 @@
       <p v-if="message" role="status" class="mt-4">{{ message }}</p>
       <v-btn v-if="awaitingReload" outlined :loading="saving" @click="reloadSaved">Actualizar ficha guardada</v-btn>
       <v-btn v-if="conflict && !currentIdentity" outlined :loading="saving" @click="loadConflict">Consultar datos para conciliar</v-btn>
-      <footer class="nc1-save-bar"><div role="status"><strong>{{ dirty ? 'Cambios pendientes de guardar' : 'Sin cambios pendientes' }}</strong><p>{{ conflict ? 'Revisa las diferencias para habilitar el guardado.' : deferredSurnameChanges ? 'Los apellidos pendientes se conservan en esta ficha; puedes guardar los demás cambios.' : 'Un solo guardado para toda la ficha del paciente.' }}</p></div><div class="nc1-actions"><v-btn outlined :disabled="saving" @click="cancel">Volver al expediente</v-btn><v-btn color="primary" type="submit" :loading="saving" :disabled="saving || awaitingReload || !hasSavableChanges || conflict">Guardar ficha</v-btn></div></footer>
+      <footer class="nc1-save-bar"><div role="status"><strong>{{ dirty ? 'Cambios pendientes de guardar' : 'Sin cambios pendientes' }}</strong><p>{{ conflict ? 'Revisa las diferencias para habilitar el guardado.' : 'Un solo guardado para toda la ficha del paciente.' }}</p></div><div class="nc1-actions"><v-btn outlined :disabled="saving" @click="cancel">Volver al expediente</v-btn><v-btn color="primary" type="submit" :loading="saving" :disabled="saving || awaitingReload || !hasSavableChanges || conflict">Guardar ficha</v-btn></div></footer>
     </v-form>
     <da-dialog :value="Boolean(pendingConfirmation)" :persist="true" :max-width="'500px'" @input="!$event && resolveConfirmation(false)">
       <template #body>
@@ -47,11 +48,11 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const normalizePatient = record => {
   const person=clone(record.person), parts=String(person.birthday||'').split('-');
   if(parts.length===3 && parts[0].length===2)person.birthday=parts.reverse().join('-');
-  const identity={givenNames:person.name,birthDate:person.birthday,firstSurname:null,secondSurname:null,firstSurnameStatus:'unknown',secondSurnameStatus:'unknown',legacySurname:person.surname,revision:0,...clone(record.identity||{})};
+  const identity={givenNames:person.name,birthDate:person.birthday,firstSurname:null,secondSurname:null,legacySurname:person.surname,revision:0,...clone(record.identity||{})};
   return {...clone(record),person,address:clone(record.address||{}),identity};
 };
 const choices = values => Object.entries(values).map(([value,text]) => ({value,text}));
-const surnameKeys = ['firstSurname','secondSurname','firstSurnameStatus','secondSurnameStatus'];
+const surnameKeys = ['firstSurname','secondSurname'];
 const coreIdentityKeys = ['givenNames','birthDate','biologicalSex',...surnameKeys];
 const same = (a,b) => JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b);
 const affiliationText = identity => (identity.affiliations || []).map(item => item.code).join(',');
@@ -64,7 +65,8 @@ const emergencyValue = draft => {
 };
 const editableIdentity = record => {
   const identity = clone(record);
-  ['contractVersion','revision','updatedAt','provenance','qualityIssues','legacySurname','catalogValidation','curpSex'].forEach(key => delete identity[key]);
+  // Surname statuses are derived by the server; they are neither shown nor sent.
+  ['contractVersion','revision','updatedAt','provenance','qualityIssues','legacySurname','catalogValidation','curpSex','firstSurnameStatus','secondSurnameStatus'].forEach(key => delete identity[key]);
   if(identity.curp) delete identity.curp.validationStatus;
   return identity;
 };
@@ -76,7 +78,7 @@ export default {
     return {identity, baseline:clone(identity),person:clone(patient.person),address:clone(patient.address),original:clone(patient),legacySurname:identity.legacySurname,revision:identity.revision||0,panels:[0,1,2,3],saving:false,error:'',message:'',conflict:false,review:false,currentIdentity:null,currentPatient:null,awaitingReload:false,pendingSavedSurnames:null,sequence:0,
       curpValue:(identity.curp||{}).value||'',curpKind:(identity.curp||{}).kind||'real',curpReason:(identity.curp||{}).reason||'',affiliations:affiliationText(identity),residence:clone(identity.residence||{}),pendingConfirmation:null,selectionRevision:0,emergency:emergencyDraft(patient.emergencyContact),
       relationshipItems:['Madre','Padre','Pareja','Hijo o hija','Hermano o hermana','Otro familiar','Amistad','Tutor o tutora'],
-      surnames:{firstSurname:'Primer apellido',secondSurname:'Segundo apellido'},surnameStates:choices({unknown:'Sin capturar',present:'Apellido registrado',absent_declared:'Declara que no tiene este apellido'}),
+      surnames:{firstSurname:'Primer apellido',secondSurname:'Segundo apellido, opcional'},
       sexField:{key:'biologicalSex',label:'Sexo biológico',items:choices({1:'Hombre',2:'Mujer',3:'Intersexual'})},
       additionalFields:[{key:'genderIdentity',label:'Género',items:choices({0:'No especificado',1:'Masculino',2:'Femenino',3:'Transgénero',4:'Transexual',5:'Travesti',6:'Intersexual',88:'Otro'})},...['indigenousSelfIdentification','afromexicanSelfIdentification'].map((key,i)=>({key,label:i?'¿Se autodenomina afromexicano/a?':'¿Se autodenomina indígena?',items:choices({yes:'Sí',no:'No',declined:'No responde',unknown_to_patient:'No sabe'})})),{key:'migrantStatus',label:'Situación migratoria',items:choices({none:'No migrante',national:'Nacional',international:'Internacional',returned:'Retornado'})}],
       catalogFields:[{key:'birthCountry',family:'sis.country',label:'País de nacimiento: clave'},{key:'birthEntity',family:'sis.federal_entity',label:'Entidad de nacimiento: clave'},{key:'nationality',family:'renapo.nationality',label:'Nacionalidad: clave'},{key:'originCountry',family:'sis.country',label:'País de procedencia: clave'}],residenceFields:[{key:'country',family:'sis.country',label:'País: clave'},{key:'entity',family:'inegi.state',label:'Entidad: clave'},{key:'municipality',family:'inegi.municipality',label:'Municipio: clave'},{key:'locality',family:'inegi.locality',label:'Localidad: clave'}]};
@@ -92,17 +94,13 @@ export default {
       if(this.validPostalCode(this.address.cp)!==true)errors.push(this.validPostalCode(this.address.cp));
       if(this.emergencyNameRule(this.emergency.name)!==true)errors.push(this.emergencyNameRule(this.emergency.name));
       if(this.optionalPhone(this.emergency.phone)!==true)errors.push('El teléfono del contacto de emergencia debe tener 10 dígitos.');
-      if(this.surnamesConfirmed && (!['firstSurname','secondSurname'].some(key=>this.identity[key+'Status']==='present') || ['firstSurname','secondSurname'].some(key=>this.identity[key+'Status']==='present' && this.required(this.identity[key])!==true)))errors.push('Registra al menos un apellido y completa los apellidos declarados como registrados.');
+      if(this.surnamesChanged && !surnameKeys.some(key=>String(this.identity[key]||'').trim()))errors.push('Registra al menos un apellido.');
       return errors;
     },
-    reviewDifferences(){const labels={givenNames:'Nombres',firstSurname:'Primer apellido',secondSurname:'Segundo apellido',birthDate:'Fecha de nacimiento',firstSurnameStatus:'Situación del primer apellido',secondSurnameStatus:'Situación del segundo apellido'};const display=(key,value)=>key.endsWith('Status')?(this.surnameStates.find(x=>x.value===value)||{}).text||'Sin capturar':value||'Sin capturar';return Object.keys(labels).filter(key=>this.currentIdentity&&this.currentIdentity[key]!==this.identity[key]).map(key=>({key,label:labels[key],saved:display(key,this.currentIdentity[key]),draft:display(key,this.identity[key])}));},
-    storedSurnamesSplit(){return ['firstSurname','secondSurname'].every(key => ['present','absent_declared'].includes(this.baseline[key+'Status']));},
-    surnameHint(){
-      const states=['firstSurname','secondSurname'].map(key=>this.identity[key+'Status']);
-      if(states.every(state=>state==='absent_declared'))return 'El paciente debe tener al menos un apellido.';
-      if(this.surnamesConfirmed || !this.deferredSurnameChanges)return '';
-      return 'Para actualizar los apellidos del expediente, completa los dos campos. Si el paciente no tiene alguno, marca «No tiene». Mientras tanto, se conservan los apellidos actuales y puedes guardar lo demás.';
-    },
+    reviewDifferences(){const labels={givenNames:'Nombre(s)',firstSurname:'Primer apellido',secondSurname:'Segundo apellido',birthDate:'Fecha de nacimiento',};const display=(key,value)=>value||'Sin capturar';return Object.keys(labels).filter(key=>this.currentIdentity&&this.currentIdentity[key]!==this.identity[key]).map(key=>({key,label:labels[key],saved:display(key,this.currentIdentity[key]),draft:display(key,this.identity[key])}));},
+    storedSurnamesPresent(){return surnameKeys.some(key => String(this.baseline[key]||'').trim());},
+    surnamesChanged(){const draft=this.formIdentity(),baseline=editableIdentity(this.baseline);return surnameKeys.some(key=>!same(draft[key],baseline[key]));},
+    surnameHint(){return this.surnamesChanged && !surnameKeys.some(key=>String(this.identity[key]||'').trim()) ? 'Registra al menos un apellido.' : '';},
     changedIdentityKeys(){const baseline=editableIdentity(this.baseline);return Object.entries(this.formIdentity()).filter(([key,value])=>!same(value,baseline[key])).map(([key])=>key);},
     optionalChanged(){return this.personalDetailsChanged || !same(this.address.place_birth,this.original.address.place_birth) || this.changedIdentityKeys.some(key=>!coreIdentityKeys.includes(key));},
     addressGroupChanged(){const strip=address=>{const copy=clone(address||{});delete copy.place_birth;return copy;};return !same(strip(this.address),strip(this.original.address));},
@@ -112,16 +110,12 @@ export default {
       return fields.filter(([,code])=>code).map(([label,code])=>label+' '+code);
     },
     confirmationCopy(){
-      if(this.pendingConfirmation && this.pendingConfirmation.kind==='surname')return {title:'¿Borrar el apellido?',message:'Se quitará el apellido que escribiste y quedará marcado que el paciente no lo tiene.',confirm:'Sí, borrar'};
       return {title:'¿Salir sin guardar?',message:'Tienes cambios sin guardar en la ficha del paciente. Si sales ahora, se perderán.',confirm:'Salir sin guardar'};
     },
-    surnamesConfirmed(){return ['firstSurname','secondSurname'].every(key => ['present','absent_declared'].includes(this.identity[key+'Status']));},
-    deferredSurnameChanges(){return !this.surnamesConfirmed && surnameKeys.some(key => !same(this.identity[key],this.baseline[key]));},
     identityChanged(){const baseline=editableIdentity(this.baseline);return Object.entries(this.formIdentity()).some(([key,value])=>!same(value,baseline[key]));},
     identityGroupStatus(){
-      if(this.deferredSurnameChanges) return 'Apellidos por confirmar';
       if(this.changedIdentityKeys.some(key=>coreIdentityKeys.includes(key))) return 'Cambios pendientes';
-      const complete = this.identity.givenNames && patientAge(this.identity.birthDate) !== '' && this.identity.biologicalSex && this.surnamesConfirmed && ['firstSurname','secondSurname'].every(key => this.identity[key+'Status'] !== 'present' || String(this.identity[key] || '').trim()) && [this.identity.firstSurname,this.identity.secondSurname].some(Boolean);
+      const complete = this.identity.givenNames && patientAge(this.identity.birthDate) !== '' && this.identity.biologicalSex && surnameKeys.some(key => String(this.identity[key] || '').trim());
       return complete ? 'Identidad confirmada' : 'Identidad por completar';
     },
     hasSavableChanges(){return Object.keys(this.identityPatch()).length > 0 || this.personalDetailsChanged || this.contactChanged || this.addressChanged;},
@@ -141,27 +135,11 @@ export default {
     clearEmergency(){this.emergency=emergencyDraft(null);},
     validPostalCode(value){return !value || /^\d{5}$/.test(value) || 'El código postal debe tener 5 dígitos.';},
     required(v){return !!String(v||'').trim()||'Campo obligatorio';},
-    setSurnameText(key,value){
-      const text=value==null?'':String(value);
-      if(text.trim()){this.$set(this.identity,key+'Status','present');this.$set(this.identity,key,text);return;}
-      this.$set(this.identity,key,null);
-      if(this.identity[key+'Status']==='present')this.$set(this.identity,key+'Status','unknown');
-    },
-    toggleSurnameAbsent(key,checked){
-      if(checked)this.changeSurnameStatus(key,'absent_declared');
-      else this.applySurnameStatus(key,'unknown');
-      this.selectionRevision++;
-    },
-    changeSurnameStatus(key,value){
-      if(value!=='present' && this.identity[key]) { this.pendingConfirmation={kind:'surname',key,value};return; }
-      this.applySurnameStatus(key,value);
-    },
-    applySurnameStatus(key,value){this.$set(this.identity,key+'Status',value);if(value!=='present')this.$set(this.identity,key,null);},
+    setSurnameText(key,value){const text=value==null?'':String(value);this.$set(this.identity,key,text.trim()?text:null);},
     resolveConfirmation(confirmed){
       const action=this.pendingConfirmation;this.pendingConfirmation=null;this.selectionRevision++;
       if(!confirmed || !action)return;
-      if(action.kind==='surname')this.applySurnameStatus(action.key,action.value);
-      else this.$emit('cancel');
+      this.$emit('cancel');
     },
     reconcile(keep){
       if(!this.currentIdentity || !this.currentPatient)return;
@@ -191,7 +169,8 @@ export default {
     identityPatch(){
       const draft=this.formIdentity(), baseline=editableIdentity(this.baseline), patch={};
       Object.entries(draft).forEach(([key,value])=>{if(!surnameKeys.includes(key)&&!same(value,baseline[key]))patch[key]=value;});
-      if(this.surnamesConfirmed && surnameKeys.some(key=>!same(draft[key],baseline[key]))) surnameKeys.forEach(key=>{patch[key]=draft[key] == null ? null : draft[key];});
+      // Both surnames travel together, so the server can derive person.surname consistently.
+      if(surnameKeys.some(key=>!same(draft[key],baseline[key]))) surnameKeys.forEach(key=>{patch[key]=draft[key] == null ? null : draft[key];});
       // H3: address.cp is the single editable CP. Include its identity mirror in the same revision-controlled write.
       const cp=this.address.cp || '', previousCp=this.original.address.cp || '', storedCp=((baseline.residence||{}).postalCode||{}).code || '';
       if(cp!==previousCp || (this.revision>0 && (this.addressChanged || Object.keys(patch).length) && cp!==storedCp)) {
@@ -219,7 +198,7 @@ export default {
     async save(){
       if(this.saving||this.conflict||this.awaitingReload||!this.hasSavableChanges)return;
       if(!this.$refs.form.validate() || this.inputErrors.length){this.error=this.inputErrors[0]||'Revisa los campos indicados.';return;}
-      const pendingSurnames=this.deferredSurnameChanges?Object.fromEntries(surnameKeys.map(key=>[key,this.identity[key]])):null;
+      const pendingSurnames=null;
       const context=authorizationContext(this.$store), seq=this.sequence;
       this.saving=true;this.error='';this.message='';
       try{

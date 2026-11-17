@@ -240,7 +240,7 @@ export const helpArticles = {
         id: 'datos-obligatorios', title: 'Completa los datos básicos',
         steps: [
           'Selecciona «Nuevo paciente» desde la navegación o desde «Pacientes». Si no aparece, pide a la administración que revise tu acceso para registrar pacientes.',
-          'Captura «Nombre» y «Apellido paterno». Agrega el «Apellido materno» si corresponde; es opcional.',
+          'Captura «Nombre(s)» y «Primer apellido». Agrega el «Segundo apellido» si corresponde; es opcional.',
           'Selecciona «Fecha de nacimiento». Revisa que sea una fecha real y que no sea posterior a hoy; la «Edad» se calcula automáticamente.',
           'Completa «Teléfono / celular» con 10 dígitos. Puedes usar espacios, guiones o paréntesis; no agregues +52 en este formulario.'
         ]
@@ -591,13 +591,13 @@ export const helpArticles = {
         paragraphs: [
           'Entra a «Configuración → Mi perfil profesional». Esta sección está disponible para perfiles profesionales y administración; si tu cuenta no la muestra, pide que revisen tus accesos.',
           'Cada profesional completa su identidad y firma desde su cuenta. «Personal y usuarios» permite a la administración revisar las autorizaciones del doctor; no sustituye esta captura.',
-          'Para empezar a preparar tu agenda puedes guardar tu nombre profesional y continuar cuando tengas un perfil activo. La cédula y la firma se necesitan para preparar otras tareas, como recetas y documentos; puedes completarlas después.'
+          'Para empezar a preparar tu agenda puedes guardar tu nombre y continuar cuando tengas un perfil activo. La cédula y la firma se necesitan para preparar otras tareas, como recetas y documentos; puedes completarlas después.'
         ]
       },
       {
         id: 'completar-identidad', title: 'Revisa tu identidad profesional',
         steps: [
-          'Completa «Nombre profesional» con el nombre con el que atiendes a tus pacientes.',
+          'En «Identidad profesional», escribe tu nombre y cada apellido en su campo. Con ellos se forma el nombre que ven tus pacientes; el segundo apellido es opcional.',
           'Registra tu «Cédula profesional». Revisa «Universidad», «Especialidad» y «Cédula de especialidad» y completa los datos que correspondan.',
           'Si agregas «Teléfono profesional» (opcional), usa de 10 a 15 dígitos. Puedes escribir + al inicio, espacios, paréntesis o guiones, o dejarlo vacío.'
         ]

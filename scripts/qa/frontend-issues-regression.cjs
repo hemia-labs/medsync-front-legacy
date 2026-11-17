@@ -24,7 +24,7 @@ const bind = (c, props) => {
   Object.entries(c.computed).forEach(([key, fn]) => Object.defineProperty(view, key, { get: fn.bind(view) }));
   return view;
 };
-const inertBindings = { mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: { AUTH: {}, PX: {}, CONFIGURATION: {} }, fnTypes: {},
+const inertBindings = { ClosedHistoryReader: {}, mapGetters: () => ({}), mapActions: () => ({}), moduleTypes: { AUTH: {}, PX: {}, CONFIGURATION: {} }, fnTypes: {},
   VuexMixin: {}, DAHistoryHeader: {}, DAAlergyAlert: {}, AllergyEditor: {}, PatientAdministrativeForm: {}, DASweetConfirm: {}, DocumentsAndSignatures: {}, DELETE: {}, fieldError: {} };
 
 (async () => {

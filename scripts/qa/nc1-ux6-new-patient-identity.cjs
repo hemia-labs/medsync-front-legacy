@@ -37,13 +37,16 @@ function mount(props) {
 (async () => {
   await test('catalogs match the shared IdentityFields component', async () => {
     const shared = read('src/components/identity/IdentityFields.vue');
-    const options = new Function(script(shared).replace('export default', 'return'))();
-    const ctx = { ...options.data(), kind: 'patient' };
+    // NC1 identidad simple: IdentityFields now uses system controls (imports a directive) and shows each code as
+    // a short label + format hint. Keys, families, enumerations and sex options must still match UX6.
+    const options = new Function('fieldError', script(shared).replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'return'))({});
+    const ctx = { ...options.data.call({ _uid: 1 }), kind: 'patient', value: {}, canManage: false };
     const enums = options.computed.enumerations.call(ctx), refs = options.computed.references.call(ctx);
     assert.deepEqual(capture.PATIENT_IDENTITY_ENUMS.map(e => e.key), Object.keys(enums));
     capture.PATIENT_IDENTITY_ENUMS.forEach(e => { assert.deepEqual(e.options, enums[e.key]); assert.equal(e.label, ctx.labels[e.key]); });
-    assert.deepEqual(capture.PATIENT_IDENTITY_REFERENCES, refs);
-    assert.match(template(shared), /<option value="1">Hombre<\/option><option value="2">Mujer<\/option><option value="3">Intersexual<\/option>/);
+    assert.deepEqual(capture.PATIENT_IDENTITY_REFERENCES.map(r => [r.key, r.family]), refs.map(r => [r.key, r.family]));
+    assert.deepEqual(options.methods.items.call(ctx, ctx.sexes).map(i => [i.value, i.text]), [['', 'Sin capturar'], ['1', 'Hombre'], ['2', 'Mujer'], ['3', 'Intersexual']]);
+    assert.doesNotMatch(template(shared), /SurnameStatus|Declara no tener|Tiene apellido/);
     assert.deepEqual(capture.BIOLOGICAL_SEX, { 1: 'Hombre', 2: 'Mujer', 3: 'Intersexual' });
   });
 
@@ -125,7 +128,7 @@ function mount(props) {
     state.focusField('biologicalSex'); assert.equal(focused && scrolled, true, 'Error summary button reaches the sex field');
     state.identity = { biologicalSex: '2', curp: { value: 'XEXX010101MNEXXXA8', kind: 'real' } }; state.form.postalCode = ''; state.form.localPhone = '';
     const payload = state.buildPayload();
-    assert.deepEqual(JSON.parse(JSON.stringify(payload.identity)), { biologicalSex: '2', curp: { value: 'XEXX010101MNEXXXA8', kind: 'real' }, givenNames: 'Ana', firstSurname: 'QA', firstSurnameStatus: 'present', secondSurname: null, secondSurnameStatus: 'unknown', birthDate: '1990-05-04' });
+    assert.deepEqual(JSON.parse(JSON.stringify(payload.identity)), { biologicalSex: '2', curp: { value: 'XEXX010101MNEXXXA8', kind: 'real' }, givenNames: 'Ana', firstSurname: 'QA', secondSurname: null, birthDate: '1990-05-04' });
   });
 
   console.log(`PASS: ${results.length} NC1-UX6 groups. Synthetic data only; no backend, database or print.`);
