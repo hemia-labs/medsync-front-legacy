@@ -29,10 +29,15 @@ const normalizeUrl = (url) => url ? url.replace(/^\/+/, '') : url;
 const request = async (method, url, payload, requestConfig = {}) => {
     try {
         const endpoint = normalizeUrl(url);
-        const authContext = isAuthControlRequest(endpoint) ? null : authorizationContext(store);
+        const authControl = isAuthControlRequest(endpoint);
+        const authContext = authControl ? null : authorizationContext(store);
+        // NC1-AUTH-401-AMB R1: auth controls are not revalidated (no recursion), but their answers belong to the
+        // authorization context that sent them. A late answer of another context must have no effect.
+        const authOwner = authControl ? authorizationContext(store) : null;
         const config = await axiosHelper.buildRequestConfig(method, requestConfig);
         if(!isCurrentAuthorization(authContext, store)) throw authorizationChangedError();
         config.authorizationContext = authContext;
+        config.authOwner = authOwner;
         let result = null;
 
         if(method === 'get') {
