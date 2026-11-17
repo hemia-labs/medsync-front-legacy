@@ -25,7 +25,7 @@
       </div>
       <details class="tutorial-options"><summary>Más opciones</summary>
         <button type="button" :disabled="busy || checking" @click="verify">{{ checking ? 'Comprobando…' : 'Comprobar lo guardado' }}</button>
-        <button v-if="profileSaved" type="button" @click="$emit('focus-control','identity')">Revisar Nombre profesional</button>
+        <button v-if="profileSaved" type="button" @click="$emit('focus-control','identity')">Revisar tu nombre</button>
         <button v-if="!completed" type="button" :disabled="busy" @click="pause('deferred')">{{ branch === 'users' && goal !== 'authorizations' && !stage ? 'Trabajo sin asistente por ahora' : 'Dejar esta configuración para después' }}</button>
       </details>
       <preparation-journey v-if="showJourney && !completed" :status="preparationStatus" :sections="journeySections" :current-id="journeyCurrent" :current-action-label="revealLabel" @current="focusCurrentControl" :goal="goal" :scope-note="personalScope ? '' : 'Este resumen corresponde a tu cuenta. La comprobación de arriba corresponde al profesional seleccionado.'" @open="continuePending" />

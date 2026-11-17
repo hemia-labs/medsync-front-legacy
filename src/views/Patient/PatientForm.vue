@@ -4,6 +4,8 @@
     <da-header-title :title="'Datos Personales'" class=" font-medium tracking-wider" rtlcornerlg/>
     <identity-fields v-if="!id" v-model="nc1Identity" :names="false" required-sex :disabled="isLoading" />
     <identity-editor v-else :subject="id" @saved="refreshIdentity" />
+    <!-- NC1 identidad simple: with an existing patient, names and birth date are captured only in «Identidad del paciente». -->
+    <p v-if="identityOwnsNames" class="px-6 pt-3 m-0 text-sm text-gray-600">Nombre, apellidos y fecha de nacimiento se editan en «Identidad del paciente».</p>
     <div class="px-5 py-5">
         <div class="grid grid-cols-1 md:grid-cols-2 px-1 py-1 gap-5" >
             
@@ -13,7 +15,7 @@
                  v-model="$v.patient.person.surname.$model"
                  :error="$v.patient.person.surname.$invalid && $v.patient.person.surname.$anyDirty"
                  text
-                 :disabled="isReadOnly"
+                 :disabled="isReadOnly || identityOwnsNames"
              />
             
              <da-text-field-primary 
@@ -22,7 +24,7 @@
                  :error="$v.patient.person.name.$invalid && $v.patient.person.name.$anyDirty" 
                  v-model="$v.patient.person.name.$model"
                  text
-                 :disabled="isReadOnly"
+                 :disabled="isReadOnly || identityOwnsNames"
              />
           
          </div>
@@ -33,6 +35,7 @@
             :placeholder="'Ejem: 24-01-1995'"
             :value="patient.person.birthday"
             @update="patient.person.birthday = $event"
+            :isdisabled="identityOwnsNames"
             :rules="rules.date"
             ></da-date-picker-field>
             
@@ -943,6 +946,8 @@ export default {
     },
   },
   computed: {
+    // Existing patients: «Identidad del paciente» is the only capture of names and birth date.
+    identityOwnsNames() { return Boolean(this.id); },
     allergyStateLabel() { return allergyLabels[allergyStatus(this.patient.allergy)]; },
         ...mapGetters(moduleTypes.FAMILYPATH, {
             familyPath: fnTypes.getFamilyPath,

@@ -33,6 +33,8 @@ export const fixtureTransport={
     if(fixture.outcome!=='success')return {success:false,status:Number(fixture.outcome)||500,message:'Simulación local: no se guardó ningún grupo. Tu captura se conserva.'};
     const identity=payload.identity?{...fixture.patient.identity,...clone(payload.identity),revision:(payload.expectedRevision||0)+1}:fixture.patient.identity;
     if(payload.identity && payload.identity.residence)identity.residence={...(fixture.patient.identity.residence||{}),...clone(payload.identity.residence)};
+    // Like the server (NC1 identidad simple): surname statuses are derived, never taken from the client.
+    if(payload.identity)for(const key of ['firstSurname','secondSurname'])identity[key+'Status']=identity[key]?'present':'unknown';
     fixture.patient={...fixture.patient,person:{...payload.person,fullname:[payload.person.name,payload.person.surname].join(' ')},address:clone(payload.address),identity};
     if('emergencyContact' in payload)fixture.patient.emergencyContact=clone(payload.emergencyContact);
     fixture.notice='Simulación local: ficha guardada y releída. Una petición de escritura.';
