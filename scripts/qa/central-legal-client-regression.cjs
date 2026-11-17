@@ -31,8 +31,11 @@ const context=()=>({legalContext:'signed-context',legalContextExpiresAt:new Date
   const v=mount();try{
    await v.start();await flush();assert.equal(reviewCalls,1);assert.equal(calls.length,0);assert.equal(v.canSubmit,false);
    const panel=document.querySelector('.central-legal-panel');assert.ok(panel);assert.equal(panel.querySelector('script,[onclick]'),null);
-   const boxes=[...panel.querySelectorAll('input[type="checkbox"]')];assert.equal(boxes.length,2);assert.ok(boxes.every(b=>!b.checked));
+   const boxes=[...panel.querySelectorAll('input[type="checkbox"]')];assert.equal(boxes.length,2);assert.ok(boxes.every(b=>!b.checked&&b.disabled));
+   const toggles=[...panel.querySelectorAll('.central-legal-toggle')];
+   toggles[0].click();await flush();assert.equal(boxes[0].disabled,false);assert.equal(boxes[1].disabled,true);
    boxes[0].checked=true;boxes[0].dispatchEvent(new dom.window.Event('change',{bubbles:true}));await flush();assert.equal(v.canSubmit,false);
+   toggles[1].click();await flush();assert.equal(boxes[1].disabled,false);
    boxes[1].checked=true;boxes[1].dispatchEvent(new dom.window.Event('change',{bubbles:true}));await flush();assert.equal(v.canSubmit,true);
    assert.match(panel.textContent,/acepto este documento/);assert.match(panel.textContent,/confirmo haber leído/);assert.equal(v.$children.find(c=>c.$options.name==='v-dialog').retainFocus,true);
    assert.equal(v.close(),true);assert.equal(calls.length,0);assert.equal(v.open,false);
@@ -58,6 +61,9 @@ const context=()=>({legalContext:'signed-context',legalContextExpiresAt:new Date
    await v.load();assert.equal(v.stale,false);assert.ok(Object.values(v.checked).every(x=>x===false));v.checked={v1:true,v2:true};
    acceptReply={status:409,success:false,code:'LEGAL_VERSION_STALE'};assert.equal(await v.confirm(),false);assert.equal(v.stale,true);assert.equal(v.submitted,null);assert.equal(Object.keys(v.checked).length,0);
    await v.load();assert.equal(v.canSubmit,false);assert.equal(v.error,'');
+   v.checked={v1:true,v2:true};acceptReply={status:409,success:false,code:'LEGAL_EVIDENCE_REJECTED'};
+   assert.equal(await v.confirm(),false);assert.equal(v.stale,true);assert.equal(v.submitted,null);
+   assert.match(v.error,/Vuelve a cargar/);
   }finally{destroy(v);}
  });
  await check('account/tenant/session changes discard pending responses and all review state',async()=>{
