@@ -17,7 +17,7 @@ async function main() {
   const template = source.split('<script>')[0];
   const script = source.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'component =');
   const service = {};
-  const context = { component: null, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, isD2AuthMode: () => true,
+  const context = { component: null, ClosedHistoryReader: {}, mapGetters: () => ({}), moduleTypes: { AUTH: {} }, fnTypes: {}, isD2AuthMode: () => true,
     dialogName: {}, fieldError: {}, ...modules, DAClinicalHistoryService: service, DADocumentService: {}, DAPrescriptionService: {}, DAClinicalHistoryTemplateService: {},
     window: {}, document: { visibilityState: 'visible' }, setTimeout, clearTimeout };
   vm.runInNewContext(script, context);

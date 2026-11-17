@@ -53,7 +53,68 @@
       </div>
     </section>
 
-    <section v-if="clinicalHistory" :class="['clinical-panel', 'status-panel', { 'draft-status-panel': isDraft }]">
+    <closed-history-reader v-if="clinicalHistory && !isDraft" :history="clinicalHistory" :metadata="metadata"
+      :sections="closedReadingSections" :historical-consent="closedHistoricalConsent" :responsible="selectedDoctorLabel"
+      :finalizer="clinicalHistory.finalizer_snapshot_json ? doctorLabel(clinicalHistory.finalizer_snapshot_json) : ''"
+      :status-label="'Cerrada · ' + clinicalHistoryStatusLabel" :latest-id="latestVersionId" :can-view-versions="canViewVersions"
+      :versions-open="showVersionsPanel" :busy="isBusy || isLoading || versionsLoading" :can-print="canPrintClinicalHistory" :can-create="canCreateNewVersion"
+      :can-view-consent="canViewConsent" :current-consent-title="sensitiveConsentTitle.replace(/^Vigente hoy: /, '')"
+      :consent-error="consentRefreshError" :consent-verified="consentVerified" :consent-checking="consentChecking"
+      :document-busy="closedDocumentBusy" :document-error="closedDocumentError"
+      @versions="toggleVersionsPanel" @latest="viewLatestClosedVersion" @historical-document="openClosedConsentDocument"
+      @current-documents="openSensitiveDocument" @retry-consent="retryConsentVerification"
+      @print="printCurrentClinicalHistory" @create="createNewVersion">
+      <template #versions><section v-if="showVersionsPanel" class="clinical-panel versions-panel">
+      <header class="versions-header">
+        <div>
+          <p class="section-kicker">Historial</p>
+          <h3>Historial de historia clínica</h3>
+          <p>Consulta borradores y versiones anteriores sin modificar la información ya guardada.</p>
+        </div>
+        <button class="clinical-button secondary" type="button" :disabled="versionsLoading" @click="loadClinicalHistoryVersions">
+          Actualizar
+        </button>
+      </header>
+
+      <p v-if="versionsLoadError" class="form-warning">No fue posible cargar las versiones. Intenta nuevamente.</p>
+      <p v-if="versionsLoading" class="versions-empty">Cargando versiones...</p>
+      <p v-else-if="!clinicalHistoryVersions.length" class="versions-empty">Aún no hay versiones de historia clínica.</p>
+
+      <div v-else class="versions-list">
+        <article
+          v-for="version in clinicalHistoryVersions"
+          :key="version.id_clinical_history"
+          :class="['version-card', { active: clinicalHistory && clinicalHistory.id_clinical_history === version.id_clinical_history }]"
+        >
+          <div class="version-card-main">
+            <div class="version-title-row">
+              <h4>Versión {{ version.version_number || 'No registrada' }}</h4>
+              <span :class="['status-pill', String(version.status || '').toLowerCase()]">{{ statusLabel(version.status) }}</span>
+              <span class="version-indicator">{{ versionIndicator(version) }}</span>
+            </div>
+            <p>{{ version.summary_short || 'Historia clínica' }}</p>
+            <div class="version-meta-grid">
+              <div><span>Creada</span><strong>{{ formatDateTime(version.created_at) }}</strong></div>
+              <div><span>Finalizada</span><strong>{{ formatDateTime(version.finalized_at) }}</strong></div>
+              <div><span>Doctor responsable</span><strong>{{ version.doctor_name_snapshot || 'No registrado' }}</strong></div>
+              <div><span>Formato</span><strong>{{ version.template_name || 'No registrado' }} v{{ version.template_version_number || 'N/D' }}</strong></div>
+              <div><span>Consentimiento</span><strong>{{ consentVersionLabel(version) }}</strong></div>
+            </div>
+          </div>
+          <div class="version-actions">
+            <button class="clinical-button secondary" type="button" :disabled="isBusy" @click="viewHistoryVersion(version)">
+              {{ canContinueVersion(version) ? 'Continuar edición' : 'Ver versión' }}
+            </button>
+            <button class="clinical-button secondary" type="button" :disabled="isBusy || !canPrintClinicalHistory" @click="printHistoryVersion(version)">
+              Imprimir historia clínica
+            </button>
+          </div>
+        </article>
+      </div>
+    </section></template>
+    </closed-history-reader>
+
+    <section v-if="clinicalHistory && isDraft" :class="['clinical-panel', 'status-panel', { 'draft-status-panel': isDraft }]">
       <div class="status-main">
         <p class="section-kicker">Historia clínica</p>
         <div class="status-title-row">
@@ -105,12 +166,7 @@
       </div>
     </section>
 
-    <section v-if="clinicalHistory && historyVersionNotice" class="clinical-panel version-notice-panel">
-      <strong>{{ historyVersionNotice }}</strong>
-      <span v-if="clinicalHistory.status !== 'DRAFT'">Las versiones cerradas son solo de consulta.</span>
-    </section>
-
-    <section v-if="showVersionsPanel" class="clinical-panel versions-panel">
+    <section v-if="showVersionsPanel && (!clinicalHistory || isDraft)" class="clinical-panel versions-panel">
       <header class="versions-header">
         <div>
           <p class="section-kicker">Historial</p>
@@ -159,7 +215,7 @@
       </div>
     </section>
 
-    <section v-if="!isLoading" class="clinical-panel consent-panel" :class="{ compact: !clinicalHistory }">
+    <section v-if="!isLoading && (!clinicalHistory || isDraft)" class="clinical-panel consent-panel" :class="{ compact: !clinicalHistory }">
       <div class="consent-copy">
         <div class="consent-title-row">
           <div>
@@ -223,7 +279,7 @@
       </div>
     </section>
 
-    <section v-if="clinicalHistory" class="clinical-panel actions-panel">
+    <section v-if="clinicalHistory && isDraft" class="clinical-panel actions-panel">
       <div>
         <p class="section-kicker">Captura clínica</p>
         <h3>{{ formModeTitle }}</h3>
@@ -316,12 +372,9 @@
       </div>
     </section>
 
-    <section v-if="clinicalHistory && isIncomplete" class="clinical-panel warning-panel">
-      <strong>Historia clínica incompleta.</strong>
-      <span>La historia quedó incompleta porque falta el consentimiento firmado.</span>
-    </section>
 
-    <section v-if="clinicalHistory && templateWarningText" class="clinical-panel warning-panel">
+
+    <section v-if="clinicalHistory && isDraft && templateWarningText" class="clinical-panel warning-panel">
       <strong>Formato no disponible.</strong>
       <span>{{ templateWarningText }}</span>
     </section>
@@ -335,7 +388,7 @@
       <span class="template-version-pill">v{{ activeTemplateVersion }}</span>
     </section>
 
-    <section v-if="clinicalHistory" class="clinical-form">
+    <section v-if="clinicalHistory && isDraft" class="clinical-form">
       <template v-if="useDynamicSchema">
         <div :class="['clinical-capture-layout', { guided: isDraft }]">
           <aside v-if="isDraft" class="section-navigator">
@@ -943,12 +996,15 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import ClosedHistoryReader from './components/ClosedHistoryReader.vue';
+import { closedConsent, closedSections } from '../../../domain/clinical-history/history.closed';
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
 import { editorSnapshot, textLengthErrors, canRefreshAllergyRevision } from '../../../domain/clinical-history/history.editor';
 import { identificationFields, identificationValue, identificationLabel, identificationDifferences, reviewedHistorySnapshot, emergencyContactText } from '../../../domain/clinical-history/history.identification';
 import { vitalSignMetadata, vitalSignError, vitalSignErrors, heightInCm } from '../../../domain/clinical-history/vitalSigns.validation';
 import { getSettingsSections } from '../../../security/settingsAccess';
+import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
 import { allergySnapshot, allergyLabels } from '../../../domain/patient/allergy';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
@@ -1056,6 +1112,7 @@ const mergeSnapshot = (base, incoming) => {
 };
 
 export default {
+  components: { ClosedHistoryReader },
   directives: { dialogName, fieldError },
   props: {
     px: {
@@ -1066,6 +1123,11 @@ export default {
   data() {
     return {
       clinicalHistory: null,
+      closedDocumentBusy: false,
+      closedDocumentRequest: 0,
+      versionRequest: 0,
+      versionLoading: false,
+      closedDocumentError: '',
       clinicalHistoryVersions: [],
       form: emptySnapshot(),
       documents: [],
@@ -1189,6 +1251,8 @@ export default {
     activeDraftVersion() {
       return this.clinicalHistoryVersions.find((item) => item.status === 'DRAFT') || null;
     },
+    closedHistoricalConsent() { return closedConsent(this.clinicalHistory); },
+    closedReadingSections() { return closedSections(this.clinicalHistory, vitalSignMetadata); },
     historyVersionNotice() {
       if(!this.clinicalHistory) {
         return '';
@@ -1633,6 +1697,11 @@ export default {
     px: {
       handler(value, previous) {
         if(this.patientId && (!previous || !previous.person || previous.person.id_person !== this.patientId)) {
+          this.versionRequest++;
+          this.closedDocumentRequest++;
+          this.closedDocumentBusy = false;
+          this.closedDocumentError = '';
+          if(this.versionLoading) { this.versionLoading = false; this.isBusy = false; }
           this.loadInitialData();
         }
       },
@@ -1940,11 +2009,17 @@ export default {
       if(!version || !version.id_clinical_history) {
         return;
       }
-      if(!await this.confirmLeave()) return;
+      const request = ++this.versionRequest, load = this.loadRequest, patientId = this.patientId;
+      const context = authorizationContext(this.$store);
+      const current = () => request === this.versionRequest && load === this.loadRequest && patientId === this.patientId && isCurrentAuthorization(context, this.$store) && this.canReadHistory;
+      if(!await this.confirmLeave() || !current()) return;
       this.isBusy = true;
+      this.versionLoading = true;
       try {
         const response = await DAClinicalHistoryService.getById(version.id_clinical_history);
+        if(!current()) return;
         if(response && response.success && response.data && response.data.history) {
+          this.closedDocumentError = '';
           this.clinicalHistory = response.data.history;
           this.applyHistoryToForm(this.clinicalHistory);
           this.notify('success', version.status === 'DRAFT' ? 'Borrador cargado.' : 'Versión cargada para consulta.');
@@ -1952,8 +2027,8 @@ export default {
         }
         this.notify('error', response && response.message ? response.message : 'No se pudo cargar esta versión.');
       } catch (error) {
-        this.saveError = 'No se pudo cargar esta versión. La captura actual se conserva.';
-      } finally { this.isBusy = false; }
+        if(current()) this.saveError = 'No se pudo cargar esta versión. La captura actual se conserva.';
+      } finally { if(request === this.versionRequest) { this.versionLoading = false; this.isBusy = false; } }
     },
     async printCurrentClinicalHistory() {
       if(!this.clinicalHistory || !this.clinicalHistory.id_clinical_history) {
@@ -2291,7 +2366,7 @@ export default {
         }
         return;
       }
-      const result = await this.confirmDialog('Crear nueva versión', 'Se creará un nuevo borrador basado en la última historia. La versión anterior se conservará sin cambios.');
+      const result = await this.confirmDialog('Crear nueva versión', 'Se creará un nuevo borrador basado en la versión que estás consultando. Esta versión se conservará sin cambios.');
       if(!result) {
         return;
       }
@@ -2801,6 +2876,30 @@ export default {
         this.notify('error', response && response.message ? response.message : 'No se pudo registrar negativa.');
       }
     },
+    async viewLatestClosedVersion() {
+      const latest = this.clinicalHistoryVersions.find(version => version.id_clinical_history === this.latestVersionId);
+      if(latest) await this.viewHistoryVersion(latest);
+    },
+    async openClosedConsentDocument() {
+      const historyId = this.clinicalHistory && this.clinicalHistory.id_clinical_history;
+      const documentId = this.closedHistoricalConsent.documentId, patientId = this.patientId;
+      if(!this.canViewConsent || !documentId || this.closedDocumentBusy) return;
+      const request = ++this.closedDocumentRequest, load = this.loadRequest;
+      const context = authorizationContext(this.$store);
+      const current = () => request === this.closedDocumentRequest && load === this.loadRequest && isCurrentAuthorization(context, this.$store) && this.canViewConsent && this.patientId === patientId && this.clinicalHistory && this.clinicalHistory.id_clinical_history === historyId;
+      this.closedDocumentBusy = true; this.closedDocumentError = '';
+      try {
+        const response = await DADocumentService.getPatientDocument(patientId, documentId);
+        if(!current()) return;
+        const document = response && response.data && response.data[0];
+        if(!response || !response.success || !document || document.id_patient_document !== documentId) {
+          this.closedDocumentError = 'El documento del cierre no está accesible. Esta versión conserva su referencia histórica.'; return;
+        }
+        this.$emit('open-documents', { id_patient_document: documentId, open: true });
+      } catch (_) {
+        if(current()) this.closedDocumentError = 'No se pudo consultar el documento del cierre. Puedes reintentar.';
+      } finally { if(request === this.closedDocumentRequest) this.closedDocumentBusy = false; }
+    },
     openSensitiveDocument() {
       if(!this.canViewConsent) return;
       this.$emit('open-documents', {
@@ -3198,6 +3297,7 @@ export default {
       return 'Versión histórica';
     },
     consentVersionLabel(version) {
+      if(version && version.status !== 'DRAFT') return closedConsent(version).label.split(' · ')[0];
       if(!version || !version.consent_document_id) {
         return 'No vinculado';
       }
