@@ -25,9 +25,9 @@
           <span>Información mínima para crear el expediente.</span>
         </div>
         <div class="patient-create-grid">
-          <v-text-field v-field-error="{ id: 'patient-name', invalid: Boolean(fieldError('name').length), required: true }" ref="name" v-model.trim="form.name" label="Nombre *" required outlined dense :error-messages="fieldError('name')" @blur="touchField('name')"></v-text-field>
-          <v-text-field v-field-error="{ id: 'patient-firstSurname', invalid: Boolean(fieldError('firstSurname').length), required: true }" ref="firstSurname" v-model.trim="form.firstSurname" label="Apellido paterno *" required outlined dense :error-messages="fieldError('firstSurname')" @blur="touchField('firstSurname')"></v-text-field>
-          <v-text-field v-model.trim="form.secondSurname" label="Apellido materno, opcional" outlined dense></v-text-field>
+          <v-text-field v-field-error="{ id: 'patient-name', invalid: Boolean(fieldError('name').length), required: true }" ref="name" v-model.trim="form.name" label="Nombre(s) *" required outlined dense :error-messages="fieldError('name')" @blur="touchField('name')"></v-text-field>
+          <v-text-field v-field-error="{ id: 'patient-firstSurname', invalid: Boolean(fieldError('firstSurname').length), required: true }" ref="firstSurname" v-model.trim="form.firstSurname" label="Primer apellido *" required outlined dense :error-messages="fieldError('firstSurname')" @blur="touchField('firstSurname')"></v-text-field>
+          <v-text-field v-model.trim="form.secondSurname" label="Segundo apellido, opcional" outlined dense></v-text-field>
           <v-text-field v-field-error="{ id: 'patient-birthDate', invalid: Boolean(fieldError('birthDate').length), required: true }" ref="birthDate" v-model="form.birthDate" label="Fecha de nacimiento *" required type="date" :max="today" outlined dense :error-messages="fieldError('birthDate')" @blur="touchField('birthDate')"></v-text-field>
           <v-text-field :value="form.age" label="Edad" outlined dense readonly></v-text-field>
           <v-text-field v-field-error="{ id: 'patient-mobilePhone', invalid: Boolean(fieldError('mobilePhone').length), required: true }" ref="mobilePhone" v-model.trim="form.mobilePhone" label="Teléfono / celular *" required type="tel" inputmode="tel" hint="10 dígitos; puedes usar espacios, guiones o paréntesis." persistent-hint outlined dense :error-messages="fieldError('mobilePhone')" @blur="touchField('mobilePhone')"></v-text-field>
@@ -207,7 +207,8 @@ export default {
     buildPayload() {
       const surname = [this.form.firstSurname, this.form.secondSurname].filter(Boolean).join(' ');
       return {
-        identity: {...this.identity, givenNames:this.form.name, firstSurname:this.form.firstSurname, firstSurnameStatus:'present', secondSurname:this.form.secondSurname||null, secondSurnameStatus:this.form.secondSurname?'present':'unknown',birthDate:this.form.birthDate},
+        // NC1 identidad simple: three plain names; the server derives the surname status (empty = pending).
+        identity: {...this.identity, givenNames:this.form.name, firstSurname:this.form.firstSurname, secondSurname:this.form.secondSurname||null, birthDate:this.form.birthDate},
         person: {
           name: this.form.name,
           surname,
