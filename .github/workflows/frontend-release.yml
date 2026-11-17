@@ -41,6 +41,7 @@ jobs:
         run: |
           node scripts/qa/nc1-no-replay-regression.cjs
           node scripts/qa/nc1-auth-401-ambiguous-regression.cjs
+          node scripts/qa/nc1-auth-activation-no-replay-regression.cjs
           node scripts/qa/s18-authorization-session-regression.cjs
           node scripts/qa/d2-session-lifecycle-frontend.js
           node scripts/qa/nc1-client-403-session-regression.cjs
