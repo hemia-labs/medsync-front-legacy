@@ -35,6 +35,7 @@ jobs:
           node scripts/qa/nc1-c05-effective-consent.cjs
           node scripts/qa/nc1-consent-substitution.cjs
           node scripts/qa/nc1-catalog-capture.cjs
+          node scripts/qa/nc1-ux1/check.cjs
           node scripts/qa/nc1-identity-review-regression.cjs
           node scripts/qa/nc1-ux6-new-patient-identity.cjs
           node scripts/qa/nc1-user-surnames-review.cjs

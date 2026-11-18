@@ -7,7 +7,7 @@ const { JSDOM } = require('jsdom'); const dom = new JSDOM('<div id="app"></div>'
 global.window = dom.window; global.document = dom.window.document;
 const Vue = require('vue/dist/vue.common.js'); Vue.config.productionTip = false; Vue.config.devtools = false;
 const root = path.resolve(__dirname, '../..');
-const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const read = file => fs.readFileSync(file === 'src/views/Patient/PatientCreate.vue' && process.env.NC1_CREATE_SOURCE ? process.env.NC1_CREATE_SOURCE : path.join(root, file), 'utf8');
 const script = source => source.split('<script>')[1].split('</script>')[0];
 const template = source => source.slice(source.indexOf('<template>') + 10, source.lastIndexOf('</template>'));
 const results = [];
@@ -108,6 +108,18 @@ function mount(props) {
     assert.ok(personal > 0 && personal < identity && identity < optional, 'Datos personales → Identidad → Datos opcionales');
     const section = markup.slice(markup.lastIndexOf('<article class="patient-create-section">', identity), optional);
     assert.match(section, /<patient-identity-fields ref="biologicalSex" v-model="identity"[^>]*:sex-errors="fieldError\('biologicalSex'\)"[^>]*@blur-sex="touchField\('biologicalSex'\)"/);
+  });
+
+  await test('postal code remains coherent between address and optional identity capture',async()=>{
+    const context={component:null};
+    for(const file of ['src/domain/patient/administrative.validation.js'])vm.runInNewContext(read(file).replace(/export const /g,'var '),context);
+    Object.assign(context,{PatientIdentityFields:{},mapGetters:()=>({}),moduleTypes:{},fnTypes:{},VuexMixin:{},fieldError:{},DAPxService:{},newAgendaRequestId:()=> 'qa',peekAgendaReturn:()=>null,setAgendaCreatedPatient:()=>false,authorizationContext:()=>({}),isCurrentAuthorization:()=>true});
+    vm.runInNewContext(script(read('src/views/Patient/PatientCreate.vue')).replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default','component ='),context);
+    const options=context.component;const instance=new Vue({data(){return options.data.call({$store:{}});},watch:{identity:options.watch.identity,'form.postalCode':options.watch['form.postalCode']}});
+    instance.identity={residence:{postalCode:{family:'sepomex.postal_code',code:'01234'}}};await tick();assert.equal(instance.form.postalCode,'01234');
+    instance.form.postalCode='54321';await tick();assert.equal(instance.identity.residence.postalCode.code,'54321');
+    instance.form.postalCode='';await tick();assert.equal(instance.identity.residence.postalCode,null);
+    instance.identity={residence:{postalCode:{family:'sepomex.postal_code',code:'01234',releaseId:'qa-cp'}}};await tick();instance.form.postalCode='01234';await tick();assert.equal(instance.identity.residence.postalCode.releaseId,'qa-cp');instance.$destroy();
   });
 
   await test('required sex: error summary follows the form order and focuses the field', async () => {

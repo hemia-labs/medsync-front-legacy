@@ -161,7 +161,15 @@ export default {
       this.form.age = this.calculateAge(this.form.birthDate);
     },
     // A correction of the identity clears the server error shown at its key.
-    identity() { if(Object.keys(this.identityErrors).length) this.identityErrors = {}; }
+    identity(value, previous) {
+      if(Object.keys(this.identityErrors).length) this.identityErrors = {};
+      const code=((value.residence||{}).postalCode||{}).code||'', old=(((previous||{}).residence||{}).postalCode||{}).code||'';
+      if(code!==old && this.form.postalCode!==code)this.form.postalCode=code;
+    },
+    'form.postalCode'(value) {
+      const code=String(value||'').trim(), current=((this.identity.residence||{}).postalCode||{}).code||'';
+      if(code!==current)this.identity={...this.identity,residence:{...this.identity.residence,postalCode:code?{family:'sepomex.postal_code',code}:null}};
+    }
   },
   methods: {
     creationCurrent() { return this.alive && isCurrentAuthorization(this.creationContext, this.$store) && this.hasPermission('px.new'); },
