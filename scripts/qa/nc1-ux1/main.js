@@ -2,6 +2,7 @@ import Vue from 'vue';
 import Vuex from 'vuex';
 import Router from 'vue-router';
 import vuetify from '../../../src/plugins/vuetify';
+import { applyTheme, DEFAULT_THEME } from '../../../src/plugins/theme';
 import Admin from '../../../src/core/layouts/admin.vue';
 import PatientShow from '../../../src/views/Patient/PatientShow.vue';
 import MedicalHistory from '../../../src/views/Patient/Sections/MedicalHistory.vue';
@@ -64,3 +65,4 @@ new Vue({router,store,vuetify,data:()=>({fixture}),render(h){
     h('strong',fixture.notice),h('label',{style:{marginLeft:'16px'}},['Resultado simulado ',h('select',{attrs:{'aria-label':'Resultado simulado'},domProps:{value:fixture.outcome},on:{change:e=>fixture.outcome=e.target.value}},['success','400','409','401','network'].map(v=>h('option',{domProps:{value:v}},v)))]),h('span',{attrs:{id:'qa-request-count'},style:{marginLeft:'12px'}},`Escrituras simuladas: ${fixture.requests.length}`)]);
   return h('v-app',[h('div',{attrs:{id:'qa-errors',role:'alert'}}),h(Shell,[controls,h(Patient,{props:{id:'nc1-local-only'}})])]);
 }}).$mount('#app');
+if(new URLSearchParams(location.search).get('theme')==='night')applyTheme({...DEFAULT_THEME,code:'clinical-night'});
