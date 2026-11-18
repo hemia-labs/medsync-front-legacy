@@ -48,7 +48,7 @@
             <legend>Qué información verá tu equipo</legend>
             <div class="clinical-settings__option">
               <v-switch :input-value="value.allowTreatmentToothSelection" :disabled="saving || !value.odontogramEnabled" aria-label="Asociar tratamientos a dientes" inset color="primary" hide-details @change="update('allowTreatmentToothSelection', $event)" />
-              <div><h4>Indicar los dientes de cada tratamiento</h4><p>Agrega un selector para relacionar un tratamiento con uno o varios dientes. Por ejemplo, una resina en el diente 16. Elegir un diente siempre es opcional.</p><p v-if="!value.odontogramEnabled" class="clinical-settings__dependency">Para ofrecer el selector en nuevos tratamientos, activa el odontograma en la otra pestaña.</p><p v-else class="clinical-settings__effect">{{ value.allowTreatmentToothSelection ? 'Activado: podrás elegir dientes al registrar el tratamiento.' : 'Desactivado: los nuevos tratamientos no mostrarán el selector.' }}</p><p v-if="!value.odontogramEnabled || !value.allowTreatmentToothSelection">Los tratamientos que ya tienen dientes asociados conservan su selección y la muestran al editarlos.</p></div>
+              <div><h4>Elegir los dientes a tratar</h4><p>Agrega un selector para relacionar un tratamiento con uno o varios dientes. Por ejemplo, una resina en el diente 16. Elegir un diente siempre es opcional.</p><p v-if="!value.odontogramEnabled" class="clinical-settings__dependency">Para ofrecer el selector en nuevos tratamientos, activa el odontograma en la otra pestaña.</p><p v-else class="clinical-settings__effect">{{ value.allowTreatmentToothSelection ? 'Activado: podrás elegir dientes al registrar el tratamiento.' : 'Desactivado: los nuevos tratamientos no mostrarán el selector.' }}</p><p v-if="!value.odontogramEnabled || !value.allowTreatmentToothSelection">Los tratamientos que ya tienen dientes asociados conservan su selección y la muestran al editarlos.</p></div>
             </div>
             <div class="clinical-settings__option">
               <v-switch :input-value="value.showTreatmentCosts" :disabled="saving" aria-label="Mostrar costos" inset color="primary" hide-details @change="update('showTreatmentCosts', $event)" />
@@ -65,7 +65,7 @@
             <div class="clinical-settings__sample"><strong>Resina dental</strong><span v-if="value.odontogramEnabled && value.allowTreatmentToothSelection">Diente 16</span><span v-if="value.showTreatmentStatus" class="clinical-settings__badge">Pendiente</span><strong v-if="value.showTreatmentCosts" class="clinical-settings__cost">$800.00</strong></div>
             <div class="clinical-settings__sample"><strong>Limpieza dental</strong><span v-if="value.showTreatmentStatus" class="clinical-settings__badge">Terminado</span><strong v-if="value.showTreatmentCosts" class="clinical-settings__cost">$600.00</strong></div>
             <div v-if="value.showTreatmentCosts" class="clinical-settings__total"><span>Total del ejemplo</span><strong>$1,400.00</strong></div>
-            <small>No son datos de un paciente ni precios del consultorio.</small>
+            <small>Ejemplo ilustrativo.</small>
           </aside>
         </div>
       </div>
@@ -103,6 +103,8 @@ export default {
 </script>
 
 <style scoped>
+.clinical-settings p:not(.clinical-settings__eyebrow),.clinical-settings small { font-weight:300; }
+.clinical-settings p strong { font-weight:inherit; }
 .clinical-settings { background:var(--color-surface); color:var(--color-primary-900); border:1px solid var(--color-forty-500); border-radius:16px; overflow:hidden; }
 .clinical-settings h2,.clinical-settings h3,.clinical-settings h4,.clinical-settings p { margin:0; }
 .clinical-settings h2 { font-size:22px; font-weight:600; line-height:1.35; }

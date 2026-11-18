@@ -19,6 +19,7 @@ const api = async (route,body) => (await (await fetch('http://127.0.0.1:4398/qa/
     if(process.argv.includes('--inspect')) { console.log(JSON.stringify({errors,body:(await page.locator('body').innerText()).slice(0,8000),reads:(await api('state')).reads},null,2));return; }
     await page.getByRole('tab',{name:'Plan de tratamiento'}).click();
     await page.getByRole('heading',{name:'Plan de tratamiento en el expediente'}).waitFor();
+    await page.getByRole('heading',{name:'Elegir los dientes a tratar'}).waitFor();
     await page.screenshot({path:path.join(output,'desktop-plan.png'),fullPage:true});
     assert.ok(await page.getByText('$1,400.00',{exact:true}).isVisible());
     await page.getByLabel('Mostrar costos',{exact:true}).focus();await page.keyboard.press('Space');
@@ -36,6 +37,12 @@ const api = async (route,body) => (await (await fetch('http://127.0.0.1:4398/qa/
     assert.equal((await api('state')).modules.showTreatmentCosts,false);
     await page.getByRole('tab',{name:'Odontograma',exact:true}).click();
     await page.getByText('Palabras para la captura rápida',{exact:true}).click();
+    const writesBeforeReserved=(await api('state')).writes.length;
+    await page.getByLabel('Palabra que quieres usar').fill('car');
+    await page.getByLabel('Qué hará esa palabra').selectOption('aus');
+    await page.getByRole('button',{name:'Agregar palabra',exact:true}).click();
+    await page.getByText('«car» ya corresponde a Caries. Elige otra palabra para Ausente.',{exact:true}).waitFor();
+    assert.equal((await api('state')).writes.length,writesBeforeReserved,'Reserved car cannot be reassigned or sent to API');
     await page.getByLabel('Palabra que quieres usar').fill('revisar');
     await page.getByLabel('Qué hará esa palabra').selectOption('ok');
     await api('state',{fail:'alias-save'});
@@ -46,9 +53,17 @@ const api = async (route,body) => (await (await fetch('http://127.0.0.1:4398/qa/
     await page.getByRole('button',{name:'Agregar palabra',exact:true}).click();
     await page.getByRole('button',{name:'Quitar palabra revisar'}).waitFor();
     assert.equal((await api('state')).aliases.revisar,'ok');
-    await page.getByText('Consultar palabras incluidas (15)',{exact:true}).click();
-    await page.getByLabel('Buscar una palabra o acción').fill('caries');
-    assert.equal(await page.locator('.dental-catalog li').count(),1);
+    await page.getByText('Consultar abreviaturas y palabras incluidas (14 acciones)',{exact:true}).click();
+    const search=page.getByLabel('Buscar una acción, abreviatura o palabra');
+    await search.fill('car');
+    assert.equal(await page.locator('.dental-catalog tbody tr').count(),1);
+    assert.match(await page.locator('.dental-catalog tbody tr').innerText(),/Caries\s+car\s+caries/);
+    await search.fill('aus');
+    assert.match(await page.locator('.dental-catalog tbody tr').innerText(),/Ausente\s+aus\s+ausente/);
+    await search.fill('revisado');
+    assert.match(await page.locator('.dental-catalog tbody tr').innerText(),/Marcar revisado\s+ok/);
+    await search.fill('caries');
+    assert.equal(await page.locator('.dental-catalog tbody tr').count(),1);
     await page.screenshot({path:path.join(output,'desktop-aliases.png'),fullPage:true});
     await page.getByRole('button',{name:'Quitar palabra revisar'}).click();
     await page.getByText('Palabra retirada. Los registros ya capturados se conservan.',{exact:true}).waitFor();
@@ -112,6 +127,12 @@ const api = async (route,body) => (await (await fetch('http://127.0.0.1:4398/qa/
           assert.ok(size.content<=size.viewport+1,`${theme}/${width}/${panel}: horizontal overflow`);
           await page.screenshot({path:path.join(output,`${theme}-${width}-${panel==='Odontograma'?'dental':'plan'}.png`),fullPage:true});
         }
+        await page.getByRole('tab',{name:'Odontograma',exact:true}).click();
+        await page.getByText('Palabras para la captura rápida',{exact:true}).click();
+        await page.getByText('Consultar abreviaturas y palabras incluidas (14 acciones)',{exact:true}).click();
+        const catalog=page.locator('.dental-catalog-scroll');
+        assert.ok(await catalog.evaluate(node=>node.scrollWidth<=node.clientWidth+1),'Catalog fits its container');
+        await page.locator('.dental-included').first().screenshot({path:path.join(output,`${theme}-${width}-abbreviations.png`)});
       }
     }
     await page.setViewportSize({width:1440,height:1000});

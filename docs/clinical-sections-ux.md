@@ -8,6 +8,8 @@ Los endpoints y permisos existentes se conservan. Visibilidad/opciones del plan,
 
 ## Revisión de diseño
 
+R2, indicaciones del operador: descripciones ligeras y títulos destacados; «Elegir los dientes a tratar» y pies de ejemplos simplificados. La consulta de atajos ahora agrupa cada acción con su abreviatura y sus palabras equivalentes. Se cotejaron catálogo, parser y protección del backend: `car` siempre representa Caries; `aus`, Ausente. Las palabras propias agregan sinónimos y no cambian el pincel. La prueba de navegador rechaza `car` → Ausente antes de enviar la escritura y comprueba la búsqueda por abreviatura. La suite backend `co26-aliases.js`, con DB falsa, confirmó la reserva de códigos/palabras y el aislamiento por consultorio.
+
 Propuesta de Codex implementada como trabajo independiente revisable. La segunda perspectiva de Claude queda pendiente: el usuario pidió preservar sus sesiones de NOM-024 y no había CLI independiente disponible. No se declara acuerdo entre agentes ni aceptación visual del usuario.
 
 ## Verificación reproducible

@@ -22,7 +22,7 @@
             <template v-else><p>Caries · cara oclusal</p><p v-if="selected === 'v2'">Seleccionas el diente y su cara para registrar el hallazgo. También puedes escribir <code>16 car o</code> en la barra de captura rápida.</p><p v-else>Puedes consultar los hallazgos y el historial de esta captura. No podrás agregar ni modificar registros en este modo.</p></template>
           </div>
         </div>
-        <p class="dental-caption">Ejemplo ilustrativo, sin datos de pacientes. La vista del expediente ofrece más herramientas.</p>
+        <p class="dental-caption">Ejemplo ilustrativo. La vista del expediente ofrece más herramientas.</p>
       </details>
       <div class="dental-actions"><button type="button" class="dental-button dental-button--primary" :disabled="allBusy || disabled || selected === current" @click="save">{{ busy ? 'Guardando…' : 'Guardar tipo de odontograma' }}</button><button v-if="selected !== current" type="button" class="dental-button" :disabled="allBusy || disabled" @click="selected = current">Cancelar selección</button><span class="dental-caption">En uso: {{ captureLabel(current) }}.</span></div>
       <p class="dental-caption">Cambiar de tipo conserva los registros. Las notas del odontograma con notas no se convierten en hallazgos por caras; puedes volver al tipo anterior para consultarlas.</p>
@@ -40,18 +40,28 @@
       <details class="dental-details">
         <summary><span>Palabras para la captura rápida</span><span class="dental-summary-hint">Atajos opcionales</span></summary>
         <div class="dental-detail-body">
-          <p>Son palabras que escribes en la barra de captura rápida del odontograma para indicar una acción. Por ejemplo, <code>16 caries o</code> registra caries en la cara oclusal del diente 16.</p><p>Puedes crear una palabra que tu equipo recuerde fácilmente y asociarla a una acción existente. Se comparte solo en este consultorio; no crea un diagnóstico nuevo.</p>
+          <p>En la barra de captura rápida puedes escribir una abreviatura, como <code>car</code>, o una palabra equivalente, como <code>caries</code>. Ambas registran la misma acción. Por ejemplo, <code>16 car o</code> y <code>16 caries o</code> registran caries en la cara oclusal del diente 16.</p><p>Puedes crear una palabra que tu equipo recuerde fácilmente y asociarla a una acción existente. Se comparte solo en este consultorio.</p>
           <p v-if="adminErrors.aliases" role="alert">{{ adminErrors.aliases }}</p>
           <template v-if="aliasState">
-            <h4>Palabras de tu consultorio</h4><p v-if="!localAliases.length">Aún no has agregado palabras propias. Puedes usar las que ya vienen incluidas.</p>
-            <ul v-else class="dental-alias-list"><li v-for="item in localAliases" :key="item.alias"><span><code>{{ item.alias }}</code><span> {{ item.label }}</span></span><button type="button" class="dental-button" :disabled="!canCustomize" :aria-label="'Quitar palabra ' + item.alias" @click="saveAlias(item.alias, null)">Quitar</button></li></ul>
+            <details class="dental-included">
+              <summary>Consultar abreviaturas y palabras incluidas ({{ includedActions.length }} acciones)</summary>
+              <p>La abreviatura y las palabras de cada fila hacen lo mismo. Puedes usar cualquiera de ellas en la barra de captura rápida.</p>
+              <p>Las abreviaturas están reservadas: <code>car</code> siempre significa Caries y <code>aus</code> significa Ausente. Agregar una palabra propia no cambia las acciones del pincel.</p>
+              <label>Buscar una acción, abreviatura o palabra<input v-model="aliasSearch" type="search" placeholder="Ej. car, caries o aus" /></label>
+              <div class="dental-catalog-scroll" tabindex="0" role="region" aria-label="Abreviaturas y palabras incluidas">
+                <table class="dental-catalog"><caption class="dental-sr-only">Acciones disponibles y las formas de escribirlas en la captura rápida</caption><thead><tr><th scope="col">Acción</th><th scope="col">Abreviatura</th><th scope="col">También puedes escribir</th></tr></thead><tbody><tr v-for="item in filteredActions" :key="item.code"><th scope="row">{{ item.label }}</th><td><code>{{ item.code }}</code></td><td><template v-if="item.words.length"><code v-for="word in item.words" :key="word">{{ word }}</code></template><span v-else>Usa la abreviatura</span></td></tr></tbody></table>
+              </div>
+              <p v-if="!filteredActions.length" role="status">No encontramos coincidencias. Prueba con el nombre de la acción o su abreviatura.</p>
+            </details>
+            <h4>Palabras de tu consultorio</h4><p v-if="!localAliases.length">Aún no has agregado palabras propias. Puedes usar las abreviaturas y palabras incluidas.</p>
+            <p>Elige una palabra nueva, por ejemplo <code>faltante</code> para Ausente. No puedes usar <code>car</code> para esa acción: ya corresponde a Caries.</p>
+            <ul v-if="localAliases.length" class="dental-alias-list"><li v-for="item in localAliases" :key="item.alias"><span><code>{{ item.alias }}</code><span> → {{ item.label }} · </span><code>{{ item.code }}</code></span><button type="button" class="dental-button" :disabled="!canCustomize" :aria-label="'Quitar palabra ' + item.alias" @click="saveAlias(item.alias, null)">Quitar</button></li></ul>
             <form v-if="aliasState.schema_ready" class="dental-alias-form" @submit.prevent="saveAlias(aliasWord, aliasTarget)">
               <label>Palabra que quieres usar<input v-model="aliasWord" maxlength="30" placeholder="Ej. revisar" autocomplete="off" required :disabled="!canCustomize" aria-describedby="alias-word-help" /></label>
-              <label>Qué hará esa palabra<select v-model="aliasTarget" :disabled="!canCustomize"><option v-for="tool in aliasTargets" :key="tool.code" :value="tool.code">{{ tool.label }}</option></select></label>
+              <label>Qué hará esa palabra<select v-model="aliasTarget" :disabled="!canCustomize"><option v-for="tool in aliasTargets" :key="tool.code" :value="tool.code">{{ tool.label }} · {{ tool.code }}</option></select></label>
               <p id="alias-word-help" class="dental-caption">Una sola palabra, de hasta 30 letras, sin espacios ni números. Por ejemplo: «revisar» → «Marcar revisado».</p><button class="dental-button" :disabled="!canCustomize || !aliasWord.trim()">{{ aliasBusy ? 'Guardando…' : 'Agregar palabra' }}</button>
             </form><p v-else>La creación de palabras propias aún no está disponible en este consultorio.</p>
             <v-alert v-if="aliasMessage" :type="aliasMessageType" outlined role="alert" class="mt-3">{{ aliasMessage }}</v-alert>
-            <details class="dental-included"><summary>Consultar palabras incluidas ({{ includedAliases.length }})</summary><p>Ya están disponibles para todo el equipo. Aquí puedes consultarlas; las palabras incluidas no se reemplazan ni se eliminan.</p><label>Buscar una palabra o acción<input v-model="aliasSearch" type="search" placeholder="Ej. caries o resina" /></label><ul class="dental-catalog"><li v-for="item in filteredAliases" :key="item.alias"><code>{{ item.alias }}</code><span>{{ item.label }}</span></li></ul><p v-if="!filteredAliases.length" role="status">No encontramos esa palabra. Prueba con el nombre de la acción.</p></details>
           </template>
           <button type="button" class="dental-button" :disabled="adminLoading || allBusy" @click="refreshAdministration">{{ adminLoading ? 'Consultando…' : 'Volver a consultar palabras' }}</button>
         </div>
@@ -106,8 +116,8 @@ export default {
     dirty() { return this.selected !== this.current || Boolean(this.aliasWord.trim()) || this.walkDirty; },
     aliasTargets() { return [...((this.aliasState && this.aliasState.catalog) || []), { code: 'ok', label: 'Marcar revisado' }, { code: 'pres', label: 'Corregir presencia' }]; },
     localAliases() { return this.aliasEntries(this.aliasState && this.aliasState.local_aliases); },
-    includedAliases() { return this.aliasEntries(this.aliasState && this.aliasState.global_aliases); },
-    filteredAliases() { const search = normalizeWord(this.aliasSearch); return this.includedAliases.filter(item => normalizeWord(item.alias + ' ' + item.label).includes(search)); },
+    includedActions() { return this.aliasTargets.map(tool => ({ ...tool, words: Object.entries((this.aliasState && this.aliasState.global_aliases) || {}).filter(([, target]) => target === tool.code).map(([word]) => word) })); },
+    filteredActions() { const search = normalizeWord(this.aliasSearch); const exact = this.includedActions.find(item => item.code === search); return exact ? [exact] : this.includedActions.filter(item => normalizeWord([item.code, item.label, ...item.words].join(' ')).includes(search)); },
     walkPreview() { return this.parseWalk(this.walkMode).slice(0, 8); },
     hasWalkErrors() { return dentitions.some(mode => Boolean(this.walkError(mode))); }
   },
@@ -171,12 +181,17 @@ export default {
       } catch (error) { this.walkMessageType = 'error'; this.walkMessage = this.walkConflict ? 'Otra persona cambió el recorrido. Conservamos tu edición. Revisa los números antes de cargar la versión guardada y volver a editar.' : error.message || 'No se pudo guardar. Conservamos el recorrido para que lo intentes de nuevo.'; } finally { this.savingPreferences = false; }
     },
     targetLabel(code) { const tool = this.aliasTargets.find(item => item.code === code); return tool ? tool.label : code; },
-    aliasEntries(aliases) { return Object.entries(aliases || {}).map(([alias, target]) => ({ alias, label: this.targetLabel(target) })); },
+    aliasEntries(aliases) { return Object.entries(aliases || {}).map(([alias, target]) => ({ alias, code: target, label: this.targetLabel(target) })); },
     async saveAlias(alias, target) {
       if (!this.canCustomize || !this.aliasState || !this.aliasState.schema_ready) return;
       const word = normalizeWord(alias); this.aliasMessageType = 'error';
       if (target !== null && !/^[a-z]{1,30}$/.test(word)) { this.aliasMessage = 'Escribe una sola palabra de hasta 30 letras, sin espacios ni números.'; return; }
-      if (target !== null && (Object.prototype.hasOwnProperty.call(this.aliasState.aliases || {}, word) || this.aliasTargets.some(item => item.code === word))) { this.aliasMessage = 'Esa palabra ya existe. Elige otra para evitar confusiones.'; return; }
+      if (target !== null) {
+        const reservedAction = this.aliasTargets.find(item => item.code === word);
+        const existingTarget = (this.aliasState.aliases || {})[word];
+        if (reservedAction || Object.prototype.hasOwnProperty.call(this.aliasState.aliases || {}, word)) { this.aliasMessage = '«' + word + '» ya corresponde a ' + (reservedAction ? reservedAction.label : this.targetLabel(existingTarget)) + '. Elige otra palabra para ' + this.targetLabel(target) + '.'; return; }
+        if (['note', 'nota', 'undo', 'help', 'ayuda', 'constructor', 'prototype', 'tostring'].includes(word)) { this.aliasMessage = '«' + word + '» está reservada. Elige otra palabra para ' + this.targetLabel(target) + '.'; return; }
+      }
       this.aliasBusy = true; this.aliasMessage = '';
       try {
         const result = await api.saveAlias({ alias: word, target, expected_version: this.aliasState.alias_version });
@@ -199,6 +214,19 @@ export default {
 </script>
 
 <style scoped>
+.dental-settings p:not(.dental-eyebrow),.dental-settings .dental-mode { font-weight:300; }
+.dental-settings p strong { font-weight:inherit; }
+.dental-settings .dental-mode-use { font-weight:300; }
+.dental-settings .dental-catalog { display:table; width:100%; border-collapse:collapse; table-layout:fixed; margin:0; font-size:13px; }
+.dental-catalog-scroll { max-height:340px; overflow:auto; margin-top:16px; border:1px solid var(--color-forty-500); border-radius:8px; }
+.dental-catalog th,.dental-catalog td { text-align:left; vertical-align:top; padding:12px; border-bottom:1px solid var(--color-forty-500); overflow-wrap:anywhere; }
+.dental-catalog th { font-weight:600; }.dental-catalog td { font-weight:400; }
+.dental-catalog thead th { position:sticky; top:0; background:var(--color-gray98); z-index:1; }
+.dental-catalog th:nth-child(1) { width:32%; }.dental-catalog th:nth-child(2) { width:25%; }
+.dental-catalog td code { display:inline-block; margin:0 5px 4px 0; font-weight:400; }
+.dental-catalog-scroll:focus-visible { outline:3px solid var(--color-primary-500); outline-offset:3px; }
+.dental-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+@media(max-width:600px) { .dental-catalog th,.dental-catalog td { padding:10px 6px; font-size:12px; }.dental-catalog th:nth-child(2) { width:35%; } }
 .dental-teeth ::v-deep .co26-root-line { fill:none; stroke:currentColor; }
 .dental-teeth ::v-deep .co26-fill-empty { fill:var(--color-surface); }
 .dental-teeth ::v-deep .co26-fill-condition { fill:#f4c7cb; }
@@ -208,8 +236,8 @@ export default {
 .dental-preview { background:var(--color-gray98); border:1px solid var(--color-forty-500); border-radius:10px; margin:14px 0; }.dental-settings summary { min-height:48px; padding:14px 16px; cursor:pointer; font-weight:600; font-size:14px; line-height:1.5; }.dental-settings summary::marker { color:var(--color-primary-700); }.dental-preview-content { display:grid; grid-template-columns:minmax(200px,.75fr) 1fr; gap:24px; padding:8px 20px; align-items:center; }.dental-teeth { display:flex; justify-content:center; gap:10px; }.dental-teeth > div { width:52px; padding:5px; text-align:center; font-size:12px; border:1px solid transparent; border-radius:8px; }.dental-teeth .is-selected { border-color:var(--color-primary-700); }.dental-teeth svg { width:100%; height:64px; }.dental-settings .dental-caption { font-size:12px; color:var(--color-grey); line-height:1.6; }.dental-preview > p { padding:0 20px 12px; }.dental-settings code { font-family:inherit; font-weight:600; background:var(--color-gray98); color:var(--color-primary-700); padding:2px 5px; border-radius:4px; overflow-wrap:anywhere; }
 .dental-actions { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; margin:18px 0 10px; }.dental-button { min-height:44px; padding:9px 16px; border:1px solid var(--color-primary-700); border-radius:24px; color:var(--color-primary-700); font-weight:600; font-size:13px; line-height:1.5; }.dental-button--primary { background:var(--color-primary-700); color:var(--color-surface); }.dental-settings button:disabled { opacity:.5; cursor:not-allowed; }.dental-settings input:disabled,.dental-settings select:disabled,.dental-settings textarea:disabled { opacity:.65; cursor:not-allowed; }
 .dental-details { border:1px solid var(--color-forty-500); border-radius:10px; margin-top:12px; }.dental-details[open] > summary { border-bottom:1px solid var(--color-forty-500); }.dental-summary-hint { margin-left:12px; font-size:12px; font-weight:400; color:var(--color-grey); }.dental-detail-body { padding:6px 20px 20px; }.dental-detail-body a { color:var(--color-primary-700); text-decoration:underline; }.dental-optional-heading { border-top:1px solid var(--color-forty-500); margin-top:28px; padding-top:24px; }.dental-notice { border-left:3px solid var(--color-primary-700); padding:12px 16px; background:var(--color-gray98); border-radius:4px; font-size:14px; }
-.dental-roles,.dental-alias-list,.dental-catalog { list-style:none; padding:0; margin:12px 0; }.dental-roles li { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; padding:10px 0; font-size:13px; border-bottom:1px solid var(--color-forty-500); }.dental-alias-list li { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--color-forty-500); }.dental-alias-form { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px; background:var(--color-gray98); padding:18px; border-radius:10px; }.dental-alias-form p { grid-column:1/-1; margin:0; }.dental-alias-form button { justify-self:start; }.dental-settings label:not(.dental-mode) { display:block; font-size:13px; font-weight:600; margin-top:12px; }.dental-settings select,.dental-settings input:not([type=radio]),.dental-settings textarea { display:block; width:100%; min-height:44px; border:1px solid var(--color-forty-500); background:var(--color-surface); color:var(--color-primary-900); border-radius:8px; padding:10px 12px; margin-top:6px; font-weight:400; font-size:14px; }.dental-settings textarea { resize:vertical; line-height:1.7; }
-.dental-included { margin:18px 0; }.dental-included summary { padding-left:0; }.dental-catalog { display:grid; grid-template-columns:1fr 1fr; gap:0 24px; max-height:300px; overflow:auto; }.dental-catalog li { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px; padding:10px 0; border-bottom:1px solid var(--color-forty-500); font-size:13px; }.dental-walk-preview { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }.dental-walk-preview span { border-radius:6px; background:var(--color-gray98); padding:6px; font-size:13px; }.dental-settings .dental-error { color:var(--color-secondary-700); }.dental-settings button:focus-visible,.dental-settings input:focus-visible,.dental-settings select:focus-visible,.dental-settings textarea:focus-visible,.dental-settings summary:focus-visible { outline:3px solid var(--color-primary-500); outline-offset:3px; }
+.dental-roles,.dental-alias-list { list-style:none; padding:0; margin:12px 0; }.dental-roles li { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; padding:10px 0; font-size:13px; border-bottom:1px solid var(--color-forty-500); }.dental-alias-list li { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--color-forty-500); }.dental-alias-form { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px; background:var(--color-gray98); padding:18px; border-radius:10px; }.dental-alias-form p { grid-column:1/-1; margin:0; }.dental-alias-form button { justify-self:start; }.dental-settings label:not(.dental-mode) { display:block; font-size:13px; font-weight:600; margin-top:12px; }.dental-settings select,.dental-settings input:not([type=radio]),.dental-settings textarea { display:block; width:100%; min-height:44px; border:1px solid var(--color-forty-500); background:var(--color-surface); color:var(--color-primary-900); border-radius:8px; padding:10px 12px; margin-top:6px; font-weight:400; font-size:14px; }.dental-settings textarea { resize:vertical; line-height:1.7; }
+.dental-included { margin:18px 0; }.dental-included summary { padding-left:0; }.dental-walk-preview { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }.dental-walk-preview span { border-radius:6px; background:var(--color-gray98); padding:6px; font-size:13px; }.dental-settings .dental-error { color:var(--color-secondary-700); }.dental-settings button:focus-visible,.dental-settings input:focus-visible,.dental-settings select:focus-visible,.dental-settings textarea:focus-visible,.dental-settings summary:focus-visible { outline:3px solid var(--color-primary-500); outline-offset:3px; }
 @media(max-width:1000px) { .dental-mode-grid { grid-template-columns:1fr; }.dental-mode { gap:7px; padding:16px; }.dental-preview-content { grid-template-columns:1fr; gap:12px; } }
-@media(max-width:600px) { .dental-detail-body { padding:4px 14px 16px; }.dental-summary-hint { display:block; margin:4px 0 0 16px; }.dental-alias-form,.dental-catalog { grid-template-columns:1fr; }.dental-alias-form { padding:12px; }.dental-actions > button { width:100%; }.dental-heading { font-size:19px; }.dental-settings summary { padding:14px 12px; }.dental-alias-list li { align-items:start; }.dental-alias-list li > span { display:grid; gap:4px; } }
+@media(max-width:600px) { .dental-detail-body { padding:4px 14px 16px; }.dental-summary-hint { display:block; margin:4px 0 0 16px; }.dental-alias-form { grid-template-columns:1fr; }.dental-alias-form { padding:12px; }.dental-actions > button { width:100%; }.dental-heading { font-size:19px; }.dental-settings summary { padding:14px 12px; }.dental-alias-list li { align-items:start; }.dental-alias-list li > span { display:grid; gap:4px; } }
 </style>
