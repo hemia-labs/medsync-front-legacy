@@ -40,7 +40,7 @@ const detailReads = {};
 let listReads = 0; const listFail = Number(params.get('listFail') || 0);
 const clone = v => JSON.parse(JSON.stringify(v == null ? null : v));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-const log = []; window.qaLog = log; window.qaUnknown = [];
+const log = []; window.qaLog = log; window.qaUnknown = []; window.qaReads = [];
 
 // Synthetic catalogs shaped like ESTABLECIMIENTO_DE_SALUD_SIS (8 columns). Codes start with QA and are not real CLUES.
 // Two releases model D-5: an older, superseded one and the current one. Neither is official.
@@ -97,6 +97,7 @@ function failWrite(kind) {
   if (kind === 'business' ? f !== 'business-409' : f === 'business-409') return null;
   failQueue.shift();
   if (f === '409' || f === 'business-409') return failure(409, 'Conflicto', { code: 'IDENTITY_CONFLICT', field: 'expectedRevision' });
+  if (f === 'catalog-409') return failure(409, 'El catálogo cambió.', { code: 'CATALOG_RELEASE_CHANGED', field: 'cluesRef' });
   if (f === '403') return failure(403, 'Acceso no autorizado.', { code: 'PERMISSION_DENIED' });
   if (f === '503') return failure(503, 'Servicio no disponible.');
   if (f === 'clues') return failure(400, 'Revisa el campo de identidad: cluesRef', { code: 'CLUES_NOT_IN_SIS_RELEASE', field: 'cluesRef' });
@@ -113,9 +114,14 @@ async function transport(method, url, payload, config) {
   const path = String(url).replace(/^\/+/, '').replace(/^api\//, '').split('?')[0];
   const key = config && config.headers && config.headers['Idempotency-Key'] || null;
   if (method !== 'get') log.push({ method, path, payload: clone(payload), key });
+  else window.qaReads.push({ path, params: clone((payload || {}).params || {}) });
   if (path === 'identity/catalogs/sis.establishments') {
     await wait(150); const q = (payload || {}).params || {};
     if (params.get('catalogState') === 'offline') return failure(503, 'Catálogo temporalmente no disponible');
+    if (q.exactCode) {
+      const row = CATALOG[q.exactCode];
+      return reply({ available: true, source: SOURCE, item: row ? { ref: ref(row.clues), label: row.nombre_unidad, attributes: clone(row), check: { result: params.get('catalogState') === 'ineligible' ? 'invalid' : 'valid' } } : null });
+    }
     if (q.code) {
       const c = CATALOGS[q.releaseId], row = c && c.rows[q.code];
       return reply({ check: row ? { result: q.releaseId === RELEASE ? 'valid' : 'unverified', code: q.releaseId === RELEASE ? null : 'RELEASE_NOT_EFFECTIVE', label: row.nombre_unidad, source: c.source } : { result: 'invalid', code: 'CLUES_NOT_IN_SIS_RELEASE' } });
@@ -165,7 +171,7 @@ async function transport(method, url, payload, config) {
     if (f === 'network' || f === 'network-create' || f === 'late-commit') throw new Error('network');
     // lost-after-commit: the PATCH is applied, then its response is lost (D-5-F1).
     if (f === 'lost-after-commit') { if (payload.expectedRevision === u.revision) Object.assign(u, clone(payload.identity), { revision: u.revision + 1, updatedAt: '2026-11-18T12:30:00Z' }); throw new Error('response lost after commit'); }
-    if (f) { if (f.status === 409) { u.revision++; u.displayName = u.displayName + ' (editado por otra persona)'; } return f; }
+    if (f) { if (f.status === 409 && f.data.code !== 'CATALOG_RELEASE_CHANGED') { u.revision++; u.displayName = u.displayName + ' (editado por otra persona)'; } return f; }
     if (payload.expectedRevision !== u.revision) return failure(409, 'Conflicto', { code: 'IDENTITY_CONFLICT' });
     Object.assign(u, clone(payload.identity), { revision: u.revision + 1, updatedAt: '2026-11-18T12:30:00Z' });
     return reply(view(u));

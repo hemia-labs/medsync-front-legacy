@@ -1,4 +1,4 @@
-// NC1-CLUES-UX prototype helpers. Only meanings documented in the source's own «Descripción Catalogo» sheet are
+// NC1-CLUES-UX helpers. Only meanings documented in the source's own «Descripción Catalogo» sheet are
 // translated; every other official code is shown literally.
 export const UNIT_TYPES = { 1: 'Consulta externa', 2: 'Hospitalización', 3: 'De apoyo', 4: 'Asistencia social' };
 export const OPERATION = { 1: 'En operación', 2: 'Pendiente de entrar en operación', 3: 'Fuera de operación', 4: 'En proceso de construcción' };
@@ -37,7 +37,7 @@ export function compareAttributes(saved, current) {
 // R1: an uncertain create keeps one stable operation identity (sent as Idempotency-Key) and the exact payload that
 // was sent, apart from any later edits. It survives Cancel and re-entry to this view within the SPA session, keyed
 // by the authorization context, so it is never replayed under another user or business. A full page reload loses
-// it. Server-side idempotency is CLUES-F1 and is NOT implemented by this prototype: the synthetic transport models it.
+// it. Keyed creation requires the CLUES-F1 backend contract; reload/another-tab recovery remains a separate scope.
 const pendingCreates = new Map();
 export const pendingCreate = owner => pendingCreates.get(owner) || null;
 export const rememberCreate = (owner, operation) => { pendingCreates.set(owner, operation); };

@@ -277,6 +277,10 @@ export default {
       finally { if (this.alive) this.busy = false; }
     },
     rejected(r) {
+      if (r.status === 409 && r.data && r.data.code === 'CATALOG_RELEASE_CHANGED') {
+        this.fieldErrors = { cluesRef: ['El catálogo cambió. Busca de nuevo la clave para elegir la versión vigente.'] };
+        this.error = 'La referencia no se guardó. Conservamos tu captura.'; return;
+      }
       if (r.status === 409) { this.conflict = true; return; }
       if (r.status === 403) { this.forbidden = true; this.error = 'Tu sesión ya no tiene permiso para modificar unidades. No se guardó; tu captura sigue en pantalla.'; return; }
       if (r.status === 400 && r.data && r.data.field) {
@@ -356,11 +360,12 @@ export default {
       const ref = this.details[reval.id].cluesRef;
       this.reval = { ...reval, state: 'loading', error: '' }; this.busy = true;
       try {
-        const r = await DACore.get('api/identity/catalogs/sis.establishments', { params: { q: ref.code, parent: '', offset: 0 } });
+        const r = await DACore.get('api/identity/catalogs/sis.establishments', { params: { exactCode: ref.code } });
         if (!this.current() || !this.reval || this.reval.id !== reval.id) return;
         if (!r || !r.success || !r.data.available) { this.reval = { ...this.reval, state: 'unavailable' }; return; }
-        const item = r.data.items.find(i => i.ref.code === ref.code), source = r.data.source;
+        const item = r.data.item, source = r.data.source;
         if (!item) { this.reval = { ...this.reval, state: 'missing', current: { source } }; return; }
+        if (!item.check || item.check.result !== 'valid') { this.reval = { ...this.reval, state: 'ineligible', current: { source } }; return; }
         this.reval = { ...this.reval, state: item.ref.releaseId === ref.releaseId ? 'same' : 'found', uncertain: false, current: { ref: item.ref, label: item.label, attributes: item.attributes || null, source } };
       } catch (_) { if (this.current() && this.reval) this.reval = { ...this.reval, state: 'unavailable' }; }
       finally { if (this.alive) this.busy = false; }
@@ -383,9 +388,19 @@ export default {
       } catch (_) { r = null; }
       finally { if (this.alive) this.busy = false; }
       if (!this.current() || !this.reval) return;
-      if (r && r.success) { this.reval = null; await this.load(); this.message = 'Referencia actualizada a la versión vigente. Nada más cambió.'; return; }
+      if (r && r.success) {
+        this.reval = null; await this.load();
+        this.message = !this.loadError && !this.detailErrors[reval.id] && cluesStatus(this.details[reval.id]).key === 'valid'
+          ? 'Referencia actualizada a la versión vigente. Nada más cambió.'
+          : 'Referencia guardada. No pudimos confirmar que siga vigente; puedes volver a comprobarla.';
+        return;
+      }
       // 409: someone else saved. Show the fresh data for review and a new explicit confirmation; nothing is resent.
-      if (r && r.status === 409) { await this.recheck('Otra persona guardó cambios en esta unidad. Mostramos los datos actuales: revísalos y confirma de nuevo solo si sigue procediendo.'); return; }
+      if (r && r.status === 409) {
+        await this.recheck(r.data && r.data.code === 'CATALOG_RELEASE_CHANGED'
+          ? 'El catálogo cambió mientras revisabas. Mostramos la versión actual: revísala y confirma de nuevo si corresponde.'
+          : 'Otra persona guardó cambios en esta unidad. Mostramos los datos actuales: revísalos y confirma de nuevo solo si sigue procediendo.'); return;
+      }
       if (r && r.status && r.status < 500) {
         this.reval = { ...this.reval, error: r.status === 403 ? 'El servidor rechazó la actualización: tu sesión ya no tiene permiso para modificar unidades. No se aplicó.' : 'El servidor rechazó la actualización; no se aplicó. Revisa e inténtalo de nuevo.' };
         return;

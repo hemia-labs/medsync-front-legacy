@@ -14,7 +14,7 @@
       <template v-slot:append-item><v-btn v-if="hasMore" text small :disabled="loading" @click="load(true)">Más resultados</v-btn></template>
     </v-autocomplete>
     <v-text-field v-else :id="inputId" :value="value && value.code" :label="guided ? 'Tu CLUES' : label" :disabled="disabled" :error-messages="errors"
-      :hint="guided ? 'Se guardará como captura manual, sin verificar en el catálogo.' : 'Captura una clave conocida; quedará no verificada.'" persistent-hint maxlength="32" outlined dense @input="typeCode" @change="commitCode" />
+      :hint="manualHint" persistent-hint maxlength="32" outlined dense @input="typeCode" @change="commitCode" />
     <div class="catalog-field-actions">
       <button v-if="!guided" type="button" :disabled="disabled" @click="toggle">{{ manual ? 'Buscar en catálogo' : 'Capturar clave manual' }}</button>
       <button v-if="failure" type="button" :disabled="disabled || loading" @click="retry">Reintentar consulta</button>
@@ -31,6 +31,12 @@ export default {
     active: { type: Boolean, default: true }, parent: { type: String, default: '' }, errors: { type: Array, default: () => [] } },
   data: () => ({ rows: [], search: '', manual: false, loading: false, available: null, failure: false, hasMore: false, check: null, sequence: 0, checkSequence: 0, timer: null, alive: true }),
   computed: {
+    manualHint() {
+      if (!this.guided) return 'Captura una clave conocida; quedará no verificada.';
+      return this.value && this.value.releaseId
+        ? 'Se conserva la referencia del catálogo. Si editas la clave, se guardará como captura manual, sin verificar.'
+        : 'Se guardará como captura manual, sin verificar en el catálogo.';
+    },
     inputId() { return this.id || 'catalog-' + this._uid; },
     selected() { return this.value ? { key: referenceKey(this.value), ref: this.value, text: (this.check && this.check.label ? this.check.label + ' · ' : '') + this.value.code } : null; },
     options() { const selected = this.selected; return selected && !this.rows.some(r => r.key === selected.key) ? [selected, ...this.rows] : this.rows; },

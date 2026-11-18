@@ -15,6 +15,9 @@
     <template v-else-if="state === 'same'">
       <p class="m-0 mt-2 text-sm text-gray-700" role="status">Lo guardado ahora ya usa la versión vigente ({{ current.source.sourceVersion }}). No hay nada que actualizar.</p>
     </template>
+    <template v-else-if="state === 'ineligible'">
+      <p class="m-0 mt-2 text-sm text-gray-700" role="status">La clave aparece en la versión vigente, pero no está habilitada para validación en el catálogo SIS. Conservamos la referencia guardada. Este resultado no confirma por sí solo una baja oficial.</p>
+    </template>
     <template v-else-if="state === 'found'">
       <p class="m-0 mt-2 text-sm text-gray-700" role="status">La clave <span class="font-mono">{{ code }}</span> aparece en la versión vigente. Revisa las diferencias antes de decidir.</p>
       <p class="m-0 mt-2 text-sm text-gray-700 break-words">Guardada (ya no vigente): <strong>{{ savedSource && savedSource.sourceVersion }}</strong> · release {{ savedSource && savedSource.releaseId }}<br>Vigente: <strong>{{ current.source.sourceVersion }}</strong> · release {{ current.source.releaseId }}</p>
