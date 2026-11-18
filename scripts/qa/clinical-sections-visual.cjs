@@ -25,6 +25,39 @@ const { createFixture } = require('./clinical-sections-fixture.cjs');
   });
   context.setDefaultTimeout(10000);
   const page=await context.newPage();const contrast=[];const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const costChecks = [];
+  const costs = page.getByRole('switch', { name: 'Mostrar costos', exact: true });
+  const accessibility = await context.newCDPSession(page);
+  async function verifyCosts(stage, expected) {
+    const budget = page.getByText('$1,400.00', { exact: true });
+    await costs.waitFor();
+    await budget.waitFor({ state: expected ? 'visible' : 'hidden' });
+    const { nodes } = await accessibility.send('Accessibility.getFullAXTree');
+    const accessibleSwitch = nodes.find(node => node.role?.value === 'switch' && node.name?.value === 'Mostrar costos');
+    assert.ok(accessibleSwitch, stage + ': switch is present in Chromium’s accessibility tree');
+    const checked = accessibleSwitch.properties.find(property => property.name === 'checked');
+    const observed = {
+      nativeChecked: await costs.evaluate(input => input.checked),
+      ariaChecked: await costs.getAttribute('aria-checked'),
+      accessibleChecked: checked?.value.value,
+      budgetVisible: await budget.isVisible()
+    };
+    assert.deepEqual(observed, {
+      nativeChecked: expected, ariaChecked: String(expected), accessibleChecked: String(expected), budgetVisible: expected
+    }, stage);
+    costChecks.push({ stage, ...observed });
+  }
+  async function clickCosts() {
+    // Hit the visible center, including Vuetify’s ripple when it covers the native input.
+    await costs.scrollIntoViewIfNeeded();
+    const box = await costs.boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  }
+  async function reopenPlan() {
+    await page.reload();
+    await page.getByRole('tab', { name: 'Plan de tratamiento', exact: true }).click();
+    await page.getByText('Plan al día', { exact: true }).waitFor();
+  }
   try {
     await page.goto(frontOrigin + '/admin?section=clinical-modules');
     await page.getByRole('heading',{name:'Mostrar odontograma',exact:true}).waitFor({timeout:60000});
@@ -35,7 +68,7 @@ const { createFixture } = require('./clinical-sections-fixture.cjs');
     await page.getByRole('heading',{name:'Mostrar plan de tratamiento',exact:true}).waitFor();
     await page.getByRole('heading',{name:'Permitir elegir dientes al registrar un tratamiento',exact:true}).waitFor();
     await page.screenshot({path:path.join(output,'desktop-plan.png'),fullPage:true});
-    assert.ok(await page.getByText('$1,400.00',{exact:true}).isVisible());
+    await verifyCosts('Initial saved setting', true);
     const printToggle = page.getByRole('button',{name:'Ver ejemplo de impresión'});
     const printFrame = page.frameLocator('#clinical-print-example iframe');
     const writesBeforePreview = (await api('state')).writes.length;
@@ -43,8 +76,8 @@ const { createFixture } = require('./clinical-sections-fixture.cjs');
     await printFrame.getByRole('columnheader',{name:'Costo',exact:true}).waitFor();
     await printFrame.getByText('Presupuesto: $1,400.00',{exact:true}).waitFor();
     await printFrame.getByText('Diente 16',{exact:true}).waitFor();
-    await page.getByLabel('Mostrar costos',{exact:true}).focus();await page.keyboard.press('Space');
-    assert.equal(await page.getByText('$1,400.00',{exact:true}).isVisible(),false);
+    await costs.press('Space');
+    await verifyCosts('Space turns costs off', false);
     await printFrame.getByRole('columnheader',{name:'Costo',exact:true}).waitFor({state:'hidden'});
     assert.doesNotMatch(await printFrame.locator('body').innerText(),/Presupuesto|\$/);
     await page.getByLabel('Mostrar la etiqueta de estado').focus(); await page.keyboard.press('Space');
@@ -61,15 +94,42 @@ const { createFixture } = require('./clinical-sections-fixture.cjs');
     assert.ok(await printToggle.evaluate(el=>el===document.activeElement));
     await page.getByRole('tab',{name:'Odontograma',exact:true}).click();
     await page.getByRole('tab',{name:'Plan de tratamiento'}).click();
-    assert.equal(await page.getByLabel('Mostrar costos',{exact:true}).getAttribute('aria-checked'),'false');
+    await verifyCosts('Draft survives a tab change', false);
     await api('state',{fail:'modules-save'});
     await page.getByRole('button',{name:'Guardar plan',exact:true}).click();
     await page.getByText('No se pudo guardar. Conservamos tus cambios.',{exact:true}).waitFor();
-    assert.equal(await page.getByLabel('Mostrar costos',{exact:true}).getAttribute('aria-checked'),'false');
+    await verifyCosts('Failed save keeps the draft', false);
     await api('state',{fail:''});
     await page.getByRole('button',{name:'Guardar plan',exact:true}).click();
     await page.getByText('Plan al día',{exact:true}).waitFor();
     assert.equal((await api('state')).modules.showTreatmentCosts,false);
+    await reopenPlan();
+    await verifyCosts('Reload after saving hidden costs', false);
+    const discard = page.getByRole('button', { name: 'Descartar cambios del plan', exact: true });
+    const save = page.getByRole('button', { name: 'Guardar plan', exact: true });
+    const hiddenWrites = (await api('state')).writes.length;
+    await costs.press('Space');
+    await verifyCosts('Space turns costs on', true);
+    await discard.click();
+    await verifyCosts('Discard restores hidden costs', false);
+    assert.equal((await api('state')).writes.length, hiddenWrites, 'Discard does not save the keyboard change');
+    await clickCosts();
+    await verifyCosts('Click turns costs on', true);
+    await save.click();
+    await page.getByText('Plan al día', { exact: true }).waitFor();
+    assert.equal((await api('state')).modules.showTreatmentCosts, true);
+    await reopenPlan();
+    await verifyCosts('Reload after saving visible costs', true);
+    const visibleWrites = (await api('state')).writes.length;
+    await clickCosts();
+    await verifyCosts('Click turns costs off', false);
+    await discard.click();
+    await verifyCosts('Discard restores visible costs', true);
+    assert.equal((await api('state')).writes.length, visibleWrites, 'Discard does not save the pointer change');
+    await clickCosts();
+    await save.click();
+    await page.getByText('Plan al día', { exact: true }).waitFor();
+    assert.equal((await api('state')).modules.showTreatmentCosts, false);
     await page.getByRole('tab',{name:'Odontograma',exact:true}).click();
     await page.getByText('Palabras para la captura rápida',{exact:true}).click();
     await page.getByLabel('Palabra que quieres usar').fill('revisar');
@@ -301,6 +361,7 @@ const { createFixture } = require('./clinical-sections-fixture.cjs');
     assert.equal(await page.getByLabel('Permitir elegir dientes al registrar un tratamiento').getAttribute('aria-checked'),'false');
     assert.deepEqual(errors,[]);
     const result={passed:true,contrast,checks:['shared print preview reflects draft teeth, costs and status without writes','migration example and conflicting notes','save before preview at laptop width','first and last traversal teeth','module save failure/retry and persistence','tabs preserve drafts','alias add/search/remove','traversal validation and conflict recovery','refresh preserves drafts','real settings navigation guard','mode confirm/cancel/read-only gate','1440/390/320 in day/night without horizontal overflow','load retry','keyboard tabs','role restriction','concurrent edits and conflict recovery','first activation','legacy mode restriction','keyboard dialog and focus return','discard readonly alias draft','dependent selector','role-specific permissions link','container layout at 1100px'],screenshots:fs.readdirSync(output).filter(f=>f.endsWith('.png')),writes:(await api('state')).writes};
+    result.costSwitch = costChecks;
     fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
   } finally { await context.close();await browser.close();fixture.close(); }
 })().catch(error=>{console.error(error);process.exitCode=1;});

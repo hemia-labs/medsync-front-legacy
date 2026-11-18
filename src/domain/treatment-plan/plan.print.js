@@ -37,7 +37,6 @@ function treatmentPlanPrintHtml({
     .status{white-space:nowrap}
     .summary{font-weight:bold;text-align:right}
     footer{border-top:1px solid #cad5df;margin-top:24px;padding-top:12px;font-size:11px;color:#52657b}
-    button{padding:10px 16px;cursor:pointer}
     @media screen and (max-width:480px){body{margin:12px;font-size:13px}
     table{table-layout:auto}
     th,td{padding:5px 3px}
@@ -45,10 +44,8 @@ function treatmentPlanPrintHtml({
     h1{font-size:20px}}
     @media screen and (max-width:300px){body{margin:8px;font-size:12px}th{font-size:11px}th,td{padding:5px 2px}}
     @page{size:A4;margin:16mm}
-    @media print{body{margin:0}
-    button{display:none}}
+    @media print{body{margin:0}}
     </style></head><body>
-    ${example ? '' : '<button type="button" onclick="window.print()">Imprimir o guardar PDF</button>'}
     <p class="brand">${escapeHtml(businessName)}</p><h1>${escapeHtml(title || 'Plan de tratamiento')}</h1>
     <p class="meta"><strong>Paciente:</strong> ${escapeHtml(patientName || 'No especificado')}<br>
       <strong>Plan:</strong> ${closed ? 'Cerrado' : 'Activo'} · <strong>Inicio:</strong> ${escapeHtml(start)}
