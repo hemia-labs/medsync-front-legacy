@@ -78,9 +78,9 @@
         <div class="patient-identity-grid">
           <catalog-reference-field v-for="reference in references" :key="reference.key" :value="referenceAt(value, reference.key)"
             :family="reference.family" :label="reference.label" :parent="catalogParent(value, reference.key)" :active="showReferences" :disabled="disabled"
-            @input="update(withCatalogReference(value, reference.key, $event))" />
+            :errors="catalogErrors[reference.key] || []" :data-catalog-key="reference.key" @input="update(withCatalogReference(value, reference.key, $event))" />
           <catalog-reference-list class="patient-identity-wide" :value="value.affiliations" family="sis.affiliation" label="Afiliación"
-            :active="showReferences" :disabled="disabled" @input="update(withField(value, 'affiliations', $event))" />
+            :active="showReferences" :disabled="disabled" :errors="catalogErrors.affiliations || []" data-catalog-key="affiliations" @input="update(withField(value, 'affiliations', $event))" />
         </div>
       </div>
     </v-expand-transition>
@@ -104,7 +104,12 @@ export default {
     props: {
         value: { type: Object, required: true },
         disabled: Boolean,
-        sexErrors: { type: Array, default: () => [] }
+        sexErrors: { type: Array, default: () => [] },
+        // Server field errors for the catalog keys, e.g. { 'residence.municipality': ['Revisa este dato.'] }.
+        catalogErrors: { type: Object, default: () => ({}) }
+    },
+    watch: {
+        catalogErrors(next) { if (Object.keys(next || {}).length) this.showReferences = true; }
     },
     data: () => ({
         showReferences: false,
@@ -118,7 +123,19 @@ export default {
         withField, withCurp, withCurpDetail, referenceCode, withReference, listCodes, withList,
         update(identity) { this.$emit('input', identity); },
         // Used by the form's error summary to take the user to the required field.
-        focus() { const select = this.$refs.biologicalSex; if (select && select.focus) select.focus(); }
+        focus() { const select = this.$refs.biologicalSex; if (select && select.focus) select.focus(); },
+        // Takes the user to a catalog key rejected by the server. Returns false when the key is not a selector here.
+        focusCatalog(key) {
+            const target = this.$el && this.$el.querySelector(`[data-catalog-key="${key}"]`);
+            if (!target) return false;
+            this.showReferences = true;
+            this.$nextTick(() => {
+                if (target.scrollIntoView) target.scrollIntoView({ block: 'center' });
+                const input = target.querySelector('input:not([type=hidden])');
+                if (input) input.focus();
+            });
+            return true;
+        }
     }
 };
 </script>

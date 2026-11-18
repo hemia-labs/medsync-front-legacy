@@ -7,5 +7,7 @@ export const catalogParent = (identity, key) => {
     return parent ? (referenceAt(identity, parent) || {}).code || '' : '';
 };
 export const cleanReference = ref => ref ? { family: ref.family, ...(ref.releaseId ? { releaseId: ref.releaseId } : {}), code: ref.code } : null;
-export const candidateReference = (family, text) => text && text.trim() ? { family, code: text.trim() } : null;
+// Contract §4: manual CLUES input is normalized with trim + uppercase. Other families keep the literal code.
+export const candidateReference = (family, text) => text && text.trim()
+    ? { family, code: family === 'sis.establishments' ? text.trim().toUpperCase() : text.trim() } : null;
 export const referenceKey = ref => ref ? [ref.family, ref.releaseId || '', ref.code].join('|') : '';
