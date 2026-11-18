@@ -2,6 +2,7 @@ import {
     DAC_DOCUMENT_TEMPLATES,
     DAC_DOCUMENT_TEMPLATE_SAVE,
     DAC_DOCUMENT_PATIENT,
+    DAC_DOCUMENT_CONSENT,
     DAC_DOCUMENT_CREATE,
     DAC_DOCUMENT_SIGN,
     DAC_DOCUMENT_REFUSAL,
@@ -15,6 +16,12 @@ import {
 import { DACore } from '../../config/axios.context';
 
 export default {
+    getConsentReview(idPerson) {
+        return DACore.get(DAC_DOCUMENT_CONSENT + encodeURIComponent(idPerson));
+    },
+    substituteRefusal(data) {
+        return DACore.post(DAC_DOCUMENT_CONSENT + 'supersede-refusal', data);
+    },
     getTemplates() {
         return DACore.get(DAC_DOCUMENT_TEMPLATES);
     },

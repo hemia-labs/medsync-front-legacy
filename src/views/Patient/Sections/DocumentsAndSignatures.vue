@@ -16,6 +16,9 @@
       </button>
     </section>
 
+    <consent-substitution-panel v-if="patientId && hasPermission('documents.view')" :patient-id="patientId" :patient-name="patientName"
+      :scope="consentScope" :refresh-key="consentRefreshKey" @review="consentReview = $event" @saved="load" />
+
     <section class="document-filters" v-if="documents.length > 0 || documentPagination" aria-label="Filtrar documentos por estado">
       <button
         v-for="filter in documentFilters"
@@ -66,6 +69,11 @@
             <span>Creado: {{ formatDateTime(item.created_at) }}</span>
             <span v-if="item.signed_at">Firmado: {{ formatDateTime(item.signed_at) }}</span>
           </div>
+          <p v-for="trace in substitutionTraces(item)" :key="trace.q" class="substitution-trace">
+            {{ trace.label }} <button type="button" class="clinical-link-button" @click="openSubstitutionDocument(trace.other)">{{ shortId(trace.other) }}</button>
+            · {{ formatDateTime(trace.created_at) }} · {{ trace.d }}
+            <span v-if="!trace.effective"> (ya no modifica la vigencia)</span>
+          </p>
         </div>
         <div class="actions">
           <button class="btn-outline" type="button" @click="openView(item)">
@@ -419,6 +427,8 @@ import fnTypes from '../../../store/modules/common/fn-types';
 import { DADocumentService, DAPrescriptionService } from '../../../services/context/core-proccess-context';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
+import ConsentSubstitutionPanel from './components/ConsentSubstitutionPanel.vue';
+import { authorizationContext } from '../../../security/authorizationContext';
 import { sanitizeHtmlForDocumentSnapshot, safeDocumentImageSource } from '../../../utils/sanitizeHtml';
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
@@ -430,6 +440,7 @@ export default {
   directives: { dialogName, fieldError },
   mixins: [VuexMixin],
   components: {
+    ConsentSubstitutionPanel,
     ListPageNav,
     DocumentSignatureOptionsDialog
   },
@@ -447,6 +458,8 @@ export default {
     return {
       isLoading: false,
       documents: [],
+      consentReview: null,
+      consentRefreshKey: 0,
       documentPage: 1,
       documentPagination: null,
       creationHints: [],
@@ -503,6 +516,7 @@ export default {
       authBusiness: fnTypes.getBusiness
     }),
     documentIdentity: function() { return JSON.stringify([this.authUser, this.authBusiness]); },
+    consentScope: function() { return JSON.stringify([this.patientId, authorizationContext(this.$store)]); },
     patientId: function() {
       return this.px && this.px.person ? this.px.person.id_person : '';
     },
@@ -736,6 +750,18 @@ export default {
     if(this.documentHighlightTimer) window.clearTimeout(this.documentHighlightTimer);
   },
   methods: {
+    substitutionTraces(item) {
+      return ((this.consentReview && this.consentReview.pairs) || []).filter(pair => pair.r === item.id_patient_document || pair.s === item.id_patient_document)
+        .map(pair => ({ ...pair, other: pair.r === item.id_patient_document ? pair.s : pair.r,
+          label: pair.r === item.id_patient_document ? (pair.effective ? 'Sustituida por' : 'Sustitución registrada con') : 'Sustituye la negativa' }));
+    },
+    async openSubstitutionDocument(id) {
+      const scope = this.documentScope();
+      const response = await DADocumentService.getPatientDocument(this.patientId, id);
+      if(!this.documentFocusAlive || scope !== this.documentScope()) return;
+      if(response && response.success && response.data && response.data[0]) this.openView(response.data[0]);
+      else this.loadError = 'No se pudo abrir el documento relacionado. Reintenta la consulta.';
+    },
     emptyCreateForm: function() {
       return {
         id_document_template: '',
@@ -750,6 +776,7 @@ export default {
     },
     documentPageParams: function() { return { page: this.documentPage, page_size: 10, document_filter: this.documentFilter }; },
     applyDocumentPage: function(data) {
+      this.consentRefreshKey++;
       this.documents = Array.isArray(data) ? data : this.asArray(data && data.items);
       this.documentPagination = data && data.pagination || null;
       this.creationHints = data && data.creationHints || [];

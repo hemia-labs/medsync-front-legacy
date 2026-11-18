@@ -29,7 +29,7 @@ async function main() {
     { id_patient_document: SIGNED, document_type: 'SENSITIVE_DATA_CONSENT', status: 'FIRMADO' },
     { id_patient_document: REFUSAL, document_type: 'SENSITIVE_DATA_CONSENT', status: 'NO_FIRMADO_POR_NEGATIVA' }
   ];
-  const server = (status, id) => ({ success: true, data: { history: { status: 'DRAFT', clinical_snapshot_json: { consultation: { reason: 'Servidor: no debe sustituir la captura' } } }, consent_status: status, consent_document_id: id } });
+  const server = (status, id) => ({ success: true, data: { history: { status: 'DRAFT', clinical_snapshot_json: { consultation: { reason: 'Servidor: no debe sustituir la captura' } } }, consent_status: status, consent_token: 'a'.repeat(64), consent_document_id: id } });
 
   function fresh({ status = 'DRAFT', permissions = () => true, documents = listed } = {}) {
     const state = options.data();
@@ -265,6 +265,22 @@ async function main() {
   assert.equal(calls.finalize, 1); assert.equal(state.clinicalHistory.status, 'FINALIZED');
   assert.match(template, /@click="cancelFinalizeDialog">Cancelar</);
   checks.push('C05-R2: Cancel or Esc during verification → zero writes, capture kept; cancel during save → saved, not closed; reopen closes');
+
+  state = fresh(); calls = readyToClose(state);
+  service.getByPatient = async () => server('FIRMADO', SIGNED);
+  await state.openFinalizeDialog();
+  service.getByPatient = async () => { const value = server('FIRMADO', SIGNED); value.data.consent_token = 'b'.repeat(64); return value; };
+  await state.finalizeHistory();
+  assert.equal(calls.save, 0, 'Same id/status with changed clinical set still requires another review');
+  assert.equal(calls.finalize, 0);
+  service.getByPatient = async () => server('FIRMADO', SIGNED);
+  await state.openFinalizeDialog();
+  let sentConsent;
+  const close = service.finalize;
+  service.finalize = async (id, revision, consent) => { sentConsent = consent; return close(id, revision); };
+  await state.finalizeHistory();
+  assert.equal(sentConsent.token, 'a'.repeat(64)); assert.equal(sentConsent.documentId, SIGNED); assert.equal(sentConsent.status, 'FIRMADO');
+  checks.push('B: whole-set token changes require review even at same id/status; exact token/id/status reach finalize');
 
   console.log(JSON.stringify(checks, null, 2));
   console.log('PASS NC1 C05 lote 1: consent shown and applied from server consent_status/consent_document_id; refusal → incomplete; failures block with retry; changes need re-review; draft preserved. No API, DB, browser or print.');
