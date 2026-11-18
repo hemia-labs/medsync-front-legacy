@@ -25,6 +25,8 @@ The suites wait for HTTP readiness, preserve the approved visual/recovery assert
 
 Implementation QA also covers I1 in 12 cases (36 total): repeated catalog changes reuse the operation key with a corrected capture, Cancel/Resume preserves it, a subsequent lost response freezes the corrected payload for replay, and other 409/403 responses never authorize replacing the original payload. `advanceCatalog=1` advances the synthetic release on each `catalog-409`; replay of an existing operation still precedes catalog validation.
 
+I2 adds four cases (40 total), selecting the **first** matching menu entry after a release change. Guided search offers a single current result for the saved code; searching alone preserves the captured reference and performs no write. I1 also selects the first match and checks for duplicates. `nc1-catalog-capture.cjs` verifies unchanged non-guided behavior and preservation when results are absent or contain other codes.
+
 Navigation and screenshots allow up to 60 seconds for the shared template's external Google Fonts stylesheet/font loading. UI action/assertion budgets remain 10/12 seconds. No external resource is blocked or replaced, and visual/recovery assertions are unchanged.
 
 All data and failures are synthetic. These tests do not establish authenticated permissions, private-logo server upload, physical-device/accessibility-technology acceptance, or reload/other-tab draft recovery. Existing operator visual approval is preserved.

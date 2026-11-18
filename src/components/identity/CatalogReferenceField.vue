@@ -39,7 +39,14 @@ export default {
     },
     inputId() { return this.id || 'catalog-' + this._uid; },
     selected() { return this.value ? { key: referenceKey(this.value), ref: this.value, text: (this.check && this.check.label ? this.check.label + ' · ' : '') + this.value.code } : null; },
-    options() { const selected = this.selected; return selected && !this.rows.some(r => r.key === selected.key) ? [selected, ...this.rows] : this.rows; },
+    options() {
+      const selected = this.selected;
+      // Guided search offers the current result for a code, not an indistinguishable saved release before it.
+      // This only changes menu options; the captured reference stays intact until the user selects a result.
+      const included = selected && this.rows.some(r => r.key === selected.key ||
+        (this.guided && r.ref.family === selected.ref.family && r.ref.code === selected.ref.code));
+      return selected && !included ? [selected, ...this.rows] : this.rows;
+    },
     owner() { return JSON.stringify(authorizationContext(this.$store)); },
     hint() {
       if (this.guided) {

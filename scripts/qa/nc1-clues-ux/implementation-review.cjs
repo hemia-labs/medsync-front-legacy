@@ -1,4 +1,4 @@
-// T1, I1 and exact D-5 contract, real Vue shell with synthetic transport. No authenticated acceptance.
+// T1, I1/I2 and exact D-5 contract, real Vue shell with synthetic transport. No authenticated acceptance.
 const { chromium } = require('playwright');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const OUT = process.env.NC1_QA_OUT || path.join(require('node:os').tmpdir(), 'medsync-nc1-clues-qa');
@@ -22,8 +22,9 @@ async function selectCurrent(p, release = 'sis.establishments-qa') {
     const v = document.querySelector('.health-units .catalog-field').__vue__;
     return !v.loading && v.rows.some(r => r.ref.releaseId === release && r.ref.code === 'QASMP000202');
   }, release);
-  // A historical selection can also appear in the menu; the last match is the current search result.
-  await p.locator('.v-menu__content.menuable__content__active .v-list-item', { hasText: 'QASMP000202' }).last().click();
+  const matches = p.locator('.v-menu__content.menuable__content__active .v-list-item', { hasText: 'QASMP000202' });
+  assert.equal(await matches.count(), 1); // I2: a historical selection must not precede the current search result.
+  await matches.first().click();
 }
 async function startRegistration(p, night, failures) {
   await open(p, night, 'scenario=empty&advanceCatalog=1&fail=' + failures);
@@ -36,6 +37,27 @@ async function catalogError(p) {
   assert.equal(await btn(p, 'Guardar unidad').isEnabled(), true);
 }
 const cases = {
+  async i2FirstMatchAfterReleaseChangeIsCurrent(p, night) {
+    await startRegistration(p, night, 'catalog-409'); await catalogError(p);
+    const before = await writes(p); assert.equal(before.length, 1);
+    await field(p).locator('input').first().fill('QASMP000202');
+    await p.waitForFunction(() => {
+      const v = document.querySelector('.health-units .catalog-field').__vue__;
+      return !v.loading && v.rows.some(r => r.ref.releaseId === 'sis.establishments-qa-next');
+    });
+    const matches = p.locator('.v-menu__content.menuable__content__active .v-list-item', { hasText: 'QASMP000202' });
+    assert.equal(await matches.count(), 1);
+    assert.equal(await p.evaluate(() => document.querySelector('.health-units').__vue__.form.cluesRef.releaseId), 'sis.establishments-qa');
+    assert.equal((await writes(p)).length, 1);
+    await p.screenshot({ path: path.join(OUT, 'i2-first-match-' + p.viewportSize().width + '-' + (night ? 'night' : 'light') + '.png'), fullPage: true, timeout: 60000 });
+    await matches.first().click(); assert.equal((await writes(p)).length, 1);
+    await btn(p, 'Guardar unidad').click(); await idle(p);
+    const w = await writes(p); assert.equal(w.length, 2); assert.equal(w[1].key, w[0].key);
+    assert.equal(w[1].payload.identity.cluesRef.releaseId, 'sis.establishments-qa-next');
+    assert.equal(w[1].payload.identity.cluesRef.code, w[0].payload.identity.cluesRef.code);
+    assert.equal(await p.evaluate(() => window.qaState.units.length), 1);
+    assert.equal(await btn(p, 'Editar unidad').count(), 1);
+  },
   async i1RepeatedCatalogChangesKeepKeyAndCorrectedCapture(p, night) {
     await startRegistration(p, night, 'network,catalog-409,catalog-409,catalog-409');
     await unitName(p).fill('Nombre corregido');
@@ -154,8 +176,9 @@ const cases = {
   await require('./ready.cjs')(); const browser = await chromium.launch({ headless: true }); const report = [];
   try {
     for (const width of [1280, 390]) for (const night of [false, true]) for (const [name, run] of Object.entries(cases)) {
-      const p = await browser.newPage({ viewport: { width, height: 900 } }); // The shared template loads Google Fonts; asset loading has a separate budget from UI assertions.
-    p.setDefaultNavigationTimeout(60000); p.setDefaultTimeout(12000);
+      const p = await browser.newPage({ viewport: { width, height: 900 } });
+      // The shared template loads Google Fonts; asset loading has a separate budget from UI assertions.
+      p.setDefaultNavigationTimeout(60000); p.setDefaultTimeout(12000);
       const result = { name, width, theme: night ? 'night' : 'light', errors: [] };
       p.on('pageerror', e => result.errors.push(String(e)));
       try { await run(p, night); assert.equal(result.errors.length, 0); assert.equal(await p.evaluate(() => Math.max(0, document.documentElement.scrollWidth - innerWidth)), 0); result.pass = true; }
