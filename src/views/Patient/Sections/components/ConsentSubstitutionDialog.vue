@@ -80,5 +80,17 @@ export default {
 .authority-note, .history-note { font-size: 13px; }
 .substitution-actions { padding: 16px 24px 24px; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .substitution-actions .v-btn { min-height: 44px; white-space: normal; letter-spacing: 0; text-transform: none; }
+/* Noche clínica uses CSS palettes while Vuetify still renders theme--light. */
+html[data-theme="clinical-night"] .substitution-dialog .v-card__text { color: #e5e7eb; }
+html[data-theme="clinical-night"] .substitution-dialog h3 { color: #7dd3fc; }
+html[data-theme="clinical-night"] .substitution-pair section { border-color: #64748b; }
+html[data-theme="clinical-night"] .substitution-dialog ::v-deep .v-messages,
+html[data-theme="clinical-night"] .substitution-dialog ::v-deep .v-counter,
+html[data-theme="clinical-night"] .substitution-dialog ::v-deep .v-select .v-icon { color: #cbd5e1 !important; }
+html[data-theme="clinical-night"] .predicted-result { color: #e0f2fe; background: #172c3c; border-color: #38bdf8; }
+html[data-theme="clinical-night"] .review-error { color: #fecdd3; background: #3d1e2c; border-color: #fb7185; }
+html[data-theme="clinical-night"] .substitution-actions .v-btn--outlined:not(.v-btn--disabled) { color: #bae6fd; border-color: #64748b; }
+html[data-theme="clinical-night"] .substitution-actions .v-btn.primary:not(.v-btn--disabled) { color: #0f172a !important; background-color: #7dd3fc !important; }
+html[data-theme="clinical-night"] .substitution-actions .v-btn.v-btn--disabled { color: #94a3b8 !important; background-color: #263448 !important; }
 @media(max-width: 600px) { .substitution-pair { grid-template-columns: 1fr; } .substitution-actions .v-btn { flex: 1 1 100%; margin-left: 0 !important; } }
 </style>

@@ -9,7 +9,6 @@ import Documents from '../../../src/views/Patient/Sections/DocumentsAndSignature
 
 import { DADocumentService, DAPrescriptionService } from '../../../src/services/context/core-proccess-context';
 import MedSyncBrand from '../../../src/components/MedSyncBrand.vue';
-import DAPxService from '../../../src/services/core/px/DAPxService';
 import '../../../src/assets/tailwind.css';
 import '@mdi/font/css/materialdesignicons.css';
 Vue.use(Vuex);Vue.use(Router);Vue.component('medsync-brand',MedSyncBrand);Vue.component('da-loader',{render:h=>h('span')});Vue.directive('viewer',{});
@@ -25,6 +24,8 @@ Vue.config.errorHandler=error=>{document.getElementById('qa-errors').textContent
 const review={consent_status:'NO_FIRMADO_POR_NEGATIVA',consent_token:'a'.repeat(64),substitution_token:'a'.repeat(64),pairs:[],diagnostics:[],documents:[{id_patient_document:'negativa-qa',document_type:'SENSITIVE_DATA_CONSENT',status:'NO_FIRMADO_POR_NEGATIVA',title:'Datos personales sensibles',refusal_at:'2026-11-17T10:00:00',created_at:'2026-11-17T09:00:00',refusal_reason:'El paciente decidió no firmar en esa revisión.',doctor_name_snapshot:'Profesional QA'}, {id_patient_document:'firmado-qa',document_type:'SENSITIVE_DATA_CONSENT',status:'FIRMADO',title:'Datos personales sensibles',signed_at:'2026-11-17T12:00:00',created_at:'2026-11-17T11:00:00',doctor_name_snapshot:'Profesional QA'}], candidates:[{refusal_id:'negativa-qa',signed_id:'firmado-qa',can_authorize:true,predicted_status:'FIRMADO',remaining_refusal_ids:[]}]};
 const counters=Vue.observable({reads:0,posts:0});
 const scenario=new URLSearchParams(window.location.search).get('case') || 'nominal';
+// Local visual QA only; mirrors the palette selector without touching a tenant.
+if(new URLSearchParams(window.location.search).get('theme')==='night') document.documentElement.setAttribute('data-theme','clinical-night');
 DADocumentService.getConsentReview=async()=>{counters.reads++;return {success:true,data:JSON.parse(JSON.stringify(review))};};
 DADocumentService.substituteRefusal=async body=>{counters.posts++;
  if(scenario==='conflict' && counters.posts===1){review.substitution_token='b'.repeat(64);return {success:false,status:409,data:{code:'CONSENT_REVIEW_CHANGED'},message:'El consentimiento cambió. Revisa el estado actual; tu motivo se conserva.'};}
