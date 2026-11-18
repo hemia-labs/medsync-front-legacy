@@ -25,82 +25,16 @@
             </div>
         </section>
 
-        <section v-if="activeSection === 'clinical-modules'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
-                <div>
-                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Secciones clínicas</p>
-                    <h2 class="m-0 text-gray-600 text-2xl font-normal">Expediente del paciente</h2>
-                    <p class="m-0 mt-2 text-gray-500 text-sm">Elige qué apartados aparecen dentro del expediente del paciente.</p>
-                </div>
-                <div class="flex flex-wrap justify-start lg:justify-end gap-2 settings-header-actions">
-                    <da-button-primary @click.native="onSaveClinicalModules()" :disabled="clinicalModulesLoading || !!clinicalModulesError || clinicalModulesSaving" :label="clinicalModulesSaving ? 'Guardando...' : 'Guardar secciones'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
-                </div>
-            </div>
-
-            <p v-if="clinicalModulesLoading" class="p-7" role="status">Cargando las secciones guardadas…</p>
-            <v-alert v-else-if="clinicalModulesError" type="error" text role="alert" class="m-5">{{ clinicalModulesError }} <button type="button" class="underline font-semibold" @click="onLoadClinicalModules">Reintentar</button></v-alert>
-            <fieldset v-else class="grid grid-cols-1 md:grid-cols-2 gap-5 p-7 min-w-0" :disabled="clinicalModulesSaving">
-                <article class="border border-gray-200 bg-white shadow-md p-5">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Odontograma</p>
-                            <h3 class="m-0 text-gray-700 text-lg font-semibold">Mostrar odontograma</h3>
-                            <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Aparece oculto al inicio. Actívalo solo si tu consultorio registra odontogramas.</p>
-                        </div>
-                        <v-switch v-model="clinicalModulesForm.odontogramEnabled" :disabled="clinicalModulesSaving" aria-label="Mostrar odontograma" inset :color="themePrimaryColor" class="m-0"></v-switch>
-                    </div>
-                    <div class="mt-4 px-3 py-2 text-sm border" :class="clinicalModulesForm.odontogramEnabled ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'">
-                        {{ clinicalModulesForm.odontogramEnabled ? 'Odontograma visible en expediente.' : 'Odontograma oculto en expediente.' }}
-                    </div>
-                    <odontogram-mode-settings />
-                </article>
-
-                <article class="border border-gray-200 bg-white shadow-md p-5">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Plan de tratamiento</p>
-                            <h3 class="m-0 text-gray-700 text-lg font-semibold">Tratamientos activos e historicos</h3>
-                            <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Permite crear un plan activo por paciente, cerrarlo como historico y abrir uno nuevo.</p>
-                        </div>
-                        <v-switch v-model="clinicalModulesForm.treatmentPlanEnabled" :disabled="clinicalModulesSaving" aria-label="Mostrar plan de tratamiento" inset :color="themePrimaryColor" class="m-0"></v-switch>
-                    </div>
-                    <div class="mt-4 px-3 py-2 text-sm border" :class="clinicalModulesForm.treatmentPlanEnabled ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'">
-                        {{ clinicalModulesForm.treatmentPlanEnabled ? 'Plan de tratamiento visible en expediente.' : 'Plan de tratamiento oculto en expediente.' }}
-                    </div>
-                </article>
-
-                <article class="border border-gray-200 bg-white shadow-md p-5">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Dientes en tratamiento</p>
-                            <h3 class="m-0 text-gray-700 text-lg font-semibold">Asociar tratamientos a dientes</h3>
-                            <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Solo aplica cuando el odontograma esta activo. El diente nunca sera obligatorio.</p>
-                        </div>
-                        <v-switch v-model="clinicalModulesForm.allowTreatmentToothSelection" aria-label="Asociar tratamientos a dientes" :disabled="clinicalModulesSaving || !clinicalModulesForm.odontogramEnabled" inset :color="themePrimaryColor" class="m-0"></v-switch>
-                    </div>
-                    <div class="mt-4 px-3 py-2 text-sm border" :class="clinicalModulesForm.odontogramEnabled && clinicalModulesForm.allowTreatmentToothSelection ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'">
-                        {{ clinicalModulesForm.odontogramEnabled && clinicalModulesForm.allowTreatmentToothSelection ? 'Los tratamientos pueden guardar dientes asociados.' : 'No se mostrara selector de dientes en tratamientos.' }}
-                    </div>
-                </article>
-
-                <article class="border border-gray-200 bg-white shadow-md p-5">
-                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Campos visibles</p>
-                    <h3 class="m-0 text-gray-700 text-lg font-semibold">Resumen del plan</h3>
-                    <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Controla si el plan muestra costos y estados en la vista clinica.</p>
-                    <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label class="flex items-center gap-2 text-sm text-gray-600">
-                            <v-checkbox v-model="clinicalModulesForm.showTreatmentCosts" :disabled="clinicalModulesSaving" aria-label="Mostrar costos" :color="themePrimaryColor" hide-details class="m-0 p-0"></v-checkbox>
-                            Mostrar costos
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-600">
-                            <v-checkbox v-model="clinicalModulesForm.showTreatmentStatus" :disabled="clinicalModulesSaving" aria-label="Mostrar estados" :color="themePrimaryColor" hide-details class="m-0 p-0"></v-checkbox>
-                            Mostrar estados
-                        </label>
-                    </div>
-                </article>
-
-            </fieldset>
-        </section>
+        <clinical-sections-settings
+            v-if="activeSection === 'clinical-modules'" ref="clinicalSettings"
+            v-model="clinicalModulesForm" :loading="clinicalModulesLoading"
+            :error="clinicalModulesError" :saving="clinicalModulesSaving" :saved="savedClinicalModules" :plan-dirty="clinicalPlanDirty"
+            :conflict="clinicalModulesConflict" :can-manage-roles="settingsSections.some(section => section.key === 'roles-permissions')"
+            @review-conflict="reviewClinicalConflict"
+            @reload="onLoadClinicalModules" @save="onSaveClinicalModules"
+            @cancel="discardClinicalModulesChanges" @dental-dirty="dentalSettingsDirty = $event"
+            @dental-busy="dentalSettingsBusy = $event"
+        />
 
         <establishments v-if="activeSection === 'identity' && hasPermission('admin.config')" />
         <section ref="preparationEditor" v-if="activeSection === 'identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
@@ -817,7 +751,7 @@ export default {
     components: {
         PlanBilling: () => import('./components/PlanBilling.vue'),
         Establishments,
-        OdontogramModeSettings: () => import('./components/OdontogramModeSettings.vue'),
+        ClinicalSectionsSettings: () => import('./components/ClinicalSectionsSettings.vue'),
         PrivateClinicLogo,
         PreparationGuide,
         AccountLegalDocuments,
@@ -891,6 +825,9 @@ export default {
             clinicalModulesError: '',
             clinicalModulesSaving: false,
             clinicalModulesOriginal: null,
+            clinicalModulesConflict: null,
+            dentalSettingsDirty: false,
+            dentalSettingsBusy: false,
             prescriptionConfigStatus: null,
             professionalProfileStatus: null,
             signatureImageError: false,
@@ -1039,11 +976,18 @@ export default {
     },
     computed: {
         businessInfoDirty() { return this.businessInfoEditing && JSON.stringify(this.businessInfo) !== JSON.stringify(this.businessInfoOriginal) },
+        savedClinicalModules() { return this.clinicalModulesOriginal ? JSON.parse(this.clinicalModulesOriginal) : {} },
+        clinicalPlanFields() {
+            const fields = ['treatmentPlanEnabled', 'showTreatmentCosts', 'showTreatmentStatus']
+            if(this.clinicalModulesForm.odontogramEnabled && this.savedClinicalModules.odontogramEnabled) fields.push('allowTreatmentToothSelection')
+            return fields
+        },
+        clinicalPlanDirty() { return this.clinicalPlanFields.some(key => this.clinicalModulesForm[key] !== this.savedClinicalModules[key]) },
         clinicalModulesDirty() { return this.clinicalModulesOriginal !== null && JSON.stringify(this.clinicalModulesForm) !== this.clinicalModulesOriginal },
         appearanceDirty() { return Boolean(this.savedTheme && this.selectedThemeCode !== this.savedTheme.code) || this.loginImagePreview !== this.loginImageOriginal },
         documentTemplateDirty() { return this.documentTemplateDialog && JSON.stringify(this.documentTemplateForm) !== this.documentTemplateOriginal },
-        hasUnsavedChanges() { return this.businessInfoDirty || this.clinicalModulesDirty || this.appearanceDirty || this.documentTemplateDirty },
-        settingsSaving() { return this.businessInfoSaving || this.clinicalModulesSaving || this.isThemeSaving || this.loginImageSaving || this.loginImageProcessing || this.documentTemplateSaving },
+        hasUnsavedChanges() { return this.businessInfoDirty || this.clinicalModulesDirty || this.dentalSettingsDirty || this.appearanceDirty || this.documentTemplateDirty },
+        settingsSaving() { return this.businessInfoSaving || this.clinicalModulesSaving || this.dentalSettingsBusy || this.isThemeSaving || this.loginImageSaving || this.loginImageProcessing || this.documentTemplateSaving },
         ...mapGetters(moduleTypes.CONFIGURATION, {
             getConfigurations:      fnTypes.getConfiguration,
             hasErrorConfiguration:  fnTypes.hasErrorInService,
@@ -1379,7 +1323,15 @@ export default {
             if(section==='documents' && this.hasPermission('documents.config')) await this.onGetDocumentTemplates()
         },
 
+        discardClinicalModulesChanges() {
+            for(const key of ['treatmentPlanEnabled', 'allowTreatmentToothSelection', 'showTreatmentCosts', 'showTreatmentStatus']) {
+                this.clinicalModulesForm[key] = this.savedClinicalModules[key]
+            }
+        },
         discardSettingsChanges() {
+            if(this.$refs.clinicalSettings) this.$refs.clinicalSettings.discardDentalChanges()
+            this.dentalSettingsDirty = false
+            this.clinicalModulesConflict = null
             if(this.businessInfoOriginal) this.businessInfo = this.cloneBusinessInfo(this.businessInfoOriginal)
             this.businessInfoEditing = false
             if(this.clinicalModulesOriginal) this.clinicalModulesForm = JSON.parse(this.clinicalModulesOriginal)
@@ -1440,6 +1392,7 @@ export default {
                 const response = await this.getClinicalModules()
                 if(!this.settingsReadStillCurrent(context, 'clinicalModulesError')) return
                 if(!response || !response.success) throw new Error('read')
+                this.clinicalModulesConflict = null
                 this.applyClinicalModules()
                 this.clinicalModulesOriginal = JSON.stringify(this.clinicalModulesForm)
             } catch(_) { if(isCurrentAuthorization(context, this.$store)) this.clinicalModulesError = 'No se pudieron cargar las secciones guardadas. Reintenta antes de modificarlas.' }
@@ -2098,29 +2051,56 @@ export default {
             }
         },
 
-        onSaveClinicalModules: async function() {
-            if(this.clinicalModulesSaving || this.clinicalModulesLoading || this.clinicalModulesError || !this.clinicalModulesOriginal) return
+        acceptClinicalChanges(saved, submitted) {
+            const draft = { ...this.clinicalModulesForm }
+            const previous = this.savedClinicalModules
+            this.clinicalModulesOriginal = JSON.stringify(saved)
+            this.clinicalModulesForm = { ...saved }
+            for(const key of Object.keys(saved)) {
+                if(!submitted.includes(key) && draft[key] !== previous[key]) this.clinicalModulesForm[key] = draft[key]
+            }
+        },
+        async reviewClinicalConflict() {
+            if(!this.clinicalModulesConflict || this.clinicalModulesSaving) return
             this.clinicalModulesSaving = true
             try {
-            const response = await this.saveClinicalModules({
-                config: {
-                    odontogramEnabled: Boolean(this.clinicalModulesForm.odontogramEnabled),
-                    treatmentPlanEnabled: Boolean(this.clinicalModulesForm.treatmentPlanEnabled),
-                    allowTreatmentToothSelection: Boolean(this.clinicalModulesForm.odontogramEnabled && this.clinicalModulesForm.allowTreatmentToothSelection),
-                    showTreatmentCosts: Boolean(this.clinicalModulesForm.showTreatmentCosts),
-                    showTreatmentStatus: Boolean(this.clinicalModulesForm.showTreatmentStatus)
-                }
-            })
-
-            if(response && response.success) {
+                const result = await this.getClinicalModules()
+                if(!result.success) throw Error()
+                const draft = { ...this.clinicalModulesForm }
                 this.applyClinicalModules()
-                this.clinicalModulesOriginal = JSON.stringify(this.clinicalModulesForm)
-                this.toastFunction('success','Secciones clínicas guardadas.')
-                return
+                const saved = this.clinicalModulesForm
+                this.clinicalModulesForm = draft
+                this.acceptClinicalChanges(saved, [])
+                this.clinicalModulesConflict = null
+                this.toastFunction('info', 'Valores guardados actualizados. Revisa los ajustes pendientes.')
+            } catch(_) { this.toastFunction('error', 'No se pudo actualizar. Conservamos tu borrador.') }
+            finally { this.clinicalModulesSaving = false }
+        },
+        async onSaveClinicalModules(scope) {
+            if(this.clinicalModulesSaving || this.clinicalModulesConflict || this.clinicalModulesLoading || this.clinicalModulesError || !this.clinicalModulesOriginal) return
+            const fields = scope === 'activation' ? ['odontogramEnabled'] : this.clinicalPlanFields
+            const original = this.savedClinicalModules
+            const changes = {}, expected = {}
+            for(const key of fields) {
+                if(this.clinicalModulesForm[key] === original[key]) continue
+                changes[key] = this.clinicalModulesForm[key]
+                expected[key] = original[key]
             }
-
-            this.toastFunction('error', response && response.message ? response.message : 'No se pudieron guardar las secciones clínicas.')
-            } catch(_) { this.toastFunction('error', 'No se pudieron guardar las secciones clínicas. Conservamos tu selección; intenta de nuevo.') }
+            if(!Object.keys(changes).length) return
+            if(changes.odontogramEnabled === false) expected.allowTreatmentToothSelection = original.allowTreatmentToothSelection
+            if(changes.allowTreatmentToothSelection === true) expected.odontogramEnabled = original.odontogramEnabled
+            this.clinicalModulesSaving = true
+            try {
+                const result = await this.saveClinicalModules({ changes, expected })
+                if(result.success) {
+                    this.acceptClinicalChanges(result.data, Object.keys(changes))
+                    this.toastFunction('success', scope === 'activation' ? 'Visibilidad del odontograma guardada.' : 'Opciones del plan guardadas.')
+                } else if(result.status === 409) {
+                    this.clinicalModulesConflict = result.data || {}
+                } else {
+                    this.toastFunction('error', result.message || 'No se pudo guardar. Conservamos tus cambios.')
+                }
+            } catch(_) { this.toastFunction('error', 'No se pudo guardar. Conservamos tus cambios.') }
             finally { this.clinicalModulesSaving = false }
         },
 

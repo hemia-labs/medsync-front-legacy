@@ -38,6 +38,11 @@ test('403 and 409 stop automatic retry and retain exact draft', async () => {
   }
 });
 test('parser ranges, multiple commands, missing faces and invalid whole input', () => {
+  for (const word of ['daño', 'DAÑO', 'pingüino']) {
+    const aliases = { dano: 'car', pinguino: 'car' };
+    assert.deepEqual(parseCommand('16 ' + word + ' o',16,'permanent',D.CATALOG,aliases).ops,
+      parseCommand('16 car o',16,'permanent',D.CATALOG).ops);
+  }
   assert.equal(parseCommand('13-23 ok, 55 car p', 16, 'mixed', D.CATALOG).ops.length, 7);
   assert.equal(parseCommand('55 car p', 16, 'mixed', D.CATALOG).ops[0].surfaces, 'L');
   assert.equal(parseCommand('18 aus', 16, 'mixed', D.CATALOG).advance, true);

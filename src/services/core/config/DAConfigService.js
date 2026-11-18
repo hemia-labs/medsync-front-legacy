@@ -8,7 +8,8 @@ import {
     DAC_CONFIG_THEME_GET,
     DAC_CONFIG_THEME_SAVE,
     DAC_CONFIG_CLINICAL_MODULES_GET,
-    DAC_CONFIG_CLINICAL_MODULES_SAVE
+    DAC_CONFIG_CLINICAL_MODULES_SAVE,
+    DAC_CONFIG_CLINICAL_MODULES_CHANGES
 } from '../../common/apiurl';
 import { DACore } from '../../config/axios.context'
 
@@ -65,7 +66,12 @@ export default {
         return DACore.get(DAC_CONFIG_CLINICAL_MODULES_GET);
     },
 
-    saveClinicalModules(data) {
-        return DACore.post(DAC_CONFIG_CLINICAL_MODULES_SAVE, data);
+    async saveClinicalModules(data) {
+        if (!data || !data.changes) return DACore.post(DAC_CONFIG_CLINICAL_MODULES_SAVE, data);
+        const result = await DACore.post(DAC_CONFIG_CLINICAL_MODULES_CHANGES, data);
+        if (result.success && (!result.data || typeof result.data.odontogramEnabled !== 'boolean')) {
+            return { success: false, message: 'El servidor no confirmó los ajustes. Conservamos tus cambios.' };
+        }
+        return result;
     },
 }

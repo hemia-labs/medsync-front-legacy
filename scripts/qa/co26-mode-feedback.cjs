@@ -7,6 +7,8 @@ const {buildClient}=require('./odontogram-ui-preview.cjs');
  const dom=new JSDOM('<div id="app"></div>',{url:'http://localhost/qa',runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window;
  let operatorsReady=false,writes=0,modeResponse={success:false,status:409,code:'CO26_OPERATORS_REQUIRED',message:'Missing operators'};
  try{
+  w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
+  w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
   w.matchMedia=()=>({matches:false,addListener(){},removeListener(){}});w.scrollTo=()=>{};w.confirm=()=>{throw Error('Native confirm must not be used');};
   w.__odontogramV2Fixture={capabilities:async()=>({success:true,data:{mode:'v1',schema_ready:true}}),aliases:async()=>({success:false}),preferences:async()=>({success:false}),activationCheck:async()=>({success:true,data:{ready:operatorsReady,capture_operators:operatorsReady?1:0,finalize_operators:operatorsReady?1:0,roles:[]}}),setMode:async()=>{writes++;return modeResponse;}};
   for(const file of [require.resolve('vue/dist/vue.js'),path.join(path.dirname(require.resolve('vuex')),'vuex.js'),require.resolve('vuetify/dist/vuetify.js')])w.eval(fs.readFileSync(file,'utf8'));
@@ -14,7 +16,7 @@ const {buildClient}=require('./odontogram-ui-preview.cjs');
   const qa=w.__odontogramQA;qa.app.$destroy();w.document.body.innerHTML='<div id="settings"></div>';
   w.Vue.component('router-link',{props:['to'],render(h){return h('a',{attrs:{href:this.to}},this.$slots.default);}});
   const component=qa.require('src/views/configuration/components/OdontogramModeSettings.vue').default;
-  const app=qa.app=new w.Vue({vuetify:new w.Vuetify(),render:h=>h('v-app',[h(component,{ref:'settings'})])}).$mount('#settings');
+  const app=qa.app=new w.Vue({vuetify:new w.Vuetify(),render:h=>h('v-app',[h(component,{ref:'settings',props:{canManageRoles:true}})])}).$mount('#settings');
   const vm=app.$refs.settings;await new Promise(resolve=>setTimeout(resolve,30));await vm.refreshAdministration();
   vm.selected='v2';vm.save();await w.Vue.nextTick();assert.equal(vm.showModeConfirm,false);assert.equal(writes,0);assert.equal(vm.current,'v1');
   assert.match(w.document.querySelector('[role="alert"]').textContent,/Puestos y accesos/);assert.match(w.document.querySelector('[role="alert"]').textContent,/Capturar odontograma/);assert.ok(w.document.querySelector('a[href="/admin?section=roles-permissions"]'));
