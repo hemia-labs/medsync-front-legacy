@@ -112,4 +112,8 @@ export default {
 .consent-review-panel { margin: 16px 0; padding: 16px 20px; border: 1px solid var(--color-border, #dce5e7); border-radius: 12px; }
 .consent-review-panel p { margin: 8px 0 12px; }
 .consent-review-panel .v-btn { min-height: 44px; letter-spacing: 0; text-transform: none; }
+html[data-theme="clinical-night"] .consent-review-panel { color: #e5e7eb; border-color: #64748b; }
+html[data-theme="clinical-night"] .consent-review-panel .v-btn:not(.v-btn--disabled) { color: #bae6fd; border-color: #64748b; }
+html[data-theme="clinical-night"] .consent-review-panel .v-btn.v-btn--disabled { color: #94a3b8 !important; }
+html[data-theme="clinical-night"] .consent-review-panel .clinical-link-button { color: #7dd3fc; }
 </style>
