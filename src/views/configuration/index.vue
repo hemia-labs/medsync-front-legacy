@@ -102,19 +102,18 @@
             </fieldset>
         </section>
 
-        <establishments v-if="activeSection === 'identity' && hasPermission('admin.config')" />
         <section ref="preparationEditor" v-if="activeSection === 'identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
             <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
                 <div>
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Informacion del consultorio</p>
                     <h2 class="m-0 text-gray-600 text-2xl font-normal">Datos generales del consultorio</h2>
-                    <p class="m-0 mt-2 text-gray-500 text-sm">Datos visibles del consultorio y estado operativo de la cuenta.</p>
+                    <p class="m-0 mt-2 text-gray-500 text-sm">Datos del consultorio, unidad de atención con su CLUES y estado de la cuenta. Cada bloque se edita y se guarda por separado.</p>
                 </div>
                 <div class="flex flex-wrap items-center justify-start lg:justify-end gap-3 settings-header-actions">
                     <da-button-primary
                         ref="guideIdentityAction" v-if="!businessInfoEditing"
                         @click.native="onStartBusinessInfoEdit()"
-                        :label="'Editar datos'" :disabled="businessInfoLoading || !!businessInfoError || !businessInfoOriginal"
+                        :label="'Editar datos del consultorio'" :disabled="businessInfoLoading || !!businessInfoError || !businessInfoOriginal || healthUnitsState.editing"
                         rxl
                         swpr
                         class="py-1 px-3 font-light"
@@ -222,6 +221,10 @@
                 </article>
             </div>
 
+            <p v-if="healthUnitsState.editing && !businessInfoEditing" class="m-0 px-7 pt-3 text-sm text-gray-500">Termina o cancela la edición de la unidad para editar los datos del consultorio.</p>
+            <div v-if="hasPermission('admin.config') && !businessInfoLoading" class="p-7 pb-0">
+                <clinic-health-units ref="healthUnits" :business="businessInfoOriginal || {}" :locked="businessInfoEditing" @state="healthUnitsState = $event" />
+            </div>
             <div class="p-7">
                 <article class="min-w-0 border border-gray-200 bg-gray-50 shadow-sm p-5">
                     <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -770,7 +773,7 @@
 </template>
 
 <script>
-import Establishments from "../../components/identity/Establishments.vue";
+import ClinicHealthUnits from "../../components/identity/ClinicHealthUnits.vue";
 import PrivateClinicLogo from './components/PrivateClinicLogo.vue';
 import PreparationGuide from './components/PreparationGuide.vue';
 import { focusControl } from '../../domain/onboarding/focusControl';
@@ -816,7 +819,7 @@ export default {
     mixins:[VuexMixin],
     components: {
         PlanBilling: () => import('./components/PlanBilling.vue'),
-        Establishments,
+        ClinicHealthUnits,
         OdontogramModeSettings: () => import('./components/OdontogramModeSettings.vue'),
         PrivateClinicLogo,
         PreparationGuide,
@@ -880,6 +883,7 @@ export default {
                 plan: ''
             },
             businessInfoOriginal: null,
+            healthUnitsState: { dirty: false, busy: false, editing: false },
             pendingBusinessSave:null, pendingDocumentSave:null,
             businessInfoEditing: false,
             businessInfoSaving: false,
@@ -1042,8 +1046,8 @@ export default {
         clinicalModulesDirty() { return this.clinicalModulesOriginal !== null && JSON.stringify(this.clinicalModulesForm) !== this.clinicalModulesOriginal },
         appearanceDirty() { return Boolean(this.savedTheme && this.selectedThemeCode !== this.savedTheme.code) || this.loginImagePreview !== this.loginImageOriginal },
         documentTemplateDirty() { return this.documentTemplateDialog && JSON.stringify(this.documentTemplateForm) !== this.documentTemplateOriginal },
-        hasUnsavedChanges() { return this.businessInfoDirty || this.clinicalModulesDirty || this.appearanceDirty || this.documentTemplateDirty },
-        settingsSaving() { return this.businessInfoSaving || this.clinicalModulesSaving || this.isThemeSaving || this.loginImageSaving || this.loginImageProcessing || this.documentTemplateSaving },
+        hasUnsavedChanges() { return this.businessInfoDirty || this.healthUnitsState.dirty || this.clinicalModulesDirty || this.appearanceDirty || this.documentTemplateDirty },
+        settingsSaving() { return this.businessInfoSaving || this.healthUnitsState.busy || this.clinicalModulesSaving || this.isThemeSaving || this.loginImageSaving || this.loginImageProcessing || this.documentTemplateSaving },
         ...mapGetters(moduleTypes.CONFIGURATION, {
             getConfigurations:      fnTypes.getConfiguration,
             hasErrorConfiguration:  fnTypes.hasErrorInService,
@@ -1382,6 +1386,7 @@ export default {
         discardSettingsChanges() {
             if(this.businessInfoOriginal) this.businessInfo = this.cloneBusinessInfo(this.businessInfoOriginal)
             this.businessInfoEditing = false
+            if(this.$refs.healthUnits) this.$refs.healthUnits.discard()
             if(this.clinicalModulesOriginal) this.clinicalModulesForm = JSON.parse(this.clinicalModulesOriginal)
             this.documentTemplateDialog = false
             this.restoreAppearancePreview()
@@ -1870,7 +1875,7 @@ export default {
         },
 
         onStartBusinessInfoEdit: function() {
-            if(this.businessInfoLoading || this.businessInfoError || !this.businessInfoOriginal) return
+            if(this.businessInfoLoading || this.businessInfoError || !this.businessInfoOriginal || this.healthUnitsState.editing) return
             this.businessInfoOriginal = this.cloneBusinessInfo()
             this.businessFieldErrors = {}
             this.businessSaveError = ''
