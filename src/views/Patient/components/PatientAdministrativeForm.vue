@@ -261,6 +261,19 @@ export default {
 };
 </script>
 <style scoped>
+html[data-theme="clinical-night"] .nc1-sheet,
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-expansion-panel { background:#1e293b; color:#e5e7eb; border-color:#475569; }
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-expansion-panel-header,
+html[data-theme="clinical-night"] .nc1-group-title small,
+html[data-theme="clinical-night"] .nc1-status-note,
+html[data-theme="clinical-night"] .nc1-emergency h3,
+html[data-theme="clinical-night"] .nc1-emergency h3 span,
+html[data-theme="clinical-night"] .nc1-emergency > p { color:#cbd5e1; }
+html[data-theme="clinical-night"] .nc1-catalogs { border-color:#475569; }
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-input input { background-color:transparent !important; }
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-btn--text:not(.v-btn--disabled),
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-btn--outlined:not(.v-btn--disabled) { color:#7dd3fc; }
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .catalog-field .error--text { color:#fda4af !important; }
 .nc1-catalogs { margin-top:18px; padding-top:16px; border-top:1px solid #dbe6ec; }
 .nc1-catalogs h3 { font-size:16px; margin-bottom:8px; }
 .nc1-catalogs > p { font-size:13px; line-height:1.5; }
