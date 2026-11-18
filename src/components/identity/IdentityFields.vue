@@ -37,17 +37,17 @@
         <span>{{ refsTitle }}<span v-if="referenceCount" class="idf-count"> · {{ referenceCount }} capturada{{ referenceCount === 1 ? '' : 's' }}</span></span>
       </button>
       <div v-show="open" :id="uid + '-refs'" class="idf-refs">
-        <p class="idf-note">Captura solo claves conocidas. La validación contra catálogos está pendiente; guardar no acredita validez para un reporte.</p>
+        <p class="idf-note">Busca por nombre o clave. Los datos sin catálogo disponible quedan no verificados. Guardar no acredita validez para un reporte.</p>
         <div class="idf-grid">
           <div v-for="ref in references" :key="ref.key" :ref="'f-' + ref.key">
-            <v-text-field v-field-error="fe(ref.key)" :id="uid + '-' + ref.key.replace('.', '-')" :value="code(ref.key)" :label="ref.label + ', opcional'" :hint="ref.format" persistent-hint maxlength="32" outlined dense :disabled="disabled" :error-messages="err(ref.key)" @input="setRef(ref, $event)"></v-text-field>
+            <catalog-reference-field :id="uid + '-' + ref.key.replace('.', '-')" :value="referenceAt(value, ref.key)" :family="ref.family" :label="ref.label + ', opcional'" :parent="catalogParent(value, ref.key)" :active="open" :disabled="disabled" :errors="err(ref.key)" @input="$emit('input', withCatalogReference(value, ref.key, $event))" />
           </div>
           <div v-if="kind === 'patient'" ref="f-affiliations" class="idf-wide">
-            <v-text-field v-field-error="fe('affiliations')" :id="uid + '-affiliations'" :value="(value.affiliations || []).map(x => x.code).join(',')" label="Afiliaciones, opcional" hint="Claves separadas por coma" persistent-hint outlined dense :disabled="disabled" :error-messages="err('affiliations')" @change="setList('affiliations', 'sis.affiliation', $event)"></v-text-field>
+            <catalog-reference-list :value="value.affiliations" family="sis.affiliation" label="Afiliación" :active="open" :disabled="disabled" :errors="err('affiliations')" @input="set('affiliations', $event)" />
           </div>
           <!-- v-if: without canManage the control is not in the DOM. -->
           <div v-if="kind === 'professional' && canManage" ref="f-authorizedPersonnelTypes" class="idf-wide">
-            <v-text-field v-field-error="fe('authorizedPersonnelTypes')" :id="uid + '-authorizedPersonnelTypes'" :value="(value.authorizedPersonnelTypes || []).map(x => x.code).join(',')" label="Tipos de personal autorizados, opcional" hint="Claves separadas por coma" persistent-hint outlined dense :disabled="disabled" :error-messages="err('authorizedPersonnelTypes')" @change="setList('authorizedPersonnelTypes', 'sis.personnel_type', $event)"></v-text-field>
+            <catalog-reference-list :value="value.authorizedPersonnelTypes" family="sis.personnel_type" label="Tipo de personal" :active="open" :disabled="disabled" :errors="err('authorizedPersonnelTypes')" @input="set('authorizedPersonnelTypes', $event)" />
           </div>
         </div>
       </div>
@@ -56,11 +56,15 @@
 </template>
 
 <script>
+import CatalogReferenceField from './CatalogReferenceField.vue';
+import CatalogReferenceList from './CatalogReferenceList.vue';
+import { referenceAt, withCatalogReference, catalogParent } from '../../domain/identity/catalogCapture';
 import fieldError from '../../core/directives/field-error';
 const COLLAPSED = ['birthCountry', 'birthEntity', 'nationality', 'originCountry', 'residence.country', 'residence.entity', 'residence.municipality', 'residence.locality', 'residence.postalCode', 'affiliations', 'authorizedPersonnelTypes'];
 const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 export default {
   name: 'IdentityFields',
+  components: { CatalogReferenceField, CatalogReferenceList },
   directives: { fieldError },
   props: { value: { type: Object, required: true }, kind: { type: String, default: 'patient' }, names: { type: Boolean, default: true }, requiredSex: Boolean, requiredNames: Boolean,
     disabled: Boolean, compact: Boolean, canManage: Boolean, heading: { type: Boolean, default: true },
@@ -89,6 +93,7 @@ export default {
     errors(next) { if (Object.keys(next || {}).some(key => COLLAPSED.includes(key))) this.open = true; }
   },
   methods: {
+    referenceAt, withCatalogReference, catalogParent,
     items(options) { return [{ text: 'Sin capturar', value: '' }].concat(Object.keys(options).map(value => ({ text: options[value], value }))); },
     // An error replaces the hint, so the expected format travels with the message.
     err(field) { const messages = (this.errors && this.errors[field]) || []; const ref = this.references.find(item => item.key === field); return ref && ref.format ? messages.map(m => `${m} Formato: ${ref.format}.`) : messages; },

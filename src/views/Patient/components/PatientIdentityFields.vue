@@ -74,28 +74,13 @@
     </button>
     <v-expand-transition>
       <div v-show="showReferences" id="patient-identity-references" class="patient-identity-references">
-        <p>Captura solo claves conocidas. La validación contra catálogos está pendiente; guardar no acredita validez para un reporte.</p>
+        <p>Busca por nombre o clave. Los datos sin catálogo disponible quedan no verificados. Guardar no acredita validez para un reporte.</p>
         <div class="patient-identity-grid">
-          <v-text-field
-            v-for="reference in references"
-            :key="reference.key"
-            :value="referenceCode(value, reference.key)"
-            :label="reference.label"
-            maxlength="32"
-            :disabled="disabled"
-            outlined
-            dense
-            @input="update(withReference(value, reference, $event))"
-          ></v-text-field>
-          <v-text-field
-            class="patient-identity-wide"
-            :value="listCodes(value, 'affiliations')"
-            label="Afiliaciones: claves separadas por coma"
-            :disabled="disabled"
-            outlined
-            dense
-            @change="update(withList(value, 'affiliations', 'sis.affiliation', $event))"
-          ></v-text-field>
+          <catalog-reference-field v-for="reference in references" :key="reference.key" :value="referenceAt(value, reference.key)"
+            :family="reference.family" :label="reference.label" :parent="catalogParent(value, reference.key)" :active="showReferences" :disabled="disabled"
+            @input="update(withCatalogReference(value, reference.key, $event))" />
+          <catalog-reference-list class="patient-identity-wide" :value="value.affiliations" family="sis.affiliation" label="Afiliación"
+            :active="showReferences" :disabled="disabled" @input="update(withField(value, 'affiliations', $event))" />
         </div>
       </div>
     </v-expand-transition>
@@ -103,6 +88,9 @@
 </template>
 
 <script>
+import CatalogReferenceField from '../../../components/identity/CatalogReferenceField.vue';
+import CatalogReferenceList from '../../../components/identity/CatalogReferenceList.vue';
+import { referenceAt, withCatalogReference, catalogParent } from '../../../domain/identity/catalogCapture';
 import fieldError from '../../../core/directives/field-error';
 import {
     BIOLOGICAL_SEX, PATIENT_IDENTITY_ENUMS, PATIENT_IDENTITY_REFERENCES, selectItems,
@@ -111,6 +99,7 @@ import {
 
 export default {
     name: 'PatientIdentityFields',
+    components: { CatalogReferenceField, CatalogReferenceList },
     directives: { fieldError },
     props: {
         value: { type: Object, required: true },
@@ -125,6 +114,7 @@ export default {
         curpKinds: [{ text: 'Personal', value: 'real' }, { text: 'Genérica', value: 'generic' }]
     }),
     methods: {
+        referenceAt, withCatalogReference, catalogParent,
         withField, withCurp, withCurpDetail, referenceCode, withReference, listCodes, withList,
         update(identity) { this.$emit('input', identity); },
         // Used by the form's error summary to take the user to the required field.

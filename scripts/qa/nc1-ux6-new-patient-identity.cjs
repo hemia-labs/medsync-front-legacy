@@ -22,8 +22,12 @@ const capture = new Function(captureSource.replace(/export const /g, 'const ') +
 const stub = name => ({ name, props: ['value', 'items', 'label', 'errorMessages', 'disabled', 'hint', 'maxlength'], template: '<div :class="\'' + name + '\'" :data-label="label"><slot/></div>' });
 Vue.component('v-select', stub('v-select')); Vue.component('v-text-field', stub('v-text-field'));
 Vue.component('v-icon', { template: '<span class="icon"><slot/></span>' }); Vue.component('v-expand-transition', { template: '<div><slot/></div>' });
+const catalogSource = fs.readFileSync(path.join(root, 'src/domain/identity/catalogCapture.js'), 'utf8');
+const catalogNames = [...catalogSource.matchAll(/export const (\w+)/g)].map(m => m[1]);
+const catalog = new Function(catalogSource.replace(/export const /g, 'const ') + '\nreturn {' + catalogNames.join(',') + '};')();
+const catalogDeps = { CatalogReferenceField: stub('catalog-reference-field'), CatalogReferenceList: stub('catalog-reference-list'), ...catalog };
 const fieldsSource = read('src/views/Patient/components/PatientIdentityFields.vue');
-const Fields = new Function('fieldError', ...exported, script(fieldsSource).replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'return'))({ inserted() {}, componentUpdated() {} }, ...exported.map(k => capture[k]));
+const Fields = new Function('fieldError', ...Object.keys(catalogDeps), ...exported, script(fieldsSource).replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'return'))({ inserted() {}, componentUpdated() {} }, ...Object.values(catalogDeps), ...exported.map(k => capture[k]));
 Fields.template = template(fieldsSource);
 const tick = async () => { await Vue.nextTick(); await Vue.nextTick(); };
 function mount(props) {
@@ -39,7 +43,7 @@ function mount(props) {
     const shared = read('src/components/identity/IdentityFields.vue');
     // NC1 identidad simple: IdentityFields now uses system controls (imports a directive) and shows each code as
     // a short label + format hint. Keys, families, enumerations and sex options must still match UX6.
-    const options = new Function('fieldError', script(shared).replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'return'))({});
+    const options = new Function('fieldError', ...Object.keys(catalogDeps), script(shared).replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'return'))({}, ...Object.values(catalogDeps));
     const ctx = { ...options.data.call({ _uid: 1 }), kind: 'patient', value: {}, canManage: false };
     const enums = options.computed.enumerations.call(ctx), refs = options.computed.references.call(ctx);
     assert.deepEqual(capture.PATIENT_IDENTITY_ENUMS.map(e => e.key), Object.keys(enums));
@@ -66,15 +70,15 @@ function mount(props) {
 
   await test('fields render as system controls and write the identity value', async () => {
     const { vm, control, labels } = mount({ value: {} });
-    assert.deepEqual(labels(), ['Sexo biológico *', 'Género, opcional', '¿Se autodenomina indígena?, opcional', '¿Se autodenomina afromexicano/a?, opcional', 'Situación migratoria, opcional', 'CURP, opcional', 'País de nacimiento: clave', 'Entidad de nacimiento: clave DGIS', 'Nacionalidad: clave RENAPO', 'País de procedencia: clave', 'País de residencia: clave', 'Entidad de residencia: EE', 'Municipio: EEMMM', 'Localidad: EEMMMLLLL', 'Código postal', 'Afiliaciones: claves separadas por coma']);
+    assert.deepEqual(labels(), ['Sexo biológico *', 'Género, opcional', '¿Se autodenomina indígena?, opcional', '¿Se autodenomina afromexicano/a?, opcional', 'Situación migratoria, opcional', 'CURP, opcional', 'País de nacimiento: clave', 'Entidad de nacimiento: clave DGIS', 'Nacionalidad: clave RENAPO', 'País de procedencia: clave', 'País de residencia: clave', 'Entidad de residencia: EE', 'Municipio: EEMMM', 'Localidad: EEMMMLLLL', 'Código postal', 'Afiliación']);
     assert.equal(vm.$el.querySelectorAll('select, input').length, 0, 'No native controls next to the Vuetify ones');
     control('Sexo biológico *').$emit('change', '2'); await tick(); control('Situación migratoria, opcional').$emit('change', 'returned'); await tick();
     control('CURP, opcional').$emit('input', 'xexx010101mnexxxa8'); await tick();
     assert.deepEqual(labels().slice(6, 7), ['Tipo de CURP']);
     control('Tipo de CURP').$emit('change', 'generic'); await tick();
     control('Motivo de CURP genérica').$emit('input', 'Sin documento QA'); await tick();
-    control('Nacionalidad: clave RENAPO').$emit('input', 'MEX'); await tick();
-    control('Afiliaciones: claves separadas por coma').$emit('change', '1'); await tick();
+    control('Nacionalidad: clave RENAPO').$emit('input', { family: 'renapo.nationality', code: 'MEX' }); await tick();
+    control('Afiliación').$emit('input', [{ family: 'sis.affiliation', code: '1' }]); await tick();
     control('Sexo biológico *').$emit('blur'); await tick();
     assert.equal(vm.blurred, true);
     assert.deepEqual(vm.identity, { biologicalSex: '2', migrantStatus: 'returned', curp: { value: 'XEXX010101MNEXXXA8', kind: 'generic', reason: 'Sin documento QA' }, nationality: { family: 'renapo.nationality', code: 'MEX' }, affiliations: [{ family: 'sis.affiliation', code: '1' }] });
