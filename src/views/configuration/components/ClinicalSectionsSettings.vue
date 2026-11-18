@@ -56,7 +56,8 @@
                 </div>
               </div>
               <div class="clinical-settings__option">
-                <v-switch :input-value="value.showTreatmentCosts" :disabled="saving" aria-label="Mostrar costos" inset color="primary" hide-details @change="update('showTreatmentCosts', $event)" />
+                <v-switch :input-value="value.showTreatmentCosts" :disabled="saving" aria-label="Mostrar costos" inset color="primary" hide-details
+                  @click.native.capture="preserveNativeSwitchChange" @change="update('showTreatmentCosts', $event)" />
                 <div><h4>Mostrar costos</h4><p>Muestra los importes y el presupuesto en el plan y al imprimirlo, según el permiso de consulta. Para cambiar un costo hace falta permiso de edición.</p><p v-if="!value.showTreatmentCosts">Los importes guardados se conservan.</p></div>
               </div>
               <div class="clinical-settings__option">
@@ -134,6 +135,11 @@ export default {
     toothAvailable() { return this.saved.odontogramEnabled && this.value.odontogramEnabled; }
   },
   methods: {
+    preserveNativeSwitchChange(event) {
+      // Vuetify cancels clicks on the checkbox, which rolls back its native checked state after Space.
+      // Let the browser complete that click and Vuetify handle the resulting change event once.
+      if (event.target.tagName === 'INPUT') event.stopPropagation();
+    },
     togglePrint() {
       this.printOpen = !this.printOpen;
       this.$nextTick(() => {
