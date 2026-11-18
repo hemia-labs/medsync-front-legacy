@@ -1,8 +1,8 @@
 // PROTOTYPE ONLY — NC1-CLUES-UX (Claude, 2026-11-18). Real admin shell, real store, real route /admin?section=identity.
 // Every request goes to a stateful SYNTHETIC transport. Nothing reaches a backend; no catalog row here is official.
 // Scenarios: ?scenario=verified (default) | empty | manual | multi | inactive | load-error
-// Unit writes fail in order: ?fail=409,network | 403 | 503 | network | network-create | late-commit | clues; business-409
-// Also: ?detailFail=<id>:<status|0>, ?catalogState=offline, ?perm=none, ?address=<text>; scenarios stale | stale-missing
+// Unit writes fail in order: ?fail=409,network | 403 | 503 | network | network-create | late-commit | lost-after-commit | clues; business-409
+// Also: ?listFail=<n>, ?detailFail=<id>:<status|0>[@n], ?catalogState=offline, ?perm=none, ?address=<text>; scenarios stale | stale-missing
 // Theme: ?theme=night. catalogAttributes is the read-only DTO addition proposed for CAT-O1 (not in backend yet).
 import Vue from 'vue';
 import Router from 'vue-router';
@@ -36,6 +36,8 @@ const failQueue = String(params.get('fail') || '').split(',').filter(Boolean);
 // One-shot detail failures: ?detailFail=u-norte:503,u-centro:403 (0 = network); <id>:503@2 fails only the 2nd read. Later reads succeed.
 const detailFail = Object.fromEntries(String(params.get('detailFail') || '').split(',').filter(Boolean).map(x => x.split(':')));
 const detailReads = {};
+// ?listFail=2 makes the 2nd read of the unit list fail with 503 (later reads succeed).
+let listReads = 0; const listFail = Number(params.get('listFail') || 0);
 const clone = v => JSON.parse(JSON.stringify(v == null ? null : v));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const log = []; window.qaLog = log; window.qaUnknown = [];
@@ -123,7 +125,7 @@ async function transport(method, url, payload, config) {
     return reply({ available: true, source: SOURCE, hasMore: false, items: Object.values(CATALOG).filter(e => !text || (e.clues + ' ' + e.nombre_unidad).toLowerCase().includes(text)).map(e => ({ ref: ref(e.clues), label: e.nombre_unidad, attributes: clone(e) })) });
   }
   if (path === 'identity/establishments') {
-    if (method === 'get') { await wait(250); return scenario === 'load-error' ? failure(503, 'No se pudieron consultar los establecimientos.') : reply(state.units.map(u => ({ id: u.id, displayName: u.displayName, active: u.active }))); }
+    if (method === 'get') { await wait(250); listReads++; return scenario === 'load-error' || listReads === listFail ? failure(503, 'No se pudieron consultar los establecimientos.') : reply(state.units.map(u => ({ id: u.id, displayName: u.displayName, active: u.active }))); }
     await wait(500);
     if (key && state.operations[key]) {
       if (state.operations[key].inflight) await state.operations[key].inflight; // the same operation's late commit finishes first, as a row lock would
@@ -161,6 +163,8 @@ async function transport(method, url, payload, config) {
     await wait(500);
     const f = failWrite('unit');
     if (f === 'network' || f === 'network-create' || f === 'late-commit') throw new Error('network');
+    // lost-after-commit: the PATCH is applied, then its response is lost (D-5-F1).
+    if (f === 'lost-after-commit') { if (payload.expectedRevision === u.revision) Object.assign(u, clone(payload.identity), { revision: u.revision + 1, updatedAt: '2026-11-18T12:30:00Z' }); throw new Error('response lost after commit'); }
     if (f) { if (f.status === 409) { u.revision++; u.displayName = u.displayName + ' (editado por otra persona)'; } return f; }
     if (payload.expectedRevision !== u.revision) return failure(409, 'Conflicto', { code: 'IDENTITY_CONFLICT' });
     Object.assign(u, clone(payload.identity), { revision: u.revision + 1, updatedAt: '2026-11-18T12:30:00Z' });

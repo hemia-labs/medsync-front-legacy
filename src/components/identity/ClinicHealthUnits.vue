@@ -12,8 +12,8 @@
     </div>
 
     <!-- R1: an uncertain create is never forgotten by Cancel or by leaving the view. -->
-    <v-alert v-if="pending && editing !== 'new'" type="warning" text role="alert" class="mt-5 mb-0">
-      Hay un registro de unidad sin confirmar («{{ pending.payload.displayName }}»). Puede haberse guardado o no. Retómalo para comprobarlo antes de registrar otra unidad.
+    <v-alert v-if="uncertainCreate && editing !== 'new'" type="warning" text role="alert" class="mt-5 mb-0">
+      Hay un registro de unidad sin confirmar («{{ uncertainCreate.payload.displayName }}»). Puede haberse guardado o no. Retómalo para comprobarlo antes de registrar otra unidad.
     </v-alert>
 
     <p v-if="loading" class="mt-5 text-gray-600" role="status">Cargando las unidades guardadas…</p>
@@ -24,7 +24,7 @@
       <div v-if="!rows.length && editing !== 'new'" class="mt-5 border border-dashed border-gray-300 p-5">
         <p class="m-0 text-gray-700 font-semibold">Aún no registras la unidad donde atiendes.</p>
         <p class="m-0 mt-1 text-gray-500 text-sm">Puedes registrarla con o sin CLUES. Usaremos el nombre comercial como punto de partida; nada se guarda hasta que pulses Guardar.</p>
-        <v-btn class="mt-4" color="primary" depressed :disabled="locked || busy || Boolean(editing)" @click="startNew(true)">{{ pending ? 'Retomar el registro sin confirmar' : 'Registrar la unidad del consultorio' }}</v-btn>
+        <v-btn class="mt-4" color="primary" depressed :disabled="locked || busy || Boolean(editing)" @click="startNew(true)">{{ uncertainCreate ? 'Retomar el registro sin confirmar' : 'Registrar la unidad del consultorio' }}</v-btn>
         <p v-if="locked" class="m-0 mt-2 text-sm text-gray-500">Termina o cancela la edición de los datos del consultorio para continuar.</p>
       </div>
 
@@ -45,6 +45,7 @@
             </div>
             <template v-else-if="details[item.row.id]">
               <p v-if="detailErrors[item.row.id]" class="m-0 mb-2 text-sm unit-warn" role="alert">Datos sin actualizar: la última consulta de esta unidad falló. Lo que ves puede no ser lo guardado ahora.</p>
+              <p v-if="uncertainUpdates[item.row.id]" class="m-0 mb-2 text-sm unit-warn" role="alert">Hay una actualización de la referencia CLUES sin confirmar. Lo que ves puede no ser lo guardado: usa «Comprobar con la versión vigente» para releer la unidad.</p>
               <unit-summary :unit="details[item.row.id]" :business="business" />
             </template>
             <div class="flex flex-wrap gap-2 mt-4">
@@ -52,18 +53,37 @@
               <v-btn v-if="canRevalidate(item.row.id)" class="unit-action" outlined color="primary" :disabled="actionsLocked || Boolean(detailErrors[item.row.id])" @click="startRevalidate(item.row.id)">Comprobar con la versión vigente</v-btn>
               <v-btn v-if="detailErrors[item.row.id]" class="unit-action" outlined color="primary" :disabled="busy" @click="reloadDetail(item.row.id)">Reintentar consulta</v-btn>
             </div>
-            <unit-revalidation v-if="reval && reval.id === item.row.id" :state="reval.state" :code="details[item.row.id].cluesRef.code" :saved="details[item.row.id].catalogAttributes" :saved-source="savedSource(item.row.id)"
-              :current="reval.current" :busy="busy" :error="reval.error" :conflict="reval.conflict" @apply="applyRevalidation" @retry="lookup" @close="closeRevalidation" />
+            <unit-revalidation v-if="reval && reval.id === item.row.id" :state="reval.state" :code="revalCode(item.row.id)" :saved="details[item.row.id] && details[item.row.id].catalogAttributes" :saved-source="savedSource(item.row.id)"
+              :current="reval.current" :busy="busy" :error="reval.error" :notice="reval.notice" :uncertain="reval.uncertain" :unit-status="reval.unitStatus"
+              @apply="applyRevalidation" @retry="retryRevalidation" @close="closeRevalidation" />
           </template>
         </section>
       </template>
 
-      <section v-if="editing === 'new'" class="unit-card mt-5 border border-primary-200 p-4 min-w-0" aria-label="Nueva unidad">
-        <p class="m-0 mb-3 text-primary-900 text-xs font-bold tracking-widest uppercase">{{ rows.length ? 'Otra unidad' : 'Unidad del consultorio' }}</p>
-        <unit-editor ref="editor" :form.sync="form" :business="business" :errors="fieldErrors" :busy="busy" :saved="null" />
-      </section>
+      <div v-if="rows.length && !editing && !reval" class="mt-5 text-sm text-gray-600">
+        <v-btn class="unit-action px-0" text color="primary" :disabled="locked || busy" @click="startNew(false)">{{ uncertainCreate ? 'Retomar el registro sin confirmar' : 'Agregar otra unidad' }}</v-btn>
+        <p class="m-0">Agrega otra unidad si atiendes en otro establecimiento, aunque todavía no tenga CLUES, o si la autoridad asignó una CLUES nueva a un establecimiento distinto, incluso en el mismo inmueble (sustitución oficial: conserva la anterior como inactiva). Para corregir una clave mal capturada, edita la unidad.</p>
+      </div>
+    </template>
 
-      <div v-if="editing" class="mt-4">
+    <section v-if="editing === 'new'" class="unit-card mt-5 border border-primary-200 p-4 min-w-0" aria-label="Nueva unidad">
+      <p class="m-0 mb-3 text-primary-900 text-xs font-bold tracking-widest uppercase">{{ rows.length ? 'Otra unidad' : 'Unidad del consultorio' }}</p>
+      <!-- R1: visible for the whole edit, not only after Cancel. -->
+      <v-alert v-if="uncertainCreate && uncertainCreate.retried" type="warning" text role="status" class="mb-3">Registro sin confirmar: el envío original puede haberse guardado. Conservamos la operación y tu captura; no reenviamos nada automáticamente.</v-alert>
+      <unit-editor ref="editor" :form.sync="form" :business="business" :errors="fieldErrors" :busy="busy" :saved="null" />
+    </section>
+
+    <!-- R1: a confirmed create whose later draft is pending stays editable even if the list or detail read fails. -->
+    <section v-if="confirmedDraft && !editorInList" class="unit-card mt-5 border border-primary-200 p-4 min-w-0" aria-label="Unidad registrada con cambios sin guardar">
+      <unit-editor ref="editor" :form.sync="form" :business="business" :errors="fieldErrors" :busy="busy" :saved="details[editing] || null" />
+    </section>
+
+    <div v-if="editing" class="mt-4">
+        <v-alert v-if="confirmedDraft" type="info" text role="status" class="mb-3">
+          La unidad «{{ confirmedDraft.displayName }}» quedó registrada (operación confirmada). Tus cambios posteriores siguen sin guardar; se enviarán solo al pulsar Guardar unidad, sobre la revisión {{ revision }}.
+          <template v-if="confirmedDraft.readFailed"> No pudimos releer la unidad; partimos de la respuesta confirmada del registro. <button type="button" class="underline font-semibold" :disabled="busy" @click="refreshConfirmed">Reintentar lectura</button></template>
+          <template v-if="confirmedDraft.changed"> La unidad cambió desde el registro; revisa tus cambios antes de guardar.</template>
+        </v-alert>
         <v-alert v-if="conflict" type="warning" text role="alert" class="mb-3">
           Otra persona guardó cambios en esta unidad. Conservamos tu captura y no enviamos nada.
           <button type="button" class="underline font-semibold" :disabled="busy" @click="reloadSaved">Ver lo guardado y descartar mi captura</button>
@@ -74,14 +94,8 @@
           <v-btn class="unit-action--primary" color="primary" depressed :loading="busy" :disabled="busy || conflict || forbidden" @click="save">{{ busy ? 'Guardando…' : saveLabel }}</v-btn>
           <span class="text-sm text-gray-500" role="status">{{ dirty ? 'Cambios sin guardar en esta unidad.' : 'Sin cambios.' }}</span>
         </div>
-      </div>
-
-      <div v-if="rows.length && !editing && !reval" class="mt-5 text-sm text-gray-600">
-        <v-btn class="unit-action px-0" text color="primary" :disabled="locked || busy" @click="startNew(false)">{{ pending ? 'Retomar el registro sin confirmar' : 'Agregar otra unidad' }}</v-btn>
-        <p class="m-0">Agrega otra unidad si atiendes en otro establecimiento, aunque todavía no tenga CLUES, o si la autoridad asignó una CLUES nueva a un establecimiento distinto, incluso en el mismo inmueble (sustitución oficial: conserva la anterior como inactiva). Para corregir una clave mal capturada, edita la unidad.</p>
-      </div>
-      <p class="m-0 mt-3 text-sm" role="status">{{ message }}</p>
-    </template>
+    </div>
+    <p class="m-0 mt-3 text-sm" role="status">{{ message }}</p>
   </article>
 </template>
 
@@ -104,7 +118,7 @@ export default {
   props: { business: { type: Object, default: () => ({}) }, locked: Boolean },
   data: () => ({ rows: [], details: {}, detailErrors: {}, loading: false, loadError: '', editing: null, form: empty(), original: empty(), revision: 0,
     busy: false, error: '', fieldErrors: {}, conflict: false, forbidden: false, message: '', context: null, owner: '', alive: true, otherOpen: false,
-    pending: null, reval: null }),
+    pending: null, confirmedDraft: null, reval: null, uncertainUpdates: {} }),
   computed: {
     dirty() { return Boolean(this.editing) && !same(this.form, this.original); },
     actionsLocked() { return this.busy || this.locked || Boolean(this.editing) || Boolean(this.reval); },
@@ -117,7 +131,10 @@ export default {
       if (this.otherOpen) this.otherRows.forEach(row => items.push({ type: 'unit', key: 'u-' + row.id, row }));
       return items;
     },
-    saveLabel() { return this.editing === 'new' && this.pending ? 'Comprobar y completar el registro' : 'Guardar unidad'; }
+    // R1: an uncertain create (no confirmed id yet) versus a confirmed create with a later draft (confirmedId set).
+    uncertainCreate() { return this.pending && !this.pending.confirmedId ? this.pending : null; },
+    editorInList() { return Boolean(this.editing) && this.editing !== 'new' && !this.loading && !this.loadError && this.displayItems.some(i => i.row && i.row.id === this.editing); },
+    saveLabel() { return this.editing === 'new' && this.uncertainCreate ? 'Comprobar y completar el registro' : 'Guardar unidad'; }
   },
   watch: {
     dirty() { this.emitState(); }, busy() { this.emitState(); }, editing() { this.emitState(); }, reval() { this.emitState(); },
@@ -127,11 +144,11 @@ export default {
     this.context = authorizationContext(this.$store); this.owner = JSON.stringify(this.context);
     this.pending = pendingCreate(this.owner);
     this.emitState(); // R2: the parent must not keep the previous instance's state.
-    this.load();
+    this.load().then(() => { if (this.pending && this.pending.confirmedId && !this.editing) this.resumeConfirmed(); });
   },
   beforeDestroy() {
     this.alive = false;
-    if (this.pending && this.editing === 'new') rememberCreate(this.owner, { ...this.pending, draft: { ...this.form } });
+    if (this.pending && (this.editing === 'new' || this.editing === this.pending.confirmedId)) rememberCreate(this.owner, { ...this.pending, draft: { ...this.form } });
     this.$emit('state', { ...IDLE });
   },
   methods: {
@@ -169,7 +186,7 @@ export default {
     startNew(prefill) {
       if (this.editing || this.locked || this.reval) return;
       this.resetErrors();
-      if (this.pending) {
+      if (this.uncertainCreate) {
         // Re-entry: the later capture comes back as the draft; the original payload stays the operation's content.
         this.form = { ...(this.pending.draft || this.pending.payload) }; this.original = { ...this.pending.payload };
         this.$nextTick(() => { this.error = 'Este registro no se confirmó. Al guardar repetiremos exactamente el envío original con la misma operación para comprobarlo; los cambios posteriores se conservan aparte.'; });
@@ -191,7 +208,7 @@ export default {
     focusEditor(field) { const e = [].concat(this.$refs.editor || [])[0]; if (e) e.focusFirst(field); },
     async cancel() {
       if (this.busy) return;
-      if (this.editing === 'new' && this.pending) {
+      if (this.editing === 'new' && this.uncertainCreate) {
         // R1: Cancel never forgets an uncertain create; the later capture is kept with it.
         rememberCreate(this.owner, { ...this.pending, draft: { ...this.form } }); this.pending = pendingCreate(this.owner);
         this.closeEditor(); this.message = 'Guardamos tu captura con el registro sin confirmar; puedes retomarlo.'; return;
@@ -199,15 +216,47 @@ export default {
       if (this.dirty && !await confirmSettingsDiscard(this, { title: 'Descartar cambios de la unidad', text: 'Tu captura de la unidad no se ha guardado.' })) return;
       this.discard();
     },
-    closeEditor() { this.editing = null; this.form = empty(); this.original = empty(); this.fieldErrors = {}; this.conflict = false; this.forbidden = false; this.error = ''; },
+    closeEditor() { this.editing = null; this.form = empty(); this.original = empty(); this.fieldErrors = {}; this.conflict = false; this.forbidden = false; this.error = ''; this.confirmedDraft = null; },
     discard() {
       // Navigation discard: an uncertain create keeps its original payload; only the later capture is dropped.
-      if (this.editing === 'new' && this.pending) rememberCreate(this.owner, { ...this.pending, draft: null });
+      if (this.editing === 'new' && this.uncertainCreate) rememberCreate(this.owner, { ...this.pending, draft: null });
+      // A confirmed create needs nothing more from the operation once its later draft is explicitly discarded.
+      if (this.confirmedDraft) { forgetCreate(this.owner); this.pending = null; }
       this.closeEditor(); this.reval = null;
+    },
+    // R1: open (or reopen) the later draft of a confirmed create on that unit. The revision comes from the confirmed
+    // response or from a successful read, never invented after a failed one.
+    openConfirmed(op, view) {
+      this.resetErrors();
+      this.editing = op.confirmedId; this.original = pick(view); this.revision = view.revision; this.form = { ...op.draft };
+      this.confirmedDraft = { id: op.confirmedId, displayName: view.displayName, readFailed: !this.details[op.confirmedId], changed: false };
+      if (op.confirmedId !== this.primaryId) this.otherOpen = true;
+    },
+    resumeConfirmed() {
+      const op = this.pending; if (!op || !op.confirmedId) return;
+      this.openConfirmed(op, this.details[op.confirmedId] || op.confirmedView);
+    },
+    async refreshConfirmed() {
+      const c = this.confirmedDraft; if (!c || this.busy) return;
+      this.busy = true;
+      try {
+        if (this.loadError || !this.rows.some(r => r.id === c.id)) { this.busy = false; await this.load(); this.busy = true; }
+        else { const d = await this.fetchDetail(c.id); if (!this.current()) return; if (d.data) { this.$set(this.details, c.id, { ...this.rows.find(r => r.id === c.id), ...d.data }); this.$delete(this.detailErrors, c.id); } else this.$set(this.detailErrors, c.id, { status: d.status }); }
+        this.syncConfirmed();
+      } finally { if (this.alive) this.busy = false; }
+    },
+    // After a successful read the editor bases its PATCH on what the server holds now; the draft itself is untouched.
+    syncConfirmed() {
+      const c = this.confirmedDraft; if (!c) return;
+      const saved = this.details[c.id];
+      if (!saved || this.detailErrors[c.id]) { this.confirmedDraft = { ...c, readFailed: true }; return; }
+      const changed = saved.revision !== this.revision;
+      this.original = pick(saved); this.revision = saved.revision;
+      this.confirmedDraft = { ...c, readFailed: false, changed: c.changed || changed };
     },
     async reloadSaved() {
       if (!await confirmSettingsDiscard(this, { title: 'Ver la versión guardada', text: 'Se descarta tu captura y se muestra lo que otra persona guardó.' })) return;
-      const id = this.editing; this.closeEditor(); await this.load(); if (this.details[id]) this.startEdit(id);
+      const id = this.editing; if (this.confirmedDraft) { forgetCreate(this.owner); this.pending = null; } this.closeEditor(); await this.load(); if (this.details[id]) this.startEdit(id);
     },
     validate() {
       const f = {}, name = String(this.form.displayName || '').trim();
@@ -224,7 +273,7 @@ export default {
       try {
         const r = await DACore.patch(base + '/' + encodeURIComponent(this.editing), { identity: { ...this.form, displayName: this.form.displayName.trim() }, expectedRevision: this.revision });
         if (!this.current()) return;
-        if (r.success) { const id = this.editing; this.closeEditor(); await this.load(); this.message = 'Unidad guardada.' + (cluesStatus(this.details[id] || r.data).key === 'manual' ? ' La CLUES queda capturada sin verificar.' : ''); return; }
+        if (r.success) { const id = this.editing; if (this.confirmedDraft) { forgetCreate(this.owner); this.pending = null; } this.closeEditor(); await this.load(); this.message = 'Unidad guardada.' + (cluesStatus(this.details[id] || r.data).key === 'manual' ? ' La CLUES queda capturada sin verificar.' : ''); return; }
         this.rejected(r);
       } catch (_) { if (this.current()) this.error = 'No se confirmó el guardado. Conservamos tu captura; vuelve a guardar cuando haya conexión. No reenviamos nada automáticamente.'; }
       finally { if (this.alive) this.busy = false; }
@@ -243,7 +292,7 @@ export default {
     // Idempotency-Key; later edits are never folded into it. The guarantee needs CLUES-F1 in the backend.
     async create() {
       const capture = { ...this.form, displayName: this.form.displayName.trim() };
-      const op = this.pending || { key: newOperationKey(), payload: capture };
+      const op = this.uncertainCreate || { key: newOperationKey(), payload: capture };
       rememberCreate(this.owner, { ...op, draft: capture }); this.pending = pendingCreate(this.owner);
       this.busy = true; this.error = '';
       let r;
@@ -252,14 +301,17 @@ export default {
       try {
         if (!this.current()) return;
         if (r && r.success) {
-          forgetCreate(this.owner); this.pending = null;
           const id = r.data.id, later = !same(capture, op.payload);
-          this.closeEditor(); await this.load();
-          if (!later) { this.message = 'Unidad registrada.' + (op.retried ? ' Comprobamos la operación original: quedó guardada una sola vez.' : ''); return; }
-          // The original payload is what was saved; the later capture is offered as an unsaved edit of that unit.
-          const saved = this.details[id];
-          if (saved) { this.editing = id; this.original = pick(saved); this.revision = saved.revision; this.form = { ...capture }; if (id !== this.primaryId) this.otherOpen = true; }
-          this.$nextTick(() => { this.error = 'Confirmamos el registro original. Tus cambios posteriores siguen sin guardar: revísalos y pulsa Guardar unidad.'; });
+          if (!later) {
+            forgetCreate(this.owner); this.pending = null; this.closeEditor(); await this.load();
+            this.message = 'Unidad registrada.' + (op.retried ? ' Comprobamos la operación original: quedó guardada una sola vez.' : ''); return;
+          }
+          // R1: the original payload is what was saved. The later capture becomes a recoverable draft tied to the
+          // confirmed id: kept in the operation record until an explicit PATCH saves it or the user discards it.
+          const confirmed = { ...op, confirmedId: id, confirmedView: r.data, draft: capture };
+          rememberCreate(this.owner, confirmed); this.pending = pendingCreate(this.owner);
+          this.openConfirmed(confirmed, r.data);
+          await this.load(); this.syncConfirmed();
           return;
         }
         if (uncertain(r)) {
@@ -267,10 +319,16 @@ export default {
           this.error = 'No se confirmó el registro. Puede haberse guardado o no. Al volver a guardar repetiremos exactamente el envío original con la misma operación; tus cambios posteriores se conservan aparte.';
           return;
         }
-        // 4xx on a first attempt: nothing was created. On a retry it does not prove the first attempt failed, so the
-        // uncertain operation is kept (e.g. permission revoked between attempts).
-        if (op.retried) { rememberCreate(this.owner, { ...op, draft: capture }); this.pending = pendingCreate(this.owner); }
-        else { forgetCreate(this.owner); this.pending = null; }
+        // 4xx on a first attempt: nothing was created. On a retry it only rejects the retry; the first attempt may
+        // have been saved, so the operation and the capture are kept and the message says exactly that.
+        if (op.retried) {
+          rememberCreate(this.owner, { ...op, draft: capture }); this.pending = pendingCreate(this.owner);
+          const still = ' El resultado del envío original sigue sin confirmar: la unidad puede haberse guardado. Conservamos la operación y tu captura; no reenviamos nada.';
+          if (r.status === 403) { this.forbidden = true; this.error = 'El reintento fue rechazado: tu sesión ya no tiene permiso para registrar unidades.' + still; return; }
+          if (r.status === 400 && r.data && r.data.field) this.fieldErrors = { [r.data.field]: ['Revisa este dato.'] };
+          this.error = 'El reintento fue rechazado por el servidor.' + still; return;
+        }
+        forgetCreate(this.owner); this.pending = null;
         this.rejected(r);
       } catch (_) { if (this.current()) this.error = 'No se confirmó el registro. Conservamos tu captura.'; }
       finally { if (this.alive) this.busy = false; }
@@ -278,7 +336,23 @@ export default {
     // ---- D-5: explicit check against the current release; reading never writes or replaces the reference ----
     canRevalidate(id) { const d = this.details[id]; return Boolean(d && d.cluesRef && d.cluesRef.releaseId); },
     savedSource(id) { const c = cluesCheck(this.details[id]); return c && c.source || null; },
-    startRevalidate(id) { if (this.actionsLocked) return; this.message = ''; this.reval = { id, state: 'loading', current: null, error: '', conflict: false }; this.lookup(); },
+    revalCode(id) { const d = this.details[id]; return d && d.cluesRef ? d.cluesRef.code : ''; },
+    // D-5-F1: every check (and every recovery) re-reads the unit first, so the comparison and the revision of the next
+    // confirmation come from what the server holds now — never from a stale snapshot.
+    startRevalidate(id) { if (this.actionsLocked) return; this.message = ''; this.reval = { id, state: 'reading', current: null, error: '', notice: '', uncertain: false, unitStatus: null }; this.recheck(); },
+    retryRevalidation() { if (this.reval && !this.busy) this.recheck(); },
+    async recheck(notice = '') {
+      const reval = this.reval; if (!reval) return;
+      this.reval = { ...reval, state: 'reading', error: '', notice, unitStatus: null }; this.busy = true;
+      let d;
+      try { d = await this.fetchDetail(reval.id); } finally { if (this.alive) this.busy = false; }
+      if (!this.current() || !this.reval || this.reval.id !== reval.id) return;
+      if (!d.data) { this.reval = { ...this.reval, state: 'unit-error', unitStatus: d.status }; return; }
+      this.$set(this.details, reval.id, { ...this.rows.find(r => r.id === reval.id), ...d.data }); this.$delete(this.detailErrors, reval.id); this.$delete(this.uncertainUpdates, reval.id);
+      const ref = d.data.cluesRef;
+      if (!ref || !ref.releaseId) { this.reval = { ...this.reval, state: 'no-ref', uncertain: false }; return; }
+      await this.lookup();
+    },
     async lookup() {
       const reval = this.reval; if (!reval) return;
       const ref = this.details[reval.id].cluesRef;
@@ -289,25 +363,37 @@ export default {
         if (!r || !r.success || !r.data.available) { this.reval = { ...this.reval, state: 'unavailable' }; return; }
         const item = r.data.items.find(i => i.ref.code === ref.code), source = r.data.source;
         if (!item) { this.reval = { ...this.reval, state: 'missing', current: { source } }; return; }
-        this.reval = { ...this.reval, state: item.ref.releaseId === ref.releaseId ? 'same' : 'found', current: { ref: item.ref, label: item.label, attributes: item.attributes || null, source } };
+        this.reval = { ...this.reval, state: item.ref.releaseId === ref.releaseId ? 'same' : 'found', uncertain: false, current: { ref: item.ref, label: item.label, attributes: item.attributes || null, source } };
       } catch (_) { if (this.current() && this.reval) this.reval = { ...this.reval, state: 'unavailable' }; }
       finally { if (this.alive) this.busy = false; }
     },
-    closeRevalidation() { if (!this.busy) this.reval = null; },
+    closeRevalidation() {
+      if (this.busy || !this.reval) return;
+      // Closing while the outcome is unknown keeps that uncertainty visible on the unit until it is re-read.
+      if (this.reval.uncertain) this.$set(this.uncertainUpdates, this.reval.id, true);
+      this.reval = null;
+    },
     async applyRevalidation() {
       const reval = this.reval; if (!reval || reval.state !== 'found' || this.busy) return;
       const unit = this.details[reval.id], next = reval.current;
       const ok = await this.confirmUpdate(unit.cluesRef.code, next.source.sourceVersion); if (!ok || !this.current()) return;
-      this.busy = true; this.reval = { ...reval, error: '' };
+      this.busy = true; this.reval = { ...reval, error: '', notice: '' };
+      let r;
       try {
-        // Minimal PATCH: only the reference changes, under the revision that was read.
-        const r = await DACore.patch(base + '/' + encodeURIComponent(reval.id), { identity: { cluesRef: next.ref }, expectedRevision: unit.revision });
-        if (!this.current()) return;
-        if (r.success) { this.reval = null; await this.load(); this.message = 'Referencia actualizada a la versión vigente. Nada más cambió.'; return; }
-        if (r.status === 409) { this.reval = { ...this.reval, conflict: true }; return; }
-        this.reval = { ...this.reval, error: r.status === 403 ? 'Tu sesión ya no tiene permiso para modificar unidades. No se actualizó nada.' : 'No se actualizó la referencia. Revisa e inténtalo de nuevo.' };
-      } catch (_) { if (this.current() && this.reval) this.reval = { ...this.reval, error: 'No se confirmó la actualización. No reenviamos nada; cierra y vuelve a comprobar para ver lo guardado.' }; }
+        // Minimal PATCH: only the reference changes, under the revision of the last successful read.
+        r = await DACore.patch(base + '/' + encodeURIComponent(reval.id), { identity: { cluesRef: next.ref }, expectedRevision: unit.revision });
+      } catch (_) { r = null; }
       finally { if (this.alive) this.busy = false; }
+      if (!this.current() || !this.reval) return;
+      if (r && r.success) { this.reval = null; await this.load(); this.message = 'Referencia actualizada a la versión vigente. Nada más cambió.'; return; }
+      // 409: someone else saved. Show the fresh data for review and a new explicit confirmation; nothing is resent.
+      if (r && r.status === 409) { await this.recheck('Otra persona guardó cambios en esta unidad. Mostramos los datos actuales: revísalos y confirma de nuevo solo si sigue procediendo.'); return; }
+      if (r && r.status && r.status < 500) {
+        this.reval = { ...this.reval, error: r.status === 403 ? 'El servidor rechazó la actualización: tu sesión ya no tiene permiso para modificar unidades. No se aplicó.' : 'El servidor rechazó la actualización; no se aplicó. Revisa e inténtalo de nuevo.' };
+        return;
+      }
+      // Lost response or 5xx: the update may or may not have been applied. No resend; reading tells which.
+      this.reval = { ...this.reval, uncertain: true, error: '' };
     },
     async confirmUpdate(code, version) {
       const swal = this.$swal; if (!swal) return false;
@@ -356,6 +442,14 @@ html[data-theme="clinical-night"] .health-units .unit-status--valid { color: #86
 html[data-theme="clinical-night"] .health-units .unit-status--manual, html[data-theme="clinical-night"] .health-units .unit-status--unverified, html[data-theme="clinical-night"] .health-units .unit-status--none, html[data-theme="clinical-night"] .health-units .unit-status--stale { color: #cbd5e1; }
 html[data-theme="clinical-night"] .health-units .unit-status--invalid, html[data-theme="clinical-night"] .health-units .unit-warn { color: #fdba74; }
 html[data-theme="clinical-night"] .health-units .unit-link, html[data-theme="clinical-night"] .health-units .unit-toggle { color: #7dd3fc; }
+/* Alerts of this block (confirmed draft, unconfirmed create, errors): Vuetify text alerts fall below 4.5:1 here. */
+.health-units .v-alert--text.info--text { color: #075985 !important; caret-color: #075985 !important; }
+.health-units .v-alert--text.warning--text { color: #7c2d12 !important; caret-color: #7c2d12 !important; }
+.health-units .v-alert--text.error--text { color: #9f1239 !important; caret-color: #9f1239 !important; }
+html[data-theme="clinical-night"] .health-units .v-alert--text.info--text { color: #7dd3fc !important; caret-color: #7dd3fc !important; }
+html[data-theme="clinical-night"] .health-units .v-alert--text.warning--text { color: #fdba74 !important; caret-color: #fdba74 !important; }
+html[data-theme="clinical-night"] .health-units .v-alert--text.error--text { color: #fda4af !important; caret-color: #fda4af !important; }
+html[data-theme="clinical-night"] .health-units .v-alert--text button { color: inherit; }
 /* R4: Vuetify's focus overlay (0.24) drops the primary text to 4.1:1 in light; a lighter overlay plus an outline keeps >=4.5:1. */
 .health-units .unit-action.v-btn:focus::before { opacity: .1 !important; }
 .health-units .unit-action:focus-visible { outline: 2px solid #0e7490; outline-offset: 2px; }

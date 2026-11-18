@@ -1,7 +1,11 @@
 <template>
   <section class="unit-reval mt-4 p-3 border" aria-live="polite" :aria-busy="String(busy)" aria-label="Comprobar con la versión vigente">
     <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Comprobación con la versión vigente · no cambia nada por sí sola</p>
-    <p v-if="state === 'loading'" class="m-0 mt-2 text-sm text-gray-700" role="status">Consultando la versión vigente del catálogo SIS…</p>
+    <p v-if="notice" class="m-0 mt-2 text-sm unit-warn" role="alert">{{ notice }}</p>
+    <p v-if="state === 'reading'" class="m-0 mt-2 text-sm text-gray-700" role="status">Releyendo la unidad para comparar con lo que está guardado ahora…</p>
+    <p v-else-if="state === 'unit-error'" class="m-0 mt-2 text-sm unit-warn" role="alert">{{ unitStatus === 403 ? 'Tu sesión no tiene permiso para consultar esta unidad.' : 'No pudimos releer la unidad.' }} Sin esa lectura no comparamos ni ofrecemos actualizar.</p>
+    <p v-else-if="state === 'no-ref'" class="m-0 mt-2 text-sm text-gray-700" role="status">Lo guardado ahora ya no tiene una referencia de catálogo versionada; no hay nada que comprobar.</p>
+    <p v-else-if="state === 'loading'" class="m-0 mt-2 text-sm text-gray-700" role="status">Consultando la versión vigente del catálogo SIS…</p>
     <template v-else-if="state === 'unavailable'">
       <p class="m-0 mt-2 text-sm text-gray-700" role="alert">No pudimos consultar la versión vigente. No cambiamos nada; la referencia guardada se conserva.</p>
     </template>
@@ -9,7 +13,7 @@
       <p class="m-0 mt-2 text-sm text-gray-700" role="status">La clave <span class="font-mono">{{ code }}</span> no aparece en la versión vigente ({{ current.source.sourceVersion }}). Esto <strong>no demuestra una baja oficial</strong>: el catálogo SIS no incluye todas las unidades. No cambiamos nada.</p>
     </template>
     <template v-else-if="state === 'same'">
-      <p class="m-0 mt-2 text-sm text-gray-700" role="status">La referencia ya usa la versión vigente ({{ current.source.sourceVersion }}). No hay nada que actualizar.</p>
+      <p class="m-0 mt-2 text-sm text-gray-700" role="status">Lo guardado ahora ya usa la versión vigente ({{ current.source.sourceVersion }}). No hay nada que actualizar.</p>
     </template>
     <template v-else-if="state === 'found'">
       <p class="m-0 mt-2 text-sm text-gray-700" role="status">La clave <span class="font-mono">{{ code }}</span> aparece en la versión vigente. Revisa las diferencias antes de decidir.</p>
@@ -23,12 +27,13 @@
       </div>
       <p class="m-0 mt-2 text-sm text-gray-600">Actualizar solo cambia la versión de la referencia CLUES de esta unidad. No cambia el nombre en MedSync, los datos del consultorio ni atenciones anteriores.</p>
     </template>
-    <v-alert v-if="conflict" type="warning" text role="alert" class="mt-3 mb-0">Otra persona guardó cambios en esta unidad. No actualizamos nada ni reenviamos. Cierra y vuelve a comprobar con los datos guardados.</v-alert>
+    <v-alert v-if="uncertain" type="warning" text role="alert" class="mt-3 mb-0">No sabemos si la actualización se guardó: se perdió la respuesta. No reenviamos nada. Comprueba lo guardado antes de decidir.</v-alert>
     <v-alert v-else-if="error" type="error" text role="alert" class="mt-3 mb-0">{{ error }}</v-alert>
     <div class="flex flex-wrap gap-2 mt-3">
-      <v-btn v-if="state === 'found' && !conflict" class="unit-action--primary" color="primary" depressed :loading="busy" :disabled="busy" @click="$emit('apply')">Actualizar a la versión vigente…</v-btn>
-      <v-btn v-if="state === 'unavailable'" class="unit-action" outlined color="primary" :disabled="busy" @click="$emit('retry')">Reintentar consulta</v-btn>
-      <v-btn class="unit-action" outlined color="primary" :disabled="busy" @click="$emit('close')">{{ state === 'found' && !conflict ? 'Cerrar sin cambios' : 'Cerrar' }}</v-btn>
+      <v-btn v-if="state === 'found' && !uncertain" class="unit-action--primary" color="primary" depressed :loading="busy" :disabled="busy" @click="$emit('apply')">Actualizar a la versión vigente…</v-btn>
+      <v-btn v-if="uncertain" class="unit-action--primary" color="primary" depressed :loading="busy" :disabled="busy" @click="$emit('retry')">Comprobar lo guardado</v-btn>
+      <v-btn v-if="['unavailable', 'unit-error'].includes(state) && !uncertain" class="unit-action" outlined color="primary" :disabled="busy" @click="$emit('retry')">Reintentar consulta</v-btn>
+      <v-btn class="unit-action" outlined color="primary" :disabled="busy" @click="$emit('close')">{{ uncertain ? 'Cerrar (resultado sin confirmar)' : state === 'found' && !error ? 'Cerrar sin cambios' : 'Cerrar' }}</v-btn>
     </div>
   </section>
 </template>
@@ -36,7 +41,7 @@
 import { compareAttributes } from '../../domain/identity/healthUnits';
 export default {
   name: 'HealthUnitRevalidation',
-  props: { state: String, code: String, saved: Object, savedSource: Object, current: Object, busy: Boolean, error: String, conflict: Boolean },
+  props: { state: String, code: String, saved: Object, savedSource: Object, current: Object, busy: Boolean, error: String, notice: String, uncertain: Boolean, unitStatus: Number },
   computed: { rows() { return compareAttributes(this.saved, this.current && this.current.attributes); } }
 };
 </script>
