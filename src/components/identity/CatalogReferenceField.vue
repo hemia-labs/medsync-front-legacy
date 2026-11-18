@@ -92,4 +92,7 @@ html[data-theme="clinical-night"] .catalog-field-actions button { color: #7dd3fc
 html[data-theme="clinical-night"] .catalog-field-note { color: #cbd5e1; }
 html[data-theme="clinical-night"] .catalog-field ::v-deep .v-messages:not(.error--text),
 html[data-theme="clinical-night"] .catalog-field ::v-deep .v-label { color: #cbd5e1; }
+/* The global night input background otherwise covers Vuetify's label. */
+html[data-theme="clinical-night"] .catalog-field ::v-deep input { background-color: transparent !important; }
+html[data-theme="clinical-night"] .catalog-field ::v-deep .error--text { color: #fda4af !important; }
 </style>
