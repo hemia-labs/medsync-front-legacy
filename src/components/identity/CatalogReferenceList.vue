@@ -25,4 +25,5 @@ export default {
 .catalog-list-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; }
 /* Night theme: same action colour as CatalogReferenceField (primary on slate measured 3.2:1). */
 html[data-theme="clinical-night"] .catalog-list-add:not(.v-btn--disabled) { color: #7dd3fc !important; }
+html[data-theme="clinical-night"] .catalog-list-row .v-btn:not(.v-btn--disabled) { color: #7dd3fc !important; }
 </style>
