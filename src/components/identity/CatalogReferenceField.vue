@@ -7,7 +7,7 @@
     <p v-if="guided" class="catalog-field-guidance">{{ manual ? 'Si tu clave no aparece en la búsqueda, puedes ingresarla tal como te la asignaron.' : 'Escribe tu CLUES o el nombre del establecimiento y elige una coincidencia de la lista.' }}</p>
     <v-autocomplete v-if="!manual" :id="inputId" :value="selected" :items="options" item-text="text" item-value="key" return-object
       :search-input.sync="search" :label="guided ? 'Buscar por CLUES o nombre' : label" :loading="loading" :disabled="disabled" :error-messages="errors" :hint="hint" persistent-hint
-      outlined dense clearable no-filter :menu-props="{ offsetY: true, maxHeight: 280, contentClass: guided ? 'clues-catalog-menu' : '' }" :no-data-text="guided ? 'No encontramos coincidencias. Si ya tienes tu clave, usa Ingresar mi CLUES.' : 'Sin coincidencias. Puedes capturar una clave conocida.'"
+      outlined dense clearable no-filter :hide-selected="hideSavedOption" :menu-props="{ offsetY: true, maxHeight: 280, contentClass: guided ? 'clues-catalog-menu' : '' }" :no-data-text="guided ? 'No encontramos coincidencias. Si ya tienes tu clave, usa Ingresar mi CLUES.' : 'Sin coincidencias. Puedes capturar una clave conocida.'"
       @focus="load" @change="select">
       <template v-if="guided" v-slot:selection="{ item }"><span class="catalog-field-code">{{ item.ref.code }}</span></template>
       <template v-if="guided" v-slot:item="{ item }"><div class="catalog-field-result"><span class="catalog-field-code">{{ item.ref.code }}</span><span>{{ item.text.replace(' · ' + item.ref.code, '') }}</span></div></template>
@@ -41,11 +41,14 @@ export default {
     selected() { return this.value ? { key: referenceKey(this.value), ref: this.value, text: (this.check && this.check.label ? this.check.label + ' · ' : '') + this.value.code } : null; },
     options() {
       const selected = this.selected;
-      // Guided search offers the current result for a code, not an indistinguishable saved release before it.
-      // This only changes menu options; the captured reference stays intact until the user selects a result.
-      const included = selected && this.rows.some(r => r.key === selected.key ||
-        (this.guided && r.ref.family === selected.ref.family && r.ref.code === selected.ref.code));
-      return selected && !included ? [selected, ...this.rows] : this.rows;
+      // Vuetify needs the saved item to render the field, even while the menu offers a newer reference.
+      return selected && !this.rows.some(r => r.key === selected.key) ? [selected, ...this.rows] : this.rows;
+    },
+    hideSavedOption() {
+      const selected = this.selected;
+      // Hide only the superseded selection in the menu; keep it in items/value so opening or leaving never blanks it.
+      return Boolean(this.guided && selected && this.rows.some(r => r.key !== selected.key &&
+        r.ref.family === selected.ref.family && r.ref.code === selected.ref.code));
     },
     owner() { return JSON.stringify(authorizationContext(this.$store)); },
     hint() {

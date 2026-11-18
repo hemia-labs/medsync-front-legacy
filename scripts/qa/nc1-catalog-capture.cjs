@@ -33,13 +33,26 @@ test('I2: guided search avoids a superseded duplicate without changing the saved
     const {vm,events}=component({get:async()=>({success:true,data:{available:true,hasMore:false,items:[{ref:fresh,label:'Unidad QA'}]}})});
     vm.family='sis.establishments';vm.value=saved;await vm.load();
     assert.deepEqual(vm.options.map(x=>x.ref),[saved,fresh]); // Existing non-guided consumers retain their selection.
-    vm.guided=true;assert.deepEqual(vm.options.map(x=>x.ref),[fresh]);
+    assert.equal(vm.hideSavedOption,false);
+    vm.guided=true;vm.check={label:'Nombre guardado'};vm.search=saved.code;
+    assert.equal(vm.hideSavedOption,true);assert.deepEqual(vm.options.map(x=>x.ref),[saved,fresh]);
     assert.deepEqual(vm.value,saved);assert.equal(events.length,0); // Searching is not selecting or saving.
-    vm.rows=[];assert.deepEqual(vm.options.map(x=>x.ref),[saved]); // Missing/offline results preserve capture.
+    vm.rows=[];assert.deepEqual(vm.options.map(x=>x.ref),[saved]);assert.equal(vm.hideSavedOption,false); // Missing/offline results preserve capture.
     vm.rows=[{key:helpers.referenceKey({...fresh,code:'QASMP000101'}),ref:{...fresh,code:'QASMP000101'}}];
-    assert.deepEqual(vm.options.map(x=>x.ref),[saved,{...fresh,code:'QASMP000101'}]);
-    vm.rows=[{key:helpers.referenceKey(fresh),ref:fresh}];vm.select(vm.options[0]);
+    assert.deepEqual(vm.options.map(x=>x.ref),[saved,{...fresh,code:'QASMP000101'}]);assert.equal(vm.hideSavedOption,false);
+    vm.rows=[{key:helpers.referenceKey(fresh),ref:fresh}];vm.select(vm.rows[0]);
     assert.deepEqual(events[0],['input',fresh]);assert.deepEqual(vm.value,saved);
+});
+
+test('I3: guided selection stays available at rest and returns after an abandoned search',async()=>{
+    const saved={family:'sis.establishments',releaseId:'qa-old',code:'QASMP000101'},fresh={...saved,releaseId:'qa-current'};
+    const {vm,events}=component({get:async()=>({success:true,data:{available:true,hasMore:false,items:[{ref:fresh,label:'Unidad QA'}]}})});
+    vm.family=saved.family;vm.value=saved;vm.guided=true;await vm.load();
+    for(const search of ['',null,vm.selected.text]){vm.search=search;assert.deepEqual(vm.options.map(x=>x.ref),[saved,fresh]);}
+    vm.search=saved.code;vm.check={label:'Nombre guardado'};assert.deepEqual(vm.options.map(x=>x.ref),[saved,fresh]);assert.equal(vm.hideSavedOption,true);
+    vm.search=null;assert.deepEqual(vm.options.map(x=>x.ref),[saved,fresh]);
+    assert.deepEqual(vm.value,saved);assert.equal(events.length,0);
+    vm.value=fresh;assert.equal(vm.hideSavedOption,false);assert.deepEqual(vm.options.map(x=>x.ref),[fresh]);
 });
 test('last search wins including older failures and authorization changes',async()=>{
     const first=deferred(),second=deferred();let n=0;const {vm}=component({get:()=>++n===1?first.promise:second.promise});

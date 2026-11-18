@@ -1,4 +1,4 @@
-// T1, I1/I2 and exact D-5 contract, real Vue shell with synthetic transport. No authenticated acceptance.
+// T1, I1/I2/I3 and exact D-5 contract, real Vue shell with synthetic transport. No authenticated acceptance.
 const { chromium } = require('playwright');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const OUT = process.env.NC1_QA_OUT || path.join(require('node:os').tmpdir(), 'medsync-nc1-clues-qa');
@@ -36,7 +36,49 @@ async function catalogError(p) {
   assert.doesNotMatch(await p.locator('.health-units').innerText(), /Registro sin confirmar:/);
   assert.equal(await btn(p, 'Guardar unidad').isEnabled(), true);
 }
+async function visibleReference(p, code, release) {
+  const selection = field(p).locator('.v-select__selections .catalog-field-code');
+  await selection.waitFor({ state: 'visible' }); assert.equal(await selection.innerText(), code);
+  assert.deepEqual(await p.evaluate(() => {
+    const v = document.querySelector('.health-units .catalog-field').__vue__;
+    const ac = v.$children.find(c => c.$options.name === 'v-autocomplete');
+    return { value: v.value, selected: ac.selectedItems.map(i => i.ref) };
+  }), { value: { family: 'sis.establishments', code, releaseId: release }, selected: [{ family: 'sis.establishments', code, releaseId: release }] });
+}
+async function leaveSearch(p) {
+  await field(p).locator('input').first().press('Escape'); await unitName(p).click();
+}
 const cases = {
+  async i3StaleReferenceVisibleOnOpenFocusAndBlur(p, night) {
+    await open(p, night, 'scenario=stale'); await btn(p, 'Editar unidad').click();
+    await visibleReference(p, 'QASMP000101', 'sis.establishments-qa-2025');
+    await field(p).locator('input').first().click();
+    await p.waitForFunction(() => {
+      const v = document.querySelector('.health-units .catalog-field').__vue__;
+      return !v.loading && v.rows.some(r => r.ref.code === 'QASMP000101');
+    });
+    await leaveSearch(p); await visibleReference(p, 'QASMP000101', 'sis.establishments-qa-2025');
+    assert.equal((await writes(p)).length, 0);
+  },
+  async i3SearchWithoutSelectionRestoresVisibleReference(p, night) {
+    await startRegistration(p, night, 'catalog-409'); await catalogError(p);
+    await visibleReference(p, 'QASMP000202', 'sis.establishments-qa');
+    const before = await writes(p); assert.equal(before.length, 1);
+    await field(p).locator('input').first().fill('QASMP000202');
+    await p.waitForFunction(() => {
+      const v = document.querySelector('.health-units .catalog-field').__vue__;
+      return !v.loading && v.rows.some(r => r.ref.releaseId === 'sis.establishments-qa-next');
+    });
+    assert.equal(await p.locator('.v-menu__content.menuable__content__active .v-list-item', { hasText: 'QASMP000202' }).count(), 1);
+    await leaveSearch(p); await visibleReference(p, 'QASMP000202', 'sis.establishments-qa');
+    assert.deepEqual(await writes(p), before);
+    await p.screenshot({ path: path.join(OUT, 'i3-abandoned-search-' + p.viewportSize().width + '-' + (night ? 'night' : 'light') + '.png'), fullPage: true, timeout: 60000 });
+    // Restoring the saved display must not prevent the next explicit search from selecting the current release.
+    await selectCurrent(p, 'sis.establishments-qa-next'); await btn(p, 'Guardar unidad').click(); await idle(p);
+    const after = await writes(p); assert.equal(after.length, 2); assert.equal(after[1].key, before[0].key);
+    assert.equal(after[1].payload.identity.cluesRef.releaseId, 'sis.establishments-qa-next');
+    assert.equal(await p.evaluate(() => window.qaState.units.length), 1);
+  },
   async i2FirstMatchAfterReleaseChangeIsCurrent(p, night) {
     await startRegistration(p, night, 'catalog-409'); await catalogError(p);
     const before = await writes(p); assert.equal(before.length, 1);
