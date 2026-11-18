@@ -66,3 +66,5 @@ La prueba `scripts/qa/clinical-module-changes-mysql.js` del worktree backend usa
 ## R4 — prueba de usabilidad
 
 El diálogo de cambio explica una nota por diente y qué pasa si dos notas distintas impiden la conversión. El plan se guarda junto a sus opciones. «Ver ejemplo de impresión» presenta datos ficticios con la misma plantilla que la hoja del expediente y refleja los ajustes en edición. El recorrido válido muestra sus dos primeras y dos últimas piezas. La suite del shell comprueba estas cuatro mejoras y el acceso con teclado en claro y oscuro.
+
+En el expediente, «Imprimir plan» abre la hoja en la misma página. Desde la vista previa, «Imprimir o guardar PDF» envía la hoja al navegador y «Cerrar» devuelve al plan activo o al punto del histórico desde el que se abrió. Con el frontend sintético del puerto 4397, `node scripts/qa/treatment-plan-print-browser.cjs` recorre esas entradas en Chromium con un expediente ficticio. La suite `clinical-sections-visual.cjs` comprueba también el estado nativo y accesible de «Mostrar costos» después de editar, descartar y guardar.

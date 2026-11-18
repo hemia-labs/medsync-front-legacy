@@ -535,7 +535,7 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showHistoryDialog" max-width="980">
+    <v-dialog v-model="showHistoryDialog" :retain-focus="!previewPlan" max-width="980">
       <v-card v-dialog-name="'Consultar plan cerrado'" @keydown="trapDialogFocus">
         <div class="dialog-header history-dialog-header">
           <div>
@@ -635,6 +635,22 @@
             <v-icon size="17">mdi-printer-outline</v-icon>
             Imprimir plan
           </button>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog :value="Boolean(previewPlan)" max-width="960" :fullscreen="$vuetify.breakpoint.xsOnly" :transition="false" @input="closePrintPreview">
+      <v-card v-dialog-name="{ id: 'tp-print-title' }" class="tp-print-preview">
+        <header class="dialog-header">
+          <h3 id="tp-print-title" ref="printHeading" tabindex="-1">Vista previa del plan</h3>
+        </header>
+        <iframe v-if="printSheet" ref="printFrame" :key="printSheet" :srcdoc="printSheet" sandbox="allow-same-origin allow-modals"
+          title="Hoja del plan de tratamiento" @load="onPrintFrameLoad"></iframe>
+        <p v-else-if="previewPlan" role="alert" class="plan-feedback feedback-error">No se pudo preparar la hoja. Cierra la vista previa y vuelve a abrir el plan.</p>
+        <p v-if="printError" role="alert" class="plan-feedback feedback-error">{{ printError }}</p>
+        <v-card-actions class="dialog-actions">
+          <button type="button" class="btn-outline" @click="closePrintPreview">Cerrar</button>
+          <button type="button" class="btn-primary" :disabled="!printReady" @click="printPreviewSheet">Imprimir o guardar PDF</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -752,7 +768,10 @@ export default {
       showTreatmentDialog: false,
       treatmentEditorSession: 0,
       dentalImportState: { open:false, loading:false, count:0, canApply:false, pending:false },
-      planPrintUrl: null,
+      previewPlan: null,
+      printTrigger: null,
+      printReady: false,
+      printError: '',
       showCloseDialog: false,
       showHistoryDialog: false,
       showHistorySection: false,
@@ -817,7 +836,6 @@ export default {
   beforeDestroy() {
     this.loadRequest++;
     document.documentElement.classList.remove('tp-treatment-editor-open');
-    if(this.planPrintUrl) URL.revokeObjectURL(this.planPrintUrl);
     this.$emit('register-navigation-guard', null);
     window.removeEventListener('beforeunload', this.beforeUnload);
     if(this.removeNavigationGuard) this.removeNavigationGuard();
@@ -829,6 +847,14 @@ export default {
     },
     planData: function() {
       return this.localPlanData || {};
+    },
+    printSheet() {
+      if (!this.previewPlan || !this.ready || !this.moduleEnabled) return '';
+      try {
+        return this.printableHistoryHtml(this.previewPlan);
+      } catch {
+        return '';
+      }
     },
     canCreate() { return this.allowed('create', 'treatments.create'); },
     canEdit() { return this.allowed('edit', 'treatments.edit'); },
@@ -1133,12 +1159,17 @@ export default {
     editorKind(value) { if(!value) this.$nextTick(this.applyDentalPreparation); },
     isBusy(value) { if(!value) this.$nextTick(this.applyDentalPreparation); },
     patientId: { immediate: true, handler() {
+      this.closePrintPreview();
       this.historyPage = 1;
       this.localPlanData = null;
       this.planLoaded = false;
       this.closeEditors();
       this.loadPlan();
     } },
+    printSheet() {
+      this.printReady = false;
+      this.printError = '';
+    },
     showPlanDialog(value) { if(!value) this.restoreFocus(); },
     showTreatmentDialog(value) {
       document.documentElement.classList.toggle('tp-treatment-editor-open', value);
@@ -1949,23 +1980,40 @@ export default {
         </html>
       `;
     },
-    printHistory: function(plan) {
-      if(!plan) {
-        return;
+    printHistory(plan) {
+      this.printTrigger = document.activeElement;
+      this.previewPlan = plan;
+    },
+    closePrintPreview() {
+      const trigger = this.printTrigger;
+      this.printTrigger = null;
+      this.previewPlan = null;
+      this.printReady = false;
+      this.printError = '';
+      if (trigger) this.$nextTick(() => {
+        if (!this.previewPlan && trigger.isConnected) trigger.focus();
+      });
+    },
+    onPrintFrameLoad(event) {
+      const frame = event.target;
+      if (frame !== this.$refs.printFrame || !frame.contentDocument.body.querySelector('h1')) return;
+      if (this.$refs.printHeading) window.requestAnimationFrame(() => {
+        const heading = this.$refs.printHeading;
+        if (frame === this.$refs.printFrame && heading && !heading.closest('[role="dialog"]').contains(document.activeElement)) heading.focus();
+      });
+      frame.contentDocument.addEventListener('keydown', keyEvent => {
+        if (keyEvent.key === 'Escape') this.closePrintPreview();
+      });
+      this.printReady = true;
+    },
+    printPreviewSheet() {
+      if (!this.printReady) return;
+      this.printError = '';
+      try {
+        this.$refs.printFrame.contentWindow.print();
+      } catch {
+        this.printError = 'No se pudo abrir la impresión. Vuelve a pulsar «Imprimir o guardar PDF».';
       }
-      if(this.planPrintUrl) URL.revokeObjectURL(this.planPrintUrl);
-      const previewUrl = URL.createObjectURL(new Blob([this.printableHistoryHtml(plan)], { type: 'text/html;charset=utf-8' }));
-      this.planPrintUrl = previewUrl;
-      const printWindow = window.open(previewUrl, '_blank');
-      if(!printWindow) {
-        URL.revokeObjectURL(previewUrl);
-        this.planPrintUrl = null;
-        this.toastFunction('warning', 'El navegador bloqueó la ventana. Permite ventanas emergentes para MedSync y vuelve a pulsar Imprimir.');
-        return;
-      }
-      printWindow.opener = null;
-      // Keep the local document alive until the next preview or component exit.
-      // The patient copy includes an explicit print button for mobile browsers.
     },
     printConsent: function(plan) {
       if(!plan || !plan.consent) {
@@ -1992,6 +2040,15 @@ export default {
 <style scoped>
 .patient-treatment {
   color: var(--color-text, #25364d);
+}
+.tp-print-preview.v-card { display: flex; flex-direction: column; height: min(84vh, 860px); overflow: hidden; background: var(--color-surface); }
+.tp-print-preview .dialog-header, .tp-print-preview .dialog-actions { flex: 0 0 auto; background: var(--color-surface); }
+.tp-print-preview iframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 0; background: white; }
+.tp-print-preview .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px !important; border-top: 1px solid var(--color-forty-500); }
+.tp-print-preview .plan-feedback { margin: 8px 16px; }
+.v-dialog__content[aria-labelledby="tp-print-title"]:not(.v-dialog__content--active) { display: none; }
+@media (max-width: 599px) {
+  .tp-print-preview.v-card { height: 100%; height: 100dvh; }
 }
 
 .plan-feedback { margin-bottom: .8rem; padding: .75rem 1rem; border-radius: .75rem; border: 1px solid #bae6fd; background: #effaff; color: #075985; line-height: 1.5; }
