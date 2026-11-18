@@ -3,8 +3,14 @@
     <p v-if="loading" role="status">Consultando el tipo de odontograma…</p>
     <div v-else-if="!ready" class="dental-notice" role="status"><p>{{ loadError || 'La selección del tipo de odontograma aún no está disponible en este consultorio.' }}</p><button type="button" class="dental-button" @click="loadMode">Volver a consultar</button></div>
     <template v-else>
+      <div class="dental-current">
+        <div><p class="dental-eyebrow">Tipo actual</p><h3>{{ captureLabel(current) }}</h3></div>
+        <button ref="changeButton" type="button" class="dental-button" :disabled="allBusy || disabled" :aria-expanded="String(comparing)" aria-controls="dental-comparison" @click="comparing = !comparing">{{ comparing ? 'Ocultar comparación' : 'Cambiar tipo' }}</button>
+      </div>
+      <p v-if="!comparing && selected !== current" role="status">Tipo elegido sin guardar: {{ captureLabel(selected) }}.</p>
+      <div v-show="comparing" id="dental-comparison">
       <fieldset class="dental-modes" :disabled="allBusy || disabled">
-        <legend><span class="dental-eyebrow">2 · Elige cómo registrar</span><span class="dental-heading">¿Qué odontograma necesita tu equipo?</span></legend>
+        <legend><span class="dental-heading">¿Qué odontograma necesita tu equipo?</span></legend>
         <p>Selecciona una opción para compararla. El cambio se aplica solo al pulsar «Guardar tipo de odontograma» y confirmarlo.</p>
         <div class="dental-mode-grid">
           <label v-for="option in modeOptions" :key="option.value" class="dental-mode" :class="{ 'is-selected': selected === option.value }">
@@ -24,19 +30,21 @@
         </div>
         <p class="dental-caption">Ejemplo ilustrativo. La vista del expediente ofrece más herramientas.</p>
       </details>
-      <div class="dental-actions"><button type="button" class="dental-button dental-button--primary" :disabled="allBusy || disabled || selected === current" @click="save">{{ busy ? 'Guardando…' : 'Guardar tipo de odontograma' }}</button><button v-if="selected !== current" type="button" class="dental-button" :disabled="allBusy || disabled" @click="selected = current">Cancelar selección</button><span class="dental-caption">En uso: {{ captureLabel(current) }}.</span></div>
-      <p class="dental-caption">Cambiar de tipo conserva los registros. Las notas del odontograma con notas no se convierten en hallazgos por caras; puedes volver al tipo anterior para consultarlas.</p>
-      <v-alert v-if="message" ref="feedback" :type="messageType" outlined role="alert" class="mt-3">{{ message }}<ol v-if="operatorBlocked"><li>Abre Puestos y accesos y elige el puesto de quien usará el odontograma.</li><li>Habilita el acceso a Odontograma y los permisos Capturar odontograma y Finalizar odontograma. Pueden corresponder a personas distintas.</li><li>Guarda los permisos, vuelve aquí y pulsa «Volver a consultar permisos».</li></ol></v-alert>
+      <p v-if="notesBlocked" class="dental-notice" role="status">Este consultorio ya tiene odontogramas por piezas y caras. Para verlos sin editar, elige «Piezas y caras · solo consulta».</p>
+      <div class="dental-actions"><button ref="modeSave" type="button" class="dental-button dental-button--primary" :disabled="allBusy || disabled || selected === current || notesBlocked" @click="save">{{ busy ? 'Guardando…' : 'Guardar tipo de odontograma' }}</button><button v-if="selected !== current" type="button" class="dental-button" :disabled="allBusy || disabled" @click="selected = current">Cancelar selección</button><span class="dental-caption">En uso: {{ captureLabel(current) }}.</span></div>
+      <p class="dental-caption">Al pasar a piezas y caras, las notas compatibles se copian como texto en cada diente. Una vez que haya odontogramas por piezas y caras, solo podrás alternar entre captura rápida y solo consulta.</p>
+      </div>
+      <v-alert v-if="message" ref="feedback" :type="messageType" outlined role="alert" class="mt-3">{{ message }}<ol v-if="operatorBlocked && canManageRoles"><li>Abre Puestos y accesos y elige el puesto de quien usará el odontograma.</li><li>Habilita el acceso a Odontograma y los permisos Capturar odontograma y Finalizar odontograma. Pueden corresponder a personas distintas.</li><li>Guarda los permisos, vuelve aquí y pulsa «Volver a consultar permisos».</li></ol><p v-else-if="operatorBlocked">Pide a quien administra los accesos que habilite lectura, captura y finalización en los puestos correspondientes.</p></v-alert>
       <details class="dental-details" :open="operatorBlocked">
         <summary><span>Quién puede registrar y finalizar</span><span v-if="activation" class="dental-summary-hint">{{ activation.ready ? 'Equipo habilitado' : 'Requiere revisión' }}</span></summary>
         <div class="dental-detail-body">
-          <p>Registrar permite agregar o corregir hallazgos. Finalizar cierra el odontograma cuando la revisión está lista. Cada permiso se asigna en <router-link to="/admin?section=roles-permissions">Puestos y accesos</router-link>.</p>
+          <p>Registrar permite agregar o corregir hallazgos. Finalizar cierra el odontograma cuando la revisión está lista. <template v-if="canManageRoles">Administra estos permisos en <router-link to="/admin?section=roles-permissions">Puestos y accesos</router-link>.</template><template v-else>Pide los cambios a quien administra los puestos del consultorio.</template></p>
           <p v-if="adminErrors.activation" role="alert">{{ adminErrors.activation }}</p>
-          <template v-else-if="activation"><p>{{ operatorCount(activation.capture_operators, 'registrar hallazgos') }}. {{ operatorCount(activation.finalize_operators, 'finalizar el odontograma') }}.</p><p v-if="!activation.ready">Para habilitar la captura por piezas y caras hace falta al menos una persona con cada permiso. Puede ser la misma persona.</p><ul class="dental-roles"><li v-for="role in activation.roles" :key="role.id_rol"><strong>{{ roleLabel(role) }}</strong><span>Registrar: {{ role.capture ? 'permitido' : 'sin permiso' }} · Finalizar: {{ role.finalize ? 'permitido' : 'sin permiso' }}</span></li></ul></template>
+          <template v-else-if="activation"><p>{{ operatorCount(activation.capture_operators, 'registrar hallazgos') }}. {{ operatorCount(activation.finalize_operators, 'finalizar el odontograma') }}.</p><p v-if="!activation.ready">Para habilitar la captura por piezas y caras hace falta al menos una persona con cada permiso. Puede ser la misma persona.</p><ul class="dental-roles"><li v-for="role in activation.roles" :key="role.id_rol"><strong>{{ roleLabel(role) }}</strong><span v-if="!role.read">Falta acceso de lectura al odontograma</span><span v-else>Registrar: {{ role.capture ? 'permitido' : 'sin permiso' }} · Finalizar: {{ role.finalize ? 'permitido' : 'sin permiso' }}</span></li></ul></template>
           <button type="button" class="dental-button" :disabled="adminLoading || allBusy" @click="refreshAdministration">{{ adminLoading ? 'Consultando…' : 'Volver a consultar permisos' }}</button>
         </div>
       </details>
-      <div class="dental-optional-heading"><p class="dental-eyebrow">3 · Personaliza si lo necesitas</p><h3>Menos pasos al registrar</h3><p>Estas opciones son para <strong>Piezas y caras · captura rápida</strong>. Puedes empezar con los ajustes incluidos y cambiarlos después.</p><p v-if="current !== 'v2'" class="dental-notice">Para editar estos ajustes, guarda primero el tipo «Piezas y caras · captura rápida». Mientras tanto puedes consultar la ayuda.</p></div>
+      <div class="dental-optional-heading"><h3>Ajustes opcionales de captura rápida</h3><p>Puedes empezar con las palabras y el recorrido incluidos. Cámbialos cuando tu equipo lo necesite.</p><p v-if="current !== 'v2'" class="dental-notice">Para editar estos ajustes, guarda primero el tipo «Piezas y caras · captura rápida». Mientras tanto puedes consultar la ayuda.</p></div>
       <details class="dental-details">
         <summary><span>Palabras para la captura rápida</span><span class="dental-summary-hint">Atajos opcionales</span></summary>
         <div class="dental-detail-body">
@@ -46,7 +54,7 @@
             <details class="dental-included">
               <summary>Consultar abreviaturas y palabras incluidas ({{ includedActions.length }} acciones)</summary>
               <p>La abreviatura y las palabras de cada fila hacen lo mismo. Puedes usar cualquiera de ellas en la barra de captura rápida.</p>
-              <p>Las abreviaturas están reservadas: <code>car</code> siempre significa Caries y <code>aus</code> significa Ausente. Agregar una palabra propia no cambia las acciones del pincel.</p>
+              <p>Las abreviaturas están reservadas: <code>car</code> siempre significa Caries y <code>aus</code> significa Ausente. El pincel muestra cada hallazgo con su abreviatura. Las palabras propias sirven para escribirlo en la barra. «ok» y «pres» son acciones de la barra.</p>
               <label>Buscar una acción, abreviatura o palabra<input v-model="aliasSearch" type="search" placeholder="Ej. car, caries o aus" /></label>
               <div class="dental-catalog-scroll" tabindex="0" role="region" aria-label="Abreviaturas y palabras incluidas">
                 <table class="dental-catalog"><caption class="dental-sr-only">Acciones disponibles y las formas de escribirlas en la captura rápida</caption><thead><tr><th scope="col">Acción</th><th scope="col">Abreviatura</th><th scope="col">También puedes escribir</th></tr></thead><tbody><tr v-for="item in filteredActions" :key="item.code"><th scope="row">{{ item.label }}</th><td><code>{{ item.code }}</code></td><td><template v-if="item.words.length"><code v-for="word in item.words" :key="word">{{ word }}</code></template><span v-else>Usa la abreviatura</span></td></tr></tbody></table>
@@ -58,8 +66,11 @@
             <ul v-if="localAliases.length" class="dental-alias-list"><li v-for="item in localAliases" :key="item.alias"><span><code>{{ item.alias }}</code><span> → {{ item.label }} · </span><code>{{ item.code }}</code></span><button type="button" class="dental-button" :disabled="!canCustomize" :aria-label="'Quitar palabra ' + item.alias" @click="saveAlias(item.alias, null)">Quitar</button></li></ul>
             <form v-if="aliasState.schema_ready" class="dental-alias-form" @submit.prevent="saveAlias(aliasWord, aliasTarget)">
               <label>Palabra que quieres usar<input v-model="aliasWord" maxlength="30" placeholder="Ej. revisar" autocomplete="off" required :disabled="!canCustomize" aria-describedby="alias-word-help" /></label>
-              <label>Qué hará esa palabra<select v-model="aliasTarget" :disabled="!canCustomize"><option v-for="tool in aliasTargets" :key="tool.code" :value="tool.code">{{ tool.label }} · {{ tool.code }}</option></select></label>
-              <p id="alias-word-help" class="dental-caption">Una sola palabra, de hasta 30 letras, sin espacios ni números. Por ejemplo: «revisar» → «Marcar revisado».</p><button class="dental-button" :disabled="!canCustomize || !aliasWord.trim()">{{ aliasBusy ? 'Guardando…' : 'Agregar palabra' }}</button>
+              <label>Qué hará esa palabra<select v-model="aliasTarget" required :disabled="!canCustomize"><option disabled value="">Elige una acción</option><option v-for="tool in aliasTargets" :key="tool.code" :value="tool.code">{{ tool.label }} · {{ tool.code }}</option></select></label>
+              <p id="alias-word-help" class="dental-caption">Una sola palabra, de hasta 30 letras, sin espacios ni números.</p>
+              <p v-if="aliasWord.trim() && aliasTarget" role="status"><code>{{ aliasWord.trim() }}</code> → {{ targetLabel(aliasTarget) }} · <code>{{ aliasTarget }}</code></p>
+              <button class="dental-button" :disabled="!canCustomize || !aliasWord.trim() || !aliasTarget">{{ aliasBusy ? 'Guardando…' : 'Agregar palabra' }}</button>
+              <button v-if="aliasDraft" type="button" class="dental-button" :disabled="allBusy" @click="resetAlias">Descartar palabra en edición</button>
             </form><p v-else>La creación de palabras propias aún no está disponible en este consultorio.</p>
             <v-alert v-if="aliasMessage" :type="aliasMessageType" outlined role="alert" class="mt-3">{{ aliasMessage }}</v-alert>
           </template>
@@ -75,37 +86,49 @@
             <label>Qué dentición quieres ordenar<select v-model="walkMode"><option v-for="mode in dentitions" :key="mode" :value="mode">{{ modeLabel(mode) }}</option></select></label>
             <label :for="'dental-walk-' + walkMode">Números de los dientes, en el orden que prefieras</label><textarea :id="'dental-walk-' + walkMode" v-model="walkTexts[walkMode]" :disabled="!canCustomize" rows="3" :aria-invalid="String(Boolean(walkError(walkMode)))" aria-describedby="dental-walk-help dental-walk-error" />
             <p id="dental-walk-help" class="dental-caption">Separa los números con comas. Deben aparecer los {{ defaultSequence(walkMode).length }} dientes de esta dentición, sin repetir ninguno.</p><p v-if="walkError(walkMode)" id="dental-walk-error" role="alert" class="dental-error">{{ walkError(walkMode) }}</p>
-            <div class="dental-walk-preview" aria-label="Inicio del recorrido"><span v-for="(tooth, index) in walkPreview" :key="index">{{ index ? '→ ' : '' }}{{ tooth }}</span><span>…</span></div><button type="button" class="dental-button" :disabled="!canCustomize" @click="restoreWalk">Usar el orden habitual en esta dentición</button>
+            <div v-if="walkPreview.length && !walkError(walkMode)" class="dental-walk-preview">
+              <span>Empieza en <strong>{{ walkPreview.slice(0, 2).join(' → ') }}</strong></span>
+              <span>Termina en <strong>{{ walkPreview.slice(-2).join(' → ') }}</strong></span>
+            </div>
+            <button type="button" class="dental-button" :disabled="!canCustomize" @click="restoreWalk">Usar el orden habitual en esta dentición</button>
             <details class="dental-included"><summary>¿Qué pasa cuando selecciono varios dientes a la vez?</summary><p>Un rango como <code>13-23</code> siempre incluye los dientes que están entre esos dos números en la arcada: 13, 12, 11, 21, 22 y 23. Tu recorrido personalizado solo cambia a qué diente avanzas después.</p></details>
             <v-alert v-if="walkMessage" :type="walkMessageType" outlined role="alert" class="mt-3">{{ walkMessage }} <button v-if="walkConflict" type="button" class="dental-button" :disabled="allBusy" @click="reloadWalk">Descartar mi recorrido y cargar el guardado</button></v-alert>
+            <p v-if="otherWalkErrors.length" class="dental-error" role="status">Revisa antes de guardar:
+              <button v-for="mode in otherWalkErrors" :key="mode" type="button" class="dental-button" @click="walkMode = mode">{{ modeLabel(mode) }}</button>
+            </p>
             <div class="dental-actions"><button type="button" class="dental-button dental-button--primary" :disabled="!canCustomize || !walkDirty || hasWalkErrors || walkConflict" @click="savePreferences">{{ savingPreferences ? 'Guardando…' : 'Guardar recorrido' }}</button><button v-if="walkDirty" type="button" class="dental-button" :disabled="allBusy" @click="resetWalk">Descartar cambios del recorrido</button></div><p class="dental-caption">Guarda el orden de las tres denticiones. Se usará al volver a abrir la captura del odontograma.</p>
           </template><p v-else-if="!adminErrors.preferences && !adminLoading">El recorrido personalizado aún no está disponible en este consultorio.</p>
         </div>
       </details>
     </template>
-    <da-dialog v-model="showModeConfirm" :persist="true" max-width="540px"><template #body><da-sweet-confirm title="Cambiar el tipo de odontograma" :message="'Se usará ' + captureLabel(pendingMode) + ' en este consultorio. Los registros se conservan, pero las notas anteriores no se convierten en hallazgos por caras. Vuelve a abrir el expediente después del cambio.'" confirmbtntext="Confirmar cambio" calcelbtntext="Seguir como antes" @confirm="applyMode" @close="cancelMode"><template #icon><v-icon size="64" color="primary" aria-hidden="true">mdi-tooth-outline</v-icon></template></da-sweet-confirm></template></da-dialog>
+    <dialog ref="modeDialog" class="dental-confirm" aria-labelledby="dental-confirm-title" aria-describedby="dental-confirm-description" @cancel.prevent="cancelMode" @keydown.tab="cycleConfirmation">
+        <h2 id="dental-confirm-title">Cambiar el tipo de odontograma</h2>
+        <p id="dental-confirm-description">Se usará <strong>{{ captureLabel(pendingMode) }}</strong> en todo el consultorio. {{ confirmationEffect }} Vuelve a abrir el expediente después del cambio.</p>
+        <div class="dental-actions">
+          <button ref="confirmCancel" type="button" class="dental-button" @click="cancelMode">Seguir como antes</button>
+          <button ref="confirmApply" type="button" class="dental-button dental-button--primary" @click="applyMode">Confirmar cambio</button>
+        </div>
+    </dialog>
   </div>
 </template>
 
 <script>
 import api from '../../../services/core/odontogram/DAOdontogramV2Service';
 import { sequence } from '../../../utils/odontogram/dentalContract';
-import DADialog from '../../../core/components/form/dialog/DADialog.vue';
-import DASweetConfirm from '../../../core/components/form/dialog/components/DASweetConfirm.vue';
 import ToothDrawing from '../../Patient/Sections/components/preview/OdontogramPreviewTooth.vue';
 const normalizeWord = value => value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const dentitions = ['permanent', 'primary', 'mixed'];
 export default {
-  components: { 'da-dialog': DADialog, 'da-sweet-confirm': DASweetConfirm, ToothDrawing },
-  props: { disabled: Boolean },
+  components: { ToothDrawing },
+  props: { disabled: Boolean, canManageRoles: Boolean },
   data: () => ({
-    loading: true, ready: false, loadError: '', busy: false, showModeConfirm: false, pendingMode: null, selected: 'v1', current: 'v1', message: '', messageType: 'info', operatorBlocked: false,
-    aliasState: null, aliasWord: '', aliasTarget: 'car', aliasSearch: '', aliasBusy: false, aliasMessage: '', aliasMessageType: 'info', activation: null,
+    comparing: false, loading: true, ready: false, loadError: '', busy: false, showModeConfirm: false, pendingMode: null, selected: 'v1', current: 'v1', message: '', messageType: 'info', operatorBlocked: false,
+    aliasState: null, aliasWord: '', aliasTarget: '', aliasSearch: '', aliasBusy: false, aliasMessage: '', aliasMessageType: 'info', activation: null,
     preferenceState: null, walkTexts: { permanent: '', primary: '', mixed: '' }, walkOriginal: '', walkMode: 'permanent', savingPreferences: false, walkMessage: '', walkMessageType: 'info', walkConflict: false,
     adminLoading: false, adminErrors: { aliases: '', activation: '', preferences: '' }, dentitions,
     modeOptions: [
       { value: 'v1', label: 'Odontograma con notas', use: 'Para registrar diagnósticos escritos por diente.', description: 'Selecciona una pieza y escribe su diagnóstico. Conserva la forma de trabajo de la captura anterior.', limit: 'Sin acciones rápidas ni registro estructurado por caras.' },
-      { value: 'v2', label: 'Piezas y caras · captura rápida', use: 'Para marcar hallazgos con mayor detalle.', description: 'Registra por diente y cara con herramientas visuales o palabras en la barra de captura. Permite personalizar atajos y recorrido.', limit: 'Requiere permisos para registrar y finalizar. Las notas anteriores no se convierten automáticamente.' },
+      { value: 'v2', label: 'Piezas y caras · captura rápida', use: 'Para marcar hallazgos con mayor detalle.', description: 'Registra por diente y cara con herramientas visuales o palabras en la barra de captura. Permite personalizar atajos y recorrido.', limit: 'Requiere permisos para registrar y finalizar. Las notas compatibles se conservan como texto.' },
       { value: 'v2_readonly', label: 'Piezas y caras · solo consulta', use: 'Para revisar lo registrado sin editarlo.', description: 'Consulta los hallazgos y el historial del odontograma por piezas y caras.', limit: 'No permite agregar ni modificar registros en esta captura.' }
     ]
   }),
@@ -113,15 +136,29 @@ export default {
     allBusy() { return this.busy || this.showModeConfirm || this.aliasBusy || this.savingPreferences; },
     canCustomize() { return this.current === 'v2' && !this.allBusy && !this.disabled && !this.adminLoading; },
     walkDirty() { return Boolean(this.walkOriginal) && JSON.stringify(this.walkTexts) !== this.walkOriginal; },
-    dirty() { return this.selected !== this.current || Boolean(this.aliasWord.trim()) || this.walkDirty; },
+    aliasDraft() { return Boolean(this.aliasWord.trim() || this.aliasTarget); },
+    dirty() { return this.selected !== this.current || this.aliasDraft || this.walkDirty; },
+    otherWalkErrors() { return dentitions.filter(mode => mode !== this.walkMode && this.walkError(mode)); },
+    notesBlocked() { return this.selected === 'v1' && this.current !== 'v1' && this.activation && this.activation.has_charts; },
+    confirmationEffect() {
+      if (this.pendingMode === 'v1') return 'Solo puedes volver al registro con notas si aún no existen odontogramas por piezas y caras.';
+      if (this.current === 'v1') return 'Una nota como «sensibilidad» del diente 16 se conserva como texto en ese diente. Si dos notas distintas de la misma pieza impiden copiarlas, el cambio se detiene. Cuando haya registros por piezas y caras, solo podrás alternar entre captura rápida y solo consulta.';
+      return this.pendingMode === 'v2_readonly' ? 'El equipo podrá consultar lo registrado. La edición quedará desactivada.' : 'Las personas con permiso podrán volver a registrar hallazgos.';
+    },
     aliasTargets() { return [...((this.aliasState && this.aliasState.catalog) || []), { code: 'ok', label: 'Marcar revisado' }, { code: 'pres', label: 'Corregir presencia' }]; },
     localAliases() { return this.aliasEntries(this.aliasState && this.aliasState.local_aliases); },
     includedActions() { return this.aliasTargets.map(tool => ({ ...tool, words: Object.entries((this.aliasState && this.aliasState.global_aliases) || {}).filter(([, target]) => target === tool.code).map(([word]) => word) })); },
     filteredActions() { const search = normalizeWord(this.aliasSearch); const exact = this.includedActions.find(item => item.code === search); return exact ? [exact] : this.includedActions.filter(item => normalizeWord([item.code, item.label, ...item.words].join(' ')).includes(search)); },
-    walkPreview() { return this.parseWalk(this.walkMode).slice(0, 8); },
+    walkPreview() { return this.parseWalk(this.walkMode); },
     hasWalkErrors() { return dentitions.some(mode => Boolean(this.walkError(mode))); }
   },
-  watch: { dirty: { immediate: true, handler(value) { this.$emit('dirty', value); } }, allBusy: { immediate: true, handler(value) { this.$emit('busy', value); } } },
+  watch: {
+    showModeConfirm(open) {
+      const dialog = this.$refs.modeDialog;
+      if (open) { dialog.showModal(); this.$refs.confirmCancel.focus(); }
+      else if (dialog.open) dialog.close();
+    },
+    dirty: { immediate: true, handler(value) { this.$emit('dirty', value); } }, allBusy: { immediate: true, handler(value) { this.$emit('busy', value); } } },
   async mounted() { await this.loadMode(); await this.refreshAdministration(); },
   beforeDestroy() { this.$emit('dirty', false); this.$emit('busy', false); },
   methods: {
@@ -144,7 +181,8 @@ export default {
     },
     restoreWalk() { this.$set(this.walkTexts, this.walkMode, this.defaultWalk(this.walkMode)); this.walkMessage = 'Orden habitual preparado. Pulsa «Guardar recorrido» para aplicarlo.'; this.walkMessageType = 'info'; },
     resetWalk() { if (this.walkOriginal) this.walkTexts = JSON.parse(this.walkOriginal); if (!this.walkConflict) this.walkMessage = ''; },
-    discardChanges() { this.selected = this.current; this.aliasWord = ''; this.resetWalk(); },
+    resetAlias() { this.aliasWord = ''; this.aliasTarget = ''; this.aliasMessage = ''; },
+    discardChanges() { this.selected = this.current; this.resetAlias(); this.resetWalk(); },
     showFeedback() { this.$nextTick(() => { const alert = this.$refs.feedback; const element = alert && (alert.$el || alert); if (element && element.scrollIntoView) element.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }); },
     operatorError() { this.operatorBlocked = true; this.messageType = 'error'; this.message = 'Falta habilitar a tu equipo para registrar y finalizar odontogramas. El tipo en uso no cambió.'; this.showFeedback(); },
     async loadMode() {
@@ -176,7 +214,7 @@ export default {
       this.savingPreferences = true; this.walkMessage = '';
       try {
         const result = await api.savePreferences({ expected_revision: this.preferenceState.revision, traversal: Object.fromEntries(dentitions.map(mode => [mode, this.parseWalk(mode)])) });
-        if (!result.success) { this.walkConflict = Number(result.status) === 409 || /cambi|revisi|conflict/i.test(result.message || ''); throw Error(result.message); }
+        if (!result.success) { this.walkConflict = Number(result.status) === 409 && /cambi|revisi|conflict/i.test(result.message || ''); throw Error(result.message); }
         this.acceptPreferences(result.data); this.walkMessageType = 'success'; this.walkMessage = 'Recorrido guardado. Se usará al volver a abrir la captura del odontograma.';
       } catch (error) { this.walkMessageType = 'error'; this.walkMessage = this.walkConflict ? 'Otra persona cambió el recorrido. Conservamos tu edición. Revisa los números antes de cargar la versión guardada y volver a editar.' : error.message || 'No se pudo guardar. Conservamos el recorrido para que lo intentes de nuevo.'; } finally { this.savingPreferences = false; }
     },
@@ -187,6 +225,7 @@ export default {
       const word = normalizeWord(alias); this.aliasMessageType = 'error';
       if (target !== null && !/^[a-z]{1,30}$/.test(word)) { this.aliasMessage = 'Escribe una sola palabra de hasta 30 letras, sin espacios ni números.'; return; }
       if (target !== null) {
+        if (!this.aliasTargets.some(item => item.code === target)) { this.aliasMessage = 'Elige la acción para esta palabra.'; return; }
         const reservedAction = this.aliasTargets.find(item => item.code === word);
         const existingTarget = (this.aliasState.aliases || {})[word];
         if (reservedAction || Object.prototype.hasOwnProperty.call(this.aliasState.aliases || {}, word)) { this.aliasMessage = '«' + word + '» ya corresponde a ' + (reservedAction ? reservedAction.label : this.targetLabel(existingTarget)) + '. Elige otra palabra para ' + this.targetLabel(target) + '.'; return; }
@@ -197,17 +236,29 @@ export default {
         const result = await api.saveAlias({ alias: word, target, expected_version: this.aliasState.alias_version });
         if (!result.success) throw Error(result.message || 'No se pudo guardar la palabra.');
         this.aliasState = { ...this.aliasState, ...result.data };
-        if (target !== null) this.aliasWord = '';
+        if (target !== null) this.resetAlias();
         this.aliasMessageType = 'success'; this.aliasMessage = target === null ? 'Palabra retirada. Los registros ya capturados se conservan.' : 'Palabra agregada para tu equipo. Si hay una captura abierta, vuelve a abrirla antes de usarla.';
       } catch (error) { this.aliasMessageType = 'error'; this.aliasMessage = (error.message || 'No se pudo guardar.') + ' Tu palabra sigue aquí. Si otra persona cambió la lista, vuelve a consultarla antes de reintentar.'; } finally { this.aliasBusy = false; }
     },
-    save() { if (this.allBusy || this.disabled || this.selected === this.current) return; if (this.selected === 'v2' && this.activation && !this.activation.ready) { this.operatorError(); return; } this.pendingMode = this.selected; this.showModeConfirm = true; },
-    cancelMode() { this.showModeConfirm = false; this.pendingMode = null; },
+    save() { if (this.allBusy || this.disabled || this.selected === this.current || this.notesBlocked) return; if (this.selected === 'v2' && this.activation && !this.activation.ready) { this.operatorError(); return; } this.pendingMode = this.selected; this.showModeConfirm = true; },
+    cycleConfirmation(event) {
+      const { confirmCancel, confirmApply } = this.$refs;
+      if (event.shiftKey && document.activeElement === confirmCancel) { event.preventDefault(); confirmApply.focus(); }
+      if (!event.shiftKey && document.activeElement === confirmApply) { event.preventDefault(); confirmCancel.focus(); }
+    },
+    restoreModeFocus() {
+      this.$nextTick(() => {
+        const save = this.$refs.modeSave;
+        const button = save && !save.disabled ? save : this.$refs.changeButton;
+        if (button) button.focus();
+      });
+    },
+    cancelMode() { this.showModeConfirm = false; this.pendingMode = null; this.restoreModeFocus(); },
     async applyMode() {
       if (this.busy || !this.showModeConfirm || !this.pendingMode || this.disabled) return;
-      const mode = this.pendingMode; this.cancelMode(); this.busy = true; this.message = ''; this.operatorBlocked = false;
-      try { const response = await api.setMode(mode); if (!response.success) { if (response.code === 'CO26_OPERATORS_REQUIRED') { this.operatorError(); return; } throw Error(response.message); } this.current = this.selected = response.data.mode; this.messageType = 'success'; this.message = 'Tipo de odontograma guardado. Vuelve a abrir el expediente para usarlo.'; }
-      catch (error) { this.messageType = 'error'; this.message = error.message || 'No se pudo cambiar el tipo. Tu selección sigue aquí para volver a intentarlo.'; } finally { this.busy = false; this.showFeedback(); }
+      const mode = this.pendingMode; this.showModeConfirm = false; this.pendingMode = null; this.busy = true; this.message = ''; this.operatorBlocked = false;
+      try { const response = await api.setMode(mode); if (!response.success) { if (response.code === 'CO26_NOTES_MODE_UNAVAILABLE') this.activation = { ...this.activation, has_charts: true }; if (response.code === 'CO26_OPERATORS_REQUIRED') { this.operatorError(); return; } throw Error(response.message); } this.current = this.selected = response.data.mode; this.messageType = 'success'; this.message = 'Tipo de odontograma guardado. Vuelve a abrir el expediente para usarlo.'; }
+      catch (error) { this.messageType = 'error'; this.message = error.message || 'No se pudo cambiar el tipo. Tu selección sigue aquí para volver a intentarlo.'; } finally { this.busy = false; this.showFeedback(); this.restoreModeFocus(); }
     }
   }
 };
@@ -240,4 +291,15 @@ export default {
 .dental-included { margin:18px 0; }.dental-included summary { padding-left:0; }.dental-walk-preview { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }.dental-walk-preview span { border-radius:6px; background:var(--color-gray98); padding:6px; font-size:13px; }.dental-settings .dental-error { color:var(--color-secondary-700); }.dental-settings button:focus-visible,.dental-settings input:focus-visible,.dental-settings select:focus-visible,.dental-settings textarea:focus-visible,.dental-settings summary:focus-visible { outline:3px solid var(--color-primary-500); outline-offset:3px; }
 @media(max-width:1000px) { .dental-mode-grid { grid-template-columns:1fr; }.dental-mode { gap:7px; padding:16px; }.dental-preview-content { grid-template-columns:1fr; gap:12px; } }
 @media(max-width:600px) { .dental-detail-body { padding:4px 14px 16px; }.dental-summary-hint { display:block; margin:4px 0 0 16px; }.dental-alias-form { grid-template-columns:1fr; }.dental-alias-form { padding:12px; }.dental-actions > button { width:100%; }.dental-heading { font-size:19px; }.dental-settings summary { padding:14px 12px; }.dental-alias-list li { align-items:start; }.dental-alias-list li > span { display:grid; gap:4px; } }
+.dental-current { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.dental-current h3 { margin:0; }
+#dental-comparison { padding-top:18px; }
+.dental-mode-title strong { font-weight:600; }
+.dental-confirm::backdrop { background:rgba(0,0,0,.55); }
+.dental-confirm { width:min(480px,calc(100% - 32px)); max-height:90vh; margin:auto; border:1px solid var(--color-forty-500); padding:24px; background:var(--color-surface); color:var(--color-primary-900); border-radius:12px; }
+.dental-confirm h2 { font-size:20px; line-height:1.4; font-weight:600; }
+.dental-confirm p { margin-top:12px; font-size:15px; line-height:1.6; }
+.dental-confirm .dental-actions { margin-bottom:0; }
+.dental-confirm button:focus-visible { outline:3px solid var(--color-primary-700); outline-offset:3px; }
+@container clinical (max-width:710px) { .dental-settings .dental-mode-grid { grid-template-columns:1fr; } }
 </style>

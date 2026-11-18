@@ -28,7 +28,9 @@
         <clinical-sections-settings
             v-if="activeSection === 'clinical-modules'" ref="clinicalSettings"
             v-model="clinicalModulesForm" :loading="clinicalModulesLoading"
-            :error="clinicalModulesError" :saving="clinicalModulesSaving" :dirty="clinicalModulesDirty"
+            :error="clinicalModulesError" :saving="clinicalModulesSaving" :saved="savedClinicalModules" :plan-dirty="clinicalPlanDirty"
+            :conflict="clinicalModulesConflict" :can-manage-roles="settingsSections.some(section => section.key === 'roles-permissions')"
+            @review-conflict="reviewClinicalConflict"
             @reload="onLoadClinicalModules" @save="onSaveClinicalModules"
             @cancel="discardClinicalModulesChanges" @dental-dirty="dentalSettingsDirty = $event"
             @dental-busy="dentalSettingsBusy = $event"
@@ -823,6 +825,7 @@ export default {
             clinicalModulesError: '',
             clinicalModulesSaving: false,
             clinicalModulesOriginal: null,
+            clinicalModulesConflict: null,
             dentalSettingsDirty: false,
             dentalSettingsBusy: false,
             prescriptionConfigStatus: null,
@@ -973,6 +976,13 @@ export default {
     },
     computed: {
         businessInfoDirty() { return this.businessInfoEditing && JSON.stringify(this.businessInfo) !== JSON.stringify(this.businessInfoOriginal) },
+        savedClinicalModules() { return this.clinicalModulesOriginal ? JSON.parse(this.clinicalModulesOriginal) : {} },
+        clinicalPlanFields() {
+            const fields = ['treatmentPlanEnabled', 'showTreatmentCosts', 'showTreatmentStatus']
+            if(this.clinicalModulesForm.odontogramEnabled && this.savedClinicalModules.odontogramEnabled) fields.push('allowTreatmentToothSelection')
+            return fields
+        },
+        clinicalPlanDirty() { return this.clinicalPlanFields.some(key => this.clinicalModulesForm[key] !== this.savedClinicalModules[key]) },
         clinicalModulesDirty() { return this.clinicalModulesOriginal !== null && JSON.stringify(this.clinicalModulesForm) !== this.clinicalModulesOriginal },
         appearanceDirty() { return Boolean(this.savedTheme && this.selectedThemeCode !== this.savedTheme.code) || this.loginImagePreview !== this.loginImageOriginal },
         documentTemplateDirty() { return this.documentTemplateDialog && JSON.stringify(this.documentTemplateForm) !== this.documentTemplateOriginal },
@@ -1314,11 +1324,14 @@ export default {
         },
 
         discardClinicalModulesChanges() {
-            if(this.clinicalModulesOriginal) this.clinicalModulesForm = JSON.parse(this.clinicalModulesOriginal)
+            for(const key of ['treatmentPlanEnabled', 'allowTreatmentToothSelection', 'showTreatmentCosts', 'showTreatmentStatus']) {
+                this.clinicalModulesForm[key] = this.savedClinicalModules[key]
+            }
         },
         discardSettingsChanges() {
             if(this.$refs.clinicalSettings) this.$refs.clinicalSettings.discardDentalChanges()
             this.dentalSettingsDirty = false
+            this.clinicalModulesConflict = null
             if(this.businessInfoOriginal) this.businessInfo = this.cloneBusinessInfo(this.businessInfoOriginal)
             this.businessInfoEditing = false
             if(this.clinicalModulesOriginal) this.clinicalModulesForm = JSON.parse(this.clinicalModulesOriginal)
@@ -1379,6 +1392,7 @@ export default {
                 const response = await this.getClinicalModules()
                 if(!this.settingsReadStillCurrent(context, 'clinicalModulesError')) return
                 if(!response || !response.success) throw new Error('read')
+                this.clinicalModulesConflict = null
                 this.applyClinicalModules()
                 this.clinicalModulesOriginal = JSON.stringify(this.clinicalModulesForm)
             } catch(_) { if(isCurrentAuthorization(context, this.$store)) this.clinicalModulesError = 'No se pudieron cargar las secciones guardadas. Reintenta antes de modificarlas.' }
@@ -2037,29 +2051,56 @@ export default {
             }
         },
 
-        onSaveClinicalModules: async function() {
-            if(this.clinicalModulesSaving || this.clinicalModulesLoading || this.clinicalModulesError || !this.clinicalModulesOriginal) return
+        acceptClinicalChanges(saved, submitted) {
+            const draft = { ...this.clinicalModulesForm }
+            const previous = this.savedClinicalModules
+            this.clinicalModulesOriginal = JSON.stringify(saved)
+            this.clinicalModulesForm = { ...saved }
+            for(const key of Object.keys(saved)) {
+                if(!submitted.includes(key) && draft[key] !== previous[key]) this.clinicalModulesForm[key] = draft[key]
+            }
+        },
+        async reviewClinicalConflict() {
+            if(!this.clinicalModulesConflict || this.clinicalModulesSaving) return
             this.clinicalModulesSaving = true
             try {
-            const response = await this.saveClinicalModules({
-                config: {
-                    odontogramEnabled: Boolean(this.clinicalModulesForm.odontogramEnabled),
-                    treatmentPlanEnabled: Boolean(this.clinicalModulesForm.treatmentPlanEnabled),
-                    allowTreatmentToothSelection: Boolean(this.clinicalModulesForm.odontogramEnabled && this.clinicalModulesForm.allowTreatmentToothSelection),
-                    showTreatmentCosts: Boolean(this.clinicalModulesForm.showTreatmentCosts),
-                    showTreatmentStatus: Boolean(this.clinicalModulesForm.showTreatmentStatus)
-                }
-            })
-
-            if(response && response.success) {
+                const result = await this.getClinicalModules()
+                if(!result.success) throw Error()
+                const draft = { ...this.clinicalModulesForm }
                 this.applyClinicalModules()
-                this.clinicalModulesOriginal = JSON.stringify(this.clinicalModulesForm)
-                this.toastFunction('success','Secciones clínicas guardadas.')
-                return
+                const saved = this.clinicalModulesForm
+                this.clinicalModulesForm = draft
+                this.acceptClinicalChanges(saved, [])
+                this.clinicalModulesConflict = null
+                this.toastFunction('info', 'Valores guardados actualizados. Revisa los ajustes pendientes.')
+            } catch(_) { this.toastFunction('error', 'No se pudo actualizar. Conservamos tu borrador.') }
+            finally { this.clinicalModulesSaving = false }
+        },
+        async onSaveClinicalModules(scope) {
+            if(this.clinicalModulesSaving || this.clinicalModulesConflict || this.clinicalModulesLoading || this.clinicalModulesError || !this.clinicalModulesOriginal) return
+            const fields = scope === 'activation' ? ['odontogramEnabled'] : this.clinicalPlanFields
+            const original = this.savedClinicalModules
+            const changes = {}, expected = {}
+            for(const key of fields) {
+                if(this.clinicalModulesForm[key] === original[key]) continue
+                changes[key] = this.clinicalModulesForm[key]
+                expected[key] = original[key]
             }
-
-            this.toastFunction('error', response && response.message ? response.message : 'No se pudieron guardar las secciones clínicas.')
-            } catch(_) { this.toastFunction('error', 'No se pudieron guardar las secciones clínicas. Conservamos tu selección; intenta de nuevo.') }
+            if(!Object.keys(changes).length) return
+            if(changes.odontogramEnabled === false) expected.allowTreatmentToothSelection = original.allowTreatmentToothSelection
+            if(changes.allowTreatmentToothSelection === true) expected.odontogramEnabled = original.odontogramEnabled
+            this.clinicalModulesSaving = true
+            try {
+                const result = await this.saveClinicalModules({ changes, expected })
+                if(result.success) {
+                    this.acceptClinicalChanges(result.data, Object.keys(changes))
+                    this.toastFunction('success', scope === 'activation' ? 'Visibilidad del odontograma guardada.' : 'Opciones del plan guardadas.')
+                } else if(result.status === 409) {
+                    this.clinicalModulesConflict = result.data || {}
+                } else {
+                    this.toastFunction('error', result.message || 'No se pudo guardar. Conservamos tus cambios.')
+                }
+            } catch(_) { this.toastFunction('error', 'No se pudo guardar. Conservamos tus cambios.') }
             finally { this.clinicalModulesSaving = false }
         },
 

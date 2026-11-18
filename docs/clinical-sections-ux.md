@@ -4,7 +4,7 @@ Rama `codex/clinical-sections-ux`, base develop `29b0cba`. Cambio independiente 
 
 La configuración se divide en Odontograma y Plan de tratamiento, conservando borradores al cambiar de pestaña. Odontograma guía activación, elección de modalidad y personalización opcional. Las tres modalidades incluyen utilidad, límites y un ejemplo ilustrativo. Las palabras de captura separan las incluidas de las propias, con búsqueda y creación; el recorrido se explica y valida por dentición. Dientes, costos y estados se reúnen con el plan y su ejemplo reactivo.
 
-Los endpoints y permisos existentes se conservan. Visibilidad/opciones del plan, modalidad, palabras y recorrido mantienen guardados separados. Se amplía la protección de salida a los borradores dentales. Una consulta de permisos no pisa el recorrido en edición; un conflicto exige revisar y cargar explícitamente la versión guardada. La respuesta del guardado de palabras actualiza su versión sin una segunda lectura que pueda fallar después de una escritura exitosa.
+El frontend R3 usa el endpoint de guardado parcial del backend clínico. El endpoint anterior sigue disponible para clientes previos. Visibilidad/opciones del plan, modalidad, palabras y recorrido mantienen guardados separados. Se amplía la protección de salida a los borradores dentales. Una consulta de permisos no pisa el recorrido en edición; un conflicto exige revisar y cargar explícitamente la versión guardada. La respuesta del guardado de palabras actualiza su versión sin una segunda lectura que pueda fallar después de una escritura exitosa.
 
 ## Revisión de diseño
 
@@ -48,4 +48,21 @@ Build local de producción: usar D2/cookie/CSRF y una URL HTTPS sintética, sin 
 - Sin prueba autenticada contra backend real, sesión nominal en test ni aceptación del usuario.
 - Dos suites anteriores no pudieron ejecutar por sus adaptadores de prueba: `ux13-settings-core-regression` intenta interpretar CSS de Vuetify como JavaScript; `ux12-settings-profile-navigation-regression` no declara `IdentityFields`. No se modificaron módulos ajenos para corregir esos adaptadores.
 - `odontogram-ui-preview.cjs` recibe el adaptador del plugin de Vuetify necesario para ejecutar la regresión CO26 existente con el frontend actual.
-- Sin backend, DB, secretos, cambios de permisos, merge ni despliegue.
+- El estado de implementación y cobertura vigente se describe en R3.
+
+
+## R3 — correcciones de la revisión independiente
+
+La activación del odontograma tiene su propio guardado. El tipo actual aparece al abrir la pestaña. «Cambiar tipo» abre la comparación. El selector del plan depende de la activación guardada. La confirmación indica el efecto del cambio, conserva el foco dentro del diálogo y permite cancelar con Escape. Las notas compatibles se copian como texto por pieza. Cuando ya hay odontogramas por piezas y caras, las modalidades disponibles para guardar son captura rápida y solo consulta.
+
+El formulario de palabras exige elegir una acción y muestra el resultado antes de agregarla. Se puede descartar un borrador incluso en solo consulta. El recorrido permite saltar a la dentición con errores. El plan explica la diferencia entre permisos de consulta y edición de costos, el alcance de la etiqueta de estado y la conservación de los dientes asociados. Su diseño responde al ancho disponible dentro de Configuración.
+
+El endpoint `POST /api/config/clinical-modules/changes` recibe los campos modificados y los valores esperados de esos campos y sus dependencias. El backend R3 adquiere el bloqueo de la fila en una transacción MySQL y devuelve la configuración completa tras guardar. Ante un conflicto, la pantalla conserva los cambios locales y ofrece actualizar la base para revisarlos. Ambos worktrees deben integrarse para usar este contrato. El cliente anterior sigue usando su endpoint original.
+
+Vista local R3 en `http://127.0.0.1:4399/admin?section=clinical-modules`, con API sintética en 4400. Para reproducir la suite contra esa instancia, definir `CLINICAL_FRONT_PORT=4399` y `CLINICAL_FIXTURE_PORT=4400` antes de ejecutar `node scripts/qa/clinical-sections-visual.cjs`. La suite usa una instancia de fixture privada por ejecución. Para las pruebas del intérprete y de la captura, definir `CO26_BACKEND_ROOT` con la ruta del checkout backend.
+
+La prueba `scripts/qa/clinical-module-changes-mysql.js` del worktree backend usa MySQL 8.4 local desechable, con base `clinical_qa` y puerto explícito en `CLINICAL_QA_MYSQL_PORT`. Se ejercitaron dos escritores sobre la primera fila, cambios simultáneos, conflicto sin escritura parcial, dependencia dental y separación por consultorio. La prueba del navegador usa exclusivamente datos sintéticos en memoria.
+
+## R4 — prueba de usabilidad
+
+El diálogo de cambio explica una nota por diente y qué pasa si dos notas distintas impiden la conversión. El plan se guarda junto a sus opciones. «Ver ejemplo de impresión» presenta datos ficticios con la misma plantilla que la hoja del expediente y refleja los ajustes en edición. El recorrido válido muestra sus dos primeras y dos últimas piezas. La suite del shell comprueba estas cuatro mejoras y el acceso con teclado en claro y oscuro.

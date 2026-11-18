@@ -699,6 +699,7 @@ import fieldError from '../../../core/directives/field-error';
 import { sanitizeHtmlForDocumentSnapshot } from '../../../utils/sanitizeHtml';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
 import { localToday, requestId, snapshot, treatmentErrors, planErrors } from '../../../domain/treatment-plan/plan.editor';
+import { treatmentPlanPrintHtml } from '../../../domain/treatment-plan/plan.print';
 import { surfaceLabel as dentalSurfaceLabel } from '../../../utils/odontogram/dentalContract';
 import { getSettingsSections } from '../../../security/settingsAccess';
 
@@ -1844,24 +1845,26 @@ export default {
       return amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
     },
     printableHistoryHtml: function(plan) {
-      const treatments=this.planTreatments(plan), escape=this.escapeHtml;
-      const closed=plan.status === 'closed' || !!plan.closed_at;
       const faceNames={M:'Mesial',O:'Oclusal',I:'Incisal',D:'Distal',V:'Vestibular',L:'Lingual',P:'Palatina'};
       const teethText=item=>(item.teeth || []).map(tooth=>{
         const detail=(item.tooth_details || []).find(detail=>String(detail.tooth_number) === String(tooth));
         const faces=detail && detail.surfaces ? [...detail.surfaces].map(face=>faceNames[dentalSurfaceLabel(face,Number(tooth))]).join(', ') : '';
         return 'Diente '+tooth+(faces ? ' ('+faces+')' : '');
       }).join('; ') || 'Sin dientes específicos';
-      const rows=treatments.map(item=>'<tr><td><strong>'+escape(item.name || 'Sin nombre')+'</strong>'+(item.description ? '<p>'+escape(item.description)+'</p>' : '')+'<p>'+escape(teethText(item))+'</p></td>'+(this.showStatus ? '<td>'+escape(this.statusLabel(item.status))+'</td>' : '')+'<td>'+escape(this.formatDisplayDate(item.estimated_start_date))+'<br>'+escape(this.formatDisplayDate(item.estimated_end_date))+'</td>'+(this.showCosts ? '<td class="amount">'+escape(this.formatCurrencyValue(item.cost))+'</td>' : '')+'</tr>').join('');
-      const consent=plan.consent && this.canViewConsent ? plan.consent : null;
-      return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan de tratamiento</title><style>'+
-        'body{font:14px Arial,sans-serif;color:#203349;margin:32px;line-height:1.5}h1{font-size:25px;margin:6px 0 12px}.brand{font-weight:bold;color:#147e9c}.meta{border-top:2px solid #147e9c;padding-top:16px}table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:20px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #cad5df;padding:10px;overflow-wrap:anywhere}th{background:#eef3f6;font-size:12px}th:first-child{width:48%}td p{margin:5px 0;white-space:pre-wrap}tr{break-inside:avoid}thead{display:table-header-group}.amount{text-align:right}.summary{font-weight:bold;text-align:right}footer{border-top:1px solid #cad5df;margin-top:24px;padding-top:12px;font-size:11px;color:#52657b}button{padding:10px 16px;cursor:pointer}@page{size:A4;margin:16mm}@media print{body{margin:0}button{display:none}}'+
-        '</style></head><body><button type="button" onclick="window.print()">Imprimir o guardar PDF</button><p class="brand">'+escape(this.businessName)+'</p><h1>'+escape(plan.title || 'Plan de tratamiento')+'</h1><p class="meta"><strong>Paciente:</strong> '+escape(this.patientName || 'No especificado')+'<br><strong>Plan:</strong> '+(closed ? 'Cerrado' : 'Activo')+' · <strong>Inicio:</strong> '+escape(this.formatDisplayDate(plan.started_at))+(closed ? ' · <strong>Cierre:</strong> '+escape(this.formatDisplayDate(plan.closed_at)) : '')+'</p>'+
-        (plan.diagnosis ? '<p><strong>Diagnóstico:</strong> '+escape(plan.diagnosis)+'</p>' : '')+
-        '<table><thead><tr><th>Tratamiento y dientes</th>'+(this.showStatus ? '<th>Estado</th>' : '')+'<th>Inicio / fin estimados</th>'+(this.showCosts ? '<th>Costo</th>' : '')+'</tr></thead><tbody>'+(rows || '<tr><td colspan="'+(2+Number(this.showStatus)+Number(this.showCosts))+'">Sin tratamientos registrados.</td></tr>')+'</tbody></table>'+
-        (this.showCosts ? '<p class="summary">Presupuesto: '+escape(this.formatCurrencyValue(this.planTotalCost(plan)))+'</p><p>Incluye todos los tratamientos, también los cancelados. No representa saldo por cobrar.</p>' : '')+
-        (consent ? '<p>Hay un consentimiento registrado. El documento firmado conserva su propio contenido y se consulta por separado; esta impresión no lo sustituye.</p>' : '')+
-        '<footer>Documento informativo del plan guardado. No incluye notas internas ni firmas.<br>Impreso el '+escape(new Date().toLocaleDateString('es-MX'))+'</footer></body></html>';
+      return treatmentPlanPrintHtml({
+        businessName: this.businessName, patientName: this.patientName, title: plan.title,
+        closed: plan.status === 'closed' || Boolean(plan.closed_at),
+        start: this.formatDisplayDate(plan.started_at), end: this.formatDisplayDate(plan.closed_at),
+        diagnosis: plan.diagnosis, consent: Boolean(plan.consent && this.canViewConsent),
+        showStatus: this.showStatus, showCosts: this.showCosts,
+        budget: this.showCosts ? this.formatCurrencyValue(this.planTotalCost(plan)) : '',
+        treatments: this.planTreatments(plan).map(item => ({
+          name: item.name, description: item.description, teeth: teethText(item),
+          status: this.showStatus ? this.statusLabel(item.status) : '',
+          start: this.formatDisplayDate(item.estimated_start_date), end: this.formatDisplayDate(item.estimated_end_date),
+          cost: this.showCosts ? this.formatCurrencyValue(item.cost) : ''
+        }))
+      });
     },
     consentPatientSignatureLabel(consent) { return consent && consent.patient_signature_role === 'TUTOR' ? 'Firma del tutor o representante' : 'Firma del paciente'; },
     printableAdditionalConsentSignatures(consent) {
