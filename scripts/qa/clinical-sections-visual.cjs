@@ -199,6 +199,19 @@ const { createFixture } = require('./clinical-sections-fixture.cjs');
             assert.ok(paper.y>=0 && paper.y<300,'The printed sheet is in reading position after opening');
             assert.ok(await printFrame.locator('html').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Print example fits horizontally');
             await page.screenshot({path:path.join(output,theme+'-'+width+'-print-example.png')});
+            if(width===320) {
+              const costs = page.getByLabel('Mostrar costos',{exact:true});
+              await costs.focus(); await page.keyboard.press('Space');
+              await printFrame.getByRole('columnheader',{name:'Costo',exact:true}).waitFor();
+              assert.ok(await printFrame.locator('html').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'All four print columns fit');
+              await page.locator('#clinical-print-title').evaluate(el=>el.scrollIntoView({block:'start',behavior:'instant'}));
+              await printFrame.getByRole('cell',{name:'$800.00',exact:true}).waitFor();
+              // Allow Chromium to paint the replaced sandbox document after scrolling it back into view.
+              await page.waitForTimeout(400);
+              await printFrame.getByRole('row',{name:/Resina dental.*Pendiente/}).waitFor();
+              await page.screenshot({path:path.join(output,theme+'-320-print-costs.png')});
+              await costs.focus(); await page.keyboard.press('Space');
+            }
             await page.getByRole('button',{name:'Cerrar ejemplo de impresión'}).click();
           }
           const size=await page.evaluate(()=>({content:document.documentElement.scrollWidth,viewport:innerWidth}));

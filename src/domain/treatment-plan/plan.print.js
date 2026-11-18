@@ -8,13 +8,14 @@ function treatmentPlanPrintHtml({
   businessName, patientName, title, closed, start, end, diagnosis, treatments,
   showStatus, showCosts, budget, consent, example = false
 }) {
+  const dateCell = value => escapeHtml(value).replace(/\//g, '/<wbr>');
   const headings = ['Tratamiento y dientes', ...(showStatus ? ['Estado'] : []), 'Inicio / fin estimados', ...(showCosts ? ['Costo'] : [])];
   const rows = treatments.map(item => `<tr>
     <td><strong>${escapeHtml(item.name || 'Sin nombre')}</strong>
       ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}
       <p>${escapeHtml(item.teeth || 'Sin dientes específicos')}</p></td>
-    ${showStatus ? `<td>${escapeHtml(item.status)}</td>` : ''}
-    <td>${escapeHtml(item.start)}<br>${escapeHtml(item.end)}</td>
+    ${showStatus ? `<td class="status">${escapeHtml(item.status)}</td>` : ''}
+    <td>${dateCell(item.start)}<br>${dateCell(item.end)}</td>
     ${showCosts ? `<td class="amount">${escapeHtml(item.cost)}</td>` : ''}
   </tr>`).join('');
 
@@ -32,14 +33,17 @@ function treatmentPlanPrintHtml({
     td p{margin:5px 0;white-space:pre-wrap}
     tr{break-inside:avoid}
     thead{display:table-header-group}
-    .amount{text-align:right}
+    .amount{text-align:right;white-space:nowrap}
+    .status{white-space:nowrap}
     .summary{font-weight:bold;text-align:right}
     footer{border-top:1px solid #cad5df;margin-top:24px;padding-top:12px;font-size:11px;color:#52657b}
     button{padding:10px 16px;cursor:pointer}
     @media screen and (max-width:480px){body{margin:12px;font-size:13px}
-    th,td{padding:5px}
-    th:first-child{width:32%}
+    table{table-layout:auto}
+    th,td{padding:5px 3px}
+    th:first-child{width:auto}
     h1{font-size:20px}}
+    @media screen and (max-width:300px){body{margin:8px;font-size:12px}th{font-size:11px}th,td{padding:5px 2px}}
     @page{size:A4;margin:16mm}
     @media print{body{margin:0}
     button{display:none}}
