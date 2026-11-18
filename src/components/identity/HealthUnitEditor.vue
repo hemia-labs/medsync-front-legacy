@@ -1,28 +1,49 @@
 <template>
-  <fieldset class="min-w-0" :disabled="busy">
+  <fieldset class="unit-editor min-w-0" :disabled="busy">
     <legend class="sr-only">Editar unidad</legend>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div data-field="displayName" class="min-w-0">
-        <v-text-field :value="form.displayName" @input="set('displayName', $event)" label="Nombre de la unidad en MedSync *" maxlength="250" counter outlined dense
-          :error-messages="errors.displayName" hint="Cómo la reconoce tu equipo. Puede ser tu nombre comercial; no reemplaza el nombre oficial." persistent-hint />
-        <button v-if="business.name && form.displayName !== business.name" type="button" class="unit-link text-sm underline" @click="useBusinessName">Usar el nombre comercial «{{ business.name }}»</button>
-      </div>
-      <div data-field="cluesRef" class="min-w-0">
-        <catalog-reference-field :value="form.cluesRef" family="sis.establishments" label="CLUES, opcional" :disabled="busy" :errors="errors.cluesRef || []" @input="set('cluesRef', $event)" />
-        <p v-if="form.cluesRef" class="m-0 mt-1 text-sm text-gray-700 break-words unit-selection" role="status" aria-live="polite">Selección: <strong>{{ selectedLabel || 'sin nombre oficial (captura manual o catálogo no disponible)' }}</strong> · <span class="font-mono">{{ form.cluesRef.code }}</span></p>
-        <p v-if="codeChanged" class="m-0 mt-1 text-sm unit-warn" role="note">Cambiar la clave aquí <strong>corrige una captura equivocada</strong> de esta misma unidad. Si la autoridad asignó una CLUES nueva (sustitución oficial, aunque sea en el mismo inmueble), no la cambies aquí: conserva esta unidad, márcala inactiva y agrega otra. Son dos guardados separados.</p>
-      </div>
+    <div class="unit-editor-grid">
+      <section data-field="displayName" class="unit-editor-name">
+        <h4>El nombre que usa tu equipo</h4>
+        <p class="unit-editor-help">Elige un nombre que te ayude a reconocer esta unidad, como el de tu consultorio o el de una sede.</p>
+        <v-text-field :value="form.displayName" @input="set('displayName', $event)" label="Nombre de la unidad en MedSync *" maxlength="250" counter outlined dense :error-messages="errors.displayName" />
+        <div v-if="business.name" class="unit-name-suggestion">
+          <v-icon size="19" color="inherit" aria-hidden="true">mdi-lightbulb-outline</v-icon>
+          <div><p>Puedes usar tu nombre comercial</p><p class="unit-editor-help">Copia «{{ business.name }}» como nombre de esta unidad. Después puedes ajustarlo para distinguir una sede.</p>
+            <button v-if="form.displayName !== business.name" type="button" class="unit-link" @click="useBusinessName">Usar nombre comercial</button>
+            <span v-else class="unit-name-applied">Ya estás usando este nombre.</span>
+          </div>
+        </div>
+      </section>
+      <section data-field="cluesRef" class="unit-editor-clues">
+        <h4>CLUES del establecimiento <span class="unit-optional">Opcional en MedSync</span></h4>
+        <p class="unit-editor-help">Si aún no tienes la clave, puedes añadirla después.</p>
+        <catalog-reference-field :value="form.cluesRef" family="sis.establishments" label="CLUES, opcional" guided :disabled="busy" :errors="errors.cluesRef || []" @input="set('cluesRef', $event)" />
+        <div v-if="form.cluesRef" class="unit-selection" role="status" aria-live="polite">
+          <span class="unit-selection-label">{{ form.cluesRef.releaseId ? 'Referencia elegida' : 'CLUES capturada manualmente' }}</span>
+          <span class="unit-selection-code">{{ form.cluesRef.code }}</span>
+          <p>{{ selectedLabel || (form.cluesRef.releaseId ? 'Nombre oficial no disponible por ahora' : 'Sin verificar en el catálogo') }}</p>
+        </div>
+        <details class="unit-help" :open="Boolean(codeChanged)">
+          <summary>{{ codeChanged ? 'Antes de guardar una clave diferente' : '¿Necesitas corregir o cambiar la CLUES?' }}</summary>
+          <p>Si escribiste mal la clave de esta unidad, puedes corregir la captura aquí.</p>
+          <p>Si la autoridad te asignó otra CLUES por una sustitución oficial, registra una unidad nueva, incluso si está en el mismo inmueble:</p>
+          <ol><li>Marca la unidad anterior como inactiva y guarda ese cambio.</li><li>Usa Agregar otra unidad para registrar la nueva clave.</li></ol>
+          <p>Así conservas ambas unidades. Cada paso se guarda por separado.</p>
+        </details>
+      </section>
     </div>
-    <div class="mt-3 flex items-start gap-3">
-      <v-switch :input-value="form.active" @change="set('active', Boolean($event))" inset hide-details class="m-0 mt-0" aria-describedby="unit-active-help" label="Activa en MedSync" />
+    <div class="unit-activity">
+      <div><h4>Estado de esta unidad</h4><p :id="'unit-active-help-' + _uid" class="unit-editor-help">Déjala activa mientras la uses. Si ya no la utilizas, márcala inactiva para conservarla como referencia.</p>
+        <details class="unit-help"><summary>Qué cambia al marcarla inactiva</summary><p>Por ahora, las atenciones funcionan igual en ambos estados y los registros anteriores se conservan. El estado oficial de la CLUES se consulta en el catálogo.</p></details>
+      </div>
+      <v-switch :input-value="form.active" @change="set('active', Boolean($event))" inset hide-details class="m-0" :aria-describedby="'unit-active-help-' + _uid" label="Activa en MedSync" />
     </div>
-    <p id="unit-active-help" class="m-0 mt-1 text-sm text-gray-500">Registro administrativo de tu cuenta. Hoy no bloquea ni asigna atenciones. Marcarla inactiva no borra ni cambia registros anteriores y no es la situación oficial de la CLUES.</p>
-    <details class="mt-3" :open="showPeriod" @toggle="showPeriod = $event.target.open">
-      <summary class="cursor-pointer text-sm font-semibold text-gray-700">Periodo de asociación con tu cuenta (opcional)</summary>
-      <p class="m-0 mt-1 text-sm text-gray-500">Fechas en que esta unidad perteneció a tu cuenta de MedSync. No es una vigencia oficial: las CLUES no caducan.</p>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+    <details class="unit-period unit-help" :open="showPeriod" @toggle="showPeriod = $event.target.open">
+      <summary>Fechas de esta unidad (opcional)</summary>
+      <p>Si te sirve como referencia, indica desde cuándo usas esta unidad y cuándo dejaste de usarla en tu cuenta. Estas fechas no son la vigencia oficial de la CLUES.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         <v-text-field :value="form.validFrom" @input="set('validFrom', $event || null)" type="date" label="Desde" outlined dense :error-messages="errors.validFrom" />
-        <v-text-field :value="form.validTo" @input="set('validTo', $event || null)" type="date" label="Hasta (sin incluir)" outlined dense :error-messages="errors.validTo" />
+        <v-text-field :value="form.validTo" @input="set('validTo', $event || null)" type="date" label="Hasta (sin incluir)" hint="El día indicado queda fuera del periodo." persistent-hint outlined dense :error-messages="errors.validTo" />
       </div>
     </details>
   </fieldset>

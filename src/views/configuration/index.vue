@@ -102,163 +102,88 @@
             </fieldset>
         </section>
 
-        <section ref="preparationEditor" v-if="activeSection === 'identity'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl">
-            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
-                <div>
-                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Informacion del consultorio</p>
-                    <h2 class="m-0 text-gray-600 text-2xl font-normal">Datos generales del consultorio</h2>
-                    <p class="m-0 mt-2 text-gray-500 text-sm">Datos del consultorio, unidad de atención con su CLUES y estado de la cuenta. Cada bloque se edita y se guarda por separado.</p>
+        <section ref="preparationEditor" v-if="activeSection === 'identity'" class="clinic-identity">
+            <article class="clinic-account" aria-labelledby="clinic-account-title">
+                <div class="clinic-account__heading">
+                    <div class="clinic-account__intro">
+                        <span class="clinic-account__icon" aria-hidden="true"><v-icon color="inherit" size="25">mdi-office-building-outline</v-icon></span>
+                        <div>
+                            <p class="clinic-eyebrow">Estado de la cuenta</p>
+                            <h2 id="clinic-account-title">Tu consultorio en MedSync</h2>
+                            <p class="clinic-account__name">{{ businessInfoOriginal && businessInfoOriginal.name || businessInfo.name || 'Consultorio' }}</p>
+                        </div>
+                    </div>
+                    <span class="clinic-account__status" :class="{ 'clinic-account__status--active': businessStatusLabel === 'Activa' }">{{ businessInfoLoading ? 'Consultando…' : businessStatusLabel }}</span>
                 </div>
-                <div class="flex flex-wrap items-center justify-start lg:justify-end gap-3 settings-header-actions">
-                    <da-button-primary
-                        ref="guideIdentityAction" v-if="!businessInfoEditing"
-                        @click.native="onStartBusinessInfoEdit()"
-                        :label="'Editar datos del consultorio'" :disabled="businessInfoLoading || !!businessInfoError || !businessInfoOriginal || healthUnitsState.editing"
-                        rxl
-                        swpr
-                        class="py-1 px-3 font-light"
-                    ></da-button-primary>
-                    <button
-                        v-if="businessInfoEditing"
-                        type="button"
-                        class="cursor-pointer border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 font-semibold shadow-sm"
-                        @click="onCancelBusinessInfoEdit()" :disabled="businessInfoSaving"
-                    >
-                        Cancelar
-                    </button>
-                    <da-button-primary
-                        v-if="businessInfoEditing"
-                        ref="guideIdentityAction" @click.native="onSaveBusinessInfo()"
-                        :label="businessInfoSaving ? 'Guardando...' : 'Guardar cambios'"
-                        :disabled="businessInfoSaving"
-                        rxl
-                        swpr
-                        class="py-1 px-3 font-light"
-                    ></da-button-primary>
+                <p class="clinic-account__description">Aquí puedes consultar el plan y el estado de tu cuenta. En Plan y facturación encontrarás los detalles de tu suscripción y tus pagos.</p>
+                <div class="clinic-account__footer">
+                    <dl class="clinic-account__facts">
+                        <div><dt>Tu plan</dt><dd>{{ businessInfoLoading ? '…' : businessPlanLabel }}</dd></div>
+                        <div><dt>Periodo de prueba</dt><dd>{{ formatBusinessDate(businessInfo.trialEndsAt) }}</dd></div>
+                        <div class="clinic-account__identifier"><dt>Identificador del consultorio</dt><dd>{{ businessInfo.slug || businessInfo.id_business || 'Sin identificador' }}</dd></div>
+                    </dl>
+                    <router-link to="/admin?section=plan-billing" class="clinic-account__link">Ver plan y facturación <v-icon size="18" color="inherit" aria-hidden="true">mdi-arrow-right</v-icon></router-link>
                 </div>
-            </div>
+            </article>
 
-            <p v-if="businessInfoLoading" class="p-7" role="status">Cargando los datos guardados del consultorio…</p>
-            <v-alert v-else-if="businessInfoError" type="error" text role="alert" class="m-5">{{ businessInfoError }} <button type="button" class="underline font-semibold" @click="onGetBusinessInfo">Reintentar</button></v-alert>
-            <div v-if="!businessInfoLoading && !businessInfoError && !businessInfoEditing" class="grid grid-cols-1 lg:grid-cols-2 gap-6 p-7 pb-0">
-                <article class="min-w-0 border border-gray-200 bg-white shadow-sm p-5">
-                    <div class="flex items-start gap-3">
-                        <div class="flex items-center justify-center w-10 h-10 bg-primary-100 text-primary-900 border border-primary-200">
-                            <v-icon color="inherit" size="22">mdi-office-building-outline</v-icon>
-                        </div>
-                        <div>
-                            <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Perfil del consultorio</p>
-                            <h3 class="m-0 text-gray-700 text-lg font-semibold">Nombre e identidad visible</h3>
-                        </div>
+            <section class="clinic-panel" aria-labelledby="clinic-details-title">
+                <header class="clinic-panel__header">
+                    <div>
+                        <h2 id="clinic-details-title">Datos del consultorio</h2>
+                        <p>Así se identifica tu consultorio y así pueden ponerse en contacto contigo.</p>
                     </div>
-                    <dl class="m-0 mt-5 divide-y divide-gray-100">
-                        <div class="py-3">
-                            <dt class="text-xs font-bold uppercase tracking-wider text-gray-500">Nombre comercial</dt>
-                            <dd class="m-0 mt-1 text-gray-800 font-semibold break-words">{{ businessInfo.name || 'Sin nombre configurado' }}</dd>
-                        </div>
-                        <div class="py-3">
-                            <dt class="text-xs font-bold uppercase tracking-wider text-gray-500">Razon social</dt>
-                            <dd class="m-0 mt-1 text-gray-700 break-words">{{ businessInfo.legalName || 'Sin razon social configurada' }}</dd>
-                        </div>
-                        <div class="py-3">
-                            <dt class="text-xs font-bold uppercase tracking-wider text-gray-500">Logo</dt>
-                            <dd class="m-0 mt-1">
-                                <private-clinic-logo :key="businessInfo.id_business" :business-id="businessInfo.id_business" :image="businessInfo.logoUrl" @saved="onPrivateLogoSaved" />
-                            </dd>
-                        </div>
-                    </dl>
-                </article>
-
-                <article class="min-w-0 border border-gray-200 bg-white shadow-sm p-5">
-                    <div class="flex items-start gap-3">
-                        <div class="flex items-center justify-center w-10 h-10 bg-primary-100 text-primary-900 border border-primary-200">
-                            <v-icon color="inherit" size="22">mdi-map-marker-outline</v-icon>
-                        </div>
-                        <div>
-                            <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Contacto y ubicacion</p>
-                            <h3 class="m-0 text-gray-700 text-lg font-semibold">Canales del consultorio</h3>
-                        </div>
+                    <div class="clinic-header-actions">
+                        <da-button-primary ref="guideIdentityAction" v-if="!businessInfoEditing" @click.native="onStartBusinessInfoEdit()"
+                            label="Editar datos del consultorio" :disabled="businessInfoLoading || !!businessInfoError || !businessInfoOriginal || healthUnitsState.editing" rxl swpr class="py-1 px-3 font-light" />
+                        <button v-if="businessInfoEditing" type="button" class="clinic-secondary-button" @click="onCancelBusinessInfoEdit()" :disabled="businessInfoSaving">Cancelar</button>
+                        <da-button-primary v-if="businessInfoEditing" ref="guideIdentityAction" @click.native="onSaveBusinessInfo()"
+                            :label="businessInfoSaving ? 'Guardando...' : 'Guardar cambios'" :disabled="businessInfoSaving" rxl swpr class="py-1 px-3 font-light" />
                     </div>
-                    <dl class="m-0 mt-5 divide-y divide-gray-100">
-                        <div class="py-3">
-                            <dt class="text-xs font-bold uppercase tracking-wider text-gray-500">Email de contacto</dt>
-                            <dd class="m-0 mt-1 text-gray-700 break-all">{{ businessInfo.email || 'Sin email configurado' }}</dd>
+                </header>
+                <p v-if="businessInfoLoading" class="clinic-panel__notice" role="status">Cargando los datos guardados del consultorio…</p>
+                <v-alert v-else-if="businessInfoError" type="error" text role="alert" class="m-5">{{ businessInfoError }} <button type="button" class="underline" @click="onGetBusinessInfo">Reintentar</button></v-alert>
+                <div v-if="!businessInfoLoading && !businessInfoError && !businessInfoEditing" class="clinic-details-grid">
+                    <article class="clinic-detail-card" aria-labelledby="clinic-name-title">
+                        <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-storefront-outline</v-icon></span><h3 id="clinic-name-title">Nombre e imagen</h3></div>
+                        <dl class="clinic-detail-list">
+                            <div><dt>Nombre comercial</dt><dd class="clinic-name-value">{{ businessInfo.name || 'Sin nombre configurado' }}</dd></div>
+                            <div><dt>Razón social</dt><dd>{{ businessInfo.legalName || 'Sin razón social configurada' }}</dd></div>
+                        </dl>
+                        <div class="clinic-logo-area"><p class="clinic-field-label">Logo del consultorio</p><private-clinic-logo :key="businessInfo.id_business" :business-id="businessInfo.id_business" :image="businessInfo.logoUrl" @saved="onPrivateLogoSaved" /></div>
+                    </article>
+                    <article class="clinic-detail-card" aria-labelledby="clinic-contact-title">
+                        <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-map-marker-outline</v-icon></span><h3 id="clinic-contact-title">Contacto y ubicación</h3></div>
+                        <dl class="clinic-detail-list">
+                            <div><dt>Correo de contacto</dt><dd>{{ businessInfo.email || 'Sin correo configurado' }}</dd></div>
+                            <div><dt>Teléfono del consultorio</dt><dd>{{ businessInfo.phone || 'Sin teléfono configurado' }}</dd></div>
+                            <div class="clinic-address"><dt>Domicilio</dt><dd>{{ businessInfo.address || 'Sin domicilio configurado' }}</dd></div>
+                        </dl>
+                    </article>
+                </div>
+                <v-alert v-if="businessInfoEditing && (businessSaveError || Object.keys(businessFieldErrors).length)" type="error" text role="alert" class="m-5">{{ businessSaveError || 'Revisa los campos señalados. Tu captura se conserva.' }}</v-alert>
+                <div v-if="businessInfoEditing" class="clinic-details-grid clinic-details-grid--editing">
+                    <article class="clinic-detail-card">
+                        <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-storefront-outline</v-icon></span><h3>Nombre e imagen</h3></div>
+                        <p class="clinic-card-help">Usa el nombre con el que tus pacientes conocen el consultorio. La razón social es el nombre registrado para tus asuntos fiscales; puede ser diferente.</p>
+                        <div class="clinic-form-fields">
+                            <v-text-field ref="business_name" v-model="businessInfo.name" :error-messages="businessFieldErrors.name" :disabled="businessInfoSaving" label="Nombre comercial *" dense outlined :color="themePrimaryColor" />
+                            <v-text-field ref="business_legalName" v-model="businessInfo.legalName" :error-messages="businessFieldErrors.legalName" :disabled="businessInfoSaving" label="Razón social" dense outlined :color="themePrimaryColor" />
                         </div>
-                        <div class="py-3">
-                            <dt class="text-xs font-bold uppercase tracking-wider text-gray-500">Telefono del consultorio</dt>
-                            <dd class="m-0 mt-1 text-gray-700 break-words">{{ businessInfo.phone || 'Sin telefono configurado' }}</dd>
+                        <p class="clinic-inline-note"><v-icon size="17" color="inherit" aria-hidden="true">mdi-image-outline</v-icon> Al terminar esta edición, podrás cambiar el logo desde la tarjeta Nombre e imagen.</p>
+                    </article>
+                    <article class="clinic-detail-card">
+                        <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-map-marker-outline</v-icon></span><h3>Contacto y ubicación</h3></div>
+                        <p class="clinic-card-help">Añade el teléfono, el correo y la dirección que usas para recibir a tus pacientes y atender sus consultas.</p>
+                        <div class="clinic-form-fields">
+                            <v-text-field ref="business_email" v-model="businessInfo.email" :error-messages="businessFieldErrors.email" :disabled="businessInfoSaving" label="Correo de contacto (opcional)" inputmode="email" dense outlined :color="themePrimaryColor" />
+                            <v-text-field ref="business_phone" v-model="businessInfo.phone" :error-messages="businessFieldErrors.phone" :disabled="businessInfoSaving" label="Teléfono del consultorio *" inputmode="tel" hint="Escribe los 10 dígitos; también puedes pegar el número con +52." persistent-hint dense outlined :color="themePrimaryColor" />
+                            <v-textarea ref="business_address" v-model="businessInfo.address" :error-messages="businessFieldErrors.address" :disabled="businessInfoSaving" label="Domicilio *" rows="3" outlined :color="themePrimaryColor" />
                         </div>
-                        <div class="py-3">
-                            <dt class="text-xs font-bold uppercase tracking-wider text-gray-500">Domicilio</dt>
-                            <dd class="m-0 mt-1 text-gray-700 whitespace-pre-line break-words">{{ businessInfo.address || 'Sin domicilio configurado' }}</dd>
-                        </div>
-                    </dl>
-                </article>
-            </div>
-
-            <v-alert v-if="businessInfoEditing && (businessSaveError || Object.keys(businessFieldErrors).length)" type="error" text role="alert" class="m-5">{{ businessSaveError || 'Revisa los campos señalados. Tu captura se conserva.' }}</v-alert>
-            <div v-if="businessInfoEditing" class="grid grid-cols-1 lg:grid-cols-5 gap-6 p-7 pb-0">
-                <article class="min-w-0 lg:col-span-2 border border-gray-200 bg-white shadow-sm p-5">
-                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Perfil del consultorio</p>
-                    <h3 class="m-0 text-gray-700 text-lg font-semibold">Nombre e identidad visible</h3>
-                    <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Solo estos datos generales pueden modificarse desde esta pantalla.</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
-                        <v-text-field ref="business_name" v-model="businessInfo.name" :error-messages="businessFieldErrors.name" :disabled="businessInfoSaving" label="Nombre comercial *" dense outlined :color="themePrimaryColor"></v-text-field>
-                        <v-text-field ref="business_legalName" v-model="businessInfo.legalName" :error-messages="businessFieldErrors.legalName" :disabled="businessInfoSaving" label="Razón social" dense outlined :color="themePrimaryColor"></v-text-field>
-                    </div>
-                    <p class="text-sm text-gray-500">Puedes subir o eliminar el logo privado desde la tarjeta del consultorio al terminar de editar estos datos.</p>
-                </article>
-
-                <article class="min-w-0 lg:col-span-3 border border-gray-200 bg-white shadow-sm p-5">
-                    <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Contacto y ubicacion</p>
-                    <h3 class="m-0 text-gray-700 text-lg font-semibold">Canales del consultorio</h3>
-                    <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Estos datos se usan como referencia operativa y en documentos del consultorio.</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
-                        <v-text-field ref="business_email" v-model="businessInfo.email" :error-messages="businessFieldErrors.email" :disabled="businessInfoSaving" label="Email contacto (opcional)" inputmode="email" dense outlined :color="themePrimaryColor"></v-text-field>
-                        <v-text-field ref="business_phone" v-model="businessInfo.phone" :error-messages="businessFieldErrors.phone" :disabled="businessInfoSaving" label="Teléfono del consultorio *" inputmode="tel" hint="10 dígitos nacionales; también puedes pegar +52." persistent-hint dense outlined :color="themePrimaryColor"></v-text-field>
-                    </div>
-                    <v-textarea ref="business_address" v-model="businessInfo.address" :error-messages="businessFieldErrors.address" :disabled="businessInfoSaving" label="Domicilio *" rows="2" outlined :color="themePrimaryColor"></v-textarea>
-                </article>
-            </div>
-
-            <p v-if="healthUnitsState.editing && !businessInfoEditing" class="m-0 px-7 pt-3 text-sm text-gray-500">Termina o cancela la edición de la unidad para editar los datos del consultorio.</p>
-            <div v-if="hasPermission('admin.config') && !businessInfoLoading" class="p-7 pb-0">
-                <clinic-health-units ref="healthUnits" :business="businessInfoOriginal || {}" :locked="businessInfoEditing" @state="healthUnitsState = $event" />
-            </div>
-            <div class="p-7">
-                <article class="min-w-0 border border-gray-200 bg-gray-50 shadow-sm p-5">
-                    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                        <div>
-                            <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Estado de la cuenta</p>
-                            <h3 class="m-0 text-gray-700 text-lg font-semibold">{{ businessInfo.name || 'Consultorio' }}</h3>
-                            <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">Datos de cuenta y estado operativo del consultorio.</p>
-                        </div>
-                        <span class="self-start inline-flex items-center px-3 py-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold uppercase tracking-wider">Solo lectura</span>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-5">
-                        <div class="border-l-4 border-primary-400 bg-white px-4 py-3 min-w-0">
-                            <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Identificador</p>
-                            <p class="m-0 mt-1 text-gray-700 break-all">{{ businessInfo.slug || businessInfo.id_business || 'Sin identificador' }}</p>
-                        </div>
-                        <div class="border-l-4 border-blue-300 bg-white px-4 py-3 min-w-0">
-                            <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Plan</p>
-                            <p class="m-0 mt-1 text-gray-700">{{ businessPlanLabel }}</p>
-                        </div>
-                        <div class="border-l-4 border-green-300 bg-white px-4 py-3 min-w-0">
-                            <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Estado</p>
-                            <p class="m-0 mt-1 text-gray-700">{{ businessStatusLabel }}</p>
-                        </div>
-                        <div class="border-l-4 border-yellow-300 bg-white px-4 py-3 min-w-0">
-                            <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Periodo de prueba</p>
-                            <p class="m-0 mt-1 text-gray-700">{{ formatBusinessDate(businessInfo.trialEndsAt) }}</p>
-                        </div>
-                        <div class="border-l-4 border-gray-300 bg-white px-4 py-3 min-w-0">
-                            <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">Licencia y facturación</p>
-                            <router-link to="/admin?section=plan-billing" class="m-0 mt-1 inline-block text-primary-900 underline">Ver plan y facturación</router-link>
-                        </div>
-                    </div>
-                </article>
-            </div>
+                    </article>
+                </div>
+                <p v-if="healthUnitsState.editing && !businessInfoEditing" class="clinic-panel__notice">Termina o cancela la edición de la unidad para editar los datos del consultorio.</p>
+            </section>
+            <clinic-health-units v-if="hasPermission('admin.config') && !businessInfoLoading" ref="healthUnits" :business="businessInfoOriginal || {}" :locked="businessInfoEditing" @state="healthUnitsState = $event" />
         </section>
 
         <plan-billing v-if="activeSection === 'plan-billing'" @contact-plan="$emit('contact-plan', $event)" />
@@ -775,6 +700,7 @@
 <script>
 import ClinicHealthUnits from "../../components/identity/ClinicHealthUnits.vue";
 import PrivateClinicLogo from './components/PrivateClinicLogo.vue';
+import './clinicIdentity.css';
 import PreparationGuide from './components/PreparationGuide.vue';
 import { focusControl } from '../../domain/onboarding/focusControl';
 import { mapActions, mapGetters } from 'vuex';

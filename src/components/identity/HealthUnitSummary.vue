@@ -1,29 +1,25 @@
 <template>
-  <div class="min-w-0">
-    <div class="flex flex-wrap items-center gap-2">
-      <h4 class="m-0 text-gray-800 text-base font-semibold break-words">{{ unit.displayName }}</h4>
+  <div class="unit-summary">
+    <div class="unit-summary-heading">
+      <h3>{{ unit.displayName }}</h3>
       <span class="unit-chip" :class="unit.active ? 'unit-chip--on' : 'unit-chip--off'">{{ unit.active ? 'Activa en MedSync' : 'Inactiva en MedSync' }}</span>
     </div>
-    <dl class="m-0 mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-6">
-      <div class="py-2"><dt class="text-xs font-bold uppercase tracking-wider text-gray-500">CLUES</dt>
-        <dd class="m-0 mt-1"><span v-if="unit.cluesRef" class="font-mono text-gray-800 text-base">{{ unit.cluesRef.code }}</span>
-          <span class="unit-status block text-sm mt-1" :class="'unit-status--' + status.key">{{ status.text }}</span></dd></div>
-      <!-- R6: the unit's location is never inferred from Datos del consultorio; per-unit address is D-3. -->
-      <div class="py-2"><dt class="text-xs font-bold uppercase tracking-wider text-gray-500">Ubicación de la unidad</dt>
-        <dd class="m-0 mt-1 text-gray-600 text-sm">Sin confirmar. MedSync aún no registra la ubicación de cada unidad; el domicilio del consultorio está en Datos del consultorio.</dd></div>
+    <dl class="unit-summary-facts">
+      <div><dt>CLUES</dt><dd><span v-if="unit.cluesRef" class="unit-summary-code">{{ unit.cluesRef.code }}</span><span class="unit-status" :class="'unit-status--' + status.key">{{ status.text }}</span></dd></div>
+      <div><dt>Ubicación de la unidad</dt><dd class="unit-summary-location">Sin confirmar. Por ahora solo se guarda el domicilio general, en Datos del consultorio.</dd></div>
     </dl>
-    <div v-if="official" class="unit-official mt-3 p-3 border border-gray-200">
-      <p class="m-0 text-xs font-bold uppercase tracking-wider text-gray-500">{{ status.key === 'stale' ? 'Datos oficiales de la versión guardada · ya no vigente · solo lectura' : 'Datos oficiales de la CLUES · solo lectura' }}</p>
-      <dl class="m-0 mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-6 text-sm">
-        <div v-for="row in rows" :key="row.key" class="py-1"><dt class="text-gray-500">{{ row.label }}</dt><dd class="m-0 text-gray-800 break-words">{{ row.value }}</dd></div>
-      </dl>
-      <p v-if="namesDiffer" class="m-0 mt-2 text-sm text-gray-600">El nombre oficial es distinto del nombre que usas. Es normal: no cambiamos tus datos. Si el nombre oficial está desactualizado, se corrige con un trámite ante la autoridad, no en MedSync.</p>
-      <p class="m-0 mt-2 text-sm text-gray-600">El catálogo SIS no publica domicilio oficial.</p>
-      <details v-if="source" class="mt-2 text-sm text-gray-600"><summary class="cursor-pointer">Fuente y versión</summary>
-        <p class="m-0 mt-1 break-words">{{ source.sourceVersion }} · release {{ source.releaseId }} · en MedSync desde {{ source.validFrom }} ({{ source.validityBasis === 'download_date' ? 'fecha de descarga, no fecha oficial' : source.validityBasis }}){{ status.key === 'stale' ? ' · sustituida por una versión posterior' : '' }}</p></details>
-    </div>
-    <p v-if="unit.validFrom || unit.validTo" class="m-0 mt-3 text-sm text-gray-600">Periodo de asociación con tu cuenta: {{ date(unit.validFrom) }} → {{ unit.validTo ? date(unit.validTo) : 'sin fecha de fin' }}</p>
-    <p v-if="unit.updatedAt" class="m-0 mt-1 text-xs text-gray-500">Última actualización {{ date(unit.updatedAt) }}. MedSync todavía no conserva el historial de cambios de esta unidad.</p>
+    <section v-if="official" class="unit-official">
+      <p class="unit-official-label">{{ status.key === 'stale' ? 'Datos del catálogo · versión anterior, ya no vigente' : 'Datos del catálogo · solo lectura' }}</p>
+      <p class="unit-official-name">{{ official.nombre_unidad }}</p>
+      <p v-if="namesDiffer" class="unit-official-note">El catálogo puede registrar un nombre distinto al que usas con tus pacientes. Si necesita una corrección, solicítala a la autoridad que gestiona tu CLUES.</p>
+      <details class="unit-help"><summary>Ver datos del catálogo</summary>
+        <dl class="unit-official-fields"><div v-for="row in rows.filter(r => r.key !== 'nombre_unidad')" :key="row.key"><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div></dl>
+        <p>El catálogo SIS no publica domicilio oficial.</p>
+      </details>
+      <details v-if="source" class="unit-help"><summary>Fuente y versión</summary><p class="unit-source">{{ source.sourceVersion }} · release {{ source.releaseId }} · en MedSync desde {{ source.validFrom }} ({{ source.validityBasis === 'download_date' ? 'fecha de descarga, no fecha oficial' : source.validityBasis }}){{ status.key === 'stale' ? ' · sustituida por una versión posterior' : '' }}</p></details>
+    </section>
+    <p v-if="unit.validFrom || unit.validTo" class="unit-summary-meta">Periodo de uso en tu cuenta: {{ date(unit.validFrom) }} → {{ unit.validTo ? date(unit.validTo) : 'sin fecha de fin' }}</p>
+    <p v-if="unit.updatedAt" class="unit-summary-meta">Última actualización {{ date(unit.updatedAt) }}. Solo se conserva la información más reciente de esta unidad.</p>
   </div>
 </template>
 <script>

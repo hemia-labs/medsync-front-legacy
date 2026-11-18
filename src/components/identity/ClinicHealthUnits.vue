@@ -1,14 +1,12 @@
 <template>
-  <article class="health-units min-w-0 border border-gray-200 bg-white shadow-sm p-5" aria-labelledby="health-units-title">
-    <div class="flex items-start gap-3 min-w-0">
-      <div class="flex items-center justify-center w-10 h-10 bg-primary-100 text-primary-900 border border-primary-200 shrink-0">
-        <v-icon color="inherit" size="22">mdi-hospital-building</v-icon>
-      </div>
-      <div class="min-w-0">
-        <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Establecimiento de salud</p>
-        <h3 id="health-units-title" class="m-0 text-gray-700 text-lg font-semibold">Unidades de atención y CLUES</h3>
-        <p class="m-0 mt-2 text-gray-500 text-sm leading-relaxed">La CLUES identifica ante la Secretaría de Salud un establecimiento donde se atiende. Registrar unidades no cambia el nombre comercial, la razón social, el domicilio ni el contacto del consultorio.</p>
-      </div>
+  <article class="health-units" aria-labelledby="health-units-title">
+    <header class="unit-section-heading">
+      <span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="22">mdi-hospital-building</v-icon></span>
+      <h2 id="health-units-title">Unidades de atención y CLUES</h2>
+    </header>
+    <div class="unit-introduction">
+      <p>La CLUES (Clave Única de Establecimientos de Salud) es la clave oficial que identifica a cada consultorio, clínica u hospital en México. El nombre registrado ante Salud puede ser distinto de tu nombre comercial o razón social.</p>
+      <details class="unit-help"><summary>¿Cómo obtengo mi CLUES?</summary><p>La Secretaría de Salud la asigna a través de la DGIS. Si tu consultorio aún no tiene una, consulta al enlace CLUES de los servicios de salud de tu estado para iniciar el trámite.</p><a class="unit-link" href="https://sidof.segob.gob.mx/notas/docFuente/5761090" target="_blank" rel="noopener noreferrer">Consultar los lineamientos oficiales <span class="sr-only">(abre otra pestaña)</span></a></details>
     </div>
 
     <!-- R1: an uncertain create is never forgotten by Cancel or by leaving the view. -->
@@ -23,7 +21,7 @@
       <!-- Empty state: nothing is created when the page opens; the user starts it explicitly. -->
       <div v-if="!rows.length && editing !== 'new'" class="mt-5 border border-dashed border-gray-300 p-5">
         <p class="m-0 text-gray-700 font-semibold">Aún no registras la unidad donde atiendes.</p>
-        <p class="m-0 mt-1 text-gray-500 text-sm">Puedes registrarla con o sin CLUES. Usaremos el nombre comercial como punto de partida; nada se guarda hasta que pulses Guardar.</p>
+        <p class="m-0 mt-1 text-gray-500 text-sm">Añade el consultorio o la sede donde atiendes a tus pacientes. Puedes empezar con su nombre y agregar la CLUES cuando la tengas.</p>
         <v-btn class="mt-4" color="primary" depressed :disabled="locked || busy || Boolean(editing)" @click="startNew(true)">{{ uncertainCreate ? 'Retomar el registro sin confirmar' : 'Registrar la unidad del consultorio' }}</v-btn>
         <p v-if="locked" class="m-0 mt-2 text-sm text-gray-500">Termina o cancela la edición de los datos del consultorio para continuar.</p>
       </div>
@@ -62,12 +60,12 @@
 
       <div v-if="rows.length && !editing && !reval" class="mt-5 text-sm text-gray-600">
         <v-btn class="unit-action px-0" text color="primary" :disabled="locked || busy" @click="startNew(false)">{{ uncertainCreate ? 'Retomar el registro sin confirmar' : 'Agregar otra unidad' }}</v-btn>
-        <p class="m-0">Agrega otra unidad si atiendes en otro establecimiento, aunque todavía no tenga CLUES, o si la autoridad asignó una CLUES nueva a un establecimiento distinto, incluso en el mismo inmueble (sustitución oficial: conserva la anterior como inactiva). Para corregir una clave mal capturada, edita la unidad.</p>
+        <details class="unit-help"><summary>Cuándo agregar otra unidad</summary><p>Si atiendes en otro consultorio o sede, puedes registrarlo aquí aunque aún no tenga CLUES. También corresponde crear otra unidad cuando la autoridad asigna una nueva clave por sustitución oficial, incluso en el mismo inmueble; conserva la anterior como inactiva.</p><p>Si solo escribiste mal una clave, usa Editar unidad para corregirla.</p></details>
       </div>
     </template>
 
     <section v-if="editing === 'new'" class="unit-card mt-5 border border-primary-200 p-4 min-w-0" aria-label="Nueva unidad">
-      <p class="m-0 mb-3 text-primary-900 text-xs font-bold tracking-widest uppercase">{{ rows.length ? 'Otra unidad' : 'Unidad del consultorio' }}</p>
+      <p class="unit-editor-caption">{{ rows.length ? 'Nueva unidad' : 'Unidad del consultorio' }}</p>
       <!-- R1: visible for the whole edit, not only after Cancel. -->
       <v-alert v-if="uncertainCreate && uncertainCreate.retried" type="warning" text role="status" class="mb-3">Registro sin confirmar: el envío original puede haberse guardado. Conservamos la operación y tu captura; no reenviamos nada automáticamente.</v-alert>
       <unit-editor ref="editor" :form.sync="form" :business="business" :errors="fieldErrors" :busy="busy" :saved="null" />
