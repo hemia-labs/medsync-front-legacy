@@ -15,7 +15,13 @@ import HistoryService from '../../../src/services/core/clinicalHistory/DAClinica
 import { fixture,clone,fixtureTransport } from './fixture';
 import '../../../src/assets/tailwind.css';
 import '@mdi/font/css/materialdesignicons.css';
-DACore.get=async url=>{
+DACore.get=async (url,options={})=>{
+  if(url.startsWith('api/identity/catalogs/')){
+    const family=decodeURIComponent(url.split('/').pop()),params=options.params||{};
+    const code=family==='sis.country'?'142':family==='sis.affiliation'?'2':'09';
+    const ref={family,code,releaseId:'qa-local-catalog'},label=family==='sis.country'?'México QA':family==='sis.affiliation'?'Afiliación QA':'Entidad QA';
+    return {success:true,data:{available:!family.startsWith('renapo.'),hasMore:false,items:[{ref,label}],...(params.code?{check:{result:'valid',label,source:{sourceVersion:'QA local simulado'}}}:{})}};
+  }
   if(url!=='api/px/get/nc1-local-only')return {success:false,status:404,message:'QA local: ruta no simulada'};
   const patient=await fixtureTransport.get();
   // Match px.dao.js: birthday is DD-MM-YYYY on reads, ISO on administrative writes.
