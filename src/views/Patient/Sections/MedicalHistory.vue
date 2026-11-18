@@ -231,7 +231,7 @@
           Reintentar verificación
         </button>
         <button v-if="sensitiveConsent" class="clinical-button secondary" type="button" @click="openSensitiveDocument">
-          {{ hasConsentRefusal ? 'Ver detalle' : 'Ver consentimiento' }}
+          {{ hasConsentRefusal ? 'Revisar documentos' : 'Ver consentimiento' }}
         </button>
         <button v-if="consentVerified && !sensitiveConsent && hasPermission('documents.create')" class="clinical-button secondary" type="button" @click="createSensitiveConsent">
           Gestionar consentimiento
@@ -1132,7 +1132,7 @@ export default {
       form: emptySnapshot(),
       documents: [],
       // STG-C05-1: the consent the server will apply on close (consent_status / consent_document_id).
-      effectiveConsent: { loaded: false, status: '', documentId: null },
+      effectiveConsent: { loaded: false, status: '', documentId: null, token: '' },
       consentRefreshError: '',
       consentChecking: false,
       reviewedConsentKey: '',
@@ -1459,7 +1459,7 @@ export default {
       return this.effectiveConsent.loaded && !this.consentRefreshError;
     },
     effectiveConsentKey() {
-      return this.consentVerified ? `${this.effectiveConsent.status}|${this.effectiveConsent.documentId || ''}` : '';
+      return this.consentVerified ? `${this.effectiveConsent.status}|${this.effectiveConsent.documentId || ''}|${this.effectiveConsent.token || ''}` : '';
     },
     sensitiveConsent() {
       if(!this.consentVerified || !this.effectiveConsent.documentId) return null;
@@ -1503,6 +1503,7 @@ export default {
       if(this.hasSignedConsent) {
         return 'Ya se cuenta con consentimiento firmado. La historia puede finalizarse cuando esté completa.';
       }
+      if(this.hasConsentRefusal && this.effectiveConsent.hasLaterSigned) return 'Hay un consentimiento firmado posterior. La negativa sigue vigente hasta que el doctor responsable autorice su sustitución en Documentos y firmas.';
       if(this.otherSignedConsentListed) {
         return 'La negativa sigue vigente aunque en Documentos y firmas hay otro consentimiento firmado. La historia se guardará como incompleta, no como finalizada. Revisa los documentos.';
       }
@@ -1673,6 +1674,7 @@ export default {
       if(!this.consentVerified) {
         return 'No se pudo verificar el consentimiento vigente. Reintenta; tu captura se conserva.';
       }
+      if(!/^[a-f0-9]{64}$/.test(this.effectiveConsent.token || '')) return 'Falta verificar la revisión del consentimiento. Reintenta antes de finalizar.';
       if(!this.hasSignedConsent && !this.hasConsentRefusal) {
         return 'Para finalizar, primero registra el consentimiento firmado o una negativa.';
       }
@@ -2149,7 +2151,7 @@ export default {
         this.consentRefreshError = 'No se pudo verificar el consentimiento vigente. Tu captura se conserva; reintenta antes de finalizar.';
         return false;
       }
-      this.effectiveConsent = { loaded: true, status: data.consent_status, documentId: data.consent_document_id || null };
+      this.effectiveConsent = { loaded: true, status: data.consent_status, documentId: data.consent_document_id || null, token: data.consent_token || '', hasLaterSigned: data.has_later_signed_consent === true };
       this.consentRefreshError = '';
       // A newer answer that differs from the reviewed confirmation is shown, and closing will ask to review it.
       if(this.showFinalizeDialog && this.reviewedConsentKey && this.effectiveConsentKey !== this.reviewedConsentKey) {
@@ -2157,7 +2159,7 @@ export default {
       }
       return true;
     },
-    // Re-reading narrows, but does not remove, the window for a consent change before the close request.
+    // The server compares the reviewed token under the patient lock, even if a change occurs after this read.
     // Returns 'verified', 'failed' or 'superseded' (a newer read started; this answer was ignored).
     async readEffectiveConsent() {
       const request = this.loadRequest;
@@ -2248,6 +2250,7 @@ export default {
         return;
       }
       const reviewed = reviewedHistorySnapshot(this.buildPayloadSnapshot(), this.doctorResponsibleUserId);
+      const reviewedConsentState = { ...this.effectiveConsent };
       const saved = await this.saveDraft(false);
       if(!saved) {
         return;
@@ -2263,7 +2266,7 @@ export default {
       }
       this.isBusy = true;
       try {
-        const response = await DAClinicalHistoryService.finalize(this.clinicalHistory.id_clinical_history, this.clinicalHistory.revision);
+        const response = await DAClinicalHistoryService.finalize(this.clinicalHistory.id_clinical_history, this.clinicalHistory.revision, reviewedConsentState);
         if(response && response.success && response.data && response.data.history) {
           this.showFinalizeDialog = false;
           this.clinicalHistory = response.data.history;
@@ -2303,6 +2306,12 @@ export default {
       finally { this.isBusy = false; }
     },
     handleRevisionConflict(response) {
+      if(response && response.data && response.data.code === 'CONSENT_REVIEW_CHANGED') {
+        this.showFinalizeDialog = false;
+        this.reviewedConsentKey = '';
+        this.refreshEffectiveConsent();
+        return;
+      }
       if(response && (response.status === 409 || (response.data && response.data.code === 'HISTORY_REVISION_CONFLICT'))) {
         this.revisionConflict = true;
         this.showFinalizeDialog = false;
@@ -2905,7 +2914,7 @@ export default {
       this.$emit('open-documents', {
         id_patient_document: this.sensitiveConsent ? this.sensitiveConsent.id_patient_document : null,
         document_type: 'SENSITIVE_DATA_CONSENT',
-        open: true
+        open: !this.hasConsentRefusal
       });
     },
     currentDoctorForDocuments() {
