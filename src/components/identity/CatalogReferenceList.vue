@@ -5,7 +5,7 @@
       <v-btn text small :disabled="disabled" :aria-label="'Quitar ' + label + ' ' + (index + 1)" @click="replace(index, null)">Quitar</v-btn>
     </div>
     <catalog-reference-field v-if="adding" :value="pending" :family="family" :label="'Añadir ' + label" :disabled="disabled" :active="active" @input="pending = $event" @commit="add" />
-    <v-btn v-else text small color="primary" :disabled="disabled || (value || []).length >= 50" @click="adding = true">Añadir {{ label }}</v-btn>
+    <v-btn v-else class="catalog-list-add" text small color="primary" :disabled="disabled || (value || []).length >= 50" @click="adding = true">Añadir {{ label }}</v-btn>
     <p v-for="error in errors" :key="error" role="alert">{{ error }}</p>
   </div>
 </template>
@@ -21,4 +21,8 @@ export default {
   }
 };
 </script>
-<style scoped>.catalog-list-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; }</style>
+<style scoped>
+.catalog-list-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; }
+/* Night theme: same action colour as CatalogReferenceField (primary on slate measured 3.2:1). */
+html[data-theme="clinical-night"] .catalog-list-add:not(.v-btn--disabled) { color: #7dd3fc !important; }
+</style>

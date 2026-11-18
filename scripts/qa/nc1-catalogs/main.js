@@ -79,6 +79,12 @@ async function transport(method, url, payload) {
     if(query.code)return reply({check:rows&&rows.some(r=>r[0]===query.code)?{result:'valid',label:rows.find(r=>r[0]===query.code)[1],source}:{result:'unverified',code:'CATALOG_UNAVAILABLE'}});
     return reply({available:Boolean(rows),source,hasMore:false,items:(rows||[]).filter(r=>(!query.parent||r[0].startsWith(query.parent))&&(!query.q||(r[0]+' '+r[1]).toLowerCase().includes(query.q.toLowerCase()))).map(r=>({ref:{family,releaseId:source.releaseId,code:r[0]},label:r[1]}))});
   }
+  // Independent review (Claude, 2026-11-17): ?state=catalog-reject makes the next alta / CLUES save fail as the backend does.
+  if(method!=='get'&&failNext==='catalog-reject'&&/^px\/create-minimal|^identity\/establishments/.test(path)){
+    failNext=null;await wait(300);
+    return /^px/.test(path)?failure(400,'Revisa el campo de identidad: residence.municipality',{code:'CATALOG_CODE_NOT_FOUND',field:'residence.municipality'})
+      :failure(400,'Revisa el campo de identidad: cluesRef',{code:'CLUES_NOT_OPERATING',field:'cluesRef'});
+  }
   if(path==='identity/establishments'){
     if(method==='get')return reply([clone(state.establishment)]);
     state.establishment={...clone(payload.identity),id:'qa-est',revision:1};return reply(clone(state.establishment));

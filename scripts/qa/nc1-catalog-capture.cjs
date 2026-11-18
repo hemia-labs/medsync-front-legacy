@@ -58,3 +58,26 @@ test('all entry points use the same selector; metadata is never sent back in the
     const draft=new Function(read('src/domain/identity/identityDraft.js').replace(/^export function /gm,'function ')+';return {editableIdentity};')();
     const value=draft.editableIdentity({birthCountry:ref,catalogChecks:[{result:'valid'}],catalogValidation:'verified'});assert.equal(value.catalogChecks,undefined);assert.deepEqual(value.birthCountry,ref);
 });
+// Independent review (Claude, 2026-11-17): manual CLUES follows the contract normalization (trim + uppercase)
+// and a rejected CLUES is shown at its own field with the capture preserved.
+test('manual CLUES is normalized to the contract form; other families stay literal',()=>{
+    assert.deepEqual(helpers.candidateReference('sis.establishments',' dfssa001234 '),{family:'sis.establishments',code:'DFSSA001234'});
+    assert.deepEqual(helpers.candidateReference('inegi.state',' 01 '),{family:'inegi.state',code:'01'});
+    assert.deepEqual(helpers.candidateReference('sis.affiliation','a1'),{family:'sis.affiliation',code:'a1'});
+    assert.equal(helpers.candidateReference('sis.establishments','  '),null);
+});
+test('a rejected CLUES maps to the CLUES field, keeps the capture and hides internal field keys',async()=>{
+    const sfc=compiler.parseComponent(read('src/components/identity/Establishments.vue'));assert.deepEqual(compiler.compile(sfc.template.content).errors,[]);
+    assert.match(sfc.template.content,/<catalog-reference-field v-model="cluesRef"[^>]*:errors="cluesErrors"/);
+    const clues={family:'sis.establishments',releaseId:'qa-sis',code:'DFSSA001234'};
+    for(const [code,pattern] of [['CLUES_NOT_OPERATING',/no está en operación/],['CLUES_NOT_IN_SIS_RELEASE',/no aparece/],['IDENTITY_INVALID',/11 letras o números/]]){
+        const api={patch:async()=>({success:false,status:400,message:'Revisa el campo de identidad: cluesRef',data:{code,field:'cluesRef'}})};
+        const deps={CatalogReferenceField:{},DACore:api,authorizationContext:()=>({}),isCurrentAuthorization:()=>true};
+        const options=new Function(...Object.keys(deps),sfc.script.content.replace(/^import[^;]+;\s*$/gm,'').replace('export default','return'))(...Object.values(deps));
+        const vm={...options.data(),$store:{},id:'est-qa',revision:2,editing:true,form:{displayName:'Consultorio QA',active:true,validFrom:null,validTo:null},cluesRef:clues};
+        for(const [k,fn]of Object.entries(options.methods))vm[k]=fn.bind(vm);
+        await vm.save();
+        assert.equal(vm.cluesErrors.length,1);assert.match(vm.cluesErrors[0],pattern);
+        assert.doesNotMatch(vm.error,/cluesRef/);assert.match(vm.error,/Conservamos/);assert.deepEqual(vm.cluesRef,clues);assert.equal(vm.revision,2);
+    }
+});
