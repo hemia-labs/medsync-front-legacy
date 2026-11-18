@@ -1,0 +1,36 @@
+name: Treatment editor regression
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'src/views/Patient/Sections/TreatmentPlan.vue'
+      - 'src/views/Patient/Sections/components/Treatment*.vue'
+      - 'scripts/qa/treatment-*.cjs'
+      - 'scripts/qa/co26-plan-selector.cjs'
+      - '.github/workflows/treatment-editor-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  treatment-editor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Check dental capture and print privacy
+        run: |
+          node scripts/qa/treatment-plan-editor-regression.cjs
+          node scripts/qa/co26-plan-selector.cjs
+          node scripts/qa/odontogram-flow-regression.cjs
+          node scripts/qa/treatment-consent-prerequisites-regression.cjs
+          node scripts/qa/treatment-signature-options-regression.cjs
+          node node_modules/@vue/cli-service/bin/vue-cli-service.js lint --no-fix src/views/Patient/Sections/TreatmentPlan.vue src/views/Patient/Sections/components/TreatmentDentalDetails.vue src/views/Patient/Sections/components/TreatmentToothPicker.vue
