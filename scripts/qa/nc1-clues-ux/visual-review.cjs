@@ -15,7 +15,7 @@ async function open(p, theme, query = 'scenario=verified') {
   await p.waitForFunction(() => !document.querySelector('.health-units').__vue__.loading);
 }
 async function capture(p, r, name) {
-  await p.screenshot({ path: OUT + '/' + name + '-' + r.width + '-' + r.theme + '.png', fullPage: true });
+  await p.screenshot({ path: OUT + '/' + name + '-' + r.width + '-' + r.theme + '.png', fullPage: true, timeout: 60000 });
   r.screenshots.push(name + '-' + r.width + '-' + r.theme + '.png');
 }
 async function checkContrast(p, r, selectors) {
@@ -138,7 +138,9 @@ const cases = {
   await require('./ready.cjs')();
   const browser = await chromium.launch({ headless: true });
   for (const width of [1280, 390]) for (const night of [false, true]) for (const [name, fn] of Object.entries(cases)) {
-    const page = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 900 } }); page.setDefaultTimeout(12000);
+    const page = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 900 } });
+    // The shared template loads Google Fonts; asset loading has a separate budget from UI assertions.
+    page.setDefaultNavigationTimeout(60000); page.setDefaultTimeout(12000);
     const r = { name, width, theme: night ? 'night' : 'light', screenshots: [], contrast: [], errors: [] };
     page.on('pageerror', e => r.errors.push(String(e)));
     try { await fn(page, r, night); r.overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth); assert(r.overflow <= 0); assert.equal(r.errors.length, 0); r.pass = true; }
@@ -146,7 +148,7 @@ const cases = {
     console.log(name, width, r.theme, r.pass ? 'PASS' : r.error); reports.push(r); await page.close();
   }
   for (const [width, night] of [[1280, false], [390, true]]) for (const query of ['scenario=empty', 'scenario=load-error', 'scenario=inactive', 'scenario=verified&perm=none']) {
-    const p = await browser.newPage({ viewport: { width, height: 900 } });
+    const p = await browser.newPage({ viewport: { width, height: 900 } }); p.setDefaultNavigationTimeout(60000);
     const r = { name: query, width, theme: night ? 'night' : 'light', screenshots: [], errors: [] };
     p.on('pageerror', e => r.errors.push(String(e)));
     try {

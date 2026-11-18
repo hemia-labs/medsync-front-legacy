@@ -178,14 +178,15 @@ const cases = {
   const browser = await chromium.launch({ headless: true });
   for (const [width, night] of [[1280, false], [390, true]]) for (const [name, fn] of Object.entries(cases)) {
     const p = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 900 } });
-    p.setDefaultTimeout(10000);
+    // The shared template loads Google Fonts; asset loading has a separate budget from UI assertions.
+    p.setDefaultNavigationTimeout(60000); p.setDefaultTimeout(10000);
     const errors = []; p.on('pageerror', e => errors.push(String(e)));
     const item = { name, width, theme: night ? 'night' : 'light' };
     try { item.observation = await fn(p, night); }
     catch (e) { item.harnessError = String(e); }
     item.errors = errors;
     item.overflowPx = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    item.screenshot = name + '-' + width + '.png'; await p.screenshot({ path: out + '/' + item.screenshot, fullPage: true });
+    item.screenshot = name + '-' + width + '.png'; await p.screenshot({ path: out + '/' + item.screenshot, fullPage: true, timeout: 60000 });
     item.pass = !item.harnessError && !errors.length && item.overflowPx <= 0 && Object.values(item.observation.checks).every(Boolean);
     report.push(item); console.log(name, width, item.pass ? 'PASS' : JSON.stringify({ error: item.harnessError, checks: item.observation && item.observation.checks, errors }));
     await p.close();

@@ -22,7 +22,7 @@
       <div v-if="!rows.length && editing !== 'new'" class="mt-5 border border-dashed border-gray-300 p-5">
         <p class="m-0 text-gray-700 font-semibold">Aún no registras la unidad donde atiendes.</p>
         <p class="m-0 mt-1 text-gray-500 text-sm">Añade el consultorio o la sede donde atiendes a tus pacientes. Puedes empezar con su nombre y agregar la CLUES cuando la tengas.</p>
-        <v-btn class="mt-4" color="primary" depressed :disabled="locked || busy || Boolean(editing)" @click="startNew(true)">{{ uncertainCreate ? 'Retomar el registro sin confirmar' : 'Registrar la unidad del consultorio' }}</v-btn>
+        <v-btn class="mt-4" color="primary" depressed :disabled="locked || busy || Boolean(editing)" @click="startNew(true)">{{ pendingRegistration ? (uncertainCreate ? 'Retomar el registro sin confirmar' : 'Retomar el registro') : 'Registrar la unidad del consultorio' }}</v-btn>
         <p v-if="locked" class="m-0 mt-2 text-sm text-gray-500">Termina o cancela la edición de los datos del consultorio para continuar.</p>
       </div>
 
@@ -59,7 +59,7 @@
       </template>
 
       <div v-if="rows.length && !editing && !reval" class="mt-5 text-sm text-gray-600">
-        <v-btn class="unit-action px-0" text color="primary" :disabled="locked || busy" @click="startNew(false)">{{ uncertainCreate ? 'Retomar el registro sin confirmar' : 'Agregar otra unidad' }}</v-btn>
+        <v-btn class="unit-action px-0" text color="primary" :disabled="locked || busy" @click="startNew(false)">{{ pendingRegistration ? (uncertainCreate ? 'Retomar el registro sin confirmar' : 'Retomar el registro') : 'Agregar otra unidad' }}</v-btn>
         <details class="unit-help"><summary>Cuándo agregar otra unidad</summary><p>Si atiendes en otro consultorio o sede, puedes registrarlo aquí aunque aún no tenga CLUES. También corresponde crear otra unidad cuando la autoridad asigna una nueva clave por sustitución oficial, incluso en el mismo inmueble; conserva la anterior como inactiva.</p><p>Si solo escribiste mal una clave, usa Editar unidad para corregirla.</p></details>
       </div>
     </template>
@@ -129,8 +129,9 @@ export default {
       if (this.otherOpen) this.otherRows.forEach(row => items.push({ type: 'unit', key: 'u-' + row.id, row }));
       return items;
     },
-    // R1: an uncertain create (no confirmed id yet) versus a confirmed create with a later draft (confirmedId set).
-    uncertainCreate() { return this.pending && !this.pending.confirmedId ? this.pending : null; },
+    // I1: a catalog rejection proves absence for this key; its editable capture retains the key without claiming uncertainty.
+    pendingRegistration() { return this.pending && !this.pending.confirmedId ? this.pending : null; },
+    uncertainCreate() { return this.pendingRegistration && !this.pendingRegistration.catalogRejected ? this.pendingRegistration : null; },
     editorInList() { return Boolean(this.editing) && this.editing !== 'new' && !this.loading && !this.loadError && this.displayItems.some(i => i.row && i.row.id === this.editing); },
     saveLabel() { return this.editing === 'new' && this.uncertainCreate ? 'Comprobar y completar el registro' : 'Guardar unidad'; }
   },
@@ -184,10 +185,13 @@ export default {
     startNew(prefill) {
       if (this.editing || this.locked || this.reval) return;
       this.resetErrors();
-      if (this.uncertainCreate) {
+      if (this.pendingRegistration) {
         // Re-entry: the later capture comes back as the draft; the original payload stays the operation's content.
         this.form = { ...(this.pending.draft || this.pending.payload) }; this.original = { ...this.pending.payload };
-        this.$nextTick(() => { this.error = 'Este registro no se confirmó. Al guardar repetiremos exactamente el envío original con la misma operación para comprobarlo; los cambios posteriores se conservan aparte.'; });
+        this.$nextTick(() => {
+          if (this.pending.catalogRejected) this.rejected({ status: 409, data: { code: 'CATALOG_RELEASE_CHANGED' } });
+          else this.error = 'Este registro no se confirmó. Al guardar repetiremos exactamente el envío original con la misma operación para comprobarlo; los cambios posteriores se conservan aparte.';
+        });
       } else {
         this.form = { ...empty(), displayName: prefill ? this.business.name || '' : '' };
         // The commercial-name suggestion is not user input: cancelling it untouched needs no confirmation.
@@ -206,10 +210,10 @@ export default {
     focusEditor(field) { const e = [].concat(this.$refs.editor || [])[0]; if (e) e.focusFirst(field); },
     async cancel() {
       if (this.busy) return;
-      if (this.editing === 'new' && this.uncertainCreate) {
-        // R1: Cancel never forgets an uncertain create; the later capture is kept with it.
+      if (this.editing === 'new' && this.pendingRegistration) {
+        // R1/I1: keep the operation key and capture, including a catalog rejection awaiting correction.
         rememberCreate(this.owner, { ...this.pending, draft: { ...this.form } }); this.pending = pendingCreate(this.owner);
-        this.closeEditor(); this.message = 'Guardamos tu captura con el registro sin confirmar; puedes retomarlo.'; return;
+        this.closeEditor(); this.message = this.pending.catalogRejected ? 'Conservamos tu captura; puedes retomar el registro y corregir la CLUES.' : 'Guardamos tu captura con el registro sin confirmar; puedes retomarlo.'; return;
       }
       if (this.dirty && !await confirmSettingsDiscard(this, { title: 'Descartar cambios de la unidad', text: 'Tu captura de la unidad no se ha guardado.' })) return;
       this.discard();
@@ -217,7 +221,7 @@ export default {
     closeEditor() { this.editing = null; this.form = empty(); this.original = empty(); this.fieldErrors = {}; this.conflict = false; this.forbidden = false; this.error = ''; this.confirmedDraft = null; },
     discard() {
       // Navigation discard: an uncertain create keeps its original payload; only the later capture is dropped.
-      if (this.editing === 'new' && this.uncertainCreate) rememberCreate(this.owner, { ...this.pending, draft: null });
+      if (this.editing === 'new' && this.pendingRegistration) rememberCreate(this.owner, { ...this.pending, draft: null });
       // A confirmed create needs nothing more from the operation once its later draft is explicitly discarded.
       if (this.confirmedDraft) { forgetCreate(this.owner); this.pending = null; }
       this.closeEditor(); this.reval = null;
@@ -291,10 +295,11 @@ export default {
       throw new Error('save');
     },
     // R1: one stable operation identity per intended create. A retry repeats the exact original payload with the same
-    // Idempotency-Key; later edits are never folded into it. The guarantee needs CLUES-F1 in the backend.
+    // Idempotency-Key; later edits stay separate unless CATALOG_RELEASE_CHANGED proves that key had no row.
     async create() {
       const capture = { ...this.form, displayName: this.form.displayName.trim() };
-      const op = this.uncertainCreate || { key: newOperationKey(), payload: capture };
+      const pending = this.pendingRegistration;
+      const op = pending ? { ...pending, payload: pending.catalogRejected ? capture : pending.payload, catalogRejected: false, retried: true } : { key: newOperationKey(), payload: capture };
       rememberCreate(this.owner, { ...op, draft: capture }); this.pending = pendingCreate(this.owner);
       this.busy = true; this.error = '';
       let r;
@@ -321,7 +326,14 @@ export default {
           this.error = 'No se confirmó el registro. Puede haberse guardado o no. Al volver a guardar repetiremos exactamente el envío original con la misma operación; tus cambios posteriores se conservan aparte.';
           return;
         }
-        // 4xx on a first attempt: nothing was created. On a retry it only rejects the retry; the first attempt may
+        // CLUES-F1 checks the key under the business lock BEFORE catalog validation. Only this specific rejection
+        // proves no row existed for it: the next explicit Save may send the corrected capture with the SAME key.
+        // Clear the exception before sending (above), so a lost response freezes that new payload for exact replay.
+        if (r.status === 409 && r.data && r.data.code === 'CATALOG_RELEASE_CHANGED') {
+          rememberCreate(this.owner, { ...op, catalogRejected: true, draft: capture }); this.pending = pendingCreate(this.owner);
+          this.rejected(r); return;
+        }
+        // Other 4xx on a first attempt: nothing was created. On a retry it only rejects the retry; the first attempt may
         // have been saved, so the operation and the capture are kept and the message says exactly that.
         if (op.retried) {
           rememberCreate(this.owner, { ...op, draft: capture }); this.pending = pendingCreate(this.owner);

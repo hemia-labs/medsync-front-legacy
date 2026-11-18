@@ -23,4 +23,8 @@ node scripts/qa/nc1-clues-ux/implementation-review.cjs
 
 The suites wait for HTTP readiness, preserve the approved visual/recovery assertions (32/12), and add 24 cases for T1 and the exact D-5 contract. T1 covers unchanged catalog reference, typing/restoring the same code, and selecting a catalog reference again in both widths/themes. D-5 covers read-only lookup, explicit minimal PATCH, catalog-release conflict with fresh confirmation, and nonoperating entries. Evidence goes to `NC1_QA_OUT`, or the system temp directory's `medsync-nc1-clues-qa` folder.
 
+Implementation QA also covers I1 in 12 cases (36 total): repeated catalog changes reuse the operation key with a corrected capture, Cancel/Resume preserves it, a subsequent lost response freezes the corrected payload for replay, and other 409/403 responses never authorize replacing the original payload. `advanceCatalog=1` advances the synthetic release on each `catalog-409`; replay of an existing operation still precedes catalog validation.
+
+Navigation and screenshots allow up to 60 seconds for the shared template's external Google Fonts stylesheet/font loading. UI action/assertion budgets remain 10/12 seconds. No external resource is blocked or replaced, and visual/recovery assertions are unchanged.
+
 All data and failures are synthetic. These tests do not establish authenticated permissions, private-logo server upload, physical-device/accessibility-technology acceptance, or reload/other-tab draft recovery. Existing operator visual approval is preserved.

@@ -44,8 +44,9 @@ const log = []; window.qaLog = log; window.qaUnknown = []; window.qaReads = [];
 
 // Synthetic catalogs shaped like ESTABLECIMIENTO_DE_SALUD_SIS (8 columns). Codes start with QA and are not real CLUES.
 // Two releases model D-5: an older, superseded one and the current one. Neither is official.
-const RELEASE = 'sis.establishments-qa', OLD_RELEASE = 'sis.establishments-qa-2025';
-const SOURCE = { releaseId: RELEASE, sourceVersion: 'QA sintético 2026-09 · no oficial (forma de ESTABLECIMIENTO_DE_SALUD_SIS)', sourceUrl: null, validFrom: '2026-11-17', validityBasis: 'download_date' };
+let RELEASE = 'sis.establishments-qa';
+const OLD_RELEASE = 'sis.establishments-qa-2025';
+let SOURCE = { releaseId: RELEASE, sourceVersion: 'QA sintético 2026-09 · no oficial (forma de ESTABLECIMIENTO_DE_SALUD_SIS)', sourceUrl: null, validFrom: '2026-11-17', validityBasis: 'download_date' };
 const OLD_SOURCE = { releaseId: OLD_RELEASE, sourceVersion: 'QA sintético 2025-06 · no oficial', sourceUrl: null, validFrom: '2025-07-01', validityBasis: 'download_date' };
 const entry = (clues, nombre_unidad, institucion, id_entidad_federativa, tip_abreviacion = 'P') => ({ clues, nombre_unidad, institucion, tipo_unidad: '1', tip_abreviacion, sub_abreviacion: '99', id_entidad_federativa, en_operacion: '1' });
 const CATALOGS = {
@@ -97,7 +98,15 @@ function failWrite(kind) {
   if (kind === 'business' ? f !== 'business-409' : f === 'business-409') return null;
   failQueue.shift();
   if (f === '409' || f === 'business-409') return failure(409, 'Conflicto', { code: 'IDENTITY_CONFLICT', field: 'expectedRevision' });
-  if (f === 'catalog-409') return failure(409, 'El catálogo cambió.', { code: 'CATALOG_RELEASE_CHANGED', field: 'cluesRef' });
+  if (f === 'catalog-409') {
+    // I1: opt-in release activation between attempts; reselecting the SAME code must obtain a new reference.
+    if (params.get('advanceCatalog') === '1') {
+      RELEASE += '-next'; SOURCE = { ...SOURCE, releaseId: RELEASE, sourceVersion: SOURCE.sourceVersion + ' · siguiente' };
+      CATALOGS[RELEASE] = { source: SOURCE, rows: CATALOG };
+    }
+    return failure(409, 'El catálogo cambió.', { code: 'CATALOG_RELEASE_CHANGED', field: 'cluesRef' });
+  }
+  if (f === 'key-409') return failure(409, 'La operación ya se usó con otro contenido.', { code: 'IDEMPOTENCY_KEY_REUSED' });
   if (f === '403') return failure(403, 'Acceso no autorizado.', { code: 'PERMISSION_DENIED' });
   if (f === '503') return failure(503, 'Servicio no disponible.');
   if (f === 'clues') return failure(400, 'Revisa el campo de identidad: cluesRef', { code: 'CLUES_NOT_IN_SIS_RELEASE', field: 'cluesRef' });
@@ -137,7 +146,9 @@ async function transport(method, url, payload, config) {
       if (state.operations[key].inflight) await state.operations[key].inflight; // the same operation's late commit finishes first, as a row lock would
       const done = state.operations[key];
       if (done.hash !== hash(payload.identity)) return failure(409, 'La operación ya se usó con otro contenido.', { code: 'IDEMPOTENCY_KEY_REUSED' });
-      const f = failWrite('unit'); if (f && !f.status) throw new Error('network'); if (f) return f;
+      const f = failWrite('unit'); if (f && !f.status) throw new Error('network');
+      // Like CLUES-F1, an existing operation replays before catalog validation, even after activation.
+      if (f && !(f.status === 409 && f.data && f.data.code === 'CATALOG_RELEASE_CHANGED')) return f;
       return reply(view(state.units.find(x => x.id === done.id)), { replayed: true });
     }
     const f = failWrite('unit');
