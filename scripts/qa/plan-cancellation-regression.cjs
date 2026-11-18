@@ -30,7 +30,7 @@ const moduleFrom = file => import('data:text/javascript;base64,' + Buffer.from(r
     reads=0;writes=[];
     mutate=async()=>({subscription:{...sub,status:'cancelled',cancelAtPeriodEnd:true,nextBillingTime:null,cancellation:{state:'scheduled',effectiveAt:end}},license:{...license}});
   };
-  const Payments={history:async()=>({items:[],nextCursor:null}),watchSubscription:()=>null,plans:async()=>({available:true,offers:[{code:'medsync_pro',name:'Profesional'}]}),subscription:async()=>{reads++;return {...sub};},license:async()=>({...license}),cancelSubscription:async body=>{writes.push({...body});return mutate();}};
+  const Payments={history:async()=>({items:[],nextCursor:null}),watchSubscription:()=>null,plans:async()=>({available:true,offers:[{code:'medsync_pro',name:'Profesional'}]}),subscription:async()=>{reads++;return sub ? {...sub} : null;},license:async()=>({...license}),cancelSubscription:async body=>{writes.push({...body});return mutate();}};
   const context={component:null,AbortController,Intl,Payments,PlanCatalog:{},registrationAttemptId:randomUUID,...access,...checkout,...auth,...updates, ...cancellation,...navigation,...history};
   vm.runInNewContext(sfc.script.content.replace(/^import[^\n]*\n/gm,'').replace('export default','component ='),context);
   const options=context.component;
@@ -97,6 +97,12 @@ const moduleFrom = file => import('data:text/javascript;base64,' + Buffer.from(r
   reset();v=state();await v.load();await v.prepareCancellation();
   mutate=async()=>{sub={...sub,status:'cancelled',cancelAtPeriodEnd:true,cancellation:{state:'pending'}};throw {status:503};};await v.confirmCancellation();
   await v.prepareCancellation();assert.equal(v.statusLabel,'Cancelación pendiente');assert.equal(v.showCancellation,false);assert.equal(writes.length,1,'Reconciliation does not resend an existing intent');
+  reset();v=state();v.business.subscription_status='active';await v.load();
+  sub=null;await v.prepareCancellation();
+  shown=presentation(v);
+  assert.match(shown.text,/Sin suscripción registrada en Billing/);
+  for(const copy of ['Activa','Importe por confirmar','Próxima renovación','Forma de pago','Administrar suscripción','No pudimos confirmar'])assert.ok(!shown.text.includes(copy),copy);
+  assert(!v.canCancel);assert(!v.showCancellation);assert.equal(v.cancellationError,'');assert.equal(writes.length,0);
   reset();v=state();license.validUntil='2000-01-01';await v.load();assert(!v.canCancel);await v.prepareCancellation();assert(!v.showCancellation);assert.equal(writes.length,0);
   reset();v=state();sub.currentPeriodEnd=null;sub.nextBillingTime=null;await v.load();assert(!v.canCancel);
   reset();v=state();license.active=false;license.licenseStatus='revoked';await v.load();assert(!v.canCancel);

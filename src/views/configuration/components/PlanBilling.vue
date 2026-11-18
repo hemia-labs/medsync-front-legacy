@@ -10,20 +10,20 @@
       <article class="current-plan" aria-labelledby="current-plan-title">
         <div class="billing-overview">
           <div class="billing-plan-name">
-            <p v-if="!refund" class="billing-eyebrow">Tu plan actual</p>
+            <p v-if="!refund && hasSubscriptionOrTrial" class="billing-eyebrow">Tu plan actual</p>
             <div class="billing-title-row">
               <h2 id="current-plan-title">{{ planName }}</h2>
-              <span v-if="!refund" class="billing-status" :class="{ 'billing-status--attention': needsAttention }">{{ statusLabel }}</span>
+              <span v-if="!refund && hasSubscriptionOrTrial" class="billing-status" :class="{ 'billing-status--attention': needsAttention }">{{ statusLabel }}</span>
             </div>
             <p class="billing-clinic">{{ business.name || 'Tu consultorio' }}</p>
           </div>
-          <div v-if="!refund && !cancellationScheduled" class="billing-price">
+          <div v-if="!refund && !cancellationScheduled && hasSubscriptionOrTrial" class="billing-price">
             <template v-if="isTrial"><strong>Periodo de prueba</strong><span>Explora las funciones antes de contratar.</span></template>
             <template v-else-if="currentPrice"><strong>{{ money(currentPrice.recurringAmount, currentPrice.currency) }}</strong><span>{{ periodLabel }} · {{ currentPrice.currency }}</span></template>
             <template v-else><strong>Importe por confirmar</strong><span>Consulta las condiciones de tu contratación con MedSync.</span></template>
           </div>
         </div>
-        <dl v-if="!refund && !cancellationScheduled" class="billing-details">
+        <dl v-if="!refund && !cancellationScheduled && hasSubscriptionOrTrial" class="billing-details">
           <div><dt>{{ isTrial ? 'Fin de la prueba' : cancellationPending ? 'Periodo pagado hasta' : renewalStopped ? 'Acceso hasta' : 'Próxima renovación' }}</dt><dd>{{ dateLabel(periodEnd) }}</dd></div>
           <div><dt>{{ isTrial ? 'Contratación' : 'Forma de pago' }}</dt><dd>{{ isTrial ? 'Sin cobros durante la prueba' : paymentMethod }}</dd></div>
         </dl>
@@ -70,10 +70,14 @@
         <button type="button" class="billing-link" @click="resumePlanChange">{{ pendingChange.state === 'scheduled' ? 'Ver cambio de plan' : 'Continuar cambio de plan' }}</button>
       </section>
 
-      <footer v-if="!refund && !cancellationScheduled" class="billing-management">
-        <div><h2>Administrar suscripción</h2><p>{{ isTrial ? 'No necesitas cancelar tu prueba: no tiene cobros automáticos.' : renewalStopped ? 'Consulta arriba el estado de tu cancelación y el periodo pagado.' : 'Puedes cancelar la renovación y conservar el acceso hasta terminar el periodo pagado.' }}</p>
-          <p v-if="!isTrial && !renewalStopped && !canCancel" class="billing-footnote">No hay un periodo pagado vigente confirmado para cancelar desde aquí. Actualiza la consulta o contacta a MedSync.</p>
+      <footer v-if="!refund && !cancellationScheduled && hasSubscriptionOrTrial" class="billing-management">
+        <div>
+          <h2>Administrar suscripción</h2>
           <p v-if="cancellationError && !showCancellation" class="billing-cancellation-error" role="alert">{{ cancellationError }}</p>
+          <p v-else-if="isTrial">No necesitas cancelar tu prueba: no tiene cobros automáticos.</p>
+          <p v-else-if="renewalStopped">Consulta arriba el estado de tu cancelación y el periodo pagado.</p>
+          <p v-else-if="canCancel">Puedes cancelar la renovación y conservar el acceso hasta terminar el periodo pagado.</p>
+          <p v-else class="billing-footnote">No hay un periodo pagado vigente confirmado para cancelar la renovación.</p>
         </div>
         <v-btn v-if="canCancel" text color="error" :loading="preparingCancellation" :disabled="cancelling" @click="prepareCancellation">Cancelar renovación</v-btn>
       </footer>
@@ -205,8 +209,13 @@ export default {
     authContext() { return JSON.stringify(authorizationContext(this.$store)); },
     streamCredential() { const auth = this.$store.state.CORE.AUTH; return JSON.stringify([auth.accessExpiresAt, auth.token]); },
     refund() { return fullRefundConfirmation(this.subscription, this.license, this.business.id_business); },
-    status() { return this.subscription && this.subscription.status || this.business.subscriptionStatus || this.business.subscription_status || ''; },
+    status() {
+      if (this.subscription) return this.subscription.status;
+      const localStatus = this.business.subscriptionStatus || this.business.subscription_status;
+      return ['trial', 'trialing'].includes(localStatus) ? localStatus : '';
+    },
     isTrial() { return ['trial', 'trialing'].includes(this.status); },
+    hasSubscriptionOrTrial() { return Boolean(this.subscription) || this.isTrial; },
     cancellationPending() { return Boolean(this.subscription && this.subscription.cancellation && this.subscription.cancellation.state === 'pending'); },
     cancellationScheduled() { return Boolean(this.subscription && this.subscription.cancelAtPeriodEnd) && !this.cancellationPending; },
     paidAccessUntil() { return paidCancellationEnd(this.subscription, this.license); },
@@ -221,6 +230,7 @@ export default {
     needsAttention() { return this.cancellationPending || (this.cancellationScheduled ? !this.paidAccessUntil : !['active', 'trial', 'trialing'].includes(this.status)); },
     planName() {
       if (this.refund) return 'Sin plan activo';
+      if (!this.hasSubscriptionOrTrial) return 'Sin suscripción registrada en Billing';
       const offers = this.catalog && this.catalog.available && this.catalog.offers;
       const plan = Array.isArray(offers) && offers.find(plan => plan.code === (this.subscription && this.subscription.planCode));
       return plan && typeof plan.name === 'string' && plan.name.trim() || 'Plan del consultorio';
@@ -440,9 +450,9 @@ export default {
         const result = await this.readBilling(controller);
         if (controller.signal.aborted || this._isDestroyed || !isCurrentAuthorization(owner, this.$store)) return;
         this.subscription = result.subscription; this.license = result.license;
-        if (this.renewalStopped) {
-          saveCancellationIntent(cancellationIntentKey(this.$store, this.subscription), null);
-          this.cancellationIntent = null; this.showCancellation = false; return;
+        if (!this.subscription || this.renewalStopped) {
+          if (this.subscription) saveCancellationIntent(cancellationIntentKey(this.$store, this.subscription), null);
+          this.cancellationIntent = null; this.cancellationNeedsRefresh = false; this.showCancellation = false; return;
         }
         if (!this.canCancel) throw new Error('NO_PAID_PERIOD');
         const sub = this.subscription, end = sub.currentPeriodEnd || sub.nextBillingTime;
