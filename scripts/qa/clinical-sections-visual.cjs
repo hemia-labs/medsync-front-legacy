@@ -1,0 +1,129 @@
+const { chromium } = require('@playwright/test');
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const output = path.resolve(process.env.CLINICAL_UX_EVIDENCE || '.tmp-clinical-ux-evidence');
+fs.mkdirSync(output,{recursive:true});
+const api = async (route,body) => (await (await fetch('http://127.0.0.1:4398/qa/'+route,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})})).json()).data;
+(async()=>{
+  await api('reset',{});
+  const browser=await chromium.launch({headless:true});
+  const context=await browser.newContext({viewport:{width:1440,height:1000}});
+  await context.route('**/*',route=>/^https?:\/\/(127\.0\.0\.1|localhost)([:/]|$)/.test(route.request().url())?route.continue():route.abort());
+  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  try {
+    await page.goto('http://127.0.0.1:4397/admin?section=clinical-modules');
+    await page.getByRole('heading',{name:'Un expediente a la medida de tu consultorio'}).waitFor({timeout:60000});
+    await page.getByText('En uso ahora',{exact:true}).waitFor();
+    await page.screenshot({path:path.join(output,'desktop-odontogram.png'),fullPage:true});
+    if(process.argv.includes('--inspect')) { console.log(JSON.stringify({errors,body:(await page.locator('body').innerText()).slice(0,8000),reads:(await api('state')).reads},null,2));return; }
+    await page.getByRole('tab',{name:'Plan de tratamiento'}).click();
+    await page.getByRole('heading',{name:'Plan de tratamiento en el expediente'}).waitFor();
+    await page.screenshot({path:path.join(output,'desktop-plan.png'),fullPage:true});
+    assert.ok(await page.getByText('$1,400.00',{exact:true}).isVisible());
+    await page.getByLabel('Mostrar costos',{exact:true}).focus();await page.keyboard.press('Space');
+    assert.equal(await page.getByText('$1,400.00',{exact:true}).isVisible(),false);
+    await page.getByRole('tab',{name:'Odontograma',exact:true}).click();
+    await page.getByRole('tab',{name:'Plan de tratamiento'}).click();
+    assert.equal(await page.getByLabel('Mostrar costos',{exact:true}).getAttribute('aria-checked'),'false');
+    await api('state',{fail:'modules-save'});
+    await page.getByRole('button',{name:'Guardar secciones',exact:true}).click();
+    await page.getByText('No se pudo guardar. Conservamos tus cambios.',{exact:true}).waitFor();
+    assert.equal(await page.getByLabel('Mostrar costos',{exact:true}).getAttribute('aria-checked'),'false');
+    await api('state',{fail:''});
+    await page.getByRole('button',{name:'Guardar secciones',exact:true}).click();
+    await page.getByText('Secciones al día',{exact:true}).waitFor();
+    assert.equal((await api('state')).modules.showTreatmentCosts,false);
+    await page.getByRole('tab',{name:'Odontograma',exact:true}).click();
+    await page.getByText('Palabras para la captura rápida',{exact:true}).click();
+    await page.getByLabel('Palabra que quieres usar').fill('revisar');
+    await page.getByLabel('Qué hará esa palabra').selectOption('ok');
+    await api('state',{fail:'alias-save'});
+    await page.getByRole('button',{name:'Agregar palabra',exact:true}).click();
+    await page.getByText(/Las palabras cambiaron; vuelve a consultarlas/).waitFor();
+    assert.equal(await page.getByLabel('Palabra que quieres usar').inputValue(),'revisar');
+    await api('state',{fail:''});
+    await page.getByRole('button',{name:'Agregar palabra',exact:true}).click();
+    await page.getByRole('button',{name:'Quitar palabra revisar'}).waitFor();
+    assert.equal((await api('state')).aliases.revisar,'ok');
+    await page.getByText('Consultar palabras incluidas (15)',{exact:true}).click();
+    await page.getByLabel('Buscar una palabra o acción').fill('caries');
+    assert.equal(await page.locator('.dental-catalog li').count(),1);
+    await page.screenshot({path:path.join(output,'desktop-aliases.png'),fullPage:true});
+    await page.getByRole('button',{name:'Quitar palabra revisar'}).click();
+    await page.getByText('Palabra retirada. Los registros ya capturados se conservan.',{exact:true}).waitFor();
+    assert.equal((await api('state')).aliases.revisar,undefined);
+    await page.getByText('Orden para recorrer los dientes',{exact:true}).click();
+    const walk=page.getByLabel('Números de los dientes, en el orden que prefieras');
+    const original=await walk.inputValue();const reordered=original.split(', ').reverse().join(', ');
+    await walk.fill('18, 18');await page.getByText('Estos dientes aparecen más de una vez: 18.',{exact:true}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Guardar recorrido',exact:true}).isEnabled(),false);
+    await walk.fill(reordered);
+    await page.getByText('Quién puede registrar y finalizar',{exact:true}).click();
+    await page.getByRole('button',{name:'Volver a consultar permisos'}).click();
+    await page.getByRole('button',{name:'Volver a consultar permisos'}).waitFor();
+    assert.equal(await walk.inputValue(),reordered,'Refreshing permissions preserves traversal draft');
+    await api('state',{revision:2});
+    await page.getByRole('button',{name:'Guardar recorrido',exact:true}).click();
+    await page.getByRole('button',{name:'Descartar mi recorrido y cargar el guardado'}).waitFor();
+    assert.equal(await walk.inputValue(),reordered,'Conflict preserves traversal draft');
+    await page.getByRole('button',{name:'Descartar mi recorrido y cargar el guardado'}).click();
+    await page.getByText('Cargamos el recorrido guardado. Ya puedes revisarlo y editarlo.',{exact:true}).waitFor();
+    assert.equal(await walk.inputValue(),original);
+    await walk.fill(reordered);await page.getByRole('button',{name:'Guardar recorrido',exact:true}).click();
+    await page.getByText('Recorrido guardado. Se usará al volver a abrir la captura del odontograma.',{exact:true}).waitFor();
+    assert.deepEqual((await api('state')).traversal.permanent,reordered.split(', ').map(Number));
+    await page.screenshot({path:path.join(output,'desktop-traversal.png'),fullPage:true});
+    // Leaving through the real settings sidebar invokes the existing draft guard.
+    await walk.fill(original);
+    await page.getByRole('link',{name:'Puestos y accesos',exact:true}).click();
+    await page.getByRole('button',{name:'Seguir editando',exact:true}).click();
+    assert.equal(await walk.inputValue(),original);
+    await page.getByRole('button',{name:'Descartar cambios del recorrido'}).click();
+    // Mode confirmation and the saved-mode gating of advanced controls.
+    await page.getByRole('radio',{name:/Piezas y caras · solo consulta/}).check();
+    await page.getByRole('button',{name:'Guardar tipo de odontograma',exact:true}).click();
+    await page.getByRole('button',{name:'Seguir como antes',exact:true}).click();
+    assert.equal((await api('state')).mode,'v2');
+    await page.getByRole('button',{name:'Guardar tipo de odontograma',exact:true}).click();
+    await page.getByRole('button',{name:'Confirmar cambio',exact:true}).click();
+    await page.getByText('Tipo de odontograma guardado. Vuelve a abrir el expediente para usarlo.',{exact:true}).waitFor();
+    await page.getByText('Cambiar el tipo de odontograma',{exact:true}).waitFor({state:'hidden'});
+    assert.equal((await api('state')).mode,'v2_readonly');
+    assert.equal(await page.getByLabel('Palabra que quieres usar').isEnabled(),false);
+    await page.locator('.dental-preview > summary').click();
+    await page.locator('.dental-preview').screenshot({path:path.join(output,'preview-faces-detail.png')});
+    assert.equal(await page.locator('.dental-teeth .co26-root-line').first().evaluate(node=>getComputedStyle(node).fill),'none');
+    await page.screenshot({path:path.join(output,'preview-readonly.png'),fullPage:true});
+    await page.getByRole('radio',{name:/Odontograma con notas/}).check();
+    await page.getByText('Diagnóstico escrito: «Caries en la cara oclusal».',{exact:true}).waitFor();
+    await page.locator('.dental-preview').screenshot({path:path.join(output,'preview-notes-detail.png')});
+    await page.screenshot({path:path.join(output,'preview-notes.png'),fullPage:true});
+    await page.getByRole('button',{name:'Cancelar selección',exact:true}).click();
+    // Separate page loads verify persisted settings and compact layout in both themes.
+    for(const theme of ['medical-blue','clinical-night']) {
+      await api('state',{theme,mode:'v2',fail:''});
+      for(const width of [1440,390,320]) {
+        await page.setViewportSize({width,height:width===1440?1000:844});
+        await page.reload();await page.getByText('En uso ahora',{exact:true}).waitFor();
+        for(const panel of ['Odontograma','Plan de tratamiento']) {
+          await page.getByRole('tab',{name:panel,exact:true}).click();
+          const size=await page.evaluate(()=>({content:document.documentElement.scrollWidth,viewport:innerWidth}));
+          assert.ok(size.content<=size.viewport+1,`${theme}/${width}/${panel}: horizontal overflow`);
+          await page.screenshot({path:path.join(output,`${theme}-${width}-${panel==='Odontograma'?'dental':'plan'}.png`),fullPage:true});
+        }
+      }
+    }
+    await page.setViewportSize({width:1440,height:1000});
+    await api('state',{fail:'modules-load'});await page.reload();
+    await page.getByRole('button',{name:'Reintentar',exact:true}).waitFor();await api('state',{fail:''});
+    await page.getByRole('button',{name:'Reintentar',exact:true}).click();await page.getByText('En uso ahora',{exact:true}).waitFor();
+    await page.getByRole('tab',{name:'Odontograma',exact:true}).focus();await page.keyboard.press('ArrowRight');
+    assert.equal(await page.getByRole('tab',{name:'Plan de tratamiento'}).getAttribute('aria-selected'),'true');
+    await api('state',{role:'assistant'});await page.reload();
+    assert.equal(await page.getByRole('heading',{name:'Un expediente a la medida de tu consultorio'}).count(),0,'Unprivileged role cannot open settings');
+    assert.deepEqual(errors,[]);
+    const result={passed:true,checks:['module save failure/retry and persistence','tabs preserve drafts','alias add/search/remove','traversal validation and conflict recovery','refresh preserves drafts','real settings navigation guard','mode confirm/cancel/read-only gate','1440/390/320 in day/night without horizontal overflow','load retry','keyboard tabs','role restriction'],screenshots:fs.readdirSync(output).filter(f=>f.endsWith('.png')),writes:(await api('state')).writes};
+    fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
+  } finally { await context.close();await browser.close(); }
+})().catch(error=>{console.error(error);process.exitCode=1;});

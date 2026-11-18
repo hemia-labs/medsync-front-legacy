@@ -44,6 +44,10 @@ function buildModules(options = {}) {
     const styles = [];
     function add(id) {
         if (modules[id]) return;
+        if (id === 'src/plugins/vuetify.js') {
+            modules[id] = 'exports.__esModule = true; exports.default = new window.Vuetify();';
+            return;
+        }
         if (id === serviceId) {
             modules[id] = 'exports.DAOdontogramService = window.__odontogramQA.service; exports.DAOdontogramV2Service = window.__odontogramQA.v2service || { capabilities: async () => ({success:true,data:{mode:"v1"}}) };';
             return;
