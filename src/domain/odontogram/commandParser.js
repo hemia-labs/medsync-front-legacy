@@ -7,12 +7,12 @@ function parseCommand(text, selected, mode, catalog, aliases = {}, navigation = 
   if (!text.trim()) return { ops: [], advance: true, targets: [selected], nextTooth: walk[(walk.indexOf(selected)+1)%walk.length] };
   const ops = [], targets = [];
   let advance = false, cursor = selected;
-  for (const segment of text.toLowerCase().split(/[,;]/)) {
-    const match = segment.trim().match(/^(?:(\d{2})(?:-(\d{2}))?\s+)?([a-záéíóú]+)(!)?(?:\s+([modvlpi?]+))?$/);
+  for (const segment of text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[,;]/)) {
+    const match = segment.trim().match(/^(?:(\d{2})(?:-(\d{2}))?\s+)?([a-z]+)(!)?(?:\s+([modvlpi?]+))?$/);
     if (!match) throw Error('Comando inválido. Ejemplo: 16 car mo, 18 aus.');
     const pieces = match[2] ? anatomicalRange(match[1], match[2], mode) : [match[1] ? Number(match[1]) : cursor];
     if (pieces.some(n => !order.includes(n))) throw Error('La pieza no pertenece a esta dentición.');
-    const name = match[3].normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const name = match[3];
     const code = Object.prototype.hasOwnProperty.call(aliases, name) ? aliases[name] : ['sano','revisado'].includes(name) ? 'ok' : name;
     if (code === 'ok' || code === 'pres') {
       if (match[4] || match[5]) throw Error('Revisar no admite caras ni intención.');

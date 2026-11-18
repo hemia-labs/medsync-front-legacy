@@ -2,6 +2,7 @@
 node_modules
 /dist
 .tmp-*-build/
+.tmp-clinical-ux-evidence/
 
 
 # local env files

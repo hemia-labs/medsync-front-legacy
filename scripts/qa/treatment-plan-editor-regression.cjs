@@ -19,6 +19,7 @@ const DOMPurify = require('dompurify');
     const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[^;]+;\r?\n/gm, '').replace('export default', 'component =');
     const context = { component: null, mapActions: () => ({}), mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { TREATMENT: {}, CONFIGURATION: {}, AUTH: {} }, fnTypes: {},
         isD2AuthMode: () => true, DADocumentService: {}, DATreatmentService: {}, DocumentSignatureOptionsDialog: {}, ListPageNav: {}, dialogName: {}, fieldError: {}, ...sanitizerContext.module.exports, ...settings, ...helper,
+        ...require('../../src/domain/treatment-plan/plan.print'),
         dentalSurfaceLabel: require('../../src/utils/odontogram/dentalContract').surfaceLabel,
         Blob, URL, window: dom.window, document: dom.window.document, getComputedStyle: () => ({ getPropertyValue: () => '#0e7490' }) };
     vm.runInNewContext(script, context);

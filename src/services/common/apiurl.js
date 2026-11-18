@@ -69,6 +69,7 @@ export const DAC_CONFIG_THEME_GET        = "/api/config/theme/get";
 export const DAC_CONFIG_THEME_SAVE       = "/api/config/theme/save";
 export const DAC_CONFIG_CLINICAL_MODULES_GET  = "/api/config/clinical-modules/get";
 export const DAC_CONFIG_CLINICAL_MODULES_SAVE = "/api/config/clinical-modules/save";
+export const DAC_CONFIG_CLINICAL_MODULES_CHANGES = "/api/config/clinical-modules/changes";
 export const DAC_APPOINTMENT_CONFIG_GET  = "/api/appointment/config";
 export const DAC_APPOINTMENT_CONFIG_SAVE = "/api/appointment/config/save";
 export const DAC_APPOINTMENT_LIST        = "/api/appointment/list";
