@@ -19,7 +19,8 @@ const DOMPurify = require('dompurify');
     const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[^;]+;\r?\n/gm, '').replace('export default', 'component =');
     const context = { component: null, mapActions: () => ({}), mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { TREATMENT: {}, CONFIGURATION: {}, AUTH: {} }, fnTypes: {},
         isD2AuthMode: () => true, DADocumentService: {}, DATreatmentService: {}, DocumentSignatureOptionsDialog: {}, ListPageNav: {}, dialogName: {}, fieldError: {}, ...sanitizerContext.module.exports, ...settings, ...helper,
-        Blob, window: dom.window, document: dom.window.document, getComputedStyle: () => ({ getPropertyValue: () => '#0e7490' }) };
+        dentalSurfaceLabel: require('../../src/utils/odontogram/dentalContract').surfaceLabel,
+        Blob, URL, window: dom.window, document: dom.window.document, getComputedStyle: () => ({ getPropertyValue: () => '#0e7490' }) };
     vm.runInNewContext(script, context);
     const options = context.component;
     const fresh = () => {
@@ -158,6 +159,28 @@ const DOMPurify = require('dompurify');
     padOptions.created.call(untracked);
     assert.equal(untracked.signaturepadOptions.onEnd, undefined, 'Existing consumers retain their default behavior');
     assert.match(sfc, /v-dialog-name/);
-    assert.match(sfc, /:aria-pressed="String\(treatmentForm.teeth.includes\(tooth\)\)"/);
+    const privacy = fresh();
+    const printable = privacy.printableHistoryHtml({title:'Plan <seguro>',notes:'PLAN_INTERNAL',consent:{patient_signature:'SIGNATURE_SECRET'},treatments:[{name:'Restauración',description:'Descripción paciente',notes:'TREATMENT_INTERNAL',teeth:['11'],tooth_details:[{tooth_number:'11',surfaces:'OL'}],cost:120,status:'pending'}]});
+    assert.ok(printable.includes('Plan &lt;seguro&gt;'));
+    assert.ok(printable.includes('Descripción paciente'));
+    assert.ok(printable.includes('Incisal, Palatina'));
+    for(const secret of ['PLAN_INTERNAL','TREATMENT_INTERNAL','SIGNATURE_SECRET']) assert.equal(printable.includes(secret),false);
+    let openedUrl, openedTarget;
+    const printPreview={opener:dom.window};
+    dom.window.open=(url,target)=>{openedUrl=url;openedTarget=target;return printPreview;};
+    privacy.printHistory({title:'QA preview',treatments:[]});
+    assert.equal(openedTarget,'_blank');
+    assert.equal(printPreview.opener,null,'Preview cannot navigate the clinical editor');
+    assert.ok((await (await fetch(openedUrl)).text()).includes('QA preview'));
+    const previousUrl=openedUrl;
+    dom.window.open=()=>null;
+    privacy.printHistory({title:'QA blocked',treatments:[]});
+    assert.equal(privacy.planPrintUrl,null,'Blocked preview releases the local document');
+    await assert.rejects(fetch(previousUrl),'Reopening releases the previous URL');
+    privacy.localPlanData.config.showTreatmentStatus=false;
+    assert.equal(privacy.printableHistoryHtml({treatments:[{name:'QA',status:'pending'}]}).includes('<th>Estado</th>'),false);
+    privacy.openTreatmentDialog(); privacy.dentalImportState={open:true,pending:true};
+    assert.equal(privacy.dirty,true,'Unapplied import selections participate in leave protection');
+    assert.equal(await privacy.saveTreatment(),false,'Cannot save before applying or cancelling import');
     console.log('PASS treatment editor: dirty/stay/save/discard, failed save retention, validation/no requests, zero cost, load/stale-response recovery, duplicate submit, permissions/status filters, immutable consent view, restricted printing, route/unload guards, unapplied/cleared strokes and optional signature notifications. In-memory only.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
