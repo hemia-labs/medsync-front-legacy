@@ -34,6 +34,7 @@ jobs:
           node scripts/qa/nc1-ux5-closed-history.cjs
           node scripts/qa/nc1-c05-effective-consent.cjs
           node scripts/qa/nc1-consent-substitution.cjs
+          node scripts/qa/nc1-catalog-capture.cjs
           node scripts/qa/nc1-user-surnames-review.cjs
           node scripts/qa/ux11-login-staff-regression.cjs
           node scripts/qa/ux12-staff-permissions-regression.cjs

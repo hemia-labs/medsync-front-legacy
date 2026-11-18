@@ -68,7 +68,7 @@ export default {
         this.legacy = r.data.legacySurname || r.data.legacyProfessionalName || '';
         this.draft = editableIdentity(r.data);
         this.baseline = editableIdentity(r.data);
-        this.loaded = true; this.message = 'La verificación de CURP y catálogos sigue pendiente.';
+        this.loaded = true; this.message = 'La CURP sigue pendiente de verificación. Consulta el estado de cada clave en su campo.';
       } catch (e) {
         if (seq === this.sequence && isCurrentAuthorization(context, this.$store)) this.error = e.message || 'No se pudo consultar.';
       } finally { if (seq === this.sequence && isCurrentAuthorization(context, this.$store)) this.loading = false; }
@@ -87,7 +87,7 @@ export default {
           throw new Error(r.status === 409 ? 'La identidad cambió. Conservamos tu captura; recarga para conciliar.' : r.message);
         }
         this.baseline = editableIdentity(r.data); this.draft = editableIdentity(r.data); this.revision = r.data.revision;
-        this.message = 'Identidad guardada; validación de catálogos pendiente.'; this.$emit('saved', r.data);
+        this.message = 'Identidad guardada. Consulta el estado de las claves en sus campos.'; this.$emit('saved', r.data);
       } catch (e) {
         if (seq === this.sequence && isCurrentAuthorization(context, this.$store)) this.error = e.message || 'No se pudo guardar. Conservamos tu captura.';
       } finally { if (seq === this.sequence && isCurrentAuthorization(context, this.$store)) this.saving = false; }
