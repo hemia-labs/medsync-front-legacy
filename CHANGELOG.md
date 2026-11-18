@@ -1,5 +1,11 @@
 # hmdentalassistant_front
 
+## 0.4.2
+
+### Patch Changes
+
+- 6d3b8ea: Clarify treatment capture and dental selection, keep actions visible on small screens, fix menus hidden by the footer, and add a printable patient copy for active and closed plans without internal notes.
+
 ## 0.4.1
 
 ### Patch Changes
