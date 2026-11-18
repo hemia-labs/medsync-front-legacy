@@ -96,6 +96,7 @@ export const DAC_PRESCRIPTION_OUTPUT = "/api/prescription/output";
 export const DAC_DOCUMENT_TEMPLATES       = "/api/document/templates";
 export const DAC_DOCUMENT_TEMPLATE_SAVE   = "/api/document/template/save";
 export const DAC_DOCUMENT_PATIENT         = "/api/document/patient/";
+export const DAC_DOCUMENT_CONSENT         = "/api/document/consent/";
 export const DAC_DOCUMENT_CREATE          = "/api/document/create";
 export const DAC_DOCUMENT_SIGN            = "/api/document/sign";
 export const DAC_DOCUMENT_REFUSAL         = "/api/document/refusal";
