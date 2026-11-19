@@ -314,12 +314,12 @@ function moduleWith(file, bindings = {}) {
     await mount({ attempt_id: key });
     const resumeWrites = writes().length;
     assert.equal(paypalButton(), undefined);
-    button('Continuar en PayPal').click(); await flush();
+    button('Continuar con PayPal').click(); await flush();
     assert.equal(redirects.pop(), ready.checkoutUrl);
     assert.equal(writes().length, resumeWrites, 'Resuming does not create or verify a payment');
     for (const checkoutUrl of ['https://www.paypal.com.example.test/checkout', 'https://www.paypal.com:444/checkout']) {
       currentReceipt = { ...ready, checkoutUrl }; await mount({ attempt_id: key });
-      assert.equal(button('Continuar en PayPal'), undefined);
+      assert.equal(button('Continuar con PayPal'), undefined);
     }
     currentReceipt = json(ready);
     apiCalls.length=0;

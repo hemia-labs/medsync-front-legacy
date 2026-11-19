@@ -42,12 +42,11 @@
                 <v-btn v-if="(!updatesOpen || exceptional || canRetry || accountError) && (!showProviderResume || !approval)" text :disabled="busy || loading || retryRemaining > 0" @click="consult">{{ retryRemaining > 0 ? 'Actualizar en ' + retryRemaining + ' s' : 'Actualizar estado' }}</v-btn>
                 <v-btn v-if="!missingAttempt && (!showProviderResume || !approval)" :class="showProviderResume ? '' : 'payment-primary-button'" :outlined="showProviderResume" depressed :disabled="leaving || ((busy || loading) && !confirmed)" @click="continuePending">Continuar a MedSync</v-btn>
                 <v-btn v-if="missingAttempt" class="payment-primary-button" depressed :disabled="busy || loading" @click="recoverMissing">Recuperar solicitud</v-btn>
-                <template v-if="showProviderResume && !paypalOpening">
+                <template v-if="showProviderResume && !paypalOpening && (approval || resumePayPalUrl)">
                   <button v-if="!approval" type="button" class="payment-paypal-button payment-paypal-fallback" aria-label="Continuar con PayPal" :disabled="busy || loading || paypalOpening" @click="openPayPal"><img src="https://www.paypalobjects.com/webstatic/en_US/i/buttons/checkout-logo-large.png" width="228" height="44" alt="Continuar con PayPal"></button>
                   <paypal-button v-else-if="paypalReady" type="subscribe" class="paypal-gold payment-paypal-button" :disabled.prop="busy || loading || paypalOpening" @click="openPayPal"></paypal-button>
                   <v-btn v-else outlined :disabled="busy || loading || paypalLoading" @click="preparePayPal">{{ paypalLoading ? 'Cargando PayPal…' : 'Volver a cargar PayPal' }}</v-btn>
                 </template>
-                <v-btn v-else-if="resumePayPalUrl" class="payment-primary-button" depressed :disabled="busy || loading || leaving" @click="navigateToProvider(resumePayPalUrl)">Continuar en PayPal</v-btn>
               </div>
               <p v-if="showProviderResume" class="payment-footnote">Puedes volver a MedSync y retomar esta solicitud más tarde.</p>
               <p v-if="confirmation" class="payment-success-terms">{{ recurringLabel }}</p>
@@ -300,7 +299,7 @@ export default {
       finally { if (current()) this.paypalLoading = false; }
     },
     openPayPal() {
-      if (!this.approval && this.checkoutUrl && !this.busy && !this.loading && !this.paypalOpening && !this.awaitingConfirmation) { if (this.reservePayPalWindow()) this.navigateToProvider(this.checkoutUrl); return; }
+      if (this.resumePayPalUrl && !this.busy && !this.loading && !this.paypalOpening && !this.awaitingConfirmation) { if (this.reservePayPalWindow()) this.navigateToProvider(this.resumePayPalUrl); return; }
       if (!this.paypalReady || !this.paypalSession || !this.approval || this.busy || this.loading || this.paypalOpening || this.paypalApproved) return;
       const generation = this.paypalGeneration; this.paypalOpening = true; this.paypalNotice = '';
       // Start synchronously in the click: awaiting here would lose the browser's popup permission.
@@ -420,7 +419,10 @@ export default {
     },
     navigateToProvider(url) {
       if (!this.paypalPopup) return;
-      try { this.paypalPopup.navigate(url, this.attemptId); this.paypalOpening = true; }
+      try {
+        if (!['https://www.paypal.com', 'https://www.sandbox.paypal.com'].includes(new URL(url).origin)) throw new Error('PAYPAL_URL_INVALID');
+        this.paypalPopup.navigate(url, this.attemptId); this.paypalOpening = true;
+      }
       catch (_) { this.closePayPalWindow(); this.paypalNotice = 'No pudimos abrir la ventana de PayPal. Puedes retomar esta misma solicitud.'; this.preparePayPal(); }
     },
     stopConfirmationRecovery() { clearTimeout(this.confirmationTimer); this.confirmationTimer = null; },
