@@ -42,8 +42,9 @@
                 <v-btn v-if="(!updatesOpen || exceptional || canRetry || accountError) && (!showProviderResume || !approval)" text :disabled="busy || loading || retryRemaining > 0" @click="consult">{{ retryRemaining > 0 ? 'Actualizar en ' + retryRemaining + ' s' : 'Actualizar estado' }}</v-btn>
                 <v-btn v-if="!missingAttempt && (!showProviderResume || !approval)" :class="showProviderResume ? '' : 'payment-primary-button'" :outlined="showProviderResume" depressed :disabled="leaving || ((busy || loading) && !confirmed)" @click="continuePending">Continuar a MedSync</v-btn>
                 <v-btn v-if="missingAttempt" class="payment-primary-button" depressed :disabled="busy || loading" @click="recoverMissing">Recuperar solicitud</v-btn>
-                <template v-if="showProviderResume && approval">
-                  <paypal-button v-if="paypalReady" type="subscribe" class="paypal-gold payment-paypal-button" :disabled.prop="busy || loading || paypalOpening" @click="openPayPal"></paypal-button>
+                <template v-if="showProviderResume && !paypalOpening">
+                  <button v-if="!approval" type="button" class="payment-paypal-button payment-paypal-fallback" aria-label="Continuar con PayPal" :disabled="busy || loading || paypalOpening" @click="openPayPal"><img src="https://www.paypalobjects.com/webstatic/en_US/i/buttons/checkout-logo-large.png" width="228" height="44" alt="Continuar con PayPal"></button>
+                  <paypal-button v-else-if="paypalReady" type="subscribe" class="paypal-gold payment-paypal-button" :disabled.prop="busy || loading || paypalOpening" @click="openPayPal"></paypal-button>
                   <v-btn v-else outlined :disabled="busy || loading || paypalLoading" @click="preparePayPal">{{ paypalLoading ? 'Cargando PayPal…' : 'Volver a cargar PayPal' }}</v-btn>
                 </template>
               </div>
@@ -75,7 +76,7 @@
                 </div>
               </fieldset>
               <div v-else class="payment-alert" role="status">{{ legalLoading ? 'Cargando condiciones…' : 'No pudimos cargar las condiciones vigentes.' }}<v-btn v-if="!legalLoading" text :disabled="busy" @click="refreshLegal">Volver a cargar condiciones</v-btn></div>
-              <div class="payment-actions payment-plan-actions"><v-btn v-if="documents.length" class="payment-primary-button" depressed :disabled="!canCreate" @click="createCheckout">{{ busy ? 'Preparando tu pago…' : 'Continuar con el pago' }}</v-btn></div>
+              <div class="payment-actions payment-plan-actions"><button v-if="documents.length" type="button" class="payment-paypal-button payment-paypal-fallback" aria-label="Continuar con PayPal" :aria-busy="busy ? 'true' : 'false'" :disabled="!canCreate" @click="createCheckout"><img src="https://www.paypalobjects.com/webstatic/en_US/i/buttons/checkout-logo-large.png" width="228" height="44" alt="Continuar con PayPal"></button></div>
             </section>
           </template>
         </template>
@@ -91,6 +92,7 @@
 </template>
 <script>
 import DOMPurify from 'dompurify';
+import { openPlanChangePayPal as openPayPalWindow, returnFromPlanChangePayPal as returnFromPayPalWindow } from '../../domain/billing/planChangePayPal';
 import { paypalApproval, preparePayPalApproval } from '../../domain/billing/paypalApproval';
 import { newerSubscriptionSnapshot } from '../../domain/billing/subscriptionUpdates';
 import AccountFlowShell from './AccountFlowShell.vue';
@@ -103,7 +105,7 @@ import { checkoutAttemptId, checkoutLoginRoute, canManageCheckout, usableOffers,
 
 export default {
   components: { AccountFlowShell, PlanCatalog },
-  data: () => ({ catalog: null, activation: null, selection: null, checkoutKey: '', missingAttempt: false, recovering: false, prepared: null, accepted: {}, legalKey: '', legalAcceptanceId: '', legalSent: false, frozenConfirmations: null, legalLoading: false, legalOpen: false, selectedDocument: null, attempt: null, subscription: null, license: null, authorityKnown: false, sessionFresh: false, accountError: '', loading: true, busy: false, creating: false, creatingKey: '', error: '', authRequired: false, retryAt: 0, now: Date.now(), timer: null, requestController: null, paypalLoading: false, paypalReady: false, paypalOpening: false, paypalApproved: false, paypalNotice: '', snapshotRevision: '', redirectIntent: '', redirectDone: false, updatesOpen: false, waitingSince: 0, leaving: false }),
+  data: () => ({ catalog: null, activation: null, selection: null, checkoutKey: '', missingAttempt: false, recovering: false, prepared: null, accepted: {}, legalKey: '', legalAcceptanceId: '', legalSent: false, frozenConfirmations: null, legalLoading: false, legalOpen: false, selectedDocument: null, attempt: null, subscription: null, license: null, authorityKnown: false, sessionFresh: false, accountError: '', loading: true, busy: false, creating: false, creatingKey: '', error: '', authRequired: false, retryAt: 0, now: Date.now(), timer: null, requestController: null, paypalLoading: false, paypalReady: false, paypalOpening: false, paypalApproved: false, paypalNotice: '', snapshotRevision: '', redirectIntent: '', redirectDone: false, confirmationReads: 0, updatesOpen: false, waitingSince: 0, leaving: false }),
   computed: {
     business() { return this.$store.getters['CORE/AUTH/getBusiness'] || {}; },
     buyer() { const user = this.$store.getters['CORE/AUTH/getUser'] || {}; return { organizationId: this.business.id_business, userId: user.id_login }; },
@@ -136,12 +138,12 @@ export default {
     exceptional() { return Boolean(this.error || this.accountError || this.missingAttempt || this.attempt && this.attempt.status === 'rejected'); },
     cancelledReturn() { return this.$route.query.result === 'cancelled'; },
     allDocumentsAccepted() { return this.documents.length > 0 && this.documents.every(doc => doc.acceptedInRegistration); },
-    preparingProvider() { return Boolean(this.creating || this.redirectIntent || this.redirectDone); },
+    preparingProvider() { return Boolean(this.creating || this.redirectIntent); },
     statusWorking() { return Boolean(this.loading || this.busy || this.preparingProvider && !this.exceptional); },
     requestedPlanName() { const code = this.attempt && this.attempt.planCode || this.selection && this.selection.planCode; const plan = this.catalog && this.catalog.offers && this.catalog.offers.find(item => item.code === code); return plan ? plan.name : ''; },
     approval() { return this.attempt && this.attempt.status === 'ready' && !this.providerActive && !this.providerUnavailable && !this.confirmed ? paypalApproval(this.attempt.paypalApproval) : null; },
     streamCredential() { const auth = this.$store.state && this.$store.state.CORE.AUTH || {}; return JSON.stringify([auth.accessExpiresAt, auth.token, auth.accessRevision, auth.permissions]); },
-    awaitingConfirmation() { return this.paypalApproved || this.$route.query.result === 'approved'; },
+    awaitingConfirmation() { return this.paypalApproved || this.$route.query.result === 'approved' || this.providerActive; },
     showProviderResume() { return Boolean(this.checkoutUrl && !this.confirmed && !this.awaitingConfirmation); },
     requestedOffer() { return this.attempt ? selectedOffer(this.catalog, this.attempt.planCode, this.attempt.planPriceCode) : this.selection; },
     requestedPriceLabel() { if (!this.requestedOffer) return ''; const price = this.requestedOffer.price; const units = price.billingInterval === 'year' ? ['año', 'años'] : ['mes', 'meses']; return 'Precio del plan por ' + (price.billingIntervalCount === 1 ? units[0] : price.billingIntervalCount + ' ' + units[1]); },
@@ -211,17 +213,19 @@ export default {
     '$route.query.attempt_id'(value) { if (this.creating && checkoutAttemptId(value) === this.creatingKey) return; this.resetContext(); },
     checkoutOwner() { this.resetContext(); },
     streamCredential() { this.startUpdates(); },
+    awaitingConfirmation(approved) { if (approved && !this.loading && !this.busy) this.startConfirmationRecovery(); },
+    closedCheckout(closed) { if (closed) { this.closePayPalWindow(); this.stopConfirmationRecovery(); } },
     providerUnavailable(blocked) { if (blocked) this.invalidatePayPal(); },
     preparingProvider(preparing) { if (preparing) this.$nextTick(() => { if (this.$refs.title) this.$refs.title.focus(); }); },
-    accessConfirmed(confirmed) { if (confirmed) { this.invalidatePayPal(); this.stopUpdates(); this.$nextTick(() => { if (!this._isDestroyed && this.$refs.title) this.$refs.title.focus(); }); } },
+    accessConfirmed(confirmed) { if (confirmed) { this.stopConfirmationRecovery(); this.closePayPalWindow(); this.invalidatePayPal(); this.stopUpdates(); this.$nextTick(() => { if (!this._isDestroyed && this.$refs.title) this.$refs.title.focus(); }); } },
     documents(next) { if (this.selectedDocument && !next.some(doc => doc.documentVersionId === this.selectedDocument.documentVersionId && doc.contentHash === this.selectedDocument.contentHash)) this.closeDocument(); }
   },
   created() { this.initialize(); },
   mounted() { if (this.$refs.title) this.$refs.title.focus(); this.timer = setInterval(() => { this.now = Date.now(); }, 1000); },
-  beforeDestroy() { clearInterval(this.timer); this.stopUpdates(); if (this.requestController) this.requestController.abort(); this.redirectIntent = ''; this.invalidatePayPal(); this.clearLegal(); },
+  beforeDestroy() { this.stopConfirmationRecovery(); this.closePayPalWindow(); clearInterval(this.timer); this.stopUpdates(); if (this.requestController) this.requestController.abort(); this.redirectIntent = ''; this.invalidatePayPal(); this.clearLegal(); },
   methods: {
     current(controller) { return !this._isDestroyed && this.requestController === controller && !controller.signal.aborted; },
-    controller() { this.refreshingPaidSession = false; this.metadataRequest = null; if (this.requestController) this.requestController.abort(); const controller = new AbortController(); this.requestController = controller; return controller; },
+    controller() { this.stopConfirmationRecovery(); this.confirmationRequest = null; this.refreshingPaidSession = false; this.metadataRequest = null; if (this.requestController) this.requestController.abort(); const controller = new AbortController(); this.requestController = controller; return controller; },
     stopUpdates() { this.streamGeneration = (this.streamGeneration || 0) + 1; if (this.closeUpdates) this.closeUpdates(); this.closeUpdates = null; this.updatesOpen = false; },
     startUpdates() {
       this.stopUpdates();
@@ -259,7 +263,7 @@ export default {
           || !usableAttempt(result, id) || result.planCode !== attempt.planCode || result.planPriceCode !== attempt.planPriceCode) return;
         this.attempt = result;
         if ((result.status === 'rejected' || result.errorCode === 'CHECKOUT_IN_PROGRESS') && await this.resumePendingCheckout(controller)) return;
-        this.completeFromSnapshot(); if (!this.confirmed) this.preparePayPal();
+        this.completeFromSnapshot(); if (!this.redirectReady() && !this.confirmed) this.preparePayPal();
       } catch (_) { /* Keep the latest webhook state and offer explicit recovery if metadata is unavailable. */ }
       finally {
         if (this.metadataRequest === request) {
@@ -270,6 +274,7 @@ export default {
     },
     invalidatePayPal() { this.paypalGeneration = (this.paypalGeneration || 0) + 1; this.paypalSession = null; this.paypalLoading = false; this.paypalReady = false; this.paypalOpening = false; this.paypalApproved = false; this.paypalNotice = ''; },
     async preparePayPal() {
+      if (this.paypalPopup) return;
       this.invalidatePayPal();
       if (!this.approval || !this.checkoutUrl) return;
       const generation = this.paypalGeneration, id = this.attemptId, owner = this.checkoutOwner, approval = this.approval;
@@ -279,7 +284,7 @@ export default {
       const failed = () => { if (current()) { this.paypalOpening = false; this.paypalNotice = 'No pudimos abrir la ventana de PayPal. Puedes volver a intentarlo con esta misma solicitud.'; } };
       try {
         const session = await preparePayPalApproval(approval, offer && offer.price.currency, {
-          onApprove: data => { if (!current()) return; if (!data || data.subscriptionId !== approval.subscriptionId) { failed(); return; } this.paypalOpening = false; this.paypalApproved = true; this.paypalNotice = ''; },
+          onApprove: data => { if (!current()) return; if (!data || data.subscriptionId !== approval.subscriptionId) { failed(); return; } this.paypalOpening = false; this.paypalApproved = true; this.paypalNotice = ''; this.startConfirmationRecovery(); },
           onCancel: () => { if (current()) { this.paypalOpening = false; this.paypalNotice = 'Cerraste PayPal. Puedes retomar el pago con esta misma solicitud.'; } },
           onError: failed
         });
@@ -289,6 +294,7 @@ export default {
       finally { if (current()) this.paypalLoading = false; }
     },
     openPayPal() {
+      if (!this.approval && this.checkoutUrl && !this.busy && !this.loading && !this.paypalOpening && !this.awaitingConfirmation) { if (this.reservePayPalWindow()) this.navigateToProvider(this.checkoutUrl); return; }
       if (!this.paypalReady || !this.paypalSession || !this.approval || this.busy || this.loading || this.paypalOpening || this.paypalApproved) return;
       const generation = this.paypalGeneration; this.paypalOpening = true; this.paypalNotice = '';
       // Start synchronously in the click: awaiting here would lose the browser's popup permission.
@@ -310,6 +316,7 @@ export default {
       finally { if (!this._isDestroyed && this.checkoutOwner === owner) this.leaving = false; }
     },
     resetContext() {
+      this.stopConfirmationRecovery(); this.closePayPalWindow(); this.confirmationReads = 0;
       this.stopUpdates(); if (this.requestController) this.requestController.abort();
       this.invalidatePayPal(); this.refreshingPaidSession = false; this.metadataRequest = null; this.metadataRevision = ''; this.snapshotRevision = ''; this.waitingSince = 0; this.redirectIntent = ''; this.redirectDone = false; this.attempt = null; this.subscription = null; this.license = null; this.authorityKnown = false; this.sessionFresh = false; this.accountError = ''; this.busy = false; this.leaving = false; this.creating = false; this.creatingKey = ''; this.retryAt = 0; this.missingAttempt = false; this.recovering = false; this.checkoutKey = ''; this.activation = null; this.clearLegal(); this.initialize();
     },
@@ -321,7 +328,7 @@ export default {
     closeDocument() { this.legalOpen = false; this.restoreLegalFocus(false); },
     restoreLegalFocus(open) { if (open) return; this.$nextTick(() => { if (this.legalOpen) return; this.selectedDocument = null; if (this.legalTrigger && this.legalTrigger.isConnected && !this.legalTrigger.disabled) this.legalTrigger.focus(); else if (this.$refs.title) this.$refs.title.focus(); this.legalTrigger = null; }); },
     preventDocumentNavigation(event) { if (event.target.closest('a')) event.preventDefault(); },
-    async showError(error) { if (this._isDestroyed) return; this.error = paymentErrorMessage(error); this.authRequired = error && error.status === 401; this.redirectIntent = ''; this.redirectDone = false; this.closeDocument(); if (error && error.retryAfterSeconds) this.cooldown(error.retryAfterSeconds); await this.$nextTick(); if (this.$refs.alert) this.$refs.alert.focus(); },
+    async showError(error) { if (this._isDestroyed) return; this.closePayPalWindow(); this.stopConfirmationRecovery(); this.error = paymentErrorMessage(error); this.authRequired = error && error.status === 401; this.redirectIntent = ''; this.redirectDone = false; this.closeDocument(); if (error && error.retryAfterSeconds) this.cooldown(error.retryAfterSeconds); await this.$nextTick(); if (this.$refs.alert) this.$refs.alert.focus(); },
     cooldown(seconds) { this.now = Date.now(); this.retryAt = this.now + Math.max(0, Math.min(86400, Number(seconds) || 0)) * 1000; },
     async resumePendingCheckout(controller) {
       const owner = this.checkoutOwner, current = () => this.current(controller) && owner === this.checkoutOwner;
@@ -359,6 +366,7 @@ export default {
       finally { if (this.current(controller)) this.legalLoading = false; }
     },
     async initialize() {
+      if (returnFromPayPalWindow(this.attemptId, this.$route.query.result)) return;
       if (this.busy || !this.canManage) { this.loading = false; return; }
       this.stopUpdates(); const controller = this.controller();  this.loading = true; this.error = ''; this.authRequired = false; this.missingAttempt = false; this.recovering = false; this.checkoutKey = this.attemptId; this.activation = null;
       this.attempt = null; this.subscription = null; this.license = null; this.authorityKnown = false; this.sessionFresh = false; this.accountError = ''; this.clearLegal(); this.selection = null;
@@ -370,10 +378,10 @@ export default {
         this.catalog = results[0].status === 'fulfilled' ? results[0].value : null;
         if (!this.attemptId && this.offersAvailable) this.selection = selectedOffer(this.catalog, this.$route.query.plan_code, this.$route.query.price_code);
         if (results[1].status === 'rejected') throw results[1].reason;
-        if (this.attemptId) { this.receipt(results[1].value); if ((this.attempt.status === 'rejected' || this.attempt.errorCode === 'CHECKOUT_IN_PROGRESS') && await this.resumePendingCheckout(controller)) return; await this.readAuthority(controller); this.startUpdates(); }
+        if (this.attemptId) { this.receipt(results[1].value); if ((this.attempt.status === 'rejected' || this.attempt.errorCode === 'CHECKOUT_IN_PROGRESS') && await this.resumePendingCheckout(controller)) return; await this.readAuthority(controller, true); this.startUpdates(); }
         else if (results[0].status === 'rejected') throw results[0].reason;
       } catch (error) { if (this.current(controller)) { this.missingAttempt = error.status === 404 && Boolean(this.attemptId); await this.showError(error); } }
-      finally { if (this.current(controller)) { this.loading = false; } }
+      finally { if (this.current(controller)) { this.loading = false; if (this.awaitingConfirmation && !this.authRequired) this.startConfirmationRecovery(false); } }
     },
     selectPlan({ plan, price }) { if (this.busy || this.attemptId && !this.recovering || !this.catalog || !this.catalog.checkoutAvailable) return; this.closeDocument(); this.selection = selectedOffer(this.catalog, plan.code, price.code); },
     async refreshLegal() {
@@ -381,20 +389,62 @@ export default {
       const controller = this.controller(); this.busy = true; this.error = ''; this.clearLegal();
       try { await this.loadLegal(controller); } catch (error) { if (this.current(controller)) await this.showError(error); } finally { if (this.current(controller)) this.busy = false; }
     },
-    navigateToProvider(url) { window.location.assign(url); },
+    closePayPalWindow() { if (this.paypalPopup) this.paypalPopup.close(); this.paypalPopup = null; this.paypalOpening = false; this.redirectIntent = ''; },
+    reservePayPalWindow() {
+      if (this.paypalPopup) return true;
+      const owner = this.checkoutOwner;
+      try {
+        const popup = openPayPalWindow({
+          onReturn: result => {
+            if (this._isDestroyed || this.paypalPopup !== popup || this.checkoutOwner !== owner || result.attemptId !== this.attemptId) return false;
+            this.paypalPopup = null; this.paypalOpening = false; this.redirectDone = false;
+            if (result.result === 'approved') { this.paypalApproved = true; this.paypalNotice = ''; this.startConfirmationRecovery(); }
+            else { this.paypalNotice = 'Cerraste PayPal. Puedes retomar el pago con esta misma solicitud.'; this.preparePayPal(); }
+            return false;
+          },
+          onClose: () => {
+            if (this._isDestroyed || this.paypalPopup !== popup || this.checkoutOwner !== owner) return;
+            this.paypalPopup = null; this.redirectIntent = ''; this.redirectDone = false; this.paypalOpening = false;
+            if (!this._isDestroyed && this.checkoutOwner === owner) { this.paypalNotice = 'Cerraste PayPal. Puedes retomar el pago con esta misma solicitud.'; this.preparePayPal(); }
+          }
+        });
+        this.paypalPopup = popup;
+        return true;
+      } catch (_) { this.paypalNotice = 'Permite las ventanas emergentes para continuar con PayPal.'; this.error = this.paypalNotice; return false; }
+    },
+    navigateToProvider(url) {
+      if (!this.paypalPopup) return;
+      try { this.paypalPopup.navigate(url, this.attemptId); this.paypalOpening = true; }
+      catch (_) { this.closePayPalWindow(); this.paypalNotice = 'No pudimos abrir la ventana de PayPal. Puedes retomar esta misma solicitud.'; this.preparePayPal(); }
+    },
+    stopConfirmationRecovery() { clearTimeout(this.confirmationTimer); this.confirmationTimer = null; },
+    startConfirmationRecovery(immediate = true) {
+      this.stopConfirmationRecovery();
+      if (!this.awaitingConfirmation || this.accessConfirmed || this.closedCheckout || this.authRequired || this.confirmationRequest || !this.requestController) return;
+      const controller = this.requestController;
+      const recover = async () => {
+        if (!this.current(controller) || this.accessConfirmed || this.closedCheckout || this.authRequired || this.confirmationReads >= 6) return;
+        this.confirmationReads++; this.confirmationRequest = controller;
+        try { await this.readAuthority(controller, true); }
+        catch (error) { if (this.current(controller) && error.status === 401) await this.showError(error); }
+        finally { if (this.confirmationRequest === controller) { this.confirmationRequest = null; if (this.current(controller)) this.startConfirmationRecovery(false); } }
+      };
+      if (immediate) recover();
+      else if (this.confirmationReads < 6) this.confirmationTimer = setTimeout(recover, [3000, 5000, 10000, 15000, 30000, 30000][this.confirmationReads]);
+    },
     redirectReady() {
       if (!this.redirectIntent || this.redirectIntent !== this.attemptId || this.redirectDone || this.providerActive || this.providerUnavailable || !usableAttempt(this.attempt, this.attemptId) || this.attempt.status !== 'ready') return false;
-      if (this.approval) { this.redirectIntent = ''; return false; }
+      if (!this.paypalPopup) { this.redirectIntent = ''; return false; }
       const url = safePaymentUrl(this.attempt.checkoutUrl);
       if (!url) return false;
       this.redirectIntent = ''; this.redirectDone = true;  this.navigateToProvider(url); return true;
     },
     async createCheckout() {
-      if (!this.canCreate) return;
+      if (!this.canCreate || !this.reservePayPalWindow()) return;
       const controller = this.controller(); this.busy = true; this.error = ''; this.authRequired = false; this.closeDocument();
       const snapshot = { idempotencyKey: this.attemptId || this.checkoutKey || this.legalKey, planCode: this.selection.planCode, planPriceCode: this.selection.planPriceCode };
       try {
-        if (await this.resumePendingCheckout(controller)) return;
+        if (await this.resumePendingCheckout(controller)) { this.closePayPalWindow(); return; }
         this.creating = true; this.creatingKey = snapshot.idempotencyKey; this.redirectIntent = snapshot.idempotencyKey; this.redirectDone = false;
         if (this.attemptId !== snapshot.idempotencyKey || Object.keys(this.$route.query).length !== 1) await this.$router.replace({ name: 'accountPlans', query: { attempt_id: snapshot.idempotencyKey } });
         if (!this.current(controller)) return;
@@ -411,7 +461,7 @@ export default {
         if (!this.current(controller)) return;
         this.receipt(result); this.clearLegal(); this.selection = null;
         if ((this.attempt.status === 'rejected' || this.attempt.errorCode === 'CHECKOUT_IN_PROGRESS') && await this.resumePendingCheckout(controller)) return;
-        if (!this.redirectReady()) { this.redirectIntent = ''; await this.readAuthority(controller); this.startUpdates(); }
+        if (!this.redirectReady()) { if (!this.canRetry) this.redirectIntent = ''; await this.readAuthority(controller); this.startUpdates(); }
       } catch (error) {
         if (this.current(controller)) {
           if (this.creating && [409, 422].includes(error.status)) {
@@ -425,7 +475,9 @@ export default {
       } finally { if (this.current(controller)) { this.busy = false; this.creating = false; this.creatingKey = ''; this.startUpdates(); } }
     },
     receipt(value) { if (!usableAttempt(value, this.attemptId)) throw { code: 'PAYMENT_INVALID_RESPONSE' }; this.attempt = value; this.missingAttempt = false; this.recovering = false; this.authorityKnown = false; this.sessionFresh = false; this.accountError = ''; this.cooldown(value.retryAfterSeconds); this.preparePayPal(); },
-    async readAuthority(controller) {
+    async readAuthority(controller, reconcile = false) {
+      // Recover the committed Billing state even when a webhook or SSE notification was missed.
+      if (reconcile) { await Payments.license(controller.signal); if (!this.current(controller)) return; }
       const revision = this.snapshotRevision;
       const snapshot = await Payments.savedSnapshot(controller.signal);
       if (!this.current(controller) || revision !== this.snapshotRevision) return;
@@ -454,9 +506,9 @@ export default {
       if (this.busy || this.loading || !this.attemptId) return;
       if (this.retryAt > Date.now()) return;
       const controller = this.controller(); this.busy = true; this.error = ''; this.authRequired = false;
-      try { const result = await Payments.attempt(this.attemptId, controller.signal); if (!this.current(controller)) return; this.receipt(result); if ((this.attempt.status === 'rejected' || this.attempt.errorCode === 'CHECKOUT_IN_PROGRESS') && await this.resumePendingCheckout(controller)) return; if (!this.redirectReady() && !this.redirectIntent) await this.readAuthority(controller); }
+      try { const result = await Payments.attempt(this.attemptId, controller.signal); if (!this.current(controller)) return; this.receipt(result); if ((this.attempt.status === 'rejected' || this.attempt.errorCode === 'CHECKOUT_IN_PROGRESS') && await this.resumePendingCheckout(controller)) return; if (!this.redirectReady()) await this.readAuthority(controller, true); }
       catch (error) { if (this.current(controller)) { this.missingAttempt = error.status === 404; if (this.missingAttempt) { this.attempt = null; this.authorityKnown = false; } await this.showError(error); } }
-      finally { if (this.current(controller)) { this.busy = false; this.startUpdates(); } }
+      finally { if (this.current(controller)) { this.busy = false; this.startUpdates(); if (this.awaitingConfirmation) this.startConfirmationRecovery(false); } }
     },
     async recoverMissing() { if (this.busy || this.loading || !this.missingAttempt || !this.attemptId) return;  this.recovering = true; this.checkoutKey = this.attemptId; this.selection = null; this.redirectIntent = ''; this.clearLegal(); this.error = ''; await this.refreshLegal(); },
     async operate(action) {
@@ -464,7 +516,7 @@ export default {
       const controller = this.controller(); this.busy = true; this.error = ''; this.authRequired = false;  this.redirectIntent = '';
       try { const result = await Payments[action](this.attemptId, controller.signal); if (!this.current(controller)) return; this.receipt(result); await this.readAuthority(controller); }
       catch (error) { if (this.current(controller)) { await this.showError(error); } }
-      finally { if (this.current(controller)) { this.busy = false; this.startUpdates(); } }
+      finally { if (this.current(controller)) { this.busy = false; this.startUpdates(); if (this.awaitingConfirmation) this.startConfirmationRecovery(false); } }
     },
     async resumeLogin() {
       if (this.busy) return;
@@ -625,6 +677,9 @@ export default {
 .payment-checkout-navigation .v-btn { width:44px; min-width:44px; height:44px; margin:0; color:var(--color-grey); }
 .payment-paypal-button { display:block; width:100%; max-width:320px; --paypal-button-border-radius:8px; }
 .payment-success-terms,.payment-footnote { margin:17px 0 0; text-align:center; color:var(--color-grey); font-size:11px; line-height:1.6; }
+.payment-paypal-fallback { width:228px; min-height:44px; border-radius:6px; background:#ffc439; overflow:hidden; }
+.payment-paypal-fallback img { display:block; max-width:100%; height:auto; margin:auto; }
+.payment-paypal-fallback:disabled { opacity:.5; cursor:default; }
 .payment-plan-actions { justify-content:flex-end; }
 .payment-recovery { margin-top:24px; text-align:left; color:var(--color-grey); font-size:13px; }
 .payment-recovery summary { cursor:pointer; }

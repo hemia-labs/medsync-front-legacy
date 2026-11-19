@@ -177,7 +177,9 @@ function moduleWith(file, bindings = {}) {
   }
   const Catalog = component('src/components/billing/PlanCatalog.vue', { '../../services/core/auth/DARegistrationService': { __esModule: true, default: { publicPlans: async () => offers } } });
   let paypalCallbacks, sdkFailure = false, popupFailure = false; const popupCalls = [];
+  const reservedWindows = []; let reserveBlocked = false;
   const Page = component('src/views/Auth/AccountPlans.vue', {
+    '../../domain/billing/planChangePayPal': { returnFromPlanChangePayPal: () => false, openPlanChangePayPal: callbacks => { if (reserveBlocked) throw Error('blocked'); const popup = { callbacks, closed: false, close() { this.closed = true; }, navigate(url, id) { redirects.push(url); this.id = id; } }; reservedWindows.push(popup); return popup; } },
     dompurify: { __esModule: true, default: purify },
     './AccountFlowShell.vue': { __esModule: true, default: { render(h) { return h('main', this.$slots.default); } } },
     '../../services/core/billing/DAPaymentsService': { __esModule: true, default: api },
@@ -189,14 +191,14 @@ function moduleWith(file, bindings = {}) {
     '../../domain/billing/subscriptionUpdates': moduleWith('src/domain/billing/subscriptionUpdates.js'),
     '../../domain/billing/paypalApproval': { paypalApproval: value => value || null, preparePayPalApproval: async (config, currency, callbacks) => { assert.equal(currency, 'MXN'); paypalCallbacks = callbacks; if (sdkFailure) throw Error('SDK unavailable'); return { start(options, receipt) { popupCalls.push([options, receipt]); return popupFailure ? Promise.reject(Error('blocked')) : Promise.resolve(); } }; } }
   });
-  Page.methods.navigateToProvider = url => { redirects.push(url); apiCalls.push(['redirect']); };
+
   // Keep real Vue/Vuetify timers; capture only checkout backoff timers for deterministic polling.
   const pollTimers = new Map(), nativeTimeout = w.setTimeout.bind(w), nativeClear = w.clearTimeout.bind(w); let timerId = -1;
   w.setTimeout = (fn, delay, ...args) => { if ([2000, 3000, 5000, 10000, 15000, 30000, 45000].includes(delay)) { const id = timerId--; pollTimers.set(id, { fn, delay }); return id; } return nativeTimeout(fn, delay, ...args); };
   w.clearTimeout = id => { if (pollTimers.has(id)) pollTimers.delete(id); else nativeClear(id); };
   let app, screen;
   const flush = async (ms = 0) => { await new Promise(resolve => setTimeout(resolve, ms)); await w.Vue.nextTick(); await new Promise(resolve => setTimeout(resolve, 0)); };
-  const button = text => Array.from(w.document.querySelectorAll('button')).find(node => node.textContent.trim().includes(text));
+  const button = text => Array.from(w.document.querySelectorAll('button')).find(node => (node.textContent.trim() || node.getAttribute('aria-label') || '').includes(text));
   const paypalButton = () => w.document.querySelector('paypal-button') || undefined;
   const closeButton = () => w.document.querySelector('.payment-checkout-navigation button');
   const writes = () => apiCalls.filter(call => ['accept', 'create', 'verify', 'retry'].includes(call[0]));
@@ -280,13 +282,13 @@ function moduleWith(file, bindings = {}) {
     // Recheck immediately before submit; another tab may already have prepared the same payment.
     pendingSubscription = null; await mount({ plan_code: 'medsync_basic', price_code: 'medsync_basic_monthly_mxn' }); await agree(); assert.equal(screen.canCreate, true);
     pendingSubscription = originalSubscription; const preSubmitWrites = writes().length;
-    button('Continuar con el pago').click(); await flush(); assert.equal(screen.attemptId, other); assert.ok(paypalButton()); assert.equal(writes().length, preSubmitWrites);
+    button('Continuar con PayPal').click(); await flush(); assert.equal(screen.attemptId, other); assert.ok(paypalButton()); assert.equal(writes().length, preSubmitWrites);
     // If a competing tab wins after the check, both receipt and HTTP conflicts recover the original.
     for (const outcome of ['receipt', 'processing', 409, 422]) {
       pendingSubscription = null; await mount({ plan_code: 'medsync_basic', price_code: 'medsync_basic_monthly_mxn' }); await agree();
       api.create = async payload => { apiCalls.push(['create', json(payload), json(route.query)]); pendingSubscription = originalSubscription; if (!['receipt', 'processing'].includes(outcome)) throw { status: outcome, code: 'PAYMENT_CONFLICT' }; return json(outcome === 'processing' ? { ...rejectedDuplicate, status: 'processing', errorCode: 'CHECKOUT_IN_PROGRESS' } : rejectedDuplicate); };
       const competingWrites = writes().length, competingCreates = apiCalls.filter(call => call[0] === 'create').length;
-      button('Continuar con el pago').click(); await flush(); assert.equal(screen.attemptId, other); assert.ok(paypalButton()); assert.equal(screen.approval.subscriptionId, originalApproval.subscriptionId);
+      button('Continuar con PayPal').click(); await flush(); assert.equal(screen.attemptId, other); assert.ok(paypalButton()); assert.equal(screen.approval.subscriptionId, originalApproval.subscriptionId);
       assert.equal(apiCalls.filter(call => call[0] === 'create').length, competingCreates + 1); assert.equal(writes().length, competingWrites + 2, 'Exactly the explicit consent/create, no automatic retry/verify/cancel');
     }
     api.create = normalResumeCreate;
@@ -311,7 +313,7 @@ function moduleWith(file, bindings = {}) {
     await mount();
     assert.equal(apiCalls.filter(call => call[0] === 'prepare').length, 1, 'Current docs are preloaded without a plan or extra step'); assert.equal(writes().length, 0);
     await choose(); assert.equal(screen.documents.length, 2); assert.equal(button('Revisar condiciones y continuar'), undefined);
-    assert.ok(button('Continuar con el pago')); assert.equal(w.document.body.textContent.includes('En PayPal revisarás y confirmarás tu suscripción.'), false);
+    assert.ok(button('Continuar con PayPal')); assert.equal(w.document.body.textContent.includes('En PayPal revisarás y confirmarás tu suscripción.'), false);
     assert.equal(w.document.querySelectorAll('input[type=checkbox]').length, 1, 'Only new/changed docs require a checkbox');
     assert.match(w.document.body.textContent, /Condiciones del plan/); assert.equal(screen.canCreate, false);
     const readButton = button('Condiciones de contratación'); readButton.focus(); readButton.click(); await flush(50);
@@ -325,7 +327,7 @@ function moduleWith(file, bindings = {}) {
     await screen.clearSelection(); await choose(); assert.equal(apiCalls.filter(call => call[0] === 'prepare').length, 1); assert.equal(screen.legalKey, key);
     await agree(); assert.equal(screen.canCreate, true);
     let releaseCreate; createGate = new Promise(resolve => { releaseCreate = resolve; }); currentReceipt = { ...ready, statusFresh: false };
-    button('Continuar con el pago').click(); await flush(); assert.equal(route.query.attempt_id, key);
+    button('Continuar con PayPal').click(); await flush(); assert.equal(route.query.attempt_id, key);
     assert.equal(screen.statusTitle, 'Preparando tu pago'); assert.match(w.document.body.textContent, /Estamos preparando tu solicitud de pago/); assert.ok(w.document.querySelector('.payment-status-motion[aria-hidden=true]')); assert.equal(w.document.querySelector('.payment-provider'), null); assert.match(w.document.querySelector('.payment-status-summary').textContent, /999.00 MXN/); assert.ok(!w.document.body.textContent.includes('Total pagado'));
     const acceptance = apiCalls.find(call => call[0] === 'accept'); assert.equal(acceptance[2].attempt_id, key, 'UUID precedes the first acceptance POST');
     assert.deepEqual(acceptance[1].confirmations, legal.documents.map(doc => ({ documentVersionId: doc.documentVersionId, contentHash: doc.contentHash, accepted: true })), 'New checkout receipt covers all current docs including registration matches');
@@ -336,32 +338,32 @@ function moduleWith(file, bindings = {}) {
     assert.equal(redirects.length, 1); assert.equal(apiCalls.filter(call => call[0] === 'license').length, beforeAuthority, 'Ready checkout redirects before authority reads');
     assert.equal(screen.redirectReady(), false); assert.equal(redirects.length, 1);
 
-    // Pending preparation remains the same attempt and never schedules reads.
-    currentReceipt = json(pending); nextId = other; await mount(); await choose(); await agree(); button('Continuar con el pago').click(); await flush();
-    assert.equal(redirects.length, 1); assert.equal(screen.redirectIntent, ''); assert.equal(pollTimers.size, 0);
+    // Pending preparation keeps the original window and the same attempt.
+    currentReceipt = json(pending); nextId = other; await mount(); await choose(); await agree(); button('Continuar con PayPal').click(); await flush();
+    assert.equal(redirects.length, 1); assert.equal(screen.redirectIntent, other); assert.equal(pollTimers.size, 0);
     const written = writes().length, idleReads = apiCalls.length;
     w.dispatchEvent(new w.Event('focus')); await flush(); assert.equal(apiCalls.length, idleReads);
     currentReceipt = { ...ready, attemptId: other, statusFresh: false }; await screen.consult();
-    assert.equal(redirects.length, 1); assert.equal(writes().length, written); assert.equal(pollTimers.size, 0);
+    assert.equal(redirects.length, 2); assert.equal(writes().length, written); assert.equal(pollTimers.size, 0);
 
     // Reload/approved/cancelled never approve or write automatically, even ready.
     currentReceipt = json(ready); paid = false; nextId = key;
     const reloadWrites = writes().length; let previousRedirects = redirects.length;
     await mount({ attempt_id: key, result: 'approved' });
     assert.equal(screen.confirmed, false); assert.equal(screen.accessConfirmed, false); assert.equal(redirects.length, previousRedirects); assert.equal(writes().length, reloadWrites);
-    assert.equal(button('Verificar pago'), undefined); assert.equal(button('Retomar pago'), undefined); assert.ok(button('Actualizar estado')); assert.equal(pollTimers.size, 0);
+    assert.equal(button('Verificar pago'), undefined); assert.equal(button('Retomar pago'), undefined); assert.ok(button('Actualizar estado')); assert.equal(pollTimers.size, 1);
     await screen.consult(); assert.equal(writes().length, reloadWrites); assert.equal(redirects.length, previousRedirects);
     await mount({ attempt_id: key, result: 'cancelled' }); assert.match(w.document.body.textContent, /Si no completaste/); assert.equal(redirects.length, previousRedirects);
 
     let live, liveClosed = 0;
     api.watchSubscription = handlers => { live = handlers; return () => { liveClosed++; }; };
     await mount({ attempt_id: key, result: 'approved' });
-    assert.equal(screen.updatesOpen, true); assert.equal(pollTimers.size, 0); assert.equal(screen.statusTitle, 'Para continuar, completa tu pago en PayPal');
+    assert.equal(screen.updatesOpen, true); assert.equal(pollTimers.size, 1); assert.equal(screen.statusTitle, 'Para continuar, completa tu pago en PayPal');
     assert.ok(w.document.querySelector('.payment-status-motion[aria-hidden=true]'), 'An approved return waits for webhook evidence'); assert.equal(screen.paymentPhase, 'pending'); assert.equal(w.document.querySelector('#account-plans-title').textContent, 'Estamos confirmando tu pago'); assert.equal(w.document.querySelector('.payment-progress [aria-current=step]').textContent.trim(), '1Confirmación'); assert.ok(!w.document.body.textContent.includes('Total pagado'));
     assert.equal(button('Continuar a MedSync').disabled, false, 'The waiting animation never blocks continuation');
     const passiveReads = apiCalls.length, passiveWrites = writes().length;
     screen.now = screen.waitingSince + 61000; await flush();
-    assert.equal(screen.paymentPhase, 'delayed'); assert.match(w.document.querySelector('#account-plans-title').textContent, /confirmación está tardando/); assert.equal(screen.confirmed, false); assert.equal(apiCalls.length, passiveReads); assert.equal(writes().length, passiveWrites); assert.equal(pollTimers.size, 0);
+    assert.equal(screen.paymentPhase, 'delayed'); assert.match(w.document.querySelector('#account-plans-title').textContent, /confirmación está tardando/); assert.equal(screen.confirmed, false); assert.equal(apiCalls.length, passiveReads); assert.equal(writes().length, passiveWrites); assert.equal(pollTimers.size, 1);
     screen.now = Date.now(); await flush();
     w.dispatchEvent(new w.Event('focus')); await flush(); assert.equal(apiCalls.length, passiveReads, 'Focus does not poll Billing');
     assert.equal(button('Actualizar estado'), undefined);
@@ -450,24 +452,26 @@ function moduleWith(file, bindings = {}) {
     const popupReceipt = { ...ready, paypalApproval: { kind: 'subscription', subscriptionId: 'I-SYNTHETIC123', clientId: 'public-client-12345', environment: 'sandbox' } };
     currentReceipt = popupReceipt; await mount(); await choose(); await agree();
     const beforePopupWrites = writes().length, beforePopupRedirects = redirects.length;
-    button('Continuar con el pago').click(); await flush();
-    assert.equal(redirects.length, beforePopupRedirects); assert.equal(screen.paypalReady, true); assert.ok(paypalButton()); assert.equal(button('Continuar a MedSync'), undefined); assert.equal(button('Continuar en el sitio de PayPal'), undefined);
+    button('Continuar con PayPal').click(); await flush();
+    assert.equal(redirects.length, beforePopupRedirects + 1); assert.equal(screen.paypalOpening, true); assert.equal(screen.paypalReady, false);
+    assert.equal(reservedWindows.at(-1).id, key);
+    reservedWindows.at(-1).callbacks.onClose(); await flush(); assert.equal(screen.paypalReady, true); assert.ok(paypalButton()); assert.equal(button('Continuar a MedSync'), undefined); assert.equal(button('Continuar en el sitio de PayPal'), undefined);
     assert.equal(screen.paymentKicker, ''); assert.equal(w.document.querySelector('.payment-kicker'), null); assert.equal(screen.paymentHeading, 'Para continuar, completa tu pago en PayPal');
     assert.equal(screen.paymentCopy, 'Haz clic en el botón de PayPal para revisar y confirmar la suscripción de ' + screen.businessName + '.'); assert.ok(w.document.querySelector('.payment-status-copy').textContent.includes(screen.businessName)); assert.equal(w.document.querySelector('.payment-success-business'), null); assert.ok(!w.document.body.textContent.includes('Método de pago: PayPal'));
     assert.ok(!w.document.body.textContent.includes('Tu pago está listo'));
     assert.equal(paypalButton().getAttribute('type'), 'subscribe'); assert.ok(paypalButton().classList.contains('paypal-gold')); assert.equal(paypalButton().disabled, false);
     const beforeLeavingWrites = writes().length; assert.ok(closeButton()); assert.equal(closeButton().disabled, false); assert.equal(closeButton().getAttribute('aria-label'), 'Cerrar y volver a MedSync'); assert.ok(closeButton().querySelector('.mdi-close'));
     closeButton().click(); await flush(); assert.equal(navigation.at(-1).name, 'home'); assert.equal(screen.attemptId, key); assert.equal(writes().length, beforeLeavingWrites, 'Leaving never creates, retries, verifies or cancels payment');
-    const beforeOpenReads = apiCalls.length; paypalButton().click(); await flush(); assert.equal(paypalButton().disabled, true); screen.openPayPal();
+    const beforeOpenReads = apiCalls.length; paypalButton().click(); await flush(); assert.equal(paypalButton(), undefined); screen.openPayPal();
     assert.equal(popupCalls.length, 1); assert.deepEqual(json(popupCalls[0][0]), { presentationMode: 'popup' }); assert.deepEqual(json(await popupCalls[0][1]), { subscriptionId: 'I-SYNTHETIC123' });
     assert.equal(apiCalls.length, beforeOpenReads); assert.equal(screen.confirmed, false); assert.equal(writes().length, beforePopupWrites + 2);
     paypalCallbacks.onApprove({ subscriptionId: 'I-WRONG' }); await flush(); assert.equal(screen.confirmed, false); assert.equal(screen.paypalApproved, false);
     paypalCallbacks.onError({ message: 'private-provider-detail' }); await flush(); assert.equal(screen.paypalOpening, false); assert.ok(!w.document.body.textContent.includes('private-provider-detail'));
     screen.openPayPal(); await flush(); paypalCallbacks.onCancel(); await flush(); assert.equal(screen.paypalOpening, false); assert.equal(screen.attemptId, key); assert.ok(paypalButton());
     popupFailure = true; paypalButton().click(); await flush(); assert.equal(screen.paypalOpening, false); assert.match(screen.paypalNotice, /No pudimos abrir/); popupFailure = false;
-    assert.equal(button('Continuar en el sitio de PayPal'), undefined); assert.equal(button('Continuar a MedSync'), undefined); assert.equal(redirects.length, beforePopupRedirects); assert.equal(writes().length, beforePopupWrites + 2);
+    assert.equal(button('Continuar en el sitio de PayPal'), undefined); assert.equal(button('Continuar a MedSync'), undefined); assert.equal(redirects.length, beforePopupRedirects + 1); assert.equal(writes().length, beforePopupWrites + 2);
     const callbackReads = apiCalls.length; paypalCallbacks.onApprove({ subscriptionId: 'I-SYNTHETIC123' }); await flush();
-    assert.equal(screen.confirmed, false); assert.equal(screen.accessConfirmed, false); assert.equal(apiCalls.length, callbackReads); assert.equal(screen.statusTitle, 'Confirmando tu pago'); assert.equal(screen.paymentPhase, 'pending'); assert.equal(w.document.querySelector('.payment-progress .complete'), null); assert.equal(paypalButton(), undefined); assert.ok(!w.document.body.textContent.includes('Total pagado'));
+    assert.equal(screen.confirmed, false); assert.equal(screen.accessConfirmed, false); assert.equal(apiCalls.length, callbackReads + 2); assert.equal(screen.statusTitle, 'Confirmando tu pago'); assert.equal(screen.paymentPhase, 'pending'); assert.equal(w.document.querySelector('.payment-progress .complete'), null); assert.equal(paypalButton(), undefined); assert.ok(!w.document.body.textContent.includes('Total pagado'));
     paid = true; screen.applySubscriptionSnapshot(webhookSnapshot('3')); await flush(); assert.equal(screen.accessConfirmed, true); assert.equal(apiCalls.filter(call => call[0] === 'verify').length, 0);
     // A terminal webhook for the same subscription closes an already opened SDK session locally.
     paid = false; await mount({ attempt_id: key }); paypalButton().click(); await flush();
@@ -494,13 +498,58 @@ function moduleWith(file, bindings = {}) {
     screen.prepared.expiresAt = '2000-01-01'; screen.now = Date.now(); await flush(); assert.equal(screen.legalOpen, false); assert.equal(screen.canCreate, false);
     await screen.refreshLegal(); assert.equal(screen.documents.length, 2); assert.equal(w.document.querySelector('input[type=checkbox]').checked, false);
 
+    // One click reserves the window before asynchronous work, including a delayed provider receipt.
+    paid = false; currentReceipt = json(pending); nextId = key;
+    await mount(); await choose(); await agree();
+    reserveBlocked = true; const blockedWrites = writes().length;
+    button('Continuar con PayPal').click(); await flush();
+    assert.equal(writes().length, blockedWrites); assert.match(screen.error, /ventanas emergentes/); reserveBlocked = false;
+    button('Continuar con PayPal').click();
+    const delayedWindow = reservedWindows.at(-1), delayedOpens = redirects.length;
+    assert.ok(delayedWindow, 'Reserve synchronously within the original click'); await flush();
+    assert.equal(screen.attempt.status, 'pending'); assert.equal(delayedWindow.closed, false);
+    currentReceipt = json(ready);
+    screen.applySubscriptionSnapshot({ ...webhookSnapshot('20'), subscription: { ...subscription, status: 'pending' }, license: { ...license, active: false, billing: {} } }); await flush();
+    assert.equal(redirects.length, delayedOpens + 1); assert.equal(delayedWindow.id, key);
+    assert.equal(paypalButton(), undefined, 'An opened window needs no second payment click');
+    const centralLicense = api.license, savedLocal = api.savedSnapshot;
+    let committed = false;
+    api.license = async () => { apiCalls.push(['license']); committed = true; return json(license); };
+    api.savedSnapshot = async () => { apiCalls.push(['snapshot']); return committed ? webhookSnapshot('21') : null; };
+    paid = true; const returnWrites = writes().length;
+    delayedWindow.callbacks.onReturn({ attemptId: key, result: 'approved' }); await flush();
+    assert.equal(screen.accessConfirmed, true, 'Returning reconciles a paid central record without a webhook notice');
+    assert.equal(pollTimers.size, 0); assert.equal(writes().length, returnWrites);
+    api.license = centralLicense; api.savedSnapshot = savedLocal;
+
+    // Delayed confirmation retries are bounded, serialized and read-only; cancel/unmount stop them.
+    paid = false; currentReceipt = json(ready); await mount({ attempt_id: key, result: 'approved' });
+    const boundedRecoveryWrites = writes().length, recoveryStart = apiCalls.filter(call => call[0] === 'license').length;
+    for (let i = 0; i < 6; i++) {
+      assert.equal(pollTimers.size, 1); const [id, timer] = [...pollTimers][0]; pollTimers.delete(id); timer.fn(); await flush();
+    }
+    assert.equal(screen.confirmationReads, 6); assert.equal(pollTimers.size, 0);
+    assert.equal(apiCalls.filter(call => call[0] === 'license').length, recoveryStart + 6);
+    assert.equal(writes().length, boundedRecoveryWrites); assert.equal(screen.confirmed, false);
+    await mount({ attempt_id: key, result: 'cancelled' }); assert.equal(pollTimers.size, 0);
+    button('Continuar con PayPal').click(); await flush();
+    const cancelWindow = reservedWindows.at(-1), cancelReads = apiCalls.length;
+    cancelWindow.callbacks.onReturn({ attemptId: key, result: 'cancelled' }); await flush();
+    assert.equal(apiCalls.length, cancelReads); assert.equal(pollTimers.size, 0); assert.equal(screen.paypalApproved, false);
+    await mount({ attempt_id: key, result: 'approved' }); assert.equal(pollTimers.size, 1);
+    const [staleTimerId, staleTimer] = [...pollTimers][0];
+    await mount(); const staleRecoveryReads = apiCalls.length; staleTimer.fn(); await flush();
+    assert.equal(pollTimers.has(staleTimerId), false); assert.equal(apiCalls.length, staleRecoveryReads);
+    previousRedirects = redirects.length;
+    getters['CORE/AUTH/getBusiness'] = { id_business: 'business-1', name: 'Clínica', subscriptionStatus: 'trial', trialEndsAt: '2099-01-01T00:00:00Z' }; await flush();
+
     // Lost POST/404 reconstruction remains explicit and uses exactly the same UUID.
     currentReceipt = json(ready); createFailure = { code: 'NETWORK_ERROR' }; nextId = key;
-    await mount(); await choose(); await agree(); button('Continuar con el pago').click(); await flush(); assert.equal(route.query.attempt_id, key); assert.ok(screen.error);
+    await mount(); await choose(); await agree(); button('Continuar con PayPal').click(); await flush(); assert.equal(route.query.attempt_id, key); assert.ok(screen.error);
     api.attempt = async () => { throw { status: 404, code: 'PAYMENT_NOT_FOUND' }; }; await screen.consult(); await flush(); assert.equal(screen.missingAttempt, true);
     const beforeRebuild = writes().length; nextId = other; button('Recuperar solicitud').click(); await flush(); assert.equal(writes().length, beforeRebuild); assert.equal(screen.legalKey, other); assert.equal(screen.checkoutKey, key);
     await choose(); assert.equal(screen.canCreate, false); await agree(); createFailure = { status: 409, code: 'PAYMENT_CONFLICT' };
-    api.attempt = async () => ({ ...ready, planCode: 'original-plan' }); button('Continuar con el pago').click(); await flush();
+    api.attempt = async () => ({ ...ready, planCode: 'original-plan' }); button('Continuar con PayPal').click(); await flush();
     assert.equal(route.query.attempt_id, key); assert.equal(screen.attempt.planCode, 'original-plan'); assert.equal(redirects.length, previousRedirects); assert.equal(apiCalls.filter(call => call[0] === 'create').at(-1)[1].idempotencyKey, key);
     createFailure = null; api.attempt = normalAttempt;
 
@@ -557,5 +606,5 @@ function moduleWith(file, bindings = {}) {
     assert.deepEqual(json(await navigate('login', { checkout_attempt: key, checkout_operation: 'change_plan' })), { name: 'accountPlanChange', query: { attempt_id: key } });
     role = 'reception'; assert.equal((await navigate('accountPlanChange', { attempt_id: key })).name, 'home'); role = 'admin';
   }
-  console.log('PASS MedSync checkout UX: Enfoque webhook-driven pending/applying/active and delayed-without-reads, proof-only totals and catalog prices, URL-selected basic/pro offers retained during conditions outage without writes, unknown URL prices rejected, real Vue2/Vuetify/DOMPurify modal, registration match/new checkout consent, legacy redirect once, same-attempt resume after exit, rejected/processing duplicates and concurrent tabs, buyer isolation and stale discovery, single SDK popup action with no redirect button, webhook snapshots without polling, completed payment proof, paid local session recovery, 404 same-key/409 original, trial->setup, stale route/actor and D2/legacy routing. No network/DB/PayPal calls.');
+  console.log('PASS MedSync checkout UX: pending/applying/active, single-click popup and bounded confirmation recovery, proof-only totals and catalog prices, URL-selected basic/pro offers retained during conditions outage without writes, unknown URL prices rejected, real Vue2/Vuetify/DOMPurify modal, registration match/new checkout consent, single-click reserved popup, same-attempt resume after exit, rejected/processing duplicates and concurrent tabs, buyer isolation and stale discovery, single SDK popup action with no redirect button, webhook snapshots and bounded read-only recovery, completed payment proof, paid local session recovery, 404 same-key/409 original, trial->setup, stale route/actor and D2/legacy routing. No network/DB/PayPal calls.');
 })().catch(error => { console.error(error.stack); process.exitCode = 1; });
