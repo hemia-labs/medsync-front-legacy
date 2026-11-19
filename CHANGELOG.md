@@ -1,5 +1,29 @@
 # hmdentalassistant_front
 
+## 0.5.0
+
+### Minor Changes
+
+- e8dabcc: Organize clinic information into independently saved sections and add explicit CLUES catalog search, manual capture and revalidation with draft recovery. Preserve catalog verification when switching input modes without editing, and use the exact current-version lookup. Requires the backend CLUES-F1/CAT-O1 contract; no automatic writes or revalidation.
+- 5aea665: Añade la revisión y autorización explícita de sustitución de negativas en Documentos y firmas, conserva el motivo ante conflictos y envía la revisión del consentimiento al cerrar historias.
+- 3056e7e: Permite buscar y seleccionar claves de nacimiento, residencia, afiliación, personal y CLUES conservando su versión de catálogo. Mantiene la captura manual no verificada, los borradores y el guardado único del perfil profesional.
+- ef97c89: Share the document logo from Appearance with prescriptions, clinical histories and printable treatment plans. Authorized administrators can save the shared logo from prescription settings; issued documents retain their recorded image and prescription backgrounds remain independent.
+
+### Patch Changes
+
+- 778ffb9: NC1-AUTH-401-AMB: a business 401 without a terminal or recoverable code no longer closes a valid session. The client starts at most one shared `auth/session` revalidation per authorization context (user, session, business, role, permissions and revision), keeps the capture, rejects the original request and never resends it. Known codes keep their paths; network/5xx answers report uncertainty without revoking; late answers from a previous context are ignored; a confirmed session is not re-checked for 10 s within the same context.
+
+  Auth-control requests (`api/auth/*`) now record the authorization context that sent them; an answer that arrives after that context changed (logout/login, business, role or permissions) is rejected as `AUTH_CONTEXT_CHANGED` before any cleanup, renewal, CSRF retry or redirect, so a late renewal of a previous session cannot close the current one.
+
+- 0ea931e: NC1-AUTH-ACTIVATION-NO-REPLAY: account activation calls (status, plans, welcome acknowledgement, email code send/confirm, email change) no longer resend themselves after a 401. The session is recovered once with the shared action and the original call still fails with a clear message; repeating it takes another explicit action. Answers of an earlier authorization context are discarded before CSRF recovery. A 401 on the email-code send no longer starts the resend cooldown, since nothing was sent.
+
+  Recovery is classified from what the shared session check actually did (applied, ended, or discarded because the authorization changed meanwhile), so a store that is still anonymous right after signup reports uncertainty on network/5xx instead of "session ended", and a late answer during hydration never counts as a recovered session. A delay announced with a 401 (Retry-After) is kept.
+
+- 8b3c01f: Corrige el contraste del panel y diálogo de sustitución de negativa en Noche clínica, incluidos ayuda, errores y botones.
+- 6233c1b: La CLUES capturada a mano se envía en mayúsculas. Si el servidor rechaza una clave de catálogo en el alta o en el establecimiento, el aviso nombra el campo, el error aparece junto al selector, la vista se desplaza hasta él y se conserva la captura. «Añadir afiliación» y «Añadir tipo de personal» tienen contraste suficiente en Noche clínica.
+- 5bf9ce5: Reúne la configuración de logos en Apariencia y retira la carga de imagen de Información del consultorio. Conserva la selección pendiente si se intenta salir sin guardarla.
+- dea2e5b: Añade separación entre las tarjetas de logo de acceso y logo para documentos en Apariencia.
+
 ## 0.4.2
 
 ### Patch Changes
