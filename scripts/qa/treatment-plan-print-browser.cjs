@@ -11,6 +11,7 @@ const { createFixture } = require('./clinical-sections-fixture.cjs');
 const front = 'http://127.0.0.1:4397';
 const api = 'http://127.0.0.1:4398';
 const output = process.argv[2] && path.resolve(process.argv[2]);
+const logoImage='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==';
 const patient = { id_person: 'qa-print-only', name: 'Ada', surname: 'Simulada', fullname: 'Ada Simulada', active: 1, age: 30, code: 'QA-R6' };
 const recordUrl = front + '/px/history/' + patient.id_person + '?tab=treatment';
 const config = { treatmentPlanEnabled: true, showTreatmentCosts: false, showTreatmentStatus: true, allowTreatmentToothSelection: true };
@@ -36,6 +37,7 @@ const closed = {
 async function mockApi(context, isolatedOrigin) {
   const reads = new Set();
   const writes = [];
+  const logo={image:logoImage,reads:0};
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -54,6 +56,7 @@ async function mockApi(context, isolatedOrigin) {
     const reply = data => route.fulfill({ json: { success: true, data }, headers: {
       'access-control-allow-origin': front, 'access-control-allow-credentials': 'true'
     } });
+    if(endpoint==='/api/business/current'){logo.reads++;return reply({id_business:'qa-clinic',logoUrl:logo.image});}
     if (endpoint === '/api/config/clinical-modules/get') return reply(config);
     if (endpoint === '/api/px/get/' + patient.id_person) return reply({
       person: patient, address: {}, query: {}, access: { clinical: false }, allergy: { status: 'unknown', revision: 0 }
@@ -69,7 +72,7 @@ async function mockApi(context, isolatedOrigin) {
     }
     return route.fulfill({ response });
   });
-  return { reads, writes };
+  return { reads, writes, logo };
 }
 
 async function openPreview(page, trigger, plan, otherPlan, width, entry, closeWith) {
@@ -87,6 +90,7 @@ async function openPreview(page, trigger, plan, otherPlan, width, entry, closeWi
   const iframe = dialog.locator('iframe[title="Hoja del plan de tratamiento"]');
   const sheet = iframe.contentFrame();
   await expect(sheet.getByRole('heading', { name: plan.title, exact: true })).toBeVisible();
+  await expect(sheet.locator('.brand img')).toHaveAttribute('src',logoImage);
   const html = await sheet.locator('html').innerHTML();
   const text = await sheet.locator('body').innerText();
   const item = plan.treatments[0];
@@ -144,7 +148,7 @@ async function verifyViewport(browser, isolatedOrigin, width) {
   const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width, height: width === 390 ? 844 : 1000 },
     isMobile: width === 390, hasTouch: width === 390 });
   try {
-    const { reads, writes } = await mockApi(context, isolatedOrigin);
+    const { reads, writes, logo } = await mockApi(context, isolatedOrigin);
     const pages = [];
     const errors = [];
     context.on('page', page => { pages.push(page); page.on('pageerror', error => errors.push(error.message)); });
@@ -164,6 +168,16 @@ async function verifyViewport(browser, isolatedOrigin, width) {
     await openPreview(page, topPrint, closed, active, width, 'detalle-historico', 'escapeFromSheet');
     await expect(details).toBeVisible();
     await expect(details.getByRole('heading', { name: closed.title, exact: true })).toBeVisible();
+    assert.equal(logo.reads,6,'Each preview and print refreshes the shared logo');
+    logo.image='data:image/png;base64,INVALID';
+    await topPrint.click();
+    const preview=page.getByRole('dialog',{name:'Vista previa del plan',exact:true});
+    await expect(preview.getByRole('alert')).toContainText('No pudimos cargar el logo');
+    await expect(preview.getByRole('button',{name:'Imprimir o guardar PDF',exact:true})).toBeDisabled();
+    logo.image='';await preview.getByRole('button',{name:'Reintentar vista previa'}).click();
+    await expect(preview.getByRole('button',{name:'Imprimir o guardar PDF',exact:true})).toBeEnabled();
+    await expect(preview.locator('iframe').contentFrame().locator('.brand img')).toHaveCount(0);
+    await preview.getByRole('button',{name:'Cerrar',exact:true}).click();
     assert.equal(pages.length, 1, 'Preview opened a new tab');
     assert.deepEqual(errors, []);
     assert.deepEqual(writes, []);

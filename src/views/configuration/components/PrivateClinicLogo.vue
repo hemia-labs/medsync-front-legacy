@@ -13,11 +13,11 @@
             </div>
         </div>
         <p v-if="imageError" role="status" class="private-logo__help">No pudimos mostrar el logo. Prueba con Actualizar imagen.</p>
-        <div v-if="preview || image || error" class="private-logo__actions">
-            <button v-if="preview" type="button" class="private-logo__choose" :disabled="busy || processing" @click="save(false)">Guardar logo</button>
+        <div v-if="preview || image || error || uncertain" class="private-logo__actions">
+            <button v-if="preview" type="button" class="private-logo__choose" :disabled="busy || processing || uncertain" @click="save(false)">{{ saveLabel }}</button>
             <button v-if="preview" type="button" :disabled="busy || processing" @click="discard">Cancelar selección</button>
-            <button v-if="image" type="button" :disabled="busy || processing" @click="save(true)">Eliminar logo</button>
-            <button v-if="image || error" type="button" :disabled="busy || processing" @click="refresh">Actualizar imagen</button>
+            <button v-if="image && allowRemove" type="button" :disabled="busy || processing || uncertain" @click="save(true)">Eliminar logo</button>
+            <button v-if="image || error || uncertain" type="button" :disabled="busy || processing" @click="refresh">Actualizar imagen</button>
         </div>
         <p v-if="busy" role="status" class="private-logo__help">Guardando logo…</p>
         <p v-if="error" role="alert" class="private-logo__error">{{ error }}</p>
@@ -27,16 +27,16 @@
 import DABusinessService from '../../../services/core/business/DABusinessService';
 import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
 export default {
-    props: { image: { type:String, default:'' }, businessId: {type:String, required:true} },
-    data: () => ({ preview:'', busy:false, processing:false, error:'', imageError:false, generation:0 }),
+    props: { image: { type:String, default:'' }, businessId: {type:String, required:true}, saveLabel:{type:String,default:'Guardar logo'}, allowRemove:{type:Boolean,default:true} },
+    data: () => ({ preview:'', busy:false, processing:false, error:'', imageError:false, generation:0, uncertain:false }),
     computed: {
         accessContext() { return JSON.stringify(authorizationContext(this.$store)); },
         inputId() { return 'private-clinic-logo-' + this._uid; },
-        editorState() { return { dirty: Boolean(this.preview), busy: this.busy || this.processing }; }
+        editorState() { return { dirty: Boolean(this.preview) || this.uncertain, busy: this.busy || this.processing }; }
     },
     watch: {
-        accessContext() { this.generation++;this.preview='';this.error='';this.busy=false;this.processing=false; },
-        businessId() { this.generation++;this.preview='';this.error='';this.busy=false;this.processing=false; },
+        accessContext() { this.generation++;this.preview='';this.error='';this.busy=false;this.processing=false;this.uncertain=false; },
+        businessId() { this.generation++;this.preview='';this.error='';this.busy=false;this.processing=false;this.uncertain=false; },
         image() { this.imageError=false; },
         editorState: { immediate:true, handler(state) { this.$emit('state',state); } }
     },
@@ -59,18 +59,19 @@ export default {
                 const result=await DABusinessService.getCurrent();
                 if(generation!==this.generation || !isCurrentAuthorization(context,this.$store))return;
                 if(!result || !result.success)throw Error();
-                this.imageError=false;this.error='';this.$emit('saved',result.data);
+                this.imageError=false;this.error='';this.uncertain=false;this.$emit('saved',result.data);
             }catch(_){if(generation===this.generation && isCurrentAuthorization(context,this.$store))this.error='No se pudo actualizar el logo. Reintenta la consulta.';}
         },
         async save(remove) {
-            if(this.busy || this.processing || (!remove && !this.preview))return;
+            if(this.busy || this.processing || this.uncertain || (!remove && !this.preview))return;
             const context=authorizationContext(this.$store),generation=++this.generation;
-            this.busy=true;this.error='';
+            this.busy=true;this.error='';this.uncertain=true;
             try {
                 const result=remove ? await DABusinessService.deleteLogo() : await DABusinessService.updateLogo({image:this.preview});
                 if(generation!==this.generation || !isCurrentAuthorization(context,this.$store))return;
+                if(result && Number(result.status) === 403){this.uncertain=false;this.error='No tienes permiso para guardar el logo. Tu selección se conserva.';return;}
                 if(!result || !result.success)throw Error();
-                this.preview='';this.imageError=false;this.$emit('saved',result.data);
+                this.uncertain=false;this.preview='';this.imageError=false;this.$emit('saved',result.data);
             }catch(_){if(generation===this.generation && isCurrentAuthorization(context,this.$store))this.error='No se pudo confirmar el cambio. Pulsa Actualizar imagen antes de volver a guardar.';}
             finally{if(generation===this.generation && isCurrentAuthorization(context,this.$store))this.busy=false;}
         }

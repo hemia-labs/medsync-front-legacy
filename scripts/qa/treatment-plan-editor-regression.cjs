@@ -17,7 +17,7 @@ const DOMPurify = require('dompurify');
     const helper = await import(`data:text/javascript;base64,${Buffer.from(helperSource).toString('base64')}`);
     const sfc = fs.readFileSync(path.join(__dirname, '../../src/views/Patient/Sections/TreatmentPlan.vue'), 'utf8');
     const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[^;]+;\r?\n/gm, '').replace('export default', 'component =');
-    const context = { component: null, mapActions: () => ({}), mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { TREATMENT: {}, CONFIGURATION: {}, AUTH: {} }, fnTypes: {},
+    const context = { component: null, setTimeout, clearTimeout, authorizationContext:()=>({}),isCurrentAuthorization:()=>true,DABusinessService:{getCurrent:async()=>({success:true,data:{logoUrl:null}})}, mapActions: () => ({}), mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { TREATMENT: {}, CONFIGURATION: {}, AUTH: {} }, fnTypes: {},
         isD2AuthMode: () => true, DADocumentService: {}, DATreatmentService: {}, DocumentSignatureOptionsDialog: {}, ListPageNav: {}, dialogName: {}, fieldError: {}, ...sanitizerContext.module.exports, ...settings, ...helper,
         ...require('../../src/domain/treatment-plan/plan.print'),
         dentalSurfaceLabel: require('../../src/utils/odontogram/dentalContract').surfaceLabel,
@@ -168,6 +168,7 @@ const DOMPurify = require('dompurify');
     for(const secret of ['PLAN_INTERNAL','TREATMENT_INTERNAL','SIGNATURE_SECRET']) assert.equal(printable.includes(secret),false);
     dom.window.open = () => assert.fail('The plan preview must stay inside the patient record');
     privacy.printHistory({ title: 'QA preview', treatments: [] });
+    await new Promise(resolve=>setImmediate(resolve));
     assert.match(privacy.printSheet, /QA preview/);
     assert.doesNotMatch(privacy.printSheet, /onclick|<script|<button/);
     privacy.localPlanData.permissions.costView = false;
@@ -176,13 +177,13 @@ const DOMPurify = require('dompurify');
     dom.window.document.body.appendChild(frame);
     frame.contentDocument.body.innerHTML = '<h1>QA preview</h1>';
     privacy.$refs.printFrame = frame;
-    privacy.onPrintFrameLoad({ target: frame });
+    await privacy.onPrintFrameLoad({ target: frame });
     frame.contentWindow.print = () => { throw new Error('QA unavailable'); };
-    privacy.printPreviewSheet();
-    assert.match(privacy.printError, /No se pudo abrir/);
+    await privacy.printPreviewSheet();
+    assert.match(privacy.printError, /No se pudo preparar/);
     let printCalls = 0;
     frame.contentWindow.print = () => { printCalls++; };
-    privacy.printPreviewSheet();
+    await privacy.printPreviewSheet();
     assert.equal(printCalls, 1);
     assert.equal(privacy.printError, '');
     frame.contentDocument.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));

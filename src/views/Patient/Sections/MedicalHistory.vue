@@ -2983,7 +2983,7 @@ export default {
       const sections = this.printableSections(schema, snapshot, patient);
       const printedBy = this.currentUserPayload.name || this.currentUserPayload.email || this.currentUserPayload.id_login || 'No registrado';
       const mark = this.printableStatusMark(history.status);
-      const businessLogo = business.logoUrl || business.logo_url || '';
+      const businessLogo = (payload.document_logo || {}).image || '';
 
       return `
         <!doctype html>

@@ -5,7 +5,7 @@ function escapeHtml(value) {
 }
 
 function treatmentPlanPrintHtml({
-  businessName, patientName, title, closed, start, end, diagnosis, treatments,
+  businessName, logo, patientName, title, closed, start, end, diagnosis, treatments,
   showStatus, showCosts, budget, consent, example = false
 }) {
   const dateCell = value => escapeHtml(value).replace(/\//g, '/<wbr>');
@@ -24,7 +24,8 @@ function treatmentPlanPrintHtml({
     <title>Plan de tratamiento</title><style>
     body{font:14px Arial,sans-serif;color:#203349;margin:32px;line-height:1.5}
     h1{font-size:25px;margin:6px 0 12px}
-    .brand{font-weight:bold;color:#147e9c}
+    .brand{font-weight:bold;color:#147e9c;display:flex;align-items:center;gap:16px;overflow-wrap:anywhere}
+    .brand img{width:120px;height:70px;object-fit:contain;flex:0 0 120px}
     .meta{border-top:2px solid #147e9c;padding-top:16px}
     table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:20px}
     th,td{text-align:left;vertical-align:top;border-bottom:1px solid #cad5df;padding:10px;overflow-wrap:anywhere}
@@ -46,7 +47,7 @@ function treatmentPlanPrintHtml({
     @page{size:A4;margin:16mm}
     @media print{body{margin:0}}
     </style></head><body>
-    <p class="brand">${escapeHtml(businessName)}</p><h1>${escapeHtml(title || 'Plan de tratamiento')}</h1>
+    <div class="brand">${logo ? `<img src="${escapeHtml(logo)}" alt="Logo del consultorio">` : ''}<span>${escapeHtml(businessName)}</span></div><h1>${escapeHtml(title || 'Plan de tratamiento')}</h1>
     <p class="meta"><strong>Paciente:</strong> ${escapeHtml(patientName || 'No especificado')}<br>
       <strong>Plan:</strong> ${closed ? 'Cerrado' : 'Activo'} · <strong>Inicio:</strong> ${escapeHtml(start)}
       ${closed ? ` · <strong>Cierre:</strong> ${escapeHtml(end)}` : ''}</p>
