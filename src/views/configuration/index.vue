@@ -78,12 +78,11 @@
                 <v-alert v-else-if="businessInfoError" type="error" text role="alert" class="m-5">{{ businessInfoError }} <button type="button" class="underline" @click="onGetBusinessInfo">Reintentar</button></v-alert>
                 <div v-if="!businessInfoLoading && !businessInfoError && !businessInfoEditing" class="clinic-details-grid">
                     <article class="clinic-detail-card" aria-labelledby="clinic-name-title">
-                        <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-storefront-outline</v-icon></span><h3 id="clinic-name-title">Nombre e imagen</h3></div>
+                        <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-storefront-outline</v-icon></span><h3 id="clinic-name-title">Nombre del consultorio</h3></div>
                         <dl class="clinic-detail-list">
                             <div><dt>Nombre comercial</dt><dd class="clinic-name-value">{{ businessInfo.name || 'Sin nombre configurado' }}</dd></div>
                             <div><dt>Razón social</dt><dd>{{ businessInfo.legalName || 'Sin razón social configurada' }}</dd></div>
                         </dl>
-                        <div class="clinic-logo-area"><p class="clinic-field-label">Logo del consultorio</p><private-clinic-logo :key="businessInfo.id_business" :business-id="businessInfo.id_business" :image="businessInfo.logoUrl" @saved="onPrivateLogoSaved" /></div>
                     </article>
                     <article class="clinic-detail-card" aria-labelledby="clinic-contact-title">
                         <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-map-marker-outline</v-icon></span><h3 id="clinic-contact-title">Contacto y ubicación</h3></div>
@@ -97,13 +96,12 @@
                 <v-alert v-if="businessInfoEditing && (businessSaveError || Object.keys(businessFieldErrors).length)" type="error" text role="alert" class="m-5">{{ businessSaveError || 'Revisa los campos señalados. Tu captura se conserva.' }}</v-alert>
                 <div v-if="businessInfoEditing" class="clinic-details-grid clinic-details-grid--editing">
                     <article class="clinic-detail-card">
-                        <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-storefront-outline</v-icon></span><h3>Nombre e imagen</h3></div>
+                        <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-storefront-outline</v-icon></span><h3>Nombre del consultorio</h3></div>
                         <p class="clinic-card-help">Usa el nombre con el que tus pacientes conocen el consultorio. La razón social es el nombre registrado para tus asuntos fiscales; puede ser diferente.</p>
                         <div class="clinic-form-fields">
                             <v-text-field ref="business_name" v-model="businessInfo.name" :error-messages="businessFieldErrors.name" :disabled="businessInfoSaving" label="Nombre comercial *" dense outlined :color="themePrimaryColor" />
                             <v-text-field ref="business_legalName" v-model="businessInfo.legalName" :error-messages="businessFieldErrors.legalName" :disabled="businessInfoSaving" label="Razón social" dense outlined :color="themePrimaryColor" />
                         </div>
-                        <p class="clinic-inline-note"><v-icon size="17" color="inherit" aria-hidden="true">mdi-image-outline</v-icon> Al terminar esta edición, podrás cambiar el logo desde la tarjeta Nombre e imagen.</p>
                     </article>
                     <article class="clinic-detail-card">
                         <div class="clinic-detail-card__heading"><span class="clinic-detail-icon" aria-hidden="true"><v-icon color="inherit" size="20">mdi-map-marker-outline</v-icon></span><h3>Contacto y ubicación</h3></div>
@@ -228,9 +226,21 @@
                 <div class="lg:col-span-2">
                     <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Archivo actual</p>
                     <h3 class="m-0 mb-3 text-gray-600 text-lg font-semibold break-words">{{ loginImageFileName || 'Sin logo personalizado' }}</h3>
-                    <p class="text-gray-500 leading-relaxed">Este logo identifica el acceso y la cabecera del sistema. No cambia el logo del consultorio en historias clínicas o firmas públicas, que se configura en Datos del consultorio.</p>
+                    <p class="text-gray-500 leading-relaxed">Este logo aparece en el acceso y la cabecera de MedSync. Más abajo puedes configurar la imagen que acompaña los documentos del consultorio.</p>
                     <p v-if="loginImageError" class="text-red-600 font-semibold">{{ loginImageError }}</p>
                 </div>
+            </div>
+        </section>
+
+        <section v-if="activeSection === 'appearance'" class="bg-white bg-opacity-95 border border-primary-200 shadow-xl" aria-labelledby="document-logo-title">
+            <div class="px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
+                <h2 id="document-logo-title" class="m-0 text-gray-600 text-2xl font-normal">Logo para documentos</h2>
+                <p class="m-0 mt-2 text-gray-500 text-sm">Esta imagen identifica al consultorio en sus historias clínicas y en las páginas de firma de documentos.</p>
+            </div>
+            <div class="p-7">
+                <p v-if="businessInfoLoading" role="status" class="text-gray-600">Cargando el logo guardado…</p>
+                <v-alert v-else-if="businessInfoError" type="error" text role="alert">{{ businessInfoError }} <button type="button" class="underline" @click="onGetBusinessInfo">Reintentar</button></v-alert>
+                <private-clinic-logo v-else-if="businessInfoOriginal" ref="privateClinicLogo" :key="businessInfo.id_business" :business-id="businessInfo.id_business" :image="businessInfo.logoUrl" @saved="onPrivateLogoSaved" @state="privateLogoState = $event" />
             </div>
         </section>
 
@@ -718,6 +728,7 @@ export default {
             loginImageOriginalName: '',
             loginImageSaving: false,
             loginImageProcessing: false,
+            privateLogoState: { dirty: false, busy: false },
             appearanceLoading: false,
             appearanceError: '',
             savedTheme: null,
@@ -914,10 +925,10 @@ export default {
         },
         clinicalPlanDirty() { return this.clinicalPlanFields.some(key => this.clinicalModulesForm[key] !== this.savedClinicalModules[key]) },
         clinicalModulesDirty() { return this.clinicalModulesOriginal !== null && JSON.stringify(this.clinicalModulesForm) !== this.clinicalModulesOriginal },
-        appearanceDirty() { return Boolean(this.savedTheme && this.selectedThemeCode !== this.savedTheme.code) || this.loginImagePreview !== this.loginImageOriginal },
+        appearanceDirty() { return Boolean(this.savedTheme && this.selectedThemeCode !== this.savedTheme.code) || this.loginImagePreview !== this.loginImageOriginal || this.privateLogoState.dirty },
         documentTemplateDirty() { return this.documentTemplateDialog && JSON.stringify(this.documentTemplateForm) !== this.documentTemplateOriginal },
         hasUnsavedChanges() { return this.businessInfoDirty || this.healthUnitsState.dirty || this.clinicalModulesDirty || this.dentalSettingsDirty || this.appearanceDirty || this.documentTemplateDirty },
-        settingsSaving() { return this.businessInfoSaving || this.healthUnitsState.busy || this.clinicalModulesSaving || this.dentalSettingsBusy || this.isThemeSaving || this.loginImageSaving || this.loginImageProcessing || this.documentTemplateSaving },
+        settingsSaving() { return this.businessInfoSaving || this.healthUnitsState.busy || this.clinicalModulesSaving || this.dentalSettingsBusy || this.isThemeSaving || this.loginImageSaving || this.loginImageProcessing || this.privateLogoState.busy || this.documentTemplateSaving },
         ...mapGetters(moduleTypes.CONFIGURATION, {
             getConfigurations:      fnTypes.getConfiguration,
             hasErrorConfiguration:  fnTypes.hasErrorInService,
@@ -1247,7 +1258,7 @@ export default {
             if(!this.sectionAllowed) return
             const section=this.activeSection
             if(section==='documents') await this.onGetConfiguration()
-            if(section==='identity') await this.onGetBusinessInfo()
+            if(['identity','appearance'].includes(section)) await this.onGetBusinessInfo()
             if(['summary','appearance'].includes(section)) await this.onLoadAppearance()
             if(['summary','clinical-modules'].includes(section)) await this.onLoadClinicalModules()
             if(section==='documents' && this.hasPermission('documents.config')) await this.onGetDocumentTemplates()
@@ -1265,6 +1276,7 @@ export default {
             if(this.businessInfoOriginal) this.businessInfo = this.cloneBusinessInfo(this.businessInfoOriginal)
             this.businessInfoEditing = false
             if(this.$refs.healthUnits) this.$refs.healthUnits.discard()
+            if(this.$refs.privateClinicLogo) this.$refs.privateClinicLogo.discard()
             if(this.clinicalModulesOriginal) this.clinicalModulesForm = JSON.parse(this.clinicalModulesOriginal)
             this.documentTemplateDialog = false
             this.restoreAppearancePreview()
