@@ -5,6 +5,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {chromium,expect}=require('@playwright/test');
 const {createFixture}=require('./clinical-sections-fixture.cjs');
+const {selectSection}=require('./nc1-settings-navigation.cjs');
 const front='http://127.0.0.1:4397',api='http://127.0.0.1:4398';
 const output=path.resolve(process.argv[2] || 'shared-logo-evidence');
 const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==','base64');
@@ -93,8 +94,7 @@ async function main(){
     await expect(panel.getByRole('button',{name:'Guardar logo del consultorio',exact:true})).toBeEnabled();
     await page.getByLabel('Configuración de recetas del doctor').click();await page.getByRole('option',{name:'Profesional de prueba 2'}).click();
     await expect(panel.getByText('Imagen lista para guardar')).toBeVisible();
-    if(width===390)await page.getByRole('button',{name:'Apartados de configuración',exact:true}).click();
-    await page.getByRole('button',{name:'Apariencia',exact:true}).click();await page.getByRole('button',{name:'Seguir editando',exact:true}).click();await expect(panel.getByText('Imagen lista para guardar')).toBeVisible();
+    await selectSection(page,'Apariencia');await page.getByRole('button',{name:'Seguir editando',exact:true}).click();await expect(panel.getByText('Imagen lista para guardar')).toBeVisible();
     await panel.getByRole('button',{name:'Cancelar selección'}).click();assert.deepEqual(state.writes,[]);
     await file.setInputFiles({name:'logo.png',mimeType:'image/png',buffer:image});state.failSave='403';
     await panel.getByRole('button',{name:'Guardar logo del consultorio',exact:true}).click();await expect(panel.getByRole('alert')).toContainText('No tienes permiso');

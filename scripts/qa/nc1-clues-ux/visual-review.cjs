@@ -7,11 +7,7 @@ const path = require('node:path');
 const OUT = process.env.NC1_QA_OUT || path.join(require('node:os').tmpdir(), 'medsync-nc1-clues-qa');
 fs.mkdirSync(OUT, { recursive: true });
 const button = (p, name) => p.getByRole('button', { name, exact: true });
-async function selectSection(p, name) {
-  const toggle = button(p, 'Apartados de configuración');
-  if (await toggle.isVisible()) await toggle.click();
-  await button(p, name).click();
-}
+const { selectSection } = require('../nc1-settings-navigation.cjs');
 const reports = [];
 const BASE = process.env.NC1_QA_BASE || 'http://127.0.0.1:4388';
 const selectedCase = process.env.NC1_QA_CASE;
@@ -42,7 +38,15 @@ const cases = {
     assert.equal(await p.getByRole('heading', { name: 'Contacto y ubicación', exact: true }).count(), 1);
     const typography = await p.locator('.clinic-detail-list dd').last().evaluate(el => ({ weight: getComputedStyle(el).fontWeight, size: getComputedStyle(el).fontSize, font: getComputedStyle(el).fontFamily }));
     assert.equal(typography.weight, '400'); assert.equal(typography.size, '14px'); r.typography = typography;
-    await checkContrast(p, r, ['.clinic-account__description', '.clinic-account__link', '.clinic-detail-list dd', '.unit-introduction p']);
+    const billingAvailable = await p.locator('.health-units').evaluate(el => {
+      let vm = el.__vue__;
+      while (vm && typeof vm.hasPlanBilling !== 'boolean') vm = vm.$parent;
+      if (!vm) throw new Error('Settings billing availability not exposed');
+      return vm.hasPlanBilling;
+    });
+    assert.equal(await p.locator('.clinic-account__link').count(), billingAvailable ? 1 : 0);
+    if (!billingAvailable) assert(!(await p.locator('.clinic-account__description').innerText()).includes('Plan y facturación'));
+    await checkContrast(p, r, ['.clinic-account__description', ...(billingAvailable ? ['.clinic-account__link'] : []), '.clinic-detail-list dd', '.unit-introduction p']);
     assert.equal(await p.locator('.clinic-identity input[type=file]').count(), 0);
     await capture(p, r, 'summary');
     await p.getByText('¿Cómo obtengo mi CLUES?', { exact: true }).click();
@@ -59,7 +63,8 @@ const cases = {
     assert(await button(p, 'Editar unidad').isDisabled());
     const name = p.getByRole('textbox', { name: 'Nombre comercial *', exact: true });
     await name.fill('Nombre sin guardar');
-    await p.getByRole('link', { name: 'Ver plan y facturación' }).click();
+    if (await p.getByRole('link', { name: 'Ver plan y facturación' }).count()) await p.getByRole('link', { name: 'Ver plan y facturación' }).click();
+    else await selectSection(p, 'Apariencia');
     await button(p, 'Seguir editando').click();
     assert.equal(await name.inputValue(), 'Nombre sin guardar');
     await capture(p, r, 'business-editor');

@@ -115,14 +115,14 @@
                     </div>
                     <span class="clinic-account__status" :class="{ 'clinic-account__status--active': businessStatusLabel === 'Activa' }">{{ businessInfoLoading ? 'Consultando…' : businessStatusLabel }}</span>
                 </div>
-                <p class="clinic-account__description">Aquí puedes consultar el plan y el estado de tu cuenta. En Plan y facturación encontrarás los detalles de tu suscripción y tus pagos.</p>
+                <p class="clinic-account__description">Aquí puedes consultar el plan y el estado de tu cuenta.<template v-if="hasPlanBilling"> En Plan y facturación encontrarás los detalles de tu suscripción y tus pagos.</template></p>
                 <div class="clinic-account__footer">
                     <dl class="clinic-account__facts">
                         <div><dt>Tu plan</dt><dd>{{ businessInfoLoading ? '…' : businessPlanLabel }}</dd></div>
                         <div><dt>Periodo de prueba</dt><dd>{{ formatBusinessDate(businessInfo.trialEndsAt) }}</dd></div>
                         <div class="clinic-account__identifier"><dt>Identificador del consultorio</dt><dd>{{ businessInfo.slug || businessInfo.id_business || 'Sin identificador' }}</dd></div>
                     </dl>
-                    <router-link to="/admin?section=plan-billing" class="clinic-account__link">Ver plan y facturación <v-icon size="18" color="inherit" aria-hidden="true">mdi-arrow-right</v-icon></router-link>
+                    <router-link v-if="hasPlanBilling" to="/admin?section=plan-billing" class="clinic-account__link">Ver plan y facturación <v-icon size="18" color="inherit" aria-hidden="true">mdi-arrow-right</v-icon></router-link>
                 </div>
             </article>
 
@@ -997,6 +997,7 @@ export default {
             hasPermission: fnTypes.hasPermission
         }),
         sectionAllowed() { return getSettingsSections(this.role,this.hasPermission).some(section=>section.key===this.activeSection) },
+        hasPlanBilling() { return getSettingsSections(this.role,this.hasPermission).some(section=>section.key==='plan-billing') },
         activeTheme() { return themeState.currentTheme },
 
         loginImagePreviewStyle: function() {

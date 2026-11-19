@@ -9,7 +9,7 @@ const writes = p => p.evaluate(() => window.qaLog);
 async function idle(p) { await p.waitForFunction(() => !document.querySelector('.health-units').__vue__.busy); }
 async function state(p, expected) { await p.waitForFunction(s => { const v = document.querySelector('.health-units').__vue__; return v.reval && v.reval.state === s && !v.busy; }, expected); }
 async function open(p, theme, query = 'scenario=verified') {
-  await p.goto('http://127.0.0.1:4388/admin?section=identity&' + query + (theme ? '&theme=night' : ''));
+  await p.goto((process.env.NC1_QA_BASE || 'http://127.0.0.1:4388') + '/admin?section=identity&' + query + (theme ? '&theme=night' : ''));
   await p.locator('.health-units').waitFor();
   await p.waitForFunction(() => !document.querySelector('.health-units').__vue__.loading);
 }

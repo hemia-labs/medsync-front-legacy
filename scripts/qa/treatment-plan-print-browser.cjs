@@ -156,6 +156,8 @@ async function verifyViewport(browser, isolatedOrigin, width) {
     await page.goto(recordUrl);
     const activePrint = page.getByRole('button', { name: 'Imprimir plan', exact: true });
     await activePrint.waitFor({ timeout: 45000 });
+    await page.waitForLoadState('networkidle');
+    const initialLogoReads = logo.reads; // The production patient shell also reads its document logo.
     await openPreview(page, activePrint, active, closed, width, 'activo', 'button');
     const history = page.getByRole('button', { name: /Planes cerrados/ });
     await history.click();
@@ -168,7 +170,7 @@ async function verifyViewport(browser, isolatedOrigin, width) {
     await openPreview(page, topPrint, closed, active, width, 'detalle-historico', 'escapeFromSheet');
     await expect(details).toBeVisible();
     await expect(details.getByRole('heading', { name: closed.title, exact: true })).toBeVisible();
-    assert.equal(logo.reads,6,'Each preview and print refreshes the shared logo');
+    assert.equal(logo.reads-initialLogoReads,6,'Each preview and print refreshes the shared logo');
     logo.image='data:image/png;base64,INVALID';
     await topPrint.click();
     const preview=page.getByRole('dialog',{name:'Vista previa del plan',exact:true});
