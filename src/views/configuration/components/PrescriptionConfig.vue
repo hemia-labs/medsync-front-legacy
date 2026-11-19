@@ -10,6 +10,25 @@
             <da-button-primary ref="guideSave" :disabled="!selectedDoctorId || loading || saving || !!loadError" @click.native="save()" :label="saving ? 'Guardando…' : 'Guardar recetas'" rxl swpr class="py-1 px-3 font-light"></da-button-primary>
         </div>
 
+        <article class="document-logo-panel m-7 p-5 border border-gray-200 rounded-lg" aria-labelledby="recipe-document-logo-title">
+            <h3 id="recipe-document-logo-title" class="m-0 text-lg font-medium">Logo para documentos</h3>
+            <p v-if="logoLoading" role="status">Consultando el logo del consultorio…</p>
+            <p v-else-if="logoError" role="alert">{{ logoError }} <button type="button" class="underline" @click="loadLogo">Reintentar</button></p>
+            <template v-else>
+                <p class="mt-2 text-sm">Usamos el logo para documentos de Apariencia. Se aplica a recetas, historias clínicas y planes de tratamiento.</p>
+                <div v-if="sharedLogo && !logoEditorState.dirty" class="flex flex-wrap items-center gap-4 mt-4">
+                    <img :src="sharedLogo" alt="Logo para documentos del consultorio" class="document-logo-image" @error="logoError='No pudimos mostrar el logo. Actualiza la consulta.'">
+                    <router-link v-if="canManageLogo" to="/admin?section=appearance" class="underline">Cambiar logo en Apariencia</router-link>
+                </div>
+                <template v-else-if="canManageLogo && logoBusinessId">
+                    <p class="mt-3 text-sm">La imagen que guardes aquí también aparecerá en Apariencia y en los nuevos documentos del consultorio. El formato de este doctor se guarda por separado con «Guardar recetas».</p>
+                    <private-clinic-logo ref="documentLogoEditor" :business-id="logoBusinessId" :image="sharedLogo" :allow-remove="false" save-label="Guardar logo del consultorio" @state="logoEditorState = $event" @saved="onDocumentLogoSaved" />
+                </template>
+                <p v-else-if="!sharedLogo" class="mt-3" role="status">Aún no hay logo para documentos. Pide a un administrador que lo agregue en Apariencia.</p>
+                <p v-if="!sharedLogo && form.header_image" class="mt-3 text-sm" role="status">Este formato tenía una cabecera propia. Las nuevas recetas usarán el logo para documentos cuando se agregue; las recetas ya emitidas conservan su imagen.</p>
+            </template>
+        </article>
+
         <div ref="guideDoctor" class="px-7 pt-5">
             <v-select :key="selectedDoctorId + '-' + selectorRevision" :value="selectedDoctorId" :items="doctorOptions" item-text="label" item-value="id" label="Configuración de recetas del doctor" no-data-text="No hay doctores con perfil activo" :readonly="doctorOptions.length === 1" :disabled="loading || saving || !doctorOptions.length" outlined dense :color="themeColor" @change="chooseDoctor"></v-select>
             <div v-if="!loading && !loadError && !doctorOptions.length" role="status" class="mb-4 p-4 rounded-lg border border-yellow-200 bg-yellow-50 text-yellow-900">
@@ -69,20 +88,10 @@
 
             <article class="lg:col-span-2 border border-gray-200 bg-white shadow-md p-5">
                 <p class="m-0 mb-1 text-primary-900 text-xs font-bold tracking-widest uppercase">Imagenes</p>
-                <h3 class="m-0 text-gray-700 text-lg font-semibold">Cabecera y fondo</h3>
+                <h3 class="m-0 text-gray-700 text-lg font-semibold">Fondo de la receta</h3>
                 <p class="m-0 mt-1 text-gray-500 text-sm">Usa PNG, JPG o WEBP. Mantener imagenes ligeras mejora la carga.</p>
 
                 <div class="space-y-4 mt-5">
-                    <div>
-                        <label class="text-sm text-gray-600 font-semibold">Imagen de cabecera</label>
-                        <input ref="headerInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="readImage($event, 'header_image')">
-                        <div class="flex flex-wrap items-center gap-2 mt-2">
-                            <da-button-secondary :disabled="saving" @click.native="$refs.headerInput.click()" :label="'Seleccionar cabecera'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
-                            <span class="text-sm text-gray-500">{{ form.header_image ? 'Imagen lista' : 'Sin archivo' }}</span>
-                        </div>
-                        <div v-if="form.header_image" class="mt-2 h-24 border border-gray-200 bg-gray-50 bg-contain bg-center bg-no-repeat" :style="imageStyle(form.header_image)"></div>
-                    </div>
-
                     <div>
                         <label class="text-sm text-gray-600 font-semibold">Imagen de fondo</label>
                         <input ref="backgroundInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="readImage($event, 'background_image')">
@@ -90,7 +99,7 @@
                             <da-button-secondary :disabled="saving" @click.native="$refs.backgroundInput.click()" :label="'Seleccionar fondo'" rxl swpr class="py-1 px-3 font-light"></da-button-secondary>
                             <span class="text-sm text-gray-500">{{ form.background_image ? 'Imagen lista' : 'Sin archivo' }}</span>
                         </div>
-                        <p class="m-0 mt-2 text-xs text-gray-500">Asegurate de que el fondo no afecte la lectura de la receta.</p>
+                        <p class="m-0 mt-2 text-xs text-gray-500">Este fondo es exclusivo de la receta. En modo Fondo, el logo para documentos se muestra en la cabecera, sobre el fondo.</p>
                         <v-slider v-if="form.template_mode === 'background'" :value="Math.round(Number(form.background_opacity) * 100)" :disabled="saving" min="0" max="100" step="5" label="Intensidad del fondo (%)" thumb-label="always" class="mt-8" :color="themeColor" @input="form.background_opacity = $event / 100"></v-slider>
                     </div>
                 </div>
@@ -154,6 +163,7 @@
 
 <script>
 import PreparationGuide from './PreparationGuide.vue';
+import PrivateClinicLogo from './PrivateClinicLogo.vue';
 import { focusControl } from '../../../domain/onboarding/focusControl';
 import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
 import { registerSettingsNavigationGuard } from '../../../domain/settings/settings.navigation';
@@ -184,7 +194,7 @@ const emptyForm = () => ({
 });
 
 export default {
-    components:{PreparationGuide},
+    components:{PreparationGuide, PrivateClinicLogo},
     props: {
         themeColor: {
             type: String,
@@ -194,6 +204,7 @@ export default {
     data() {
         return {
             form: emptyForm(),
+            sharedLogo:'', canManageLogo:false, logoBusinessId:'', logoLoading:true, logoError:'', logoRequest:0, logoEditorState:{dirty:false,busy:false},
             doctors: [], selectedDoctorId: '', loading: false, saving: false, loadError: '', request: 0,
             disposed:false, uncertainIntent:null, baseline: '', leaveOpen: false, pendingDoctor: '', selectorRevision: 0,
             doctorProfile: {},
@@ -207,9 +218,11 @@ export default {
     },
     mounted() {
         this.init();
-        this.removeNavigationGuard = registerSettingsNavigationGuard(this,{hasChanges:()=>this.dirty || !!this.uncertainIntent,isSaving:()=>this.saving});
+        this.loadLogo();
+        this.logoRefreshTimer=setInterval(()=>{if(!this.logoEditorState.dirty && !this.logoEditorState.busy && !this.logoLoading)this.loadLogo();},240000);
+        this.removeNavigationGuard = registerSettingsNavigationGuard(this,{hasChanges:()=>this.dirty || !!this.uncertainIntent || this.logoEditorState.dirty,isSaving:()=>this.saving || this.logoEditorState.busy});
     },
-    beforeDestroy() { this.disposed=true; this.request++; if(this.removeNavigationGuard)this.removeNavigationGuard(); },
+    beforeDestroy() { this.disposed=true; this.request++; this.logoRequest++; clearInterval(this.logoRefreshTimer); if(this.removeNavigationGuard)this.removeNavigationGuard(); },
     computed: {
         ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, hasPermission: fnTypes.hasPermission, role:fnTypes.getRole }),
         canManageAllDoctors() { return isTenantAdministrator(this.role) && this.hasPermission('admin.config'); },
@@ -224,7 +237,7 @@ export default {
             return errors;
         },
         isFormatReady() { return Object.keys(this.configErrors).length === 0; },
-        previewHtml() { return buildPrescriptionPreviewHtml(this.form, this.doctorProfile); },
+        previewHtml() { return buildPrescriptionPreviewHtml(this.form, this.doctorProfile, this.sharedLogo); },
         doctorProfileWarning() {
             if(!this.doctorProfile || !this.doctorProfile.id_doctor_professional_profile) {
                 return this.doctorProfile && this.doctorProfile.id_login!==((this.authUser || {}).id_login) ? 'El profesional necesita completar su identidad y firma desde su sesión. Puedes preparar su formato sin capturar esos datos.' : 'Para emitir recetas, completa tu identidad y firma en Mi perfil profesional.';
@@ -236,6 +249,25 @@ export default {
         }
     },
     methods: {
+        async loadLogo(){
+            if(this.logoEditorState.busy || this.logoEditorState.dirty)return;
+            const request=++this.logoRequest, context=authorizationContext(this.$store);
+            this.logoLoading=true;this.logoError='';
+            try {
+                const response=await DABusinessService.getCurrent();
+                if(this.disposed || request!==this.logoRequest || !isCurrentAuthorization(context,this.$store))return;
+                if(!response || !response.success || !response.data)throw Error();
+                this.onDocumentLogoSaved(response.data);
+            }catch(_){if(!this.disposed && request===this.logoRequest && isCurrentAuthorization(context,this.$store))this.logoError='No pudimos consultar el logo. Reintenta para saber cuál está guardado.';}
+            finally{if(!this.disposed && request===this.logoRequest)this.logoLoading=false;}
+        },
+        onDocumentLogoSaved(info){
+            this.sharedLogo=info.logoUrl || '';
+            this.logoBusinessId=info.id_business || this.logoBusinessId;
+            if(typeof info.canManageLogo==='boolean')this.canManageLogo=info.canManageLogo;
+            this.logoError='';
+            this.$emit('logo-saved',info);
+        },
         async copyClinicContact(){
             if(this.saving || this.loading || this.copyingContact || this.form.id_prescription_config || !this.hasPermission('admin.config'))return;
             const subject=this.selectedDoctorId,request=this.request,context=authorizationContext(this.$store);
@@ -253,7 +285,7 @@ export default {
         },
         focusGuideControl(id, reveal){focusControl(this.$refs[{doctor:'guideDoctor',contact:'guidePhone',address:'guideAddress',preview:'guidePreview',save:'guideSave'}[id]], reveal);},
         requestCurrent(request, context){return !this.disposed && request===this.request && isCurrentAuthorization(context,this.$store);},
-        formatContent(form){return JSON.stringify(['clinic_name','clinic_address','clinic_phone','header_image','background_image','footer_note','template_mode','background_opacity','show_specialty','show_university','show_footer_note'].map(key=>key.startsWith('show_') ? !!Number(form[key]) : key==='background_opacity' ? Number(form[key]) : String(form[key] || '').trim()));},
+        formatContent(form){return JSON.stringify(['clinic_name','clinic_address','clinic_phone','background_image','footer_note','template_mode','background_opacity','show_specialty','show_university','show_footer_note'].map(key=>key.startsWith('show_') ? !!Number(form[key]) : key==='background_opacity' ? Number(form[key]) : String(form[key] || '').trim()));},
         async verifySavedFormat(){
             if(!this.selectedDoctorId)return 'Selecciona el doctor cuyo formato quieres comprobar.';
             const subject=this.selectedDoctorId,request=this.request,context=authorizationContext(this.$store);
@@ -331,7 +363,6 @@ export default {
                 clinic_name: this.form.clinic_name,
                 clinic_address: this.form.clinic_address.trim(),
                 clinic_phone: this.form.clinic_phone.trim(),
-                header_image: this.form.header_image,
                 background_image: this.form.background_image,
                 footer_note: this.form.footer_note,
                 template_mode: this.form.template_mode,
@@ -406,6 +437,8 @@ export default {
 };
 </script>
 <style scoped>
+.document-logo-image{width:160px;height:90px;object-fit:contain;border:1px solid #c7d7dd;border-radius:8px;padding:8px}
+.document-logo-panel{overflow-wrap:anywhere}
 .contact-copy{min-height:44px;padding:10px 14px;border:1px solid #0e6970;border-radius:8px;color:#075c64;font-weight:600}
 .contact-copy:focus-visible{outline:3px solid #996000;outline-offset:3px}
 .contact-copy:disabled{opacity:.55}

@@ -16,6 +16,7 @@ const templateOptions = (snapshot) => {
     const visible = key => ![false, 0, '0', 'false'].includes(saved[key]);
     const opacity = Number(saved.background_opacity);
     return {
+        sharedLogo: saved.document_logo === 'business_v1',
         showUniversity: visible('show_university'), showSpecialty: visible('show_specialty'), showFooter: visible('show_footer_note'),
         // Missing legacy preferences retain the previous visible content/both
         // images. Never replace a saved false flag with today's configuration.
@@ -46,8 +47,9 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
     const clinicAddress = pick(prescription.clinic_address_snapshot, config.clinic_address);
     const clinicPhone = pick(prescription.clinic_phone_snapshot, config.clinic_phone);
     const signature = pick(prescription.signature_snapshot, config.signature_image);
-    const headerImage = options.mode === 'background' ? '' : pick(prescription.header_image_snapshot, config.header_image);
-    const backgroundImage = options.mode === 'header' ? '' : pick(prescription.background_image_snapshot, config.background_image);
+    const compactLogo = options.sharedLogo && options.mode === 'background';
+    const headerImage = options.mode === 'background' && !compactLogo ? '' : pick(prescription.header_image_snapshot);
+    const backgroundImage = options.mode === 'header' ? '' : pick(prescription.background_image_snapshot);
     const footerNote = pick(prescription.footer_note_snapshot, config.footer_note);
     const patientName = pick(prescription.patient_name, 'Paciente');
     const patientMeta = [
@@ -87,6 +89,8 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
         .sheet { width: 216mm; min-height: 279mm; margin: 0 auto; padding: 18mm; background: #fff; ${backgroundStyle} background-size: cover; background-position: center; }
         .top-image { width: 100%; max-height: 70px; object-fit: contain; object-position: left center; margin-bottom: 16px; }
         .header { display: flex; justify-content: space-between; gap: 20px; border-bottom: 2px solid #cceff6; padding-bottom: 14px; }
+        .document-logo { width: 90px; height: 60px; flex: 0 0 90px; object-fit: contain; }
+        .doctor { min-width: 0; flex: 1; overflow-wrap: anywhere; }
         .doctor h1 { margin: 0; font-size: 22px; color: #155e75; }
         .doctor p, .clinic p, .patient p, .meta p { margin: 3px 0; font-size: 12px; }
         .clinic { text-align: right; max-width: 42%; }
@@ -110,8 +114,9 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
 </head>
 <body>
     <main class="sheet">
-        ${imageTag(headerImage, 'top-image', 'Cabecera')}
+        ${compactLogo ? '' : imageTag(headerImage, 'top-image', 'Cabecera')}
         <header class="header">
+            ${compactLogo ? imageTag(headerImage, 'document-logo', 'Logo del consultorio') : ''}
             <div class="doctor">
                 <div class="label">Receta medica</div>
                 <h1>${escapeHtml(doctorName)}</h1>
@@ -160,14 +165,16 @@ export const buildPrescriptionPrintHtml = (prescription, config = {}) => {
 
 // Preview reuses the exact print markup with synthetic, in-memory data. It
 // neither persists nor issues a prescription and runs in a sandboxed iframe.
-export const buildPrescriptionPreviewHtml = (config = {}, doctor = {}) => {
+export const buildPrescriptionPreviewHtml = (config = {}, doctor = {}, logo = null) => {
     const html = buildPrescriptionPrintHtml({
         status: 'issued', folio: 'Vista previa', patient_name: 'Nombre del paciente de ejemplo',
         doctor_name_snapshot: doctor.professional_name || 'Nombre profesional',
         professional_license_snapshot: doctor.professional_license || 'Sin cédula',
         university_snapshot: doctor.university, specialty_snapshot: doctor.specialty,
         specialty_license_snapshot: doctor.specialty_license, signature_snapshot: doctor.signature_image,
-        template_snapshot: {...config},
+        header_image_snapshot: logo,
+        background_image_snapshot: config.background_image,
+        template_snapshot: {...config, document_logo: 'business_v1'},
         items: [{generic_name:'Medicamento de ejemplo',dose:'Dosis',administration_route:'Vía',frequency:'Frecuencia',duration:'Duración'}]
     }, config);
     return html.replace('</style>', `
