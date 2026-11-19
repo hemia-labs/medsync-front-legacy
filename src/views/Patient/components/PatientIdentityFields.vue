@@ -74,28 +74,13 @@
     </button>
     <v-expand-transition>
       <div v-show="showReferences" id="patient-identity-references" class="patient-identity-references">
-        <p>Captura solo claves conocidas. La validación contra catálogos está pendiente; guardar no acredita validez para un reporte.</p>
+        <p>Busca por nombre o clave. Los datos sin catálogo disponible quedan no verificados. Guardar no acredita validez para un reporte.</p>
         <div class="patient-identity-grid">
-          <v-text-field
-            v-for="reference in references"
-            :key="reference.key"
-            :value="referenceCode(value, reference.key)"
-            :label="reference.label"
-            maxlength="32"
-            :disabled="disabled"
-            outlined
-            dense
-            @input="update(withReference(value, reference, $event))"
-          ></v-text-field>
-          <v-text-field
-            class="patient-identity-wide"
-            :value="listCodes(value, 'affiliations')"
-            label="Afiliaciones: claves separadas por coma"
-            :disabled="disabled"
-            outlined
-            dense
-            @change="update(withList(value, 'affiliations', 'sis.affiliation', $event))"
-          ></v-text-field>
+          <catalog-reference-field v-for="reference in references" :key="reference.key" :value="referenceAt(value, reference.key)"
+            :family="reference.family" :label="reference.label" :parent="catalogParent(value, reference.key)" :active="showReferences" :disabled="disabled"
+            :errors="catalogErrors[reference.key] || []" :data-catalog-key="reference.key" @input="update(withCatalogReference(value, reference.key, $event))" />
+          <catalog-reference-list class="patient-identity-wide" :value="value.affiliations" family="sis.affiliation" label="Afiliación"
+            :active="showReferences" :disabled="disabled" :errors="catalogErrors.affiliations || []" data-catalog-key="affiliations" @input="update(withField(value, 'affiliations', $event))" />
         </div>
       </div>
     </v-expand-transition>
@@ -103,6 +88,9 @@
 </template>
 
 <script>
+import CatalogReferenceField from '../../../components/identity/CatalogReferenceField.vue';
+import CatalogReferenceList from '../../../components/identity/CatalogReferenceList.vue';
+import { referenceAt, withCatalogReference, catalogParent } from '../../../domain/identity/catalogCapture';
 import fieldError from '../../../core/directives/field-error';
 import {
     BIOLOGICAL_SEX, PATIENT_IDENTITY_ENUMS, PATIENT_IDENTITY_REFERENCES, selectItems,
@@ -111,11 +99,17 @@ import {
 
 export default {
     name: 'PatientIdentityFields',
+    components: { CatalogReferenceField, CatalogReferenceList },
     directives: { fieldError },
     props: {
         value: { type: Object, required: true },
         disabled: Boolean,
-        sexErrors: { type: Array, default: () => [] }
+        sexErrors: { type: Array, default: () => [] },
+        // Server field errors for the catalog keys, e.g. { 'residence.municipality': ['Revisa este dato.'] }.
+        catalogErrors: { type: Object, default: () => ({}) }
+    },
+    watch: {
+        catalogErrors(next) { if (Object.keys(next || {}).length) this.showReferences = true; }
     },
     data: () => ({
         showReferences: false,
@@ -125,10 +119,23 @@ export default {
         curpKinds: [{ text: 'Personal', value: 'real' }, { text: 'Genérica', value: 'generic' }]
     }),
     methods: {
+        referenceAt, withCatalogReference, catalogParent,
         withField, withCurp, withCurpDetail, referenceCode, withReference, listCodes, withList,
         update(identity) { this.$emit('input', identity); },
         // Used by the form's error summary to take the user to the required field.
-        focus() { const select = this.$refs.biologicalSex; if (select && select.focus) select.focus(); }
+        focus() { const select = this.$refs.biologicalSex; if (select && select.focus) select.focus(); },
+        // Takes the user to a catalog key rejected by the server. Returns false when the key is not a selector here.
+        focusCatalog(key) {
+            const target = this.$el && this.$el.querySelector(`[data-catalog-key="${key}"]`);
+            if (!target) return false;
+            this.showReferences = true;
+            this.$nextTick(() => {
+                if (target.scrollIntoView) target.scrollIntoView({ block: 'center' });
+                const input = target.querySelector('input:not([type=hidden])');
+                if (input) input.focus();
+            });
+            return true;
+        }
     }
 };
 </script>

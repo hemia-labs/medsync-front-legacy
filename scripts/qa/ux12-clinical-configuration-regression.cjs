@@ -13,7 +13,7 @@ function source(file) {return fs.readFileSync(path.join(root,file),'utf8');}
 function component(file, bindings={}) {
     const sfc=compiler.parseComponent(source(file));
     assert.deepEqual(compiler.compile(sfc.template.content).errors,[],file+' compiles');
-    const sandbox={...require('./agenda-test-helpers.cjs'),ClinicTimeZoneField:{},component:null,PreparationGuide:{},authorizationContext:()=>({}),isCurrentAuthorization:()=>true, mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},...bindings};
+    const sandbox={...require('./agenda-test-helpers.cjs'),ClinicTimeZoneField:{},component:null,PrivateClinicLogo:{},PreparationGuide:{},authorizationContext:()=>({}),isCurrentAuthorization:()=>true, mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},...bindings};
     vm.runInNewContext(sfc.script.content.replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default','component ='),sandbox);
     return {options:sandbox.component,template:sfc.template.content};
 }

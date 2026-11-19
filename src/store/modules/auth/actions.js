@@ -158,20 +158,30 @@ const actions = {
     async refreshAccess({state, commit}, options = {}) {
         if(!state.authenticated && !options.hydrate) return null;
         const revision = state.accessRevision;
+        // Optional `report` (NC1-AUTH-ACTIVATION-NO-REPLAY R2): tells a caller what this shared check did -
+        // applied the session, ended it, or discarded its answer because the authorization changed meanwhile -
+        // so the caller never attributes a discarded answer to its own recovery.
         if(accessRefresh && accessRefresh.revision === revision) {
             accessRefresh.clearOnFailure = accessRefresh.clearOnFailure || options.clearOnFailure;
+            if(options.report) accessRefresh.reports.push(options.report);
             return accessRefresh.promise;
         }
-        const refresh = { revision, clearOnFailure: options.clearOnFailure, promise: null };
+        const refresh = { revision, clearOnFailure: options.clearOnFailure, promise: null, reports: options.report ? [options.report] : [] };
+        const mark = outcome => refresh.reports.forEach(report => { report[outcome] = true; report.revision = state.accessRevision; });
         refresh.promise = (async () => {
             try {
                 let response = await DAAuthService.session();
-                if(revision !== state.accessRevision) return response;
+                if(revision !== state.accessRevision) { mark('stale'); return response; }
                 // An expired access token is renewable; an invalid/revoked
                 // session is terminal. This path never replays the denied action.
                 if(getSessionCode(response) === 'AUTH_ACCESS_EXPIRED' && (isD2AuthMode() || state.refreshtoken)) {
                     const renewed = await DAAuthService.refreshToken(isD2AuthMode() ? undefined : new DARefreshTokenModel(state.refreshtoken));
-                    if(revision !== state.accessRevision) return renewed;
+                    if(revision !== state.accessRevision) {
+                        // A 401 renewal answer only reaches the global handler for its current owner (AMB-R1): if it
+                        // ended the session, that is this check's terminal result, not someone else's change.
+                        mark(renewed && renewed.status === 401 && !state.authenticated ? 'terminal' : 'stale');
+                        return renewed;
+                    }
                     response = isD2AuthMode()
                         ? (renewed && renewed.d2Session ? renewed.d2Session : renewed)
                         : sessionFromLegacyRenewal(renewed);
@@ -179,11 +189,13 @@ const actions = {
                 if(response && response.success && response.data && response.data.authenticated) {
                     if(isD2AuthMode()) commitD2Session(commit, response);
                     else commit(types.SET_AUTH_ACCESS_SESSION, response.data);
+                    mark('applied');
                 } else if(response && (response.unauthorized || response.status === 401 || response.success)) {
                     commit(types.SET_AUTH_ACCESS_SESSION, null);
                     clearLegacyAuthStorageForD2(Vue.prototype.$session);
                     clearD2ClientAuthArtifacts(Vue.prototype.$session);
                     redirectToAuthIfNeeded();
+                    mark('terminal');
                 } else if(refresh.clearOnFailure) {
                     commit(types.SET_AUTH_PERMISSIONS, []);
                 }

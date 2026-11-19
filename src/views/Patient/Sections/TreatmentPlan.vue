@@ -535,7 +535,7 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showHistoryDialog" max-width="980">
+    <v-dialog v-model="showHistoryDialog" :retain-focus="!previewPlan" max-width="980">
       <v-card v-dialog-name="'Consultar plan cerrado'" @keydown="trapDialogFocus">
         <div class="dialog-header history-dialog-header">
           <div>
@@ -639,6 +639,23 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog :value="Boolean(previewPlan)" max-width="960" :fullscreen="$vuetify.breakpoint.xsOnly" :transition="false" @input="closePrintPreview">
+      <v-card v-dialog-name="{ id: 'tp-print-title' }" class="tp-print-preview">
+        <header class="dialog-header">
+          <h3 id="tp-print-title" ref="printHeading" tabindex="-1">Vista previa del plan</h3>
+        </header>
+        <iframe v-if="printSheet" ref="printFrame" :key="printSheet" :srcdoc="printSheet" sandbox="allow-same-origin allow-modals"
+          title="Hoja del plan de tratamiento" @load="onPrintFrameLoad"></iframe>
+        <p v-else-if="previewPlan && printLogoLoading" role="status" class="plan-feedback">Preparando el logo y la hoja del plan…</p>
+        <p v-if="printError" role="alert" class="plan-feedback feedback-error">{{ printError }}</p>
+        <v-card-actions class="dialog-actions">
+          <button type="button" class="btn-outline" @click="closePrintPreview">Cerrar</button>
+          <button v-if="printError" type="button" class="btn-outline" :disabled="printBusy" @click="refreshPlanPreview">Reintentar vista previa</button>
+          <button type="button" class="btn-primary" :disabled="!printReady || printBusy" @click="printPreviewSheet">{{ printBusy ? 'Preparando impresión…' : 'Imprimir o guardar PDF' }}</button>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-dialog v-model="confirmDialog.show" persistent max-width="460">
       <v-card v-dialog-name="confirmDialog.title" @keydown="trapDialogFocus">
         <div class="dialog-header compact">
@@ -693,12 +710,14 @@ import VuexMixin from '../../../mixins/VuexMixin';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
-import { DATreatmentService } from '../../../services/context/core-proccess-context';
+import { DATreatmentService, DABusinessService } from '../../../services/context/core-proccess-context';
+import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
 import { sanitizeHtmlForDocumentSnapshot } from '../../../utils/sanitizeHtml';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
 import { localToday, requestId, snapshot, treatmentErrors, planErrors } from '../../../domain/treatment-plan/plan.editor';
+import { treatmentPlanPrintHtml } from '../../../domain/treatment-plan/plan.print';
 import { surfaceLabel as dentalSurfaceLabel } from '../../../utils/odontogram/dentalContract';
 import { getSettingsSections } from '../../../security/settingsAccess';
 
@@ -751,7 +770,11 @@ export default {
       showTreatmentDialog: false,
       treatmentEditorSession: 0,
       dentalImportState: { open:false, loading:false, count:0, canApply:false, pending:false },
-      planPrintUrl: null,
+      previewPlan: null,
+      printLogo:'', printLogoLoaded:false, printLogoLoading:false, printBusy:false, printRequest:0,
+      printTrigger: null,
+      printReady: false,
+      printError: '',
       showCloseDialog: false,
       showHistoryDialog: false,
       showHistorySection: false,
@@ -814,9 +837,9 @@ export default {
     });
   },
   beforeDestroy() {
+    this.printRequest++;
     this.loadRequest++;
     document.documentElement.classList.remove('tp-treatment-editor-open');
-    if(this.planPrintUrl) URL.revokeObjectURL(this.planPrintUrl);
     this.$emit('register-navigation-guard', null);
     window.removeEventListener('beforeunload', this.beforeUnload);
     if(this.removeNavigationGuard) this.removeNavigationGuard();
@@ -828,6 +851,14 @@ export default {
     },
     planData: function() {
       return this.localPlanData || {};
+    },
+    printSheet() {
+      if (!this.previewPlan || !this.ready || !this.moduleEnabled || !this.printLogoLoaded) return '';
+      try {
+        return this.printableHistoryHtml(this.previewPlan);
+      } catch {
+        return '';
+      }
     },
     canCreate() { return this.allowed('create', 'treatments.create'); },
     canEdit() { return this.allowed('edit', 'treatments.edit'); },
@@ -1132,12 +1163,17 @@ export default {
     editorKind(value) { if(!value) this.$nextTick(this.applyDentalPreparation); },
     isBusy(value) { if(!value) this.$nextTick(this.applyDentalPreparation); },
     patientId: { immediate: true, handler() {
+      this.closePrintPreview();
       this.historyPage = 1;
       this.localPlanData = null;
       this.planLoaded = false;
       this.closeEditors();
       this.loadPlan();
     } },
+    printSheet() {
+      this.printReady = false;
+      this.printError = '';
+    },
     showPlanDialog(value) { if(!value) this.restoreFocus(); },
     showTreatmentDialog(value) {
       document.documentElement.classList.toggle('tp-treatment-editor-open', value);
@@ -1844,24 +1880,26 @@ export default {
       return amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
     },
     printableHistoryHtml: function(plan) {
-      const treatments=this.planTreatments(plan), escape=this.escapeHtml;
-      const closed=plan.status === 'closed' || !!plan.closed_at;
       const faceNames={M:'Mesial',O:'Oclusal',I:'Incisal',D:'Distal',V:'Vestibular',L:'Lingual',P:'Palatina'};
       const teethText=item=>(item.teeth || []).map(tooth=>{
         const detail=(item.tooth_details || []).find(detail=>String(detail.tooth_number) === String(tooth));
         const faces=detail && detail.surfaces ? [...detail.surfaces].map(face=>faceNames[dentalSurfaceLabel(face,Number(tooth))]).join(', ') : '';
         return 'Diente '+tooth+(faces ? ' ('+faces+')' : '');
       }).join('; ') || 'Sin dientes específicos';
-      const rows=treatments.map(item=>'<tr><td><strong>'+escape(item.name || 'Sin nombre')+'</strong>'+(item.description ? '<p>'+escape(item.description)+'</p>' : '')+'<p>'+escape(teethText(item))+'</p></td>'+(this.showStatus ? '<td>'+escape(this.statusLabel(item.status))+'</td>' : '')+'<td>'+escape(this.formatDisplayDate(item.estimated_start_date))+'<br>'+escape(this.formatDisplayDate(item.estimated_end_date))+'</td>'+(this.showCosts ? '<td class="amount">'+escape(this.formatCurrencyValue(item.cost))+'</td>' : '')+'</tr>').join('');
-      const consent=plan.consent && this.canViewConsent ? plan.consent : null;
-      return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan de tratamiento</title><style>'+
-        'body{font:14px Arial,sans-serif;color:#203349;margin:32px;line-height:1.5}h1{font-size:25px;margin:6px 0 12px}.brand{font-weight:bold;color:#147e9c}.meta{border-top:2px solid #147e9c;padding-top:16px}table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:20px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #cad5df;padding:10px;overflow-wrap:anywhere}th{background:#eef3f6;font-size:12px}th:first-child{width:48%}td p{margin:5px 0;white-space:pre-wrap}tr{break-inside:avoid}thead{display:table-header-group}.amount{text-align:right}.summary{font-weight:bold;text-align:right}footer{border-top:1px solid #cad5df;margin-top:24px;padding-top:12px;font-size:11px;color:#52657b}button{padding:10px 16px;cursor:pointer}@page{size:A4;margin:16mm}@media print{body{margin:0}button{display:none}}'+
-        '</style></head><body><button type="button" onclick="window.print()">Imprimir o guardar PDF</button><p class="brand">'+escape(this.businessName)+'</p><h1>'+escape(plan.title || 'Plan de tratamiento')+'</h1><p class="meta"><strong>Paciente:</strong> '+escape(this.patientName || 'No especificado')+'<br><strong>Plan:</strong> '+(closed ? 'Cerrado' : 'Activo')+' · <strong>Inicio:</strong> '+escape(this.formatDisplayDate(plan.started_at))+(closed ? ' · <strong>Cierre:</strong> '+escape(this.formatDisplayDate(plan.closed_at)) : '')+'</p>'+
-        (plan.diagnosis ? '<p><strong>Diagnóstico:</strong> '+escape(plan.diagnosis)+'</p>' : '')+
-        '<table><thead><tr><th>Tratamiento y dientes</th>'+(this.showStatus ? '<th>Estado</th>' : '')+'<th>Inicio / fin estimados</th>'+(this.showCosts ? '<th>Costo</th>' : '')+'</tr></thead><tbody>'+(rows || '<tr><td colspan="'+(2+Number(this.showStatus)+Number(this.showCosts))+'">Sin tratamientos registrados.</td></tr>')+'</tbody></table>'+
-        (this.showCosts ? '<p class="summary">Presupuesto: '+escape(this.formatCurrencyValue(this.planTotalCost(plan)))+'</p><p>Incluye todos los tratamientos, también los cancelados. No representa saldo por cobrar.</p>' : '')+
-        (consent ? '<p>Hay un consentimiento registrado. El documento firmado conserva su propio contenido y se consulta por separado; esta impresión no lo sustituye.</p>' : '')+
-        '<footer>Documento informativo del plan guardado. No incluye notas internas ni firmas.<br>Impreso el '+escape(new Date().toLocaleDateString('es-MX'))+'</footer></body></html>';
+      return treatmentPlanPrintHtml({
+        businessName: this.businessName, logo: this.printLogo, patientName: this.patientName, title: plan.title,
+        closed: plan.status === 'closed' || Boolean(plan.closed_at),
+        start: this.formatDisplayDate(plan.started_at), end: this.formatDisplayDate(plan.closed_at),
+        diagnosis: plan.diagnosis, consent: Boolean(plan.consent && this.canViewConsent),
+        showStatus: this.showStatus, showCosts: this.showCosts,
+        budget: this.showCosts ? this.formatCurrencyValue(this.planTotalCost(plan)) : '',
+        treatments: this.planTreatments(plan).map(item => ({
+          name: item.name, description: item.description, teeth: teethText(item),
+          status: this.showStatus ? this.statusLabel(item.status) : '',
+          start: this.formatDisplayDate(item.estimated_start_date), end: this.formatDisplayDate(item.estimated_end_date),
+          cost: this.showCosts ? this.formatCurrencyValue(item.cost) : ''
+        }))
+      });
     },
     consentPatientSignatureLabel(consent) { return consent && consent.patient_signature_role === 'TUTOR' ? 'Firma del tutor o representante' : 'Firma del paciente'; },
     printableAdditionalConsentSignatures(consent) {
@@ -1946,23 +1984,87 @@ export default {
         </html>
       `;
     },
-    printHistory: function(plan) {
-      if(!plan) {
-        return;
+    printHistory(plan) {
+      this.printTrigger = document.activeElement;
+      this.previewPlan = plan;
+      this.refreshPlanPreview();
+    },
+    async refreshPlanLogo() {
+      const request=++this.printRequest, context=authorizationContext(this.$store), patient=this.patientId;
+      this.printLogoLoading=true;
+      try {
+        const response=await DABusinessService.getCurrent();
+        if(request!==this.printRequest || !this.previewPlan || patient!==this.patientId || !isCurrentAuthorization(context,this.$store))return false;
+        if(!response || !response.success || !response.data)throw Error();
+        this.printLogo=response.data.logoUrl || '';
+        this.printLogoLoaded=true;
+        return true;
+      }catch(_){
+        if(request===this.printRequest)this.printError='No pudimos consultar el logo para documentos. Reintenta antes de imprimir.';
+        return false;
+      }finally{if(request===this.printRequest)this.printLogoLoading=false;}
+    },
+    async refreshPlanPreview() {
+      this.printReady=false;this.printError='';this.printLogoLoaded=false;
+      await this.refreshPlanLogo();
+    },
+    async waitForPlanImages(frame) {
+      if(!frame)throw Error();
+      await new Promise((resolve,reject)=>{
+        const done=ok=>{clearTimeout(timer);frame.removeEventListener('load',loaded);ok ? resolve() : reject(Error());};
+        const loaded=()=>done(Boolean(frame.contentDocument && frame.contentDocument.querySelector('h1')));
+        const timer=setTimeout(()=>done(false),10000);
+        if(frame.contentDocument && frame.contentDocument.readyState==='complete' && frame.contentDocument.querySelector('h1'))done(true);
+        else frame.addEventListener('load',loaded);
+      });
+      await Promise.all(Array.from(frame.contentDocument.images).map(img=>new Promise((resolve,reject)=>{
+        const done=ok=>{clearTimeout(timer);img.removeEventListener('load',loaded);img.removeEventListener('error',failed);ok ? resolve() : reject(Error());};
+        const loaded=()=>done(img.naturalWidth>0),failed=()=>done(false);
+        const timer=setTimeout(failed,10000);
+        if(img.complete)loaded();else{img.addEventListener('load',loaded);img.addEventListener('error',failed);}
+      })));
+    },
+    closePrintPreview() {
+      this.printRequest++;this.printBusy=false;this.printLogoLoading=false;this.printLogoLoaded=false;
+      const trigger = this.printTrigger;
+      this.printTrigger = null;
+      this.previewPlan = null;
+      this.printReady = false;
+      this.printError = '';
+      if (trigger) this.$nextTick(() => {
+        if (!this.previewPlan && trigger.isConnected) trigger.focus();
+      });
+    },
+    async onPrintFrameLoad(event) {
+      const frame = event.target;
+      if (frame !== this.$refs.printFrame || !frame.contentDocument.body.querySelector('h1')) return;
+      if (this.$refs.printHeading) window.requestAnimationFrame(() => {
+        const heading = this.$refs.printHeading;
+        if (frame === this.$refs.printFrame && heading && !heading.closest('[role="dialog"]').contains(document.activeElement)) heading.focus();
+      });
+      frame.contentDocument.addEventListener('keydown', keyEvent => {
+        if (keyEvent.key === 'Escape') this.closePrintPreview();
+      });
+      try {
+        await this.waitForPlanImages(frame);
+        if(frame===this.$refs.printFrame)this.printReady=true;
+      } catch(_) {
+        if(frame===this.$refs.printFrame){this.printReady=false;this.printError='No pudimos cargar el logo de la hoja. Reintenta la vista previa antes de imprimir.';}
       }
-      if(this.planPrintUrl) URL.revokeObjectURL(this.planPrintUrl);
-      const previewUrl = URL.createObjectURL(new Blob([this.printableHistoryHtml(plan)], { type: 'text/html;charset=utf-8' }));
-      this.planPrintUrl = previewUrl;
-      const printWindow = window.open(previewUrl, '_blank');
-      if(!printWindow) {
-        URL.revokeObjectURL(previewUrl);
-        this.planPrintUrl = null;
-        this.toastFunction('warning', 'El navegador bloqueó la ventana. Permite ventanas emergentes para MedSync y vuelve a pulsar Imprimir.');
-        return;
-      }
-      printWindow.opener = null;
-      // Keep the local document alive until the next preview or component exit.
-      // The patient copy includes an explicit print button for mobile browsers.
+    },
+    async printPreviewSheet() {
+      if (!this.printReady || this.printBusy) return;
+      this.printError = '';this.printBusy=true;
+      try {
+        if(!await this.refreshPlanLogo())return;
+        const request=this.printRequest,context=authorizationContext(this.$store);
+        await this.$nextTick();
+        const frame=this.$refs.printFrame;
+        await this.waitForPlanImages(frame);
+        if(request===this.printRequest && frame===this.$refs.printFrame && isCurrentAuthorization(context,this.$store))frame.contentWindow.print();
+      } catch {
+        this.printError = 'No se pudo preparar la imagen o abrir la impresión. Reintenta la vista previa.';
+      } finally {this.printBusy=false;}
     },
     printConsent: function(plan) {
       if(!plan || !plan.consent) {
@@ -1989,6 +2091,15 @@ export default {
 <style scoped>
 .patient-treatment {
   color: var(--color-text, #25364d);
+}
+.tp-print-preview.v-card { display: flex; flex-direction: column; height: min(84vh, 860px); overflow: hidden; background: var(--color-surface); }
+.tp-print-preview .dialog-header, .tp-print-preview .dialog-actions { flex: 0 0 auto; background: var(--color-surface); }
+.tp-print-preview iframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 0; background: white; }
+.tp-print-preview .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px !important; border-top: 1px solid var(--color-forty-500); }
+.tp-print-preview .plan-feedback { margin: 8px 16px; }
+.v-dialog__content[aria-labelledby="tp-print-title"]:not(.v-dialog__content--active) { display: none; }
+@media (max-width: 599px) {
+  .tp-print-preview.v-card { height: 100%; height: 100dvh; }
 }
 
 .plan-feedback { margin-bottom: .8rem; padding: .75rem 1rem; border-radius: .75rem; border: 1px solid #bae6fd; background: #effaff; color: #075985; line-height: 1.5; }

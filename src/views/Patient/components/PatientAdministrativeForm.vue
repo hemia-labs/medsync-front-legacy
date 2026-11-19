@@ -23,7 +23,10 @@
           <v-row><v-col v-for="field in additionalFields" :key="field.key" cols="12" md="6"><v-select :disabled="saving || awaitingReload" v-model="identity[field.key]" :items="field.items" :label="field.label" outlined dense clearable hide-details="auto" /></v-col>
             <v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model="curpValue" label="CURP" hint="18 caracteres, como aparece en su documento" maxlength="18" outlined dense hide-details="auto" /></v-col><v-col v-if="curpValue" cols="12" md="6"><v-select :disabled="saving || awaitingReload" v-model="curpKind" label="Tipo de CURP" :items="[{text:'Personal',value:'real'},{text:'Genérica',value:'generic'}]" outlined dense hide-details="auto" /></v-col><v-col v-if="curpValue && curpKind === 'generic'" cols="12"><v-text-field :disabled="saving || awaitingReload" v-model="curpReason" label="Motivo de CURP genérica *" outlined dense :rules="[required]" /></v-col>
             <v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model="person.ocupation" label="Ocupación" outlined dense hide-details="auto" /></v-col><v-col cols="12" md="6"><v-text-field :disabled="saving || awaitingReload" v-model="person.rfc" label="RFC" outlined dense hide-details="auto" /></v-col><v-col cols="12"><v-text-field :disabled="saving || awaitingReload" v-model.trim="address.place_birth" label="Lugar de nacimiento" outlined dense hide-details="auto" /></v-col></v-row>
-          <div class="nc1-codes-note"><v-icon small class="mr-2">mdi-format-list-bulleted</v-icon><div><strong>Claves oficiales</strong><p>País, entidad, municipio, nacionalidad y afiliación se elegirán de listas oficiales cuando estén disponibles. No necesitas buscar ni capturar claves.</p><p v-if="storedCodes.length" class="mb-0">Ya registradas: {{ storedCodes.join(' · ') }}</p></div></div>
+          <section class="nc1-catalogs" aria-labelledby="nc1-catalogs-title"><h3 id="nc1-catalogs-title">Claves de nacimiento y residencia, opcional</h3><p>Busca por nombre o clave y selecciona un resultado. Nacionalidad y código postal siguen como captura no verificada; el código postal se edita en Domicilio.</p>
+            <v-row><v-col v-for="field in catalogReferences" :key="field.key" :ref="'catalog-' + field.key" cols="12" md="6"><catalog-reference-field :value="catalogValue(field.key)" :family="field.family" :label="field.label" :parent="catalogParent(field.key)" :active="panels.includes(3)" :disabled="saving || awaitingReload" :errors="catalogErrors[field.key] || []" @input="setCatalogReference(field.key,$event)" /></v-col></v-row>
+            <div ref="catalog-affiliations"><catalog-reference-list :value="identity.affiliations" family="sis.affiliation" label="Afiliación" :active="panels.includes(3)" :disabled="saving || awaitingReload" :errors="catalogErrors.affiliations || []" @input="setCatalogAffiliations" /></div>
+          </section>
         </v-expansion-panel-content></v-expansion-panel>
       </v-expansion-panels>
       <v-alert v-if="error" type="error" text role="alert" class="mt-4">{{ error }}</v-alert>
@@ -40,6 +43,9 @@
   </section>
 </template>
 <script>
+import CatalogReferenceField from '../../../components/identity/CatalogReferenceField.vue';
+import CatalogReferenceList from '../../../components/identity/CatalogReferenceList.vue';
+import { identityFieldError } from '../../../domain/identity/identityDraft';
 import DAPxService from '../../../services/core/px/DAPxService';
 import { patientAge, localDateString, normalizePatientPhone } from '../../../domain/patient/administrative.validation';
 import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
@@ -66,16 +72,16 @@ const emergencyValue = draft => {
 const editableIdentity = record => {
   const identity = clone(record);
   // Surname statuses are derived by the server; they are neither shown nor sent.
-  ['contractVersion','revision','updatedAt','provenance','qualityIssues','legacySurname','catalogValidation','curpSex','firstSurnameStatus','secondSurnameStatus'].forEach(key => delete identity[key]);
+  ['contractVersion','revision','updatedAt','provenance','qualityIssues','legacySurname','catalogValidation','catalogChecks','curpSex','firstSurnameStatus','secondSurnameStatus'].forEach(key => delete identity[key]);
   if(identity.curp) delete identity.curp.validationStatus;
   return identity;
 };
 export default {
-  components:{ 'da-sweet-confirm': DASweetConfirm },
+  components:{ CatalogReferenceField, CatalogReferenceList, 'da-sweet-confirm': DASweetConfirm },
   props:{patient:{type:Object,required:true}},
   data() {
     const patient=normalizePatient(this.patient), identity=patient.identity;
-    return {identity, baseline:clone(identity),person:clone(patient.person),address:clone(patient.address),original:clone(patient),legacySurname:identity.legacySurname,revision:identity.revision||0,panels:[0,1,2,3],saving:false,error:'',message:'',conflict:false,review:false,currentIdentity:null,currentPatient:null,awaitingReload:false,pendingSavedSurnames:null,sequence:0,
+    return {identity, baseline:clone(identity),person:clone(patient.person),address:clone(patient.address),original:clone(patient),legacySurname:identity.legacySurname,revision:identity.revision||0,panels:[0,1,2,3],saving:false,catalogErrors:{},error:'',message:'',conflict:false,review:false,currentIdentity:null,currentPatient:null,awaitingReload:false,pendingSavedSurnames:null,sequence:0,
       curpValue:(identity.curp||{}).value||'',curpKind:(identity.curp||{}).kind||'real',curpReason:(identity.curp||{}).reason||'',affiliations:affiliationText(identity),residence:clone(identity.residence||{}),pendingConfirmation:null,selectionRevision:0,emergency:emergencyDraft(patient.emergencyContact),
       relationshipItems:['Madre','Padre','Pareja','Hijo o hija','Hermano o hermana','Otro familiar','Amistad','Tutor o tutora'],
       surnames:{firstSurname:'Primer apellido',secondSurname:'Segundo apellido, opcional'},
@@ -85,6 +91,7 @@ export default {
   },
   computed:{
     today(){return localDateString();},
+    catalogReferences(){return [...this.catalogFields.map(f=>({...f,label:f.label.replace(': clave','')})),...this.residenceFields.map(f=>({...f,key:'residence.'+f.key,label:({country:'País de residencia',entity:'Entidad de residencia',municipality:'Municipio',locality:'Localidad'})[f.key]}))];},
     inputErrors(){
       const errors=[];
       if(this.required(this.identity.givenNames)!==true)errors.push('El nombre es obligatorio.');
@@ -97,7 +104,15 @@ export default {
       if(this.surnamesChanged && !surnameKeys.some(key=>String(this.identity[key]||'').trim()))errors.push('Registra al menos un apellido.');
       return errors;
     },
-    reviewDifferences(){const labels={givenNames:'Nombre(s)',firstSurname:'Primer apellido',secondSurname:'Segundo apellido',birthDate:'Fecha de nacimiento',};const display=(key,value)=>value||'Sin capturar';return Object.keys(labels).filter(key=>this.currentIdentity&&this.currentIdentity[key]!==this.identity[key]).map(key=>({key,label:labels[key],saved:display(key,this.currentIdentity[key]),draft:display(key,this.identity[key])}));},
+    reviewDifferences(){
+      if(!this.currentIdentity)return [];
+      const labels={givenNames:'Nombre(s)',firstSurname:'Primer apellido',secondSurname:'Segundo apellido',birthDate:'Fecha de nacimiento',affiliations:'Afiliaciones'};
+      this.catalogReferences.forEach(f=>{labels[f.key]=f.label;});
+      const value=(data,key)=>key.startsWith('residence.')?(data.residence||{})[key.slice(10)]:data[key];
+      const display=v=>Array.isArray(v)?v.map(display).join(', '):v&&typeof v==='object'?v.code+' ('+(v.releaseId||'sin verificar')+')':v||'Sin capturar';
+      const draft=this.formIdentity();
+      return Object.keys(labels).filter(key=>!same(value(this.currentIdentity,key),value(draft,key))).map(key=>({key,label:labels[key],saved:display(value(this.currentIdentity,key)),draft:display(value(draft,key))}));
+    },
     storedSurnamesPresent(){return surnameKeys.some(key => String(this.baseline[key]||'').trim());},
     surnamesChanged(){const draft=this.formIdentity(),baseline=editableIdentity(this.baseline);return surnameKeys.some(key=>!same(draft[key],baseline[key]));},
     surnameHint(){return this.surnamesChanged && !surnameKeys.some(key=>String(this.identity[key]||'').trim()) ? 'Registra al menos un apellido.' : '';},
@@ -128,6 +143,11 @@ export default {
   watch:{'identity.birthDate'(value){this.person.age=patientAge(value);}},
   beforeDestroy(){this.sequence++;},
   methods:{
+    catalogValue(key){return key.startsWith('residence.')?this.residence[key.slice(10)]||null:this.identity[key]||null;},
+    catalogParent(key){const parent=key==='residence.municipality'?'entity':key==='residence.locality'?'municipality':null;return parent?(this.residence[parent]||{}).code||'':'';},
+    setCatalogReference(key,value){if(this.saving||this.awaitingReload)return;if(key.startsWith('residence.'))this.$set(this.residence,key.slice(10),value);else this.$set(this.identity,key,value);this.catalogErrors={};},
+    setCatalogAffiliations(value){if(this.saving||this.awaitingReload)return;this.$set(this.identity,'affiliations',value);this.affiliations=affiliationText(this.identity);this.catalogErrors={};},
+    focusCatalog(key){if(!this.panels.includes(3))this.panels=[...this.panels,3];this.$nextTick(()=>{const wrapper=this.$refs['catalog-'+key],target=Array.isArray(wrapper)?wrapper[0]:wrapper;const root=target&&(target.$el||target);const input=root&&root.querySelector('input');if(input){input.focus();input.scrollIntoView({block:'center'});}});},
     validBirthDate(value){return patientAge(value)!=='' || 'Ingresa una fecha real, anterior o igual a hoy, con una edad de hasta 150 años.';},
     validPhone(value){return /^\d{10}$/.test(normalizePatientPhone(value)) || 'Ingresa un teléfono de contacto de 10 dígitos.';},
     optionalPhone(value){return !value || this.validPhone(value);},
@@ -161,7 +181,7 @@ export default {
       identity.curp=this.curpValue?{value:this.curpValue.toUpperCase(),kind:this.curpKind,...(this.curpKind==='generic'?{reason:this.curpReason}:{})}:null;
       identity.residence=Object.keys(this.residence).length?clone(this.residence):null;
       identity.affiliations=this.affiliations.trim()?this.affiliations.split(',').map(value=>{
-        const code=value.trim(), existing=(this.baseline.affiliations||[]).find(item=>item.code===code);
+        const code=value.trim(), existing=(this.identity.affiliations||[]).find(item=>item.code===code);
         return existing?clone(existing):{family:'sis.affiliation',code};
       }):null;
       return identity;
@@ -173,7 +193,7 @@ export default {
       if(surnameKeys.some(key=>!same(draft[key],baseline[key]))) surnameKeys.forEach(key=>{patch[key]=draft[key] == null ? null : draft[key];});
       // H3: address.cp is the single editable CP. Include its identity mirror in the same revision-controlled write.
       const cp=this.address.cp || '', previousCp=this.original.address.cp || '', storedCp=((baseline.residence||{}).postalCode||{}).code || '';
-      if(cp!==previousCp || (this.revision>0 && (this.addressChanged || Object.keys(patch).length) && cp!==storedCp)) {
+      if(cp!==previousCp || (this.revision>0 && this.addressChanged && cp!==storedCp)) {
         patch.residence={...(patch.residence||{}),postalCode:cp?{family:'sepomex.postal_code',code:cp}:null};
       }
       return patch;
@@ -200,12 +220,12 @@ export default {
       if(!this.$refs.form.validate() || this.inputErrors.length){this.error=this.inputErrors[0]||'Revisa los campos indicados.';return;}
       const pendingSurnames=null;
       const context=authorizationContext(this.$store), seq=this.sequence;
-      this.saving=true;this.error='';this.message='';
+      this.saving=true;this.error='';this.catalogErrors={};this.message='';
       try{
         const response=await DAPxService.updateAdministrative(this.buildPayload());
         if(seq!==this.sequence||!isCurrentAuthorization(context,this.$store))return;
         if(response.status===409 && (!response.data || response.data.code!=='AUTH_CONTEXT_CHANGED')){this.conflict=true;this.currentIdentity=null;await this.loadConflict();return;}
-        if(!response.success)throw Error(response.message);
+        if(!response.success){const mapped=identityFieldError(response);if(mapped){this.catalogErrors=mapped.errors;this.error=mapped.label+': '+mapped.message+' Conservamos la captura.';this.focusCatalog(mapped.field);return;}throw Error(response.message);}
         this.awaitingReload=true;this.pendingSavedSurnames=pendingSurnames;
         await this.reloadSaved();
       }catch(e){this.error=e.message||'No se pudo guardar. Tu captura se conserva.';}finally{this.saving=false;}
@@ -241,6 +261,22 @@ export default {
 };
 </script>
 <style scoped>
+html[data-theme="clinical-night"] .nc1-sheet,
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-expansion-panel { background:#1e293b; color:#e5e7eb; border-color:#475569; }
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-expansion-panel-header,
+html[data-theme="clinical-night"] .nc1-group-title small,
+html[data-theme="clinical-night"] .nc1-status-note,
+html[data-theme="clinical-night"] .nc1-emergency h3,
+html[data-theme="clinical-night"] .nc1-emergency h3 span,
+html[data-theme="clinical-night"] .nc1-emergency > p { color:#cbd5e1; }
+html[data-theme="clinical-night"] .nc1-catalogs { border-color:#475569; }
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-input input { background-color:transparent !important; }
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-btn--text:not(.v-btn--disabled),
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .v-btn--outlined:not(.v-btn--disabled) { color:#7dd3fc; }
+html[data-theme="clinical-night"] .nc1-sheet ::v-deep .catalog-field .error--text { color:#fda4af !important; }
+.nc1-catalogs { margin-top:18px; padding-top:16px; border-top:1px solid #dbe6ec; }
+.nc1-catalogs h3 { font-size:16px; margin-bottom:8px; }
+.nc1-catalogs > p { font-size:13px; line-height:1.5; }
 .nc1-surname-notice { padding:12px 14px; margin:12px 0 0; background:#f3f7fa; border-left:3px solid #186c8e; border-radius:0 8px 8px 0; font-size:14px; color:#334155; }
 .nc1-surname-absent { margin-top:6px; padding-top:0; }
 .nc1-surname-absent ::v-deep label { font-size:13px; color:#516479; }

@@ -39,3 +39,8 @@ test('only known 400 identity validation errors are presented as editable field 
   assert.equal(draft.identityFieldError({status:400,data:{code:'OTHER_ERROR',field:'curp'}}),null);
   assert.ok(draft.identityFieldError({status:400,data:{code:'IDENTITY_INVALID',field:'curp'}}));
 });
+test('foreign residence with INEGI points to country and explains the correction',()=>{
+  const result=draft.identityFieldError({status:400,data:{code:'RESIDENCE_COUNTRY_GEO_MISMATCH',field:'residence.country'}});
+  assert.equal(result.label,'País de residencia');assert.match(result.message,/INEGI corresponden a México/);
+  assert.deepEqual(result.errors,{'residence.country':[result.message]});
+});

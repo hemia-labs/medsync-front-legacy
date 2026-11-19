@@ -6,6 +6,24 @@ const root=path.resolve(__dirname,'../..');
 (async()=>{
     const source=fs.readFileSync(path.join(root,'src/domain/prescriptions/prescription.print.js'),'utf8');
     const printing=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+    const current={header_image:'CURRENT-HEADER',background_image:'CURRENT-BACKGROUND'};
+    for(const marker of [undefined,'business_v1'])for(const mode of ['header','background',undefined]){
+        const issued={status:'issued',template_snapshot:{document_logo:marker,template_mode:mode}};
+        assert.doesNotMatch(printing.buildPrescriptionPrintHtml(issued,current),/CURRENT-HEADER|CURRENT-BACKGROUND/,'Absence at issue never falls back to current images');
+        const withLogo=printing.buildPrescriptionPrintHtml({...issued,header_image_snapshot:'CAPTURED-A',background_image_snapshot:'CAPTURED-BACKGROUND'},current);
+        assert.doesNotMatch(withLogo,/CURRENT-HEADER|CURRENT-BACKGROUND/);
+        if(marker==='business_v1' && mode==='background')assert.match(withLogo,/<header class="header">\s*<img class="document-logo" src="CAPTURED-A"/);
+        if(mode==='header')assert.match(withLogo,/<img class="top-image" src="CAPTURED-A"/);
+    }
+    assert.match(printing.buildPrescriptionPreviewHtml(current,{},'SHARED-LOGO'),/src="SHARED-LOGO"/);
+    assert.doesNotMatch(printing.buildPrescriptionPreviewHtml(current,{},null),/CURRENT-HEADER/);
+    const medical=fs.readFileSync(path.join(root,'src/views/Patient/Sections/MedicalHistory.vue'),'utf8').replace(/\r/g,'');
+    const start=medical.indexOf('    printableClinicalHistoryHtml(payload) {');
+    const end=medical.indexOf('\n    },',start)+6;
+    const historyPrint=new Function('return ({'+medical.slice(start,end)+'})')().printableClinicalHistoryHtml;
+    const historyView={normalizeTemplateSchema:()=>({}),printablePatient:()=>[],printableSections:()=>'',currentUserPayload:{name:'QA'},printableStatusMark:()=>'',escapeHtml:String,statusLabel:String,formatDateTime:()=>'',printableTemplateLabel:()=>'',printableFieldsHtml:()=>'',printableDoctorFields:()=>[],printableConsentFields:()=>[]};
+    for(const state of ['captured_none','unrecorded'])assert.doesNotMatch(historyPrint.call(historyView,{history:{status:'FINALIZED'},business:{logoUrl:'CURRENT-LOGO'},document_logo:{state,image:null}}),/<img class="logo"|CURRENT-LOGO/);
+    for(const state of ['captured','current'])assert.match(historyPrint.call(historyView,{history:{status:state==='current'?'DRAFT':'FINALIZED'},business:{logoUrl:'OTHER-LOGO'},document_logo:{state,image:'DOCUMENT-LOGO'}}),/<img class="logo" src="DOCUMENT-LOGO"/);
     let windows=0, renders=0;
     global.window={open(){ windows++;return {document:{open(){},write(html){renders++;assert.ok(html.includes('QA-001'));},close(){}}};}};
     for(const status of ['draft','cancelled',null,'unexpected']) {
