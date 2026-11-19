@@ -1,0 +1,63 @@
+name: Shared document logo
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'src/views/configuration/components/PrescriptionConfig.vue'
+      - 'src/views/configuration/components/PrivateClinicLogo.vue'
+      - 'src/views/Patient/Sections/TreatmentPlan.vue'
+      - 'src/domain/prescriptions/prescription.print.js'
+      - 'src/domain/treatment-plan/plan.print.js'
+      - 'scripts/qa/shared-document-logo-browser.cjs'
+      - 'scripts/qa/shared-document-logo-layout.cjs'
+      - 'scripts/qa/treatment-plan-print-browser.cjs'
+      - '.github/workflows/shared-document-logo.yml'
+permissions:
+  contents: read
+jobs:
+  ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --openssl-legacy-provider
+      VUE_APP_CORE_URL_API: http://127.0.0.1:4398/
+      VUE_APP_AUTH_COOKIE_MODE: d2
+      VUE_APP_BROWSER_AUTH_TRANSPORT: cookie
+      VUE_APP_CSRF_ENABLED: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Renderers and editor contracts
+        run: |
+          node scripts/qa/prescription-output-regression.cjs
+          node scripts/qa/co11-professional-config-regression.cjs
+          node scripts/qa/ux12-clinical-configuration-regression.cjs
+          node scripts/qa/settings-session-stability-regression.cjs
+      - name: Start isolated shell
+        run: |
+          node node_modules/@vue/cli-service/bin/vue-cli-service.js serve --host 127.0.0.1 --port 4397 > /tmp/shared-logo-server.log 2>&1 &
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:4397/ -o /dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 60 /tmp/shared-logo-server.log
+          exit 1
+      - name: Desktop, mobile, roles, themes and printable plans
+        run: |
+          node scripts/qa/shared-document-logo-layout.cjs artifacts/layout
+          node scripts/qa/shared-document-logo-browser.cjs artifacts/editor
+          node scripts/qa/treatment-plan-print-browser.cjs artifacts/treatments
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-document-logo-ui
+          path: artifacts
+          retention-days: 7

@@ -235,7 +235,7 @@
         <section v-if="activeSection === 'appearance'" class="mt-6 bg-white bg-opacity-95 border border-primary-200 shadow-xl" aria-labelledby="document-logo-title">
             <div class="px-7 py-5 border-b border-primary-200 bg-primary-100 settings-card-header settings-section-header">
                 <h2 id="document-logo-title" class="m-0 text-gray-600 text-2xl font-normal">Logo para documentos</h2>
-                <p class="m-0 mt-2 text-gray-500 text-sm">Esta imagen identifica al consultorio en sus historias clínicas y en las páginas de firma de documentos.</p>
+                <p class="m-0 mt-2 text-gray-500 text-sm">Esta imagen identifica al consultorio en sus historias clínicas, recetas, planes de tratamiento y páginas de firma de documentos.</p>
             </div>
             <div class="p-7">
                 <p v-if="businessInfoLoading" role="status" class="text-gray-600">Cargando el logo guardado…</p>
@@ -248,6 +248,7 @@
             v-if="activeSection === 'prescriptions'"
             :theme-color="themePrimaryColor"
             @saved="toastFunction('success','Configuración de recetas guardada.')"
+            @logo-saved="onPrivateLogoSaved"
             @error="toastFunction('error',$event)"
         ></prescription-config>
 

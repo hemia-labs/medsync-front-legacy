@@ -14,7 +14,7 @@ const interaction = require('./agenda-test-helpers.cjs');
   function component(file, helpers={}) {
     const sfc=fs.readFileSync(path.join(__dirname,'../../src/views/configuration/components',file),'utf8');
     const script=sfc.split('<script>')[1].split('</script>')[0].replace(/^import[\s\S]*?;\r?\n/gm,'').replace('export default','component =');
-    const context={component:null,...interaction,...availability,ClinicTimeZoneField:{},mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},DAPrescriptionService:service,DAAppointmentService:service,...settings,...helpers};
+    const context={component:null,PrivateClinicLogo:{},...interaction,...availability,ClinicTimeZoneField:{},mapGetters:()=>({}),moduleTypes:{AUTH:{}},fnTypes:{},DAPrescriptionService:service,DAAppointmentService:service,...settings,...helpers};
     vm.runInNewContext(script,context);
     const options=context.component, state=options.data();
     Object.assign(state,{authUser:{id_login:'qa-actor',id_business:'qa-business'},role:'doctor',hasPermission:()=>true,themeColor:'#087F8C',initialDoctorId:'',$swal:{fire:async()=>({isConfirmed:true})},$emit:()=>{},$nextTick:callback=>callback(),$refs:{}});

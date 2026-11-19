@@ -646,11 +646,12 @@
         </header>
         <iframe v-if="printSheet" ref="printFrame" :key="printSheet" :srcdoc="printSheet" sandbox="allow-same-origin allow-modals"
           title="Hoja del plan de tratamiento" @load="onPrintFrameLoad"></iframe>
-        <p v-else-if="previewPlan" role="alert" class="plan-feedback feedback-error">No se pudo preparar la hoja. Cierra la vista previa y vuelve a abrir el plan.</p>
+        <p v-else-if="previewPlan && printLogoLoading" role="status" class="plan-feedback">Preparando el logo y la hoja del plan…</p>
         <p v-if="printError" role="alert" class="plan-feedback feedback-error">{{ printError }}</p>
         <v-card-actions class="dialog-actions">
           <button type="button" class="btn-outline" @click="closePrintPreview">Cerrar</button>
-          <button type="button" class="btn-primary" :disabled="!printReady" @click="printPreviewSheet">Imprimir o guardar PDF</button>
+          <button v-if="printError" type="button" class="btn-outline" :disabled="printBusy" @click="refreshPlanPreview">Reintentar vista previa</button>
+          <button type="button" class="btn-primary" :disabled="!printReady || printBusy" @click="printPreviewSheet">{{ printBusy ? 'Preparando impresión…' : 'Imprimir o guardar PDF' }}</button>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -709,7 +710,8 @@ import VuexMixin from '../../../mixins/VuexMixin';
 import moduleTypes from '../../../store/modules/common/module-types';
 import fnTypes from '../../../store/modules/common/fn-types';
 import { isD2AuthMode } from '../../../services/config/authTransport.config';
-import { DATreatmentService } from '../../../services/context/core-proccess-context';
+import { DATreatmentService, DABusinessService } from '../../../services/context/core-proccess-context';
+import { authorizationContext, isCurrentAuthorization } from '../../../security/authorizationContext';
 import dialogName from '../../../core/directives/dialog-name';
 import fieldError from '../../../core/directives/field-error';
 import { sanitizeHtmlForDocumentSnapshot } from '../../../utils/sanitizeHtml';
@@ -769,6 +771,7 @@ export default {
       treatmentEditorSession: 0,
       dentalImportState: { open:false, loading:false, count:0, canApply:false, pending:false },
       previewPlan: null,
+      printLogo:'', printLogoLoaded:false, printLogoLoading:false, printBusy:false, printRequest:0,
       printTrigger: null,
       printReady: false,
       printError: '',
@@ -834,6 +837,7 @@ export default {
     });
   },
   beforeDestroy() {
+    this.printRequest++;
     this.loadRequest++;
     document.documentElement.classList.remove('tp-treatment-editor-open');
     this.$emit('register-navigation-guard', null);
@@ -849,7 +853,7 @@ export default {
       return this.localPlanData || {};
     },
     printSheet() {
-      if (!this.previewPlan || !this.ready || !this.moduleEnabled) return '';
+      if (!this.previewPlan || !this.ready || !this.moduleEnabled || !this.printLogoLoaded) return '';
       try {
         return this.printableHistoryHtml(this.previewPlan);
       } catch {
@@ -1883,7 +1887,7 @@ export default {
         return 'Diente '+tooth+(faces ? ' ('+faces+')' : '');
       }).join('; ') || 'Sin dientes específicos';
       return treatmentPlanPrintHtml({
-        businessName: this.businessName, patientName: this.patientName, title: plan.title,
+        businessName: this.businessName, logo: this.printLogo, patientName: this.patientName, title: plan.title,
         closed: plan.status === 'closed' || Boolean(plan.closed_at),
         start: this.formatDisplayDate(plan.started_at), end: this.formatDisplayDate(plan.closed_at),
         diagnosis: plan.diagnosis, consent: Boolean(plan.consent && this.canViewConsent),
@@ -1983,8 +1987,45 @@ export default {
     printHistory(plan) {
       this.printTrigger = document.activeElement;
       this.previewPlan = plan;
+      this.refreshPlanPreview();
+    },
+    async refreshPlanLogo() {
+      const request=++this.printRequest, context=authorizationContext(this.$store), patient=this.patientId;
+      this.printLogoLoading=true;
+      try {
+        const response=await DABusinessService.getCurrent();
+        if(request!==this.printRequest || !this.previewPlan || patient!==this.patientId || !isCurrentAuthorization(context,this.$store))return false;
+        if(!response || !response.success || !response.data)throw Error();
+        this.printLogo=response.data.logoUrl || '';
+        this.printLogoLoaded=true;
+        return true;
+      }catch(_){
+        if(request===this.printRequest)this.printError='No pudimos consultar el logo para documentos. Reintenta antes de imprimir.';
+        return false;
+      }finally{if(request===this.printRequest)this.printLogoLoading=false;}
+    },
+    async refreshPlanPreview() {
+      this.printReady=false;this.printError='';this.printLogoLoaded=false;
+      await this.refreshPlanLogo();
+    },
+    async waitForPlanImages(frame) {
+      if(!frame)throw Error();
+      await new Promise((resolve,reject)=>{
+        const done=ok=>{clearTimeout(timer);frame.removeEventListener('load',loaded);ok ? resolve() : reject(Error());};
+        const loaded=()=>done(Boolean(frame.contentDocument && frame.contentDocument.querySelector('h1')));
+        const timer=setTimeout(()=>done(false),10000);
+        if(frame.contentDocument && frame.contentDocument.readyState==='complete' && frame.contentDocument.querySelector('h1'))done(true);
+        else frame.addEventListener('load',loaded);
+      });
+      await Promise.all(Array.from(frame.contentDocument.images).map(img=>new Promise((resolve,reject)=>{
+        const done=ok=>{clearTimeout(timer);img.removeEventListener('load',loaded);img.removeEventListener('error',failed);ok ? resolve() : reject(Error());};
+        const loaded=()=>done(img.naturalWidth>0),failed=()=>done(false);
+        const timer=setTimeout(failed,10000);
+        if(img.complete)loaded();else{img.addEventListener('load',loaded);img.addEventListener('error',failed);}
+      })));
     },
     closePrintPreview() {
+      this.printRequest++;this.printBusy=false;this.printLogoLoading=false;this.printLogoLoaded=false;
       const trigger = this.printTrigger;
       this.printTrigger = null;
       this.previewPlan = null;
@@ -1994,7 +2035,7 @@ export default {
         if (!this.previewPlan && trigger.isConnected) trigger.focus();
       });
     },
-    onPrintFrameLoad(event) {
+    async onPrintFrameLoad(event) {
       const frame = event.target;
       if (frame !== this.$refs.printFrame || !frame.contentDocument.body.querySelector('h1')) return;
       if (this.$refs.printHeading) window.requestAnimationFrame(() => {
@@ -2004,16 +2045,26 @@ export default {
       frame.contentDocument.addEventListener('keydown', keyEvent => {
         if (keyEvent.key === 'Escape') this.closePrintPreview();
       });
-      this.printReady = true;
-    },
-    printPreviewSheet() {
-      if (!this.printReady) return;
-      this.printError = '';
       try {
-        this.$refs.printFrame.contentWindow.print();
-      } catch {
-        this.printError = 'No se pudo abrir la impresión. Vuelve a pulsar «Imprimir o guardar PDF».';
+        await this.waitForPlanImages(frame);
+        if(frame===this.$refs.printFrame)this.printReady=true;
+      } catch(_) {
+        if(frame===this.$refs.printFrame){this.printReady=false;this.printError='No pudimos cargar el logo de la hoja. Reintenta la vista previa antes de imprimir.';}
       }
+    },
+    async printPreviewSheet() {
+      if (!this.printReady || this.printBusy) return;
+      this.printError = '';this.printBusy=true;
+      try {
+        if(!await this.refreshPlanLogo())return;
+        const request=this.printRequest,context=authorizationContext(this.$store);
+        await this.$nextTick();
+        const frame=this.$refs.printFrame;
+        await this.waitForPlanImages(frame);
+        if(request===this.printRequest && frame===this.$refs.printFrame && isCurrentAuthorization(context,this.$store))frame.contentWindow.print();
+      } catch {
+        this.printError = 'No se pudo preparar la imagen o abrir la impresión. Reintenta la vista previa.';
+      } finally {this.printBusy=false;}
     },
     printConsent: function(plan) {
       if(!plan || !plan.consent) {
