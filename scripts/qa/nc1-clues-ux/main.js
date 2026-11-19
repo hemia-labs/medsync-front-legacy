@@ -187,6 +187,15 @@ async function transport(method, url, payload, config) {
     Object.assign(u, clone(payload.identity), { revision: u.revision + 1, updatedAt: '2026-11-18T12:30:00Z' });
     return reply(view(u));
   }
+  if (path === 'config/login-image/get') return reply([]);
+  if (path === 'config/theme/get' || path === 'config/theme/list') return reply([{ ...DEFAULT_THEME, code: params.get('theme') === 'night' ? 'clinical-night' : DEFAULT_THEME.code }]);
+  if (path === 'business/current/logo') {
+    await wait(400);
+    if (method === 'put') state.business.logoUrl = payload.image;
+    else if (method === 'delete') state.business.logoUrl = '';
+    else return failure(405, 'Método no admitido');
+    return reply(clone(state.business));
+  }
   if (/^business\/current$/.test(path)) {
     if (method === 'get') { await wait(200); return reply(clone(state.business)); }
     await wait(400); const f = failWrite('business');

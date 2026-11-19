@@ -38,7 +38,7 @@ export const helpArticles = {
   'apariencia-consultorio': {
     summary: 'Personaliza el logo que identifica el acceso y la paleta de colores que verá todo el equipo.',
     sections: [
-      { id: 'logo', title: 'Cambia el logo de acceso', steps: ['Entra a «Configuración → Apariencia» con una cuenta de administración.', 'En «Logo de acceso», usa «Seleccionar logo» y elige la imagen. Se recomienda un PNG o WEBP horizontal de 700 × 250 y un máximo de 2 MB.', 'Revisa «Vista previa» y selecciona «Guardar logo».'], paragraphs: ['Este logo identifica la pantalla de acceso y la cabecera del sistema. El logo que aparece en historias clínicas y firmas públicas se configura en «Información del consultorio».', 'Si la imagen se rechaza, revisa su formato y tamaño, y vuelve a seleccionarla.'] },
+      { id: 'logo', title: 'Cambia el logo de acceso', steps: ['Entra a «Configuración → Apariencia» con una cuenta de administración.', 'En «Logo de acceso», usa «Seleccionar logo» y elige la imagen. Se recomienda un PNG o WEBP horizontal de 700 × 250 y un máximo de 2 MB.', 'Revisa «Vista previa» y selecciona «Guardar logo».'], paragraphs: ['Este logo identifica la pantalla de acceso y la cabecera del sistema.', 'En el mismo apartado, «Logo para documentos» permite elegir la imagen de las historias clínicas y las páginas de firma. Admite PNG, JPEG o WebP de hasta 5 MB; selecciona «Guardar logo» para aplicarla.', 'Si la imagen se rechaza, revisa su formato y tamaño, y vuelve a seleccionarla.'] },
       { id: 'tema', title: 'Elige los colores del sistema', steps: ['En «Tema del sistema», selecciona una paleta para ver cómo queda.', 'Selecciona «Guardar tema» para aplicarla al consultorio.'], paragraphs: ['Elegir una paleta muestra una vista previa sin guardar. Si sales sin guardar, se descarta. El tema guardado lo ven todas las personas del consultorio.'] }
     ]
   },
@@ -569,10 +569,10 @@ export const helpArticles = {
         ]
       },
       {
-        id: 'logo-opcional', title: 'Agrega el enlace del logo solo si lo necesitas',
+        id: 'logo-opcional', title: 'Configura el logo desde Apariencia',
         paragraphs: [
-          'Enlace del logo del consultorio (opcional) permite indicar una dirección completa que empiece con http:// o https://. Puedes dejarlo vacío; no es necesario para completar los datos básicos.',
-          'Ese logo se usa al imprimir historias clínicas y en firmas públicas. El logo de la pantalla de acceso se configura por separado en «Apariencia».'
+          'La imagen del consultorio se configura en «Configuración → Apariencia». No necesitas subir un logo para completar los datos básicos del consultorio.',
+          'En Apariencia encontrarás el logo de acceso y el logo para documentos, con una vista previa antes de guardar.'
         ]
       },
       {

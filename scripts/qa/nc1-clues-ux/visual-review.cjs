@@ -7,10 +7,17 @@ const path = require('node:path');
 const OUT = process.env.NC1_QA_OUT || path.join(require('node:os').tmpdir(), 'medsync-nc1-clues-qa');
 fs.mkdirSync(OUT, { recursive: true });
 const button = (p, name) => p.getByRole('button', { name, exact: true });
+async function selectSection(p, name) {
+  const toggle = button(p, 'Apartados de configuración');
+  if (await toggle.isVisible()) await toggle.click();
+  await button(p, name).click();
+}
 const reports = [];
+const BASE = process.env.NC1_QA_BASE || 'http://127.0.0.1:4388';
+const selectedCase = process.env.NC1_QA_CASE;
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
 async function open(p, theme, query = 'scenario=verified') {
-  await p.goto('http://127.0.0.1:4388/admin?section=identity&' + query + (theme ? '&theme=night' : ''));
+  await p.goto(BASE + '/admin?section=identity&' + query + (theme ? '&theme=night' : ''));
   await p.locator('.health-units').waitFor();
   await p.waitForFunction(() => !document.querySelector('.health-units').__vue__.loading);
 }
@@ -35,7 +42,8 @@ const cases = {
     assert.equal(await p.getByRole('heading', { name: 'Contacto y ubicación', exact: true }).count(), 1);
     const typography = await p.locator('.clinic-detail-list dd').last().evaluate(el => ({ weight: getComputedStyle(el).fontWeight, size: getComputedStyle(el).fontSize, font: getComputedStyle(el).fontFamily }));
     assert.equal(typography.weight, '400'); assert.equal(typography.size, '14px'); r.typography = typography;
-    await checkContrast(p, r, ['.clinic-account__description', '.clinic-account__link', '.clinic-detail-list dd', '.unit-introduction p', '.private-logo__choose']);
+    await checkContrast(p, r, ['.clinic-account__description', '.clinic-account__link', '.clinic-detail-list dd', '.unit-introduction p']);
+    assert.equal(await p.locator('.clinic-identity input[type=file]').count(), 0);
     await capture(p, r, 'summary');
     await p.getByText('¿Cómo obtengo mi CLUES?', { exact: true }).click();
     assert((await p.locator('.unit-introduction').innerText()).includes('servicios de salud de tu estado'));
@@ -98,16 +106,47 @@ const cases = {
   },
   async logo(p, r, night) {
     await open(p, night);
+    assert.equal(await p.locator('.private-logo').count(), 0);
+    await selectSection(p, 'Apariencia');
+    await p.getByRole('heading', { name: 'Logo para documentos', exact: true }).waitFor();
+    await checkContrast(p, r, ['.private-logo__choose', '.private-logo__help']);
     await button(p, 'Elegir imagen').focus();
     const chooserPromise = p.waitForEvent('filechooser'); await button(p, 'Elegir imagen').press('Enter');
     const chooser = await chooserPromise; await chooser.setFiles({ name: 'logo-qa.png', mimeType: 'image/png', buffer: pixel });
     await p.getByText('Imagen lista para guardar', { exact: true }).waitFor();
     assert(await p.locator('.private-logo__preview img').evaluate(el => el.complete && el.naturalWidth > 0));
+    await selectSection(p, 'Información del consultorio');
+    await button(p, 'Seguir editando').click();
+    await p.locator('.swal2-container').waitFor({ state: 'hidden' });
+    assert.equal(await p.locator('.private-logo__preview img').count(), 1);
     await capture(p, r, 'logo-selected');
     await button(p, 'Cancelar selección').click(); assert.equal(await p.locator('.private-logo__preview img').count(), 0);
     await p.locator('.private-logo input[type=file]').setInputFiles({ name: 'wrong.txt', mimeType: 'text/plain', buffer: Buffer.from('QA') });
     await p.getByText('Selecciona PNG, JPEG o WebP de hasta 5 MB.', { exact: true }).waitFor();
     assert.equal((await writes(p)).length, 0);
+    await p.locator('.private-logo input[type=file]').setInputFiles({ name: 'logo-qa.png', mimeType: 'image/png', buffer: pixel });
+    await p.getByText('Imagen lista para guardar', { exact: true }).waitFor();
+    await p.locator('.private-logo').getByRole('button', { name: 'Guardar logo', exact: true }).click();
+    await p.getByText('Imagen lista para guardar', { exact: true }).waitFor({ state: 'hidden' });
+    assert.equal((await writes(p)).length, 1);
+    assert.equal((await writes(p))[0].path, 'business/current/logo');
+    await selectSection(p, 'Información del consultorio');
+    await p.locator('.health-units').waitFor();
+    assert.equal(await p.locator('.private-logo').count(), 0);
+    await selectSection(p, 'Apariencia');
+    await p.locator('.private-logo').getByRole('button', { name: 'Eliminar logo', exact: true }).click();
+    await p.locator('.private-logo__preview img').waitFor({ state: 'hidden' });
+    assert.equal((await writes(p)).length, 2);
+    assert.equal((await writes(p))[1].method, 'delete');
+    await p.locator('.private-logo input[type=file]').setInputFiles({ name: 'logo-qa.png', mimeType: 'image/png', buffer: pixel });
+    await p.getByText('Imagen lista para guardar', { exact: true }).waitFor();
+    await selectSection(p, 'Información del consultorio');
+    await button(p, 'Descartar cambios').click();
+    await p.locator('.health-units').waitFor();
+    await selectSection(p, 'Apariencia');
+    await p.locator('.private-logo').waitFor();
+    assert.equal(await p.locator('.private-logo__preview img').count(), 0);
+    assert.equal((await writes(p)).length, 2);
   },
   async comparison(p, r, night) {
     await open(p, night, 'scenario=stale');
@@ -137,7 +176,7 @@ const cases = {
 (async () => {
   await require('./ready.cjs')();
   const browser = await chromium.launch({ headless: true });
-  for (const width of [1280, 390]) for (const night of [false, true]) for (const [name, fn] of Object.entries(cases)) {
+  for (const width of [1280, 390]) for (const night of [false, true]) for (const [name, fn] of Object.entries(cases).filter(([name]) => !selectedCase || name === selectedCase)) {
     const page = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 900 } });
     // The shared template loads Google Fonts; asset loading has a separate budget from UI assertions.
     page.setDefaultNavigationTimeout(60000); page.setDefaultTimeout(12000);
@@ -147,12 +186,12 @@ const cases = {
     catch (e) { r.pass = false; r.error = String(e); await capture(page, r, 'FAIL-' + name).catch(() => {}); }
     console.log(name, width, r.theme, r.pass ? 'PASS' : r.error); reports.push(r); await page.close();
   }
-  for (const [width, night] of [[1280, false], [390, true]]) for (const query of ['scenario=empty', 'scenario=load-error', 'scenario=inactive', 'scenario=verified&perm=none']) {
+  if (!selectedCase) for (const [width, night] of [[1280, false], [390, true]]) for (const query of ['scenario=empty', 'scenario=load-error', 'scenario=inactive', 'scenario=verified&perm=none']) {
     const p = await browser.newPage({ viewport: { width, height: 900 } }); p.setDefaultNavigationTimeout(60000);
     const r = { name: query, width, theme: night ? 'night' : 'light', screenshots: [], errors: [] };
     p.on('pageerror', e => r.errors.push(String(e)));
     try {
-      if (query.includes('perm=none')) { await p.goto('http://127.0.0.1:4388/admin?section=identity&' + query + (night ? '&theme=night' : '')); await p.waitForTimeout(1200); assert.equal(await p.locator('.health-units').count(), 0); }
+      if (query.includes('perm=none')) { await p.goto(BASE + '/admin?section=identity&' + query + (night ? '&theme=night' : '')); await p.waitForTimeout(1200); assert.equal(await p.locator('.health-units').count(), 0); }
       else { await open(p, night, query); const text=await p.locator('.health-units').innerText(); assert(text.includes(query.includes('empty') ? 'Aún no registras' : query.includes('load-error') ? 'No se pudieron consultar' : 'Inactiva en MedSync')); }
       assert.equal((await writes(p)).length, 0); assert.equal(r.errors.length, 0); r.pass = true;
       await capture(p, r, query.replace(/[^a-z-]/g, '-'));
