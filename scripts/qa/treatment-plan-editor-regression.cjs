@@ -19,7 +19,9 @@ const DOMPurify = require('dompurify');
     const script = sfc.split('<script>')[1].split('</script>')[0].replace(/^import[^;]+;\r?\n/gm, '').replace('export default', 'component =');
     const context = { component: null, mapActions: () => ({}), mapGetters: () => ({}), VuexMixin: {}, moduleTypes: { TREATMENT: {}, CONFIGURATION: {}, AUTH: {} }, fnTypes: {},
         isD2AuthMode: () => true, DADocumentService: {}, DATreatmentService: {}, DocumentSignatureOptionsDialog: {}, ListPageNav: {}, dialogName: {}, fieldError: {}, ...sanitizerContext.module.exports, ...settings, ...helper,
-        Blob, window: dom.window, document: dom.window.document, getComputedStyle: () => ({ getPropertyValue: () => '#0e7490' }) };
+        ...require('../../src/domain/treatment-plan/plan.print'),
+        dentalSurfaceLabel: require('../../src/utils/odontogram/dentalContract').surfaceLabel,
+        window: dom.window, document: dom.window.document, getComputedStyle: () => ({ getPropertyValue: () => '#0e7490' }) };
     vm.runInNewContext(script, context);
     const options = context.component;
     const fresh = () => {
@@ -158,6 +160,38 @@ const DOMPurify = require('dompurify');
     padOptions.created.call(untracked);
     assert.equal(untracked.signaturepadOptions.onEnd, undefined, 'Existing consumers retain their default behavior');
     assert.match(sfc, /v-dialog-name/);
-    assert.match(sfc, /:aria-pressed="String\(treatmentForm.teeth.includes\(tooth\)\)"/);
+    const privacy = fresh();
+    const printable = privacy.printableHistoryHtml({title:'Plan <seguro>',notes:'PLAN_INTERNAL',consent:{patient_signature:'SIGNATURE_SECRET'},treatments:[{name:'Restauración',description:'Descripción paciente',notes:'TREATMENT_INTERNAL',teeth:['11'],tooth_details:[{tooth_number:'11',surfaces:'OL'}],cost:120,status:'pending'}]});
+    assert.ok(printable.includes('Plan &lt;seguro&gt;'));
+    assert.ok(printable.includes('Descripción paciente'));
+    assert.ok(printable.includes('Incisal, Palatina'));
+    for(const secret of ['PLAN_INTERNAL','TREATMENT_INTERNAL','SIGNATURE_SECRET']) assert.equal(printable.includes(secret),false);
+    dom.window.open = () => assert.fail('The plan preview must stay inside the patient record');
+    privacy.printHistory({ title: 'QA preview', treatments: [] });
+    assert.match(privacy.printSheet, /QA preview/);
+    assert.doesNotMatch(privacy.printSheet, /onclick|<script|<button/);
+    privacy.localPlanData.permissions.costView = false;
+    assert.doesNotMatch(privacy.printSheet, /Presupuesto/);
+    const frame = dom.window.document.createElement('iframe');
+    dom.window.document.body.appendChild(frame);
+    frame.contentDocument.body.innerHTML = '<h1>QA preview</h1>';
+    privacy.$refs.printFrame = frame;
+    privacy.onPrintFrameLoad({ target: frame });
+    frame.contentWindow.print = () => { throw new Error('QA unavailable'); };
+    privacy.printPreviewSheet();
+    assert.match(privacy.printError, /No se pudo abrir/);
+    let printCalls = 0;
+    frame.contentWindow.print = () => { printCalls++; };
+    privacy.printPreviewSheet();
+    assert.equal(printCalls, 1);
+    assert.equal(privacy.printError, '');
+    frame.contentDocument.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.equal(privacy.printSheet, '');
+    assert.equal(privacy.printReady, false);
+    privacy.localPlanData.config.showTreatmentStatus=false;
+    assert.equal(privacy.printableHistoryHtml({treatments:[{name:'QA',status:'pending'}]}).includes('<th>Estado</th>'),false);
+    privacy.openTreatmentDialog(); privacy.dentalImportState={open:true,pending:true};
+    assert.equal(privacy.dirty,true,'Unapplied import selections participate in leave protection');
+    assert.equal(await privacy.saveTreatment(),false,'Cannot save before applying or cancelling import');
     console.log('PASS treatment editor: dirty/stay/save/discard, failed save retention, validation/no requests, zero cost, load/stale-response recovery, duplicate submit, permissions/status filters, immutable consent view, restricted printing, route/unload guards, unapplied/cleared strokes and optional signature notifications. In-memory only.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

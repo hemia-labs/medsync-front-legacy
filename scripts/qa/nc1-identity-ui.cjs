@@ -11,7 +11,11 @@ const root = path.resolve(__dirname, '../..');
 const sfc = compiler.parseComponent(fs.readFileSync(path.join(root, 'src/components/identity/IdentityFields.vue'), 'utf8'));
 const template = sfc.template.content.replace(/<!--[\s\S]*?-->/g, '');
 assert.deepEqual(compiler.compile(sfc.template.content).errors, []);
-const options = new Function('fieldError', sfc.script.content.replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'return'))({});
+const catalogSource = fs.readFileSync(path.join(root, 'src/domain/identity/catalogCapture.js'), 'utf8');
+const catalogNames = [...catalogSource.matchAll(/export const (\w+)/g)].map(m => m[1]);
+const catalog = new Function(catalogSource.replace(/export const /g, 'const ') + '\nreturn {' + catalogNames.join(',') + '};')();
+const deps = { fieldError: {}, CatalogReferenceField: {}, CatalogReferenceList: {}, ...catalog };
+const options = new Function(...Object.keys(deps), sfc.script.content.replace(/^import[\s\S]*?;\r?\n/gm, '').replace('export default', 'return'))(...Object.values(deps));
 const results = [];
 const test = (name, fn) => { fn(); results.push(name); console.log('PASS ' + name); };
 const make = (value = {}, extra = {}) => {
@@ -58,7 +62,7 @@ test('other updaters keep the previous payload (no trimming yet; N1 separate)', 
 test('unique ids per instance, disabled on every control, focus opens the disclosure', () => {
   const a = make({}, { _uid: 11 }).self, b = make({}, { _uid: 12 }).self;
   assert.notEqual(a.fe('givenNames').id, b.fe('givenNames').id);
-  const controls = template.split(/<v-(?:text-field|select)\b/).slice(1).map(c => c.split(/><\/v-(?:text-field|select)>/)[0]);
+  const controls = template.split(/<(?:v-(?:text-field|select)|catalog-reference-(?:field|list))\b/).slice(1).map(c => c.split(/><\/v-(?:text-field|select)>/)[0]);
   assert.ok(controls.length >= 10); controls.forEach(c => assert.match(c, /:disabled="disabled"/));
   assert.match(template, /class="idf-toggle" :disabled="disabled" :aria-expanded="String\(open\)" :aria-controls="uid \+ '-refs'"/);
   assert.match(template, /role="group"/);

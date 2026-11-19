@@ -309,6 +309,19 @@ function moduleWith(file, bindings = {}) {
     assert.equal(navigation.length, actorNavigation); assert.equal(paypalButton(), undefined); assert.equal(generatedKeys, staleKeys); assert.equal(writes().length, staleWrites);
     getters['CORE/AUTH/getRole'] = 'admin';
     api.subscription = normalSubscription; api.attempt = normalResumeAttempt; api.create = normalResumeCreate; api.plans = normalResumePlans; currentReceipt = json(ready); nextId = key; popupCalls.length = 0;
+
+    // Released Billing can return a valid approval URL without optional PayPal SDK metadata.
+    await mount({ attempt_id: key });
+    const resumeWrites = writes().length;
+    assert.equal(paypalButton(), undefined);
+    button('Continuar en PayPal').click(); await flush();
+    assert.equal(redirects.pop(), ready.checkoutUrl);
+    assert.equal(writes().length, resumeWrites, 'Resuming does not create or verify a payment');
+    for (const checkoutUrl of ['https://www.paypal.com.example.test/checkout', 'https://www.paypal.com:444/checkout']) {
+      currentReceipt = { ...ready, checkoutUrl }; await mount({ attempt_id: key });
+      assert.equal(button('Continuar en PayPal'), undefined);
+    }
+    currentReceipt = json(ready);
     apiCalls.length=0;
     await mount();
     assert.equal(apiCalls.filter(call => call[0] === 'prepare').length, 1, 'Current docs are preloaded without a plan or extra step'); assert.equal(writes().length, 0);

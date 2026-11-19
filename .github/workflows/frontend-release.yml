@@ -33,6 +33,11 @@ jobs:
         run: |
           node scripts/qa/nc1-ux5-closed-history.cjs
           node scripts/qa/nc1-c05-effective-consent.cjs
+          node scripts/qa/nc1-consent-substitution.cjs
+          node scripts/qa/nc1-catalog-capture.cjs
+          node scripts/qa/nc1-ux1/check.cjs
+          node scripts/qa/nc1-identity-review-regression.cjs
+          node scripts/qa/nc1-ux6-new-patient-identity.cjs
           node scripts/qa/nc1-user-surnames-review.cjs
           node scripts/qa/ux11-login-staff-regression.cjs
           node scripts/qa/ux12-staff-permissions-regression.cjs
@@ -41,6 +46,7 @@ jobs:
         run: |
           node scripts/qa/nc1-no-replay-regression.cjs
           node scripts/qa/nc1-auth-401-ambiguous-regression.cjs
+          node scripts/qa/nc1-auth-activation-no-replay-regression.cjs
           node scripts/qa/s18-authorization-session-regression.cjs
           node scripts/qa/d2-session-lifecycle-frontend.js
           node scripts/qa/nc1-client-403-session-regression.cjs

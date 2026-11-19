@@ -47,6 +47,7 @@
                   <paypal-button v-else-if="paypalReady" type="subscribe" class="paypal-gold payment-paypal-button" :disabled.prop="busy || loading || paypalOpening" @click="openPayPal"></paypal-button>
                   <v-btn v-else outlined :disabled="busy || loading || paypalLoading" @click="preparePayPal">{{ paypalLoading ? 'Cargando PayPal…' : 'Volver a cargar PayPal' }}</v-btn>
                 </template>
+                <v-btn v-else-if="resumePayPalUrl" class="payment-primary-button" depressed :disabled="busy || loading || leaving" @click="navigateToProvider(resumePayPalUrl)">Continuar en PayPal</v-btn>
               </div>
               <p v-if="showProviderResume" class="payment-footnote">Puedes volver a MedSync y retomar esta solicitud más tarde.</p>
               <p v-if="confirmation" class="payment-success-terms">{{ recurringLabel }}</p>
@@ -145,6 +146,11 @@ export default {
     streamCredential() { const auth = this.$store.state && this.$store.state.CORE.AUTH || {}; return JSON.stringify([auth.accessExpiresAt, auth.token, auth.accessRevision, auth.permissions]); },
     awaitingConfirmation() { return this.paypalApproved || this.$route.query.result === 'approved' || this.providerActive; },
     showProviderResume() { return Boolean(this.checkoutUrl && !this.confirmed && !this.awaitingConfirmation); },
+    resumePayPalUrl() {
+      if (!this.showProviderResume || this.approval) return '';
+      const { origin } = new URL(this.checkoutUrl);
+      return ['https://www.paypal.com', 'https://www.sandbox.paypal.com'].includes(origin) ? this.checkoutUrl : '';
+    },
     requestedOffer() { return this.attempt ? selectedOffer(this.catalog, this.attempt.planCode, this.attempt.planPriceCode) : this.selection; },
     requestedPriceLabel() { if (!this.requestedOffer) return ''; const price = this.requestedOffer.price; const units = price.billingInterval === 'year' ? ['año', 'años'] : ['mes', 'meses']; return 'Precio del plan por ' + (price.billingIntervalCount === 1 ? units[0] : price.billingIntervalCount + ' ' + units[1]); },
     confirmationDelayed() { return Boolean(this.waitingSince && this.now - this.waitingSince >= 60000 && !this.confirmed); },

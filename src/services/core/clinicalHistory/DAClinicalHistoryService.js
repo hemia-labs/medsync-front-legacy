@@ -29,8 +29,13 @@ export default {
     updateDraft(idClinicalHistory, data) {
         return DACore.put(`${DAC_CLINICAL_HISTORY_GET}${idClinicalHistory}/draft`, data);
     },
-    finalize(idClinicalHistory, expectedRevision) {
-        return DACore.post(`${DAC_CLINICAL_HISTORY_FINALIZE}${idClinicalHistory}/finalize`, { expected_revision: expectedRevision });
+    finalize(idClinicalHistory, expectedRevision, consent) {
+        return DACore.post(`${DAC_CLINICAL_HISTORY_FINALIZE}${idClinicalHistory}/finalize`, {
+            expected_revision: expectedRevision,
+            expected_consent_token: consent.token,
+            expected_consent_document_id: consent.documentId,
+            expected_consent_status: consent.status
+        });
     },
     markPrinted(idClinicalHistory) {
         return DACore.post(`${DAC_CLINICAL_HISTORY_GET}${idClinicalHistory}/printed`);

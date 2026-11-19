@@ -1,18 +1,26 @@
 <template>
-    <div class="mt-3 min-w-0">
-        <img v-if="preview || image" :src="preview || image" alt="Logo del consultorio" class="max-w-full h-24 object-contain" @error="imageError=true">
-        <p v-if="imageError" role="status" class="text-sm text-gray-600">La imagen puede haber caducado. Pulsa Actualizar imagen.</p>
-        <label class="block mt-3 text-sm font-semibold" :for="inputId">Elegir logo privado</label>
-        <input :id="inputId" type="file" accept="image/png,image/jpeg,image/webp" :disabled="busy" class="block mt-2 max-w-full text-sm" @change="choose">
-        <p class="text-sm text-gray-500">PNG, JPEG o WebP, hasta 5 MB. Solo los usuarios autorizados pueden consultar el archivo.</p>
-        <div class="flex flex-wrap gap-3 mt-3">
-            <button v-if="preview" type="button" class="underline" :disabled="busy" @click="save(false)">Guardar logo</button>
-            <button v-if="image" type="button" class="underline" :disabled="busy" @click="save(true)">Eliminar logo</button>
-            <button type="button" class="underline" :disabled="busy" @click="refresh">Actualizar imagen</button>
-            <button v-if="preview" type="button" class="underline" :disabled="busy" @click="preview=''">Cancelar selección</button>
+    <div class="private-logo">
+        <div class="private-logo__selection">
+            <div class="private-logo__preview">
+                <img v-if="preview || image" :src="preview || image" alt="Logo del consultorio" @error="imageError=true">
+                <v-icon v-else size="28" color="inherit" aria-hidden="true">mdi-image-outline</v-icon>
+            </div>
+            <div class="private-logo__upload">
+                <button type="button" class="private-logo__choose" :disabled="busy" :aria-describedby="inputId + '-help'" @click="$refs.file.click()"><v-icon size="17" color="inherit" aria-hidden="true">mdi-upload</v-icon> {{ image || preview ? 'Cambiar imagen' : 'Elegir imagen' }}</button>
+                <input ref="file" :id="inputId" type="file" accept="image/png,image/jpeg,image/webp" :disabled="busy" class="sr-only" tabindex="-1" aria-label="Archivo del logo del consultorio" @change="choose">
+                <p :id="inputId + '-help'" class="private-logo__help">PNG, JPEG o WebP · hasta 5 MB</p>
+                <p v-if="preview" class="private-logo__ready" role="status">Imagen lista para guardar</p>
+            </div>
         </div>
-        <p v-if="busy" role="status">Guardando logo…</p>
-        <p v-if="error" role="alert" class="mt-2 text-sm text-red-800">{{ error }}</p>
+        <p v-if="imageError" role="status" class="private-logo__help">No pudimos mostrar el logo. Prueba con Actualizar imagen.</p>
+        <div v-if="preview || image || error" class="private-logo__actions">
+            <button v-if="preview" type="button" class="private-logo__choose" :disabled="busy" @click="save(false)">Guardar logo</button>
+            <button v-if="preview" type="button" :disabled="busy" @click="preview=''">Cancelar selección</button>
+            <button v-if="image" type="button" :disabled="busy" @click="save(true)">Eliminar logo</button>
+            <button v-if="image || error" type="button" :disabled="busy" @click="refresh">Actualizar imagen</button>
+        </div>
+        <p v-if="busy" role="status" class="private-logo__help">Guardando logo…</p>
+        <p v-if="error" role="alert" class="private-logo__error">{{ error }}</p>
     </div>
 </template>
 <script>
@@ -59,3 +67,19 @@ export default {
     }
 };
 </script>
+<style scoped>
+.private-logo { min-width: 0; margin-top: 10px; }
+.private-logo__selection { display: flex; gap: 14px; align-items: center; }
+.private-logo__preview { width: 66px; height: 66px; flex: 0 0 66px; display: grid; place-items: center; overflow: hidden; border: 1px dashed var(--clinic-border, #c7d7dd); border-radius: 12px; background: var(--clinic-soft, #f6f9fa); color: var(--clinic-muted, #526774); }
+.private-logo__preview img { width: 100%; height: 100%; object-fit: contain; padding: 5px; }
+.private-logo__upload { min-width: 0; }
+.private-logo .private-logo__choose { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; min-height: 38px; border: 1px solid var(--clinic-border, #c7d7dd); border-radius: 30px; color: var(--clinic-accent, #096b78); background: var(--clinic-surface, #fff); font-size: 13px; }
+.private-logo__choose:hover:not(:disabled) { background: var(--clinic-tint, #edf6f6); }
+.private-logo .private-logo__help { color: var(--clinic-muted, #526774); margin-top: 6px; font-size: 12px; line-height: 1.5; }
+.private-logo .private-logo__ready { margin-top: 5px; font-size: 12px; color: var(--clinic-accent, #096b78); }
+.private-logo__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+.private-logo__actions button { color: var(--clinic-accent, #096b78); font-size: 12px; min-height: 32px; }
+.private-logo button:disabled { opacity: .6; }
+.private-logo .private-logo__error { color: #9f1239; margin-top: 10px; font-size: 13px; }
+html[data-theme="clinical-night"] .private-logo .private-logo__error { color: #fda4af; }
+</style>

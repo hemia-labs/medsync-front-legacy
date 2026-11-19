@@ -2,6 +2,7 @@ import Vue from 'vue';
 import Vuex from 'vuex';
 import Router from 'vue-router';
 import vuetify from '../../../src/plugins/vuetify';
+import { applyTheme, DEFAULT_THEME } from '../../../src/plugins/theme';
 import Admin from '../../../src/core/layouts/admin.vue';
 import PatientShow from '../../../src/views/Patient/PatientShow.vue';
 import MedicalHistory from '../../../src/views/Patient/Sections/MedicalHistory.vue';
@@ -15,7 +16,13 @@ import HistoryService from '../../../src/services/core/clinicalHistory/DAClinica
 import { fixture,clone,fixtureTransport } from './fixture';
 import '../../../src/assets/tailwind.css';
 import '@mdi/font/css/materialdesignicons.css';
-DACore.get=async url=>{
+DACore.get=async (url,options={})=>{
+  if(url.startsWith('api/identity/catalogs/')){
+    const family=decodeURIComponent(url.split('/').pop()),params=options.params||{};
+    const code=family==='sis.country'?'142':family==='sis.affiliation'?'2':'09';
+    const ref={family,code,releaseId:'qa-local-catalog'},label=family==='sis.country'?'México QA':family==='sis.affiliation'?'Afiliación QA':'Entidad QA';
+    return {success:true,data:{available:!family.startsWith('renapo.'),hasMore:false,items:[{ref,label}],...(params.code?{check:{result:'valid',label,source:{sourceVersion:'QA local simulado'}}}:{})}};
+  }
   if(url!=='api/px/get/nc1-local-only')return {success:false,status:404,message:'QA local: ruta no simulada'};
   const patient=await fixtureTransport.get();
   // Match px.dao.js: birthday is DD-MM-YYYY on reads, ISO on administrative writes.
@@ -58,3 +65,4 @@ new Vue({router,store,vuetify,data:()=>({fixture}),render(h){
     h('strong',fixture.notice),h('label',{style:{marginLeft:'16px'}},['Resultado simulado ',h('select',{attrs:{'aria-label':'Resultado simulado'},domProps:{value:fixture.outcome},on:{change:e=>fixture.outcome=e.target.value}},['success','400','409','401','network'].map(v=>h('option',{domProps:{value:v}},v)))]),h('span',{attrs:{id:'qa-request-count'},style:{marginLeft:'12px'}},`Escrituras simuladas: ${fixture.requests.length}`)]);
   return h('v-app',[h('div',{attrs:{id:'qa-errors',role:'alert'}}),h(Shell,[controls,h(Patient,{props:{id:'nc1-local-only'}})])]);
 }}).$mount('#app');
+if(new URLSearchParams(location.search).get('theme')==='night')applyTheme({...DEFAULT_THEME,code:'clinical-night'});

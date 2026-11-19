@@ -2,7 +2,7 @@
 // differential patch and present field errors. Names are three plain values; surname statuses are derived by
 // the server and never captured or sent.
 
-const META = ['contractVersion', 'revision', 'updatedAt', 'provenance', 'qualityIssues', 'legacySurname', 'legacyProfessionalName', 'catalogValidation', 'curpSex'];
+const META = ['contractVersion', 'revision', 'updatedAt', 'provenance', 'qualityIssues', 'legacySurname', 'legacyProfessionalName', 'catalogValidation', 'catalogChecks', 'curpSex'];
 const DERIVED = ['firstSurnameStatus', 'secondSurnameStatus'];
 const NAMES = ['givenNames', 'firstSurname', 'secondSurname'];
 
@@ -54,7 +54,7 @@ const FIELD_LABELS = {
 export function identityFieldError(response) {
     const data = response && response.data;
     const field = data && data.field;
-    if (!field || !FIELD_LABELS[field] || response.status !== 400 || !['IDENTITY_INVALID', 'CATALOG_SENTINEL_NOT_STORABLE', 'BIOLOGICAL_SEX_REQUIRED'].includes(data.code)) return null;
-    const message = data.code === 'CATALOG_SENTINEL_NOT_STORABLE' ? 'Esta clave no se puede guardar; deja el dato pendiente.' : 'Revisa este dato.';
+    if (!field || !FIELD_LABELS[field] || response.status !== 400 || !['IDENTITY_INVALID', 'CATALOG_SENTINEL_NOT_STORABLE', 'BIOLOGICAL_SEX_REQUIRED', 'CATALOG_CODE_NOT_FOUND', 'CATALOG_FAMILY_MISMATCH', 'CLUES_NOT_IN_SIS_RELEASE', 'CLUES_NOT_OPERATING', 'RESIDENCE_COUNTRY_GEO_MISMATCH'].includes(data.code)) return null;
+    const message = data.code === 'RESIDENCE_COUNTRY_GEO_MISMATCH' ? 'Las claves de entidad, municipio y localidad INEGI corresponden a México. Revisa el país o esas claves.' : data.code === 'CATALOG_SENTINEL_NOT_STORABLE' ? 'Esta clave no se puede guardar; deja el dato pendiente.' : 'Revisa este dato.';
     return { field, label: FIELD_LABELS[field], message, errors: { [field]: [message] } };
 }

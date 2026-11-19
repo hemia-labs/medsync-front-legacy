@@ -57,7 +57,10 @@
                 <v-icon size="17">mdi-pencil-outline</v-icon>
                 Editar plan
               </button>
-              <v-menu v-if="canClose" offset-y left>
+              <button :disabled="isBusy" class="btn-outline" type="button" @click="printHistory(activePlan)">
+                <v-icon size="17">mdi-printer-outline</v-icon> Imprimir plan
+              </button>
+              <v-menu v-if="canClose" offset-y left :z-index="40" max-height="320" content-class="tp-action-menu">
                 <template v-slot:activator="{ on, attrs }">
                   <button :disabled="isBusy" class="tp-icon-button" type="button" aria-label="Más acciones del plan" title="Más acciones del plan" v-bind="attrs" v-on="on">
                     <v-icon size="20">mdi-dots-horizontal</v-icon>
@@ -189,7 +192,7 @@
                   <v-icon size="17">mdi-pencil-outline</v-icon>
                   Editar
                 </button>
-                <v-menu v-if="secondaryStatusActions(item).length || canEdit" offset-y left>
+                <v-menu v-if="secondaryStatusActions(item).length || canEdit" offset-y left :z-index="40" max-height="320" content-class="tp-action-menu">
                   <template v-slot:activator="{ on, attrs }">
                     <button :disabled="isBusy" class="tp-icon-button" type="button" :aria-label="`Más acciones para ${item.name}`" :title="`Más acciones para ${item.name}`" v-bind="attrs" v-on="on">
                       <v-icon size="20">mdi-dots-horizontal</v-icon>
@@ -289,11 +292,11 @@
         </div>
         <v-card-text class="dialog-body">
           <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
-          <p class="field-help">{{ planEditing ? 'Puedes corregir estos datos mientras el plan está activo. Se conserva un registro del cambio.' : 'Crear guarda un plan activo de inmediato. La captura sin guardar no es un borrador persistido. Cada tratamiento nuevo comenzará Pendiente.' }}</p>
+          <p class="field-help">{{ planEditing ? 'Puedes corregir estos datos mientras el plan está activo. Se conserva un registro del cambio.' : 'Primero crea el plan. Después podrás agregar los tratamientos, su costo y los dientes que atenderás.' }}</p>
           <v-text-field :disabled="isBusy" v-model="planForm.title" v-field-error="{ id: 'plan-title', invalid: Boolean(fieldErrors('title').length) }" :error-messages="fieldErrors('title')" label="Nombre del plan (obligatorio)" dense outlined :color="themePrimaryColor"></v-text-field>
           <v-text-field v-field-error="{ id: 'plan-field-started_at', required: false, invalid: Boolean(fieldErrors('started_at').length) }" :disabled="isBusy" v-model="planForm.started_at" :error-messages="fieldErrors('started_at')" type="date" label="Fecha de inicio" dense outlined :color="themePrimaryColor"></v-text-field>
           <v-textarea v-field-error="{ id: 'plan-field-diagnosis', required: false, invalid: Boolean(fieldErrors('diagnosis').length) }" :disabled="isBusy" v-model="planForm.diagnosis" :error-messages="fieldErrors('diagnosis')" label="Diagnóstico general (opcional)" rows="2" outlined :color="themePrimaryColor"></v-textarea>
-          <v-textarea v-field-error="{ id: 'plan-field-notes', required: false, invalid: Boolean(fieldErrors('notes').length) }" :disabled="isBusy" v-model="planForm.notes" :error-messages="fieldErrors('notes')" label="Notas del plan (opcional)" rows="2" outlined :color="themePrimaryColor"></v-textarea>
+          <v-textarea v-field-error="{ id: 'plan-field-notes', required: false, invalid: Boolean(fieldErrors('notes').length) }" :disabled="isBusy" v-model="planForm.notes" :error-messages="fieldErrors('notes')" label="Notas internas del plan (opcional)" hint="Para el equipo del consultorio. No se incluyen al imprimir el plan." persistent-hint rows="2" outlined :color="themePrimaryColor"></v-textarea>
         </v-card-text>
         <v-card-actions class="dialog-actions">
           <button :disabled="isBusy" class="btn-outline" type="button" @click="closeEditor">Cancelar</button>
@@ -302,91 +305,60 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showTreatmentDialog" persistent max-width="900">
-      <v-card v-dialog-name="treatmentForm.id_patient_treatment ? 'Editar tratamiento' : 'Agregar tratamiento'" @keydown="trapDialogFocus" ref="treatmentEditor">
-        <div class="dialog-header">
+    <v-dialog v-model="showTreatmentDialog" persistent scrollable max-width="900" content-class="tp-treatment-dialog">
+      <v-card v-dialog-name="dentalImportState.open ? 'Usar dientes de un odontograma' : treatmentForm.id_patient_treatment ? 'Editar tratamiento' : 'Agregar tratamiento'" class="treatment-editor-card" @keydown="trapDialogFocus" ref="treatmentEditor">
+        <div class="dialog-header treatment-editor-header">
           <div>
-            <p class="eyebrow">Tratamiento</p>
-            <h3>{{ treatmentForm.id_patient_treatment ? 'Editar tratamiento' : 'Agregar tratamiento' }}</h3>
+            <p class="eyebrow">{{ activePlan && activePlan.title || 'Plan de tratamiento' }}</p>
+            <h3>{{ dentalImportState.open ? 'Usar dientes de un odontograma' : treatmentForm.id_patient_treatment ? 'Editar tratamiento' : 'Agregar tratamiento' }}</h3>
+            <p class="editor-description">{{ dentalImportState.open ? 'Revisa tu selección antes de incorporarla al tratamiento.' : 'Describe qué vas a realizar y, si corresponde, elige los dientes.' }}</p>
             <span v-if="dirty" class="unsaved-state">Sin guardar</span>
           </div>
-          <v-btn icon aria-label="Cerrar ventana" :disabled="isBusy" @click="closeEditor"><v-icon color="#9CA3AF">mdi-close</v-icon></v-btn>
+          <v-btn icon aria-label="Cerrar editor de tratamiento" :disabled="isBusy" @click="closeEditor"><v-icon>mdi-close</v-icon></v-btn>
         </div>
-        <v-card-text class="dialog-body">
+        <v-card-text class="dialog-body treatment-editor-body">
           <div v-if="notice.message" :role="notice.type === 'error' || notice.type === 'warning' ? 'alert' : 'status'" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
-          <section class="form-section">
-            <div class="form-section-header">
-              <h4>Información básica</h4>
-            </div>
-            <div class="form-grid">
-              <v-text-field :disabled="isBusy" v-model="treatmentForm.name" v-field-error="{ id: 'treatment-name', invalid: Boolean(fieldErrors('name').length) }" :error-messages="fieldErrors('name')" label="Nombre del tratamiento (obligatorio)" dense outlined :color="themePrimaryColor"></v-text-field>
-              <v-text-field v-field-error="{ id: 'plan-field-cost', required: false, invalid: Boolean(fieldErrors('cost').length) }" v-if="showCosts" v-model="treatmentForm.cost" :disabled="!canEditCosts || isBusy" :error-messages="fieldErrors('cost')" type="number" min="0" step="0.01" label="Costo estimado (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
-              <v-text-field v-field-error="{ id: 'plan-field-category', required: false, invalid: Boolean(fieldErrors('category').length) }" :disabled="isBusy" v-model="treatmentForm.category" :error-messages="fieldErrors('category')" label="Categoría (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
-              <v-select :disabled="isBusy" v-if="showStatus && treatmentForm.id_patient_treatment" v-model="treatmentForm.status" :items="statusOptions" item-text="label" item-value="value" label="Estado" dense outlined :color="themePrimaryColor"></v-select>
-            </div>
-            <p v-if="!treatmentForm.id_patient_treatment" class="field-help">Los tratamientos nuevos se crean automáticamente como Pendiente.</p>
+          <section v-show="!dentalImportState.open" class="form-section">
+            <v-text-field :disabled="isBusy" v-model="treatmentForm.name" v-field-error="{ id: 'treatment-name', invalid: Boolean(fieldErrors('name').length) }" :error-messages="fieldErrors('name')" label="Nombre del tratamiento (obligatorio)" placeholder="Por ejemplo: restauración con resina" dense outlined :color="themePrimaryColor"></v-text-field>
           </section>
-
-          <section class="form-section">
-            <div class="form-section-header">
-              <h4>Fechas estimadas</h4>
+          <section v-if="showToothSelector" class="treatment-dental-section form-section">
+            <div v-if="!dentalImportState.open" class="form-section-header">
+              <h4>Dientes a tratar <span class="optional-label">Opcional</span></h4>
+              <p class="editor-description">Indica qué dientes vas a tratar. Si el procedimiento no corresponde a un diente específico, deja esta sección vacía.</p>
             </div>
-            <div class="form-grid">
-              <v-text-field v-field-error="{ id: 'plan-field-estimated_start_date', required: false, invalid: Boolean(fieldErrors('estimated_start_date').length) }" :disabled="isBusy" v-model="treatmentForm.estimated_start_date" :error-messages="fieldErrors('estimated_start_date')" type="date" label="Inicio estimado (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
-              <v-text-field v-field-error="{ id: 'plan-field-estimated_end_date', required: false, invalid: Boolean(fieldErrors('estimated_end_date').length) }" :disabled="isBusy" v-model="treatmentForm.estimated_end_date" :error-messages="fieldErrors('estimated_end_date')" type="date" :min="treatmentForm.estimated_start_date || undefined" label="Fin estimado (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
-            </div>
+            <treatment-dental-details v-if="showTreatmentDialog && config.dentalSchemaAvailable" ref="dentalDetails" :key="treatmentEditorSession" v-model="treatmentForm.tooth_details" :teeth="treatmentForm.teeth" :patient-id="patientId" :busy="isBusy" :can-read="Boolean(planData.permissions && planData.permissions.odontogramRead)" @toggle-tooth="toggleTooth" @selection="treatmentForm.teeth = $event" @context-notes="appendDentalContext" @import-state="dentalImportState = $event" />
+            <treatment-tooth-picker v-else :teeth="treatmentForm.teeth" :busy="isBusy" @toggle="toggleTooth" />
           </section>
-
-          <section class="form-section">
-            <div class="form-section-header">
-              <h4>Detalle clínico</h4>
-            </div>
-            <v-textarea v-field-error="{ id: 'plan-field-description', required: false, invalid: Boolean(fieldErrors('description').length) }" :disabled="isBusy"
-              v-model="treatmentForm.description"
-              :error-messages="fieldErrors('description')"
-              label="Descripción del tratamiento"
-              hint="Texto visible dentro del plan para identificar que se realizara."
-              persistent-hint
-              rows="2"
-              outlined
-              :color="themePrimaryColor"
-            ></v-textarea>
-            <v-textarea v-field-error="{ id: 'plan-field-notes', required: false, invalid: Boolean(fieldErrors('notes').length) }" :disabled="isBusy"
-              v-model="treatmentForm.notes"
-              :error-messages="fieldErrors('notes')"
-              label="Notas clínicas internas"
-              hint="Observaciones del profesional. Úsalas para detalles internos del seguimiento clínico."
-              persistent-hint
-              rows="2"
-              outlined
-              :color="themePrimaryColor"
-            ></v-textarea>
-          </section>
-
-          <section v-if="showToothSelector" class="tooth-selector form-section">
-            <div>
-              <h4>Dientes asociados</h4>
-              <span>Selecciona piezas permanentes (11–48) o temporales (51–85). La selección es opcional y no requiere odontograma.</span>
-            </div>
-            <div class="tooth-grid">
-              <button :disabled="isBusy"
-                v-for="tooth in toothOptions"
-                :key="tooth"
-                type="button"
-                :class="{ selected: treatmentForm.teeth.includes(tooth) }"
-                :aria-pressed="String(treatmentForm.teeth.includes(tooth))"
-                :aria-label="`Diente ${tooth}`"
-                @click="toggleTooth(tooth)"
-              >
-                {{ tooth }}
-              </button>
-            </div>
-            <treatment-dental-details v-if="config.dentalSchemaAvailable" v-model="treatmentForm.tooth_details" :teeth="treatmentForm.teeth" :patient-id="patientId" :busy="isBusy" :can-read="Boolean(planData.permissions && planData.permissions.odontogramRead)" @selection="treatmentForm.teeth = $event" @context-notes="appendDentalContext" />
-          </section>
+          <template v-if="!dentalImportState.open">
+            <section class="form-section">
+              <div class="form-section-header"><h4>Organiza el tratamiento</h4><p class="editor-description">Puedes completar estos datos ahora o más adelante.</p></div>
+              <div class="form-grid">
+                <v-text-field v-field-error="{ id: 'plan-field-cost', required: false, invalid: Boolean(fieldErrors('cost').length) }" v-if="showCosts" v-model="treatmentForm.cost" :disabled="!canEditCosts || isBusy" :error-messages="fieldErrors('cost')" type="number" min="0" step="0.01" label="Costo estimado (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
+                <v-text-field v-field-error="{ id: 'plan-field-category', required: false, invalid: Boolean(fieldErrors('category').length) }" :disabled="isBusy" v-model="treatmentForm.category" :error-messages="fieldErrors('category')" label="Categoría (opcional)" placeholder="Por ejemplo: restauración" dense outlined :color="themePrimaryColor"></v-text-field>
+                <v-text-field v-field-error="{ id: 'plan-field-estimated_start_date', required: false, invalid: Boolean(fieldErrors('estimated_start_date').length) }" :disabled="isBusy" v-model="treatmentForm.estimated_start_date" :error-messages="fieldErrors('estimated_start_date')" type="date" label="Inicio estimado (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
+                <v-text-field v-field-error="{ id: 'plan-field-estimated_end_date', required: false, invalid: Boolean(fieldErrors('estimated_end_date').length) }" :disabled="isBusy" v-model="treatmentForm.estimated_end_date" :error-messages="fieldErrors('estimated_end_date')" type="date" label="Fin estimado (opcional)" dense outlined :color="themePrimaryColor"></v-text-field>
+                <v-select :disabled="isBusy" v-if="showStatus && treatmentForm.id_patient_treatment" v-model="treatmentForm.status" :items="statusOptions" item-text="label" item-value="value" label="Estado" dense outlined :color="themePrimaryColor"></v-select>
+              </div>
+              <p v-if="!treatmentForm.id_patient_treatment" class="field-help">Al guardarlo quedará pendiente. Podrás iniciarlo cuando comience la atención.</p>
+            </section>
+            <section class="form-section">
+              <v-textarea v-field-error="{ id: 'plan-field-description', required: false, invalid: Boolean(fieldErrors('description').length) }" :disabled="isBusy" v-model="treatmentForm.description" :error-messages="fieldErrors('description')" label="Descripción para el paciente (opcional)" hint="Explica qué se realizará. Este texto aparece al imprimir el plan." persistent-hint rows="2" outlined :color="themePrimaryColor"></v-textarea>
+              <v-textarea v-field-error="{ id: 'plan-field-notes', required: false, invalid: Boolean(fieldErrors('notes').length) }" :disabled="isBusy" v-model="treatmentForm.notes" :error-messages="fieldErrors('notes')" label="Notas internas (opcional)" hint="Para el equipo del consultorio. No se incluyen al imprimir el plan." persistent-hint rows="2" outlined :color="themePrimaryColor"></v-textarea>
+            </section>
+            <p v-if="hasPendingConsentDocument" class="field-help">Si guardas cambios, tendrás que preparar de nuevo el consentimiento pendiente de firma.</p>
+          </template>
         </v-card-text>
-        <v-card-actions class="dialog-actions">
-          <button :disabled="isBusy" class="btn-outline" type="button" @click="closeEditor">Cancelar</button>
-          <button :disabled="isBusy" class="btn-primary" type="button" @click="saveTreatment">{{ isBusy ? 'Guardando…' : 'Guardar tratamiento' }}</button>
+        <v-card-actions class="dialog-actions treatment-editor-actions">
+          <template v-if="dentalImportState.open">
+            <span class="editor-footer-help" role="status">{{ dentalImportState.loading ? 'Consultando…' : dentalImportState.count + (dentalImportState.count === 1 ? ' seleccionado' : ' seleccionados') }}</span>
+            <button :disabled="isBusy" class="btn-outline" type="button" @click="$refs.dentalDetails.cancelImport()">Volver sin aplicar</button>
+            <button :disabled="!dentalImportState.canApply" class="btn-primary" type="button" @click="$refs.dentalDetails.importSelection()">Aplicar selección</button>
+          </template>
+          <template v-else>
+            <span class="editor-footer-help">Los cambios se aplican al guardar.</span>
+            <button :disabled="isBusy" class="btn-outline" type="button" @click="closeEditor">Cancelar</button>
+            <button :disabled="isBusy" class="btn-primary" type="button" @click="saveTreatment">{{ isBusy ? 'Guardando…' : 'Guardar tratamiento' }}</button>
+          </template>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -563,7 +535,7 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showHistoryDialog" max-width="980">
+    <v-dialog v-model="showHistoryDialog" :retain-focus="!previewPlan" max-width="980">
       <v-card v-dialog-name="'Consultar plan cerrado'" @keydown="trapDialogFocus">
         <div class="dialog-header history-dialog-header">
           <div>
@@ -667,6 +639,22 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog :value="Boolean(previewPlan)" max-width="960" :fullscreen="$vuetify.breakpoint.xsOnly" :transition="false" @input="closePrintPreview">
+      <v-card v-dialog-name="{ id: 'tp-print-title' }" class="tp-print-preview">
+        <header class="dialog-header">
+          <h3 id="tp-print-title" ref="printHeading" tabindex="-1">Vista previa del plan</h3>
+        </header>
+        <iframe v-if="printSheet" ref="printFrame" :key="printSheet" :srcdoc="printSheet" sandbox="allow-same-origin allow-modals"
+          title="Hoja del plan de tratamiento" @load="onPrintFrameLoad"></iframe>
+        <p v-else-if="previewPlan" role="alert" class="plan-feedback feedback-error">No se pudo preparar la hoja. Cierra la vista previa y vuelve a abrir el plan.</p>
+        <p v-if="printError" role="alert" class="plan-feedback feedback-error">{{ printError }}</p>
+        <v-card-actions class="dialog-actions">
+          <button type="button" class="btn-outline" @click="closePrintPreview">Cerrar</button>
+          <button type="button" class="btn-primary" :disabled="!printReady" @click="printPreviewSheet">Imprimir o guardar PDF</button>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-dialog v-model="confirmDialog.show" persistent max-width="460">
       <v-card v-dialog-name="confirmDialog.title" @keydown="trapDialogFocus">
         <div class="dialog-header compact">
@@ -690,11 +678,12 @@
       <v-card v-dialog-name="'Tienes cambios sin guardar'" class="leave-card" @keydown="trapDialogFocus" @keydown.esc.stop="resolveLeave('stay')">
         <div class="dialog-header"><div><p class="eyebrow">Continuidad de captura</p><h3>Tienes cambios sin guardar</h3></div></div>
         <v-card-text class="dialog-body">
+          <p v-if="dentalImportState.open">Vuelve al editor para aplicar o descartar la selección del odontograma antes de guardar.</p>
           <p>{{ editorKind === 'close' ? 'Guardar confirmará el cierre y dejará el plan como histórico de solo lectura.' : editorKind === 'plan' && !planEditing ? 'Guardar creará el plan activo antes de salir.' : 'Puedes guardar antes de salir o continuar con tu captura.' }}</p>
           <div v-if="notice.message" role="status" class="plan-feedback" :class="'feedback-' + notice.type">{{ notice.message }}</div>
         </v-card-text>
         <v-card-actions class="dialog-actions">
-          <button class="btn-primary" type="button" :disabled="isBusy" @click="resolveLeave('save')">{{ editorKind === 'close' ? 'Cerrar plan y salir' : 'Guardar y salir' }}</button>
+          <button class="btn-primary" type="button" :disabled="isBusy || dentalImportState.open" @click="resolveLeave('save')">{{ editorKind === 'close' ? 'Cerrar plan y salir' : 'Guardar y salir' }}</button>
           <button class="btn-danger-secondary" type="button" :disabled="isBusy" @click="resolveLeave('discard')">Descartar cambios</button>
           <button class="btn-outline" type="button" :disabled="isBusy" @click="resolveLeave('stay')">Seguir editando</button>
         </v-card-actions>
@@ -726,6 +715,7 @@ import fieldError from '../../../core/directives/field-error';
 import { sanitizeHtmlForDocumentSnapshot } from '../../../utils/sanitizeHtml';
 import DocumentSignatureOptionsDialog from './components/DocumentSignatureOptionsDialog.vue';
 import { localToday, requestId, snapshot, treatmentErrors, planErrors } from '../../../domain/treatment-plan/plan.editor';
+import { treatmentPlanPrintHtml } from '../../../domain/treatment-plan/plan.print';
 import { surfaceLabel as dentalSurfaceLabel } from '../../../utils/odontogram/dentalContract';
 import { getSettingsSections } from '../../../security/settingsAccess';
 
@@ -736,7 +726,7 @@ import ListPageNav from '../../../components/common/ListPageNav.vue';
 export default {
   mixins: [VuexMixin],
   directives: { dialogName, fieldError },
-  components: { DocumentSignatureOptionsDialog, ListPageNav, TreatmentDentalDetails: () => import('./components/TreatmentDentalDetails.vue') },
+  components: { DocumentSignatureOptionsDialog, ListPageNav, TreatmentToothPicker: () => import('./components/TreatmentToothPicker.vue'), TreatmentDentalDetails: () => import('./components/TreatmentDentalDetails.vue') },
   props: {
     treatmentFocusRequest: { type: Object, default: null },
     px: {
@@ -776,6 +766,12 @@ export default {
       filter: 'all',
       showPlanDialog: false,
       showTreatmentDialog: false,
+      treatmentEditorSession: 0,
+      dentalImportState: { open:false, loading:false, count:0, canApply:false, pending:false },
+      previewPlan: null,
+      printTrigger: null,
+      printReady: false,
+      printError: '',
       showCloseDialog: false,
       showHistoryDialog: false,
       showHistorySection: false,
@@ -839,6 +835,7 @@ export default {
   },
   beforeDestroy() {
     this.loadRequest++;
+    document.documentElement.classList.remove('tp-treatment-editor-open');
     this.$emit('register-navigation-guard', null);
     window.removeEventListener('beforeunload', this.beforeUnload);
     if(this.removeNavigationGuard) this.removeNavigationGuard();
@@ -850,6 +847,14 @@ export default {
     },
     planData: function() {
       return this.localPlanData || {};
+    },
+    printSheet() {
+      if (!this.previewPlan || !this.ready || !this.moduleEnabled) return '';
+      try {
+        return this.printableHistoryHtml(this.previewPlan);
+      } catch {
+        return '';
+      }
     },
     canCreate() { return this.allowed('create', 'treatments.create'); },
     canEdit() { return this.allowed('edit', 'treatments.edit'); },
@@ -863,6 +868,7 @@ export default {
     canEditCosts() { return this.allowed('costEdit', 'treatments.cost_edit'); },
     ready() { return this.planLoaded && !this.loadError && !this.isLoading; },
     dirty() {
+      if(this.editorKind === 'treatment' && this.dentalImportState.pending) return true;
       if(this.editorKind === 'consent') return this.consentDirty || Boolean(this.consentSignature) || Boolean(this.preparedConsentDocument && this.localSignatureBaseline && snapshot({ role: this.localSignatureRole, name: this.localSignerName }) !== this.localSignatureBaseline);
       return Boolean(this.editorKind && this.savedEditor && snapshot(this.currentEditorForm()) !== this.savedEditor);
     },
@@ -1153,14 +1159,22 @@ export default {
     editorKind(value) { if(!value) this.$nextTick(this.applyDentalPreparation); },
     isBusy(value) { if(!value) this.$nextTick(this.applyDentalPreparation); },
     patientId: { immediate: true, handler() {
+      this.closePrintPreview();
       this.historyPage = 1;
       this.localPlanData = null;
       this.planLoaded = false;
       this.closeEditors();
       this.loadPlan();
     } },
+    printSheet() {
+      this.printReady = false;
+      this.printError = '';
+    },
     showPlanDialog(value) { if(!value) this.restoreFocus(); },
-    showTreatmentDialog(value) { if(!value) this.restoreFocus(); },
+    showTreatmentDialog(value) {
+      document.documentElement.classList.toggle('tp-treatment-editor-open', value);
+      if(!value) this.restoreFocus();
+    },
     showConsentDialog(value) { if(!value) this.restoreFocus(); },
     showCloseDialog(value) { if(!value) this.restoreFocus(); },
     showHistoryDialog(value) { if(!value) this.restoreFocus(); },
@@ -1222,6 +1236,7 @@ export default {
     closeEditors() {
       this.showPlanDialog = false; this.showTreatmentDialog = false; this.showCloseDialog = false; this.showConsentDialog = false;
       this.showSignatureOptionsDialog = false; this.signatureOptionsDocument = null; this.preparedConsentDocument = null;
+      this.dentalImportState = { open:false, loading:false, count:0, canApply:false, pending:false };
       this.editorKind = ''; this.savedEditor = ''; this.consentDirty = false; this.consentSignature = '';
     },
     confirmLeave() {
@@ -1484,6 +1499,8 @@ export default {
     },
     openTreatmentDialog: function(item) {
       if(!this.ready || this.isBusy || (item ? !this.canEdit : !this.canCreate)) return;
+      this.treatmentEditorSession++;
+      this.dentalImportState = { open:false, loading:false, count:0, canApply:false, pending:false };
       this.treatmentForm = item ? {
         id_patient_treatment: item.id_patient_treatment,
         name: item.name || '',
@@ -1509,6 +1526,7 @@ export default {
       this.showCloseDialog = true;
     },
     saveTreatment: async function() {
+      if(this.dentalImportState.open) { this.toastFunction('warning', 'Aplica la selección dental o vuelve sin aplicar antes de guardar.'); return false; }
       if(this.treatmentForm.id_patient_treatment ? !this.canEdit : !this.canCreate) return false;
       this.validationErrors = treatmentErrors(this.treatmentForm); this.showValidation = true;
       if(Object.keys(this.validationErrors).length) { await this.showFieldErrors(); return false; }
@@ -1858,97 +1876,26 @@ export default {
       return amount.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
     },
     printableHistoryHtml: function(plan) {
-      const treatments = this.planTreatments(plan);
-      const consent = plan && plan.consent ? plan.consent : null;
-      const rows = treatments.map((item) => `
-        <tr>
-          <td>${this.escapeHtml(item.name || 'Sin nombre')}</td>
-          <td>${this.escapeHtml(this.statusLabel(item.status))}</td>
-          <td>${this.escapeHtml(this.formatDisplayDate(item.estimated_start_date))}</td>
-          <td>${this.escapeHtml(this.formatDisplayDate(item.estimated_end_date))}</td>
-          ${this.showCosts ? `<td>${this.escapeHtml(this.formatCurrencyValue(item.cost))}</td>` : ''}
-          <td>${this.escapeHtml((item.teeth || []).map(tooth => this.dentalLabel(item, tooth)).join(', ') || 'No especificado')}</td>
-        </tr>
-      `).join('');
-      const consentHtml = consent ? `
-        <section>
-          <h2>Consentimiento</h2>
-          <p><strong>Estado:</strong> ${this.escapeHtml(this.consentStatusLabel(plan))}</p>
-          <p><strong>Fecha de firma:</strong> ${this.escapeHtml(this.formatDisplayDateTime(consent.signed_at))}</p>
-          <p><strong>Doctor:</strong> ${this.escapeHtml(consent.doctor_name_snapshot || 'No especificado')}</p>
-          <div class="signatures">
-            <div>
-              <strong>Firma del doctor</strong>
-              ${consent.doctor_signature_snapshot ? `<img src="${this.escapeHtml(consent.doctor_signature_snapshot)}" alt="Firma del doctor">` : '<span>Sin firma registrada.</span>'}
-              <small>${this.escapeHtml(consent.doctor_name_snapshot || 'Doctor no especificado')}</small>
-            </div>
-            <div>
-              <strong>${this.consentPatientSignatureLabel(consent)}</strong>
-              ${consent.patient_signature ? `<img src="${this.escapeHtml(consent.patient_signature)}" alt="${this.consentPatientSignatureLabel(consent)}">` : '<span>Sin firma registrada.</span>'}
-              <small>${this.escapeHtml(consent.patient_signer_name_snapshot || this.patientName || 'Paciente no especificado')}</small>
-            </div>
-            ${this.printableAdditionalConsentSignatures(consent)}
-          </div>
-        </section>
-      ` : '<section><h2>Consentimiento</h2><p>Sin consentimiento firmado.</p></section>';
-      return `
-        <!doctype html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Histórico de plan de tratamiento</title>
-            <style>
-              body { font-family: Arial, sans-serif; color: #1f2937; margin: 32px; }
-              h1, h2 { margin: 0 0 8px; }
-              h1 { font-size: 24px; }
-              h2 { font-size: 16px; margin-top: 24px; border-bottom: 1px solid #d1d5db; padding-bottom: 6px; }
-              .brand { color: #0f766e; font-weight: 600; margin: 0 0 4px; }
-              .meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 18px 0; }
-              .meta div { border: 1px solid #e5e7eb; padding: 8px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-              th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 12px; vertical-align: top; }
-              th { background: #f3f4f6; }
-              .reason { background: #f9fafb; border-left: 3px solid #0f766e; padding: 10px; }
-              .signatures { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 22px; }
-              .signatures div { border-top: 1px solid #9ca3af; padding-top: 10px; text-align: center; }
-              .signatures strong, .signatures small, .signatures span { display: block; }
-              .signatures img { display: block; max-width: 260px; max-height: 110px; object-fit: contain; margin: 8px auto; }
-              .signatures span { color: #6b7280; margin: 18px 0; font-size: 12px; }
-              @media print { body { margin: 18mm; } }
-            </style>
-          </head>
-          <body>
-            <p class="brand">${this.escapeHtml(this.businessName)}</p>
-            <h1>${this.escapeHtml(plan.title || 'Plan de tratamiento')}</h1>
-            <p>Histórico de plan cerrado. Paciente: ${this.escapeHtml(this.patientName || 'No especificado')}</p>
-            <section class="meta">
-              <div><strong>Inicio</strong><br>${this.escapeHtml(this.formatDisplayDate(plan.started_at))}</div>
-              <div><strong>Cierre</strong><br>${this.escapeHtml(this.formatDisplayDateTime(plan.closed_at))}</div>
-              <div><strong>Tratamientos</strong><br>${treatments.length}</div>
-              ${this.showCosts ? `<div><strong>Presupuesto del plan (incluye cancelados)</strong><br>${this.escapeHtml(this.formatCurrencyValue(this.planTotalCost(plan)))}</div>` : ''}
-              <div><strong>Consentimiento</strong><br>${this.escapeHtml(this.consentStatusLabel(plan))}</div>
-              <div><strong>Creado por</strong><br>${this.escapeHtml(plan.created_by_name || 'Usuario no disponible')}</div>
-            </section>
-            ${plan.diagnosis ? `<p><strong>Diagnóstico general:</strong> ${this.escapeHtml(plan.diagnosis)}</p>` : ''}
-            ${plan.notes ? `<p style="white-space:pre-wrap"><strong>Notas del plan:</strong> ${this.escapeHtml(plan.notes)}</p>` : ''}
-            ${plan.close_reason ? `<p class="reason"><strong>Resumen de cierre:</strong> ${this.escapeHtml(this.formatCloseReason(plan.close_reason))}</p>` : ''}
-            <section>
-              <h2>Resumen por estado</h2>
-              <p>Pendientes: ${this.planStatusCount(plan, 'pending')} | En progreso: ${this.planStatusCount(plan, 'in_progress')} | Pausados: ${this.planStatusCount(plan, 'paused')} | Completados: ${this.planStatusCount(plan, 'completed')} | Cancelados: ${this.planStatusCount(plan, 'cancelled')}</p>
-            </section>
-            <section>
-              <h2>Tratamientos</h2>
-              <table>
-                <thead>
-                  <tr><th>Tratamiento</th><th>Estado</th><th>Inicio</th><th>Fin</th>${this.showCosts ? '<th>Costo</th>' : ''}<th>Dientes</th></tr>
-                </thead>
-                <tbody>${rows || '<tr><td colspan="6">Sin tratamientos registrados.</td></tr>'}</tbody>
-              </table>
-            </section>
-            ${consentHtml}
-          </body>
-        </html>
-      `;
+      const faceNames={M:'Mesial',O:'Oclusal',I:'Incisal',D:'Distal',V:'Vestibular',L:'Lingual',P:'Palatina'};
+      const teethText=item=>(item.teeth || []).map(tooth=>{
+        const detail=(item.tooth_details || []).find(detail=>String(detail.tooth_number) === String(tooth));
+        const faces=detail && detail.surfaces ? [...detail.surfaces].map(face=>faceNames[dentalSurfaceLabel(face,Number(tooth))]).join(', ') : '';
+        return 'Diente '+tooth+(faces ? ' ('+faces+')' : '');
+      }).join('; ') || 'Sin dientes específicos';
+      return treatmentPlanPrintHtml({
+        businessName: this.businessName, patientName: this.patientName, title: plan.title,
+        closed: plan.status === 'closed' || Boolean(plan.closed_at),
+        start: this.formatDisplayDate(plan.started_at), end: this.formatDisplayDate(plan.closed_at),
+        diagnosis: plan.diagnosis, consent: Boolean(plan.consent && this.canViewConsent),
+        showStatus: this.showStatus, showCosts: this.showCosts,
+        budget: this.showCosts ? this.formatCurrencyValue(this.planTotalCost(plan)) : '',
+        treatments: this.planTreatments(plan).map(item => ({
+          name: item.name, description: item.description, teeth: teethText(item),
+          status: this.showStatus ? this.statusLabel(item.status) : '',
+          start: this.formatDisplayDate(item.estimated_start_date), end: this.formatDisplayDate(item.estimated_end_date),
+          cost: this.showCosts ? this.formatCurrencyValue(item.cost) : ''
+        }))
+      });
     },
     consentPatientSignatureLabel(consent) { return consent && consent.patient_signature_role === 'TUTOR' ? 'Firma del tutor o representante' : 'Firma del paciente'; },
     printableAdditionalConsentSignatures(consent) {
@@ -2033,22 +1980,40 @@ export default {
         </html>
       `;
     },
-    printHistory: function(plan) {
-      if(!plan) {
-        return;
+    printHistory(plan) {
+      this.printTrigger = document.activeElement;
+      this.previewPlan = plan;
+    },
+    closePrintPreview() {
+      const trigger = this.printTrigger;
+      this.printTrigger = null;
+      this.previewPlan = null;
+      this.printReady = false;
+      this.printError = '';
+      if (trigger) this.$nextTick(() => {
+        if (!this.previewPlan && trigger.isConnected) trigger.focus();
+      });
+    },
+    onPrintFrameLoad(event) {
+      const frame = event.target;
+      if (frame !== this.$refs.printFrame || !frame.contentDocument.body.querySelector('h1')) return;
+      if (this.$refs.printHeading) window.requestAnimationFrame(() => {
+        const heading = this.$refs.printHeading;
+        if (frame === this.$refs.printFrame && heading && !heading.closest('[role="dialog"]').contains(document.activeElement)) heading.focus();
+      });
+      frame.contentDocument.addEventListener('keydown', keyEvent => {
+        if (keyEvent.key === 'Escape') this.closePrintPreview();
+      });
+      this.printReady = true;
+    },
+    printPreviewSheet() {
+      if (!this.printReady) return;
+      this.printError = '';
+      try {
+        this.$refs.printFrame.contentWindow.print();
+      } catch {
+        this.printError = 'No se pudo abrir la impresión. Vuelve a pulsar «Imprimir o guardar PDF».';
       }
-      const printWindow = window.open('', '_blank', 'width=900,height=1100');
-      if(!printWindow) {
-        this.toastFunction('warning', 'No se pudo abrir la ventana de impresión.');
-        return;
-      }
-      printWindow.document.open();
-      printWindow.document.write(this.printableHistoryHtml(plan));
-      printWindow.document.close();
-      setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-      }, 250);
     },
     printConsent: function(plan) {
       if(!plan || !plan.consent) {
@@ -2075,6 +2040,15 @@ export default {
 <style scoped>
 .patient-treatment {
   color: var(--color-text, #25364d);
+}
+.tp-print-preview.v-card { display: flex; flex-direction: column; height: min(84vh, 860px); overflow: hidden; background: var(--color-surface); }
+.tp-print-preview .dialog-header, .tp-print-preview .dialog-actions { flex: 0 0 auto; background: var(--color-surface); }
+.tp-print-preview iframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 0; background: white; }
+.tp-print-preview .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px !important; border-top: 1px solid var(--color-forty-500); }
+.tp-print-preview .plan-feedback { margin: 8px 16px; }
+.v-dialog__content[aria-labelledby="tp-print-title"]:not(.v-dialog__content--active) { display: none; }
+@media (max-width: 599px) {
+  .tp-print-preview.v-card { height: 100%; height: 100dvh; }
 }
 
 .plan-feedback { margin-bottom: .8rem; padding: .75rem 1rem; border-radius: .75rem; border: 1px solid #bae6fd; background: #effaff; color: #075985; line-height: 1.5; }
@@ -2763,6 +2737,31 @@ button {
     width: 100%;
   }
 }
+
+/* TP3: constrain only this editor; shared NOM24 dialogs retain their behavior. */
+.treatment-editor-card { max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px); display:flex; flex-direction:column; color:var(--color-text,#25364d); background:var(--color-surface,#fff); }
+.treatment-editor-header { flex:0 0 auto; align-items:flex-start; padding:20px 24px; border-bottom:1px solid var(--color-border,#d8e9ef); gap:12px; }
+.treatment-editor-header > div { flex:1; min-width:0; }
+.editor-description { margin:6px 0 0; font-size:13px; line-height:1.5; color:var(--color-text-muted,#52657b); }
+.treatment-editor-card .treatment-editor-body { overflow-y:auto; min-height:0; flex:1 1 auto; padding:24px !important; scroll-padding:20px; overscroll-behavior:contain; }
+.treatment-editor-card .treatment-editor-actions { flex:0 0 auto; padding:16px 24px !important; border-top:1px solid var(--color-border,#d8e9ef); gap:10px; background:var(--color-surface,#fff); }
+.treatment-editor-actions button { min-height:44px; }
+.editor-footer-help { margin-right:auto; color:var(--color-text-muted,#52657b); font-size:12px; }
+.treatment-dental-section { border:1px solid var(--color-border,#d8e9ef); border-radius:14px; padding:18px; margin-bottom:24px; background:var(--color-surface,#fff); }
+.optional-label { font-size:12px; color:var(--color-text-muted,#52657b); font-weight:400; margin-left:6px; }
+.treatment-editor-card .form-grid { gap:4px 16px; }
+@media(max-width:600px) {
+ .treatment-editor-card { max-height:100vh; max-height:100dvh; }
+ .treatment-editor-header { padding:16px; }
+ .treatment-editor-header h3 { font-size:20px; }
+ .treatment-editor-card .treatment-editor-body { padding:16px !important; }
+ .treatment-editor-card .treatment-editor-actions { padding:12px 16px !important; gap:8px; }
+ .editor-footer-help { flex:1 0 100%; }
+ .treatment-editor-actions button { flex:1 1 auto; padding:10px 12px; }
+ .treatment-dental-section { padding:12px; }
+ .treatment-editor-card .form-grid { grid-template-columns:1fr; }
+}
+
 </style>
 
 <style scoped>
@@ -3073,4 +3072,12 @@ html[data-theme="clinical-night"] .tp-consent--signed .tp-consent-status { backg
 html[data-theme="clinical-night"] .tp-start-icon { background: rgba(56, 189, 248, .14); }
 html[data-theme="clinical-night"] .tp-start-icon .v-icon,
 html[data-theme="clinical-night"] .tp-list-empty .v-icon { color: #38bdf8; }
+</style>
+
+<style>
+/* Nested confirmations must not release the page scroll behind this editor. */
+html.tp-treatment-editor-open { overflow-y: hidden !important; }
+.tp-treatment-dialog { border-radius:16px; overflow:hidden; margin:16px !important; max-height:calc(100vh - 32px) !important; max-height:calc(100dvh - 32px) !important; }
+.tp-action-menu { max-height:min(320px, calc(100vh - 24px)) !important; }
+@media(max-width:600px) { .tp-treatment-dialog { margin:0 !important; border-radius:0; width:100%; max-height:100vh !important; max-height:100dvh !important; } }
 </style>

@@ -216,7 +216,11 @@ export default {
         await this.$nextTick(); this.$refs.codeInput.focus();
       } catch (error) {
         if (this._isDestroyed) return;
-        this.cooldown(error.retryAfterSeconds || 60); this.rememberVerification(error.retryAfterSeconds || 60);
+        // A 401 is rejected before any email is sent: the session was recovered without resending, and the user
+        // may ask again explicitly, unless the server announced a delay. Other failures keep the cooldown
+        // (unknown outcome or rate limit).
+        const wait = error.status === 401 ? error.retryAfterSeconds : (error.retryAfterSeconds || 60);
+        if (wait) { this.cooldown(wait); this.rememberVerification(wait); }
         await this.showError(error);
       }
       finally { this.busy = false; this.sendingCode = false; }

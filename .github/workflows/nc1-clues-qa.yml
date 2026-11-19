@@ -1,0 +1,43 @@
+name: NC1 CLUES interface
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'src/components/identity/**'
+      - 'src/domain/identity/**'
+      - 'src/views/configuration/**'
+      - 'scripts/qa/nc1-clues-ux/**'
+      - '.github/workflows/nc1-clues-qa.yml'
+permissions:
+  contents: read
+jobs:
+  ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Existing catalog consumers
+        run: |
+          node scripts/qa/nc1-catalog-capture.cjs
+          node scripts/qa/nc1-identity-ui.cjs
+          node scripts/qa/nc1-identity-review-regression.cjs
+          node scripts/qa/nc1-identity-integrated-profile.cjs
+          node scripts/qa/nc1-ux6-new-patient-identity.cjs
+      - name: Approved shell, recovery and T1
+        env:
+          NC1_QA_OUT: /tmp/nc1-clues-evidence
+        run: |
+          node scripts/qa/nc1-clues-ux/serve.cjs > /tmp/nc1-clues-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          node scripts/qa/nc1-clues-ux/visual-review.cjs
+          node scripts/qa/nc1-clues-ux/recovery-review.cjs
+          node scripts/qa/nc1-clues-ux/implementation-review.cjs

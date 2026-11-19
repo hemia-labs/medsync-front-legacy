@@ -12,7 +12,7 @@
     </header>
 
     <p v-if="fromAgenda" role="status">Al terminar volverás a la cita para revisar el paciente. La captura se conserva solo en esta sesión; recargar o cambiar de acceso la descarta.</p>
-    <p v-if="creationMessage" role="alert">{{ creationMessage }}</p>
+    <p v-if="creationMessage" ref="creationAlert" role="alert">{{ creationMessage }}</p>
     <div class="patient-create-shell">
       <fieldset :disabled="isSaving || !!pendingCreate || !!createdPatient || accessChanged">
       <div v-if="submitted && Object.keys(formErrors).length" class="patient-create-error-summary" role="alert">
@@ -39,7 +39,7 @@
           <p>Identidad del paciente</p>
           <span>Solo el sexo biológico es obligatorio. Lo que no captures queda pendiente; no se deduce del nombre ni de otros documentos.</span>
         </div>
-        <patient-identity-fields ref="biologicalSex" v-model="identity" :disabled="isSaving" :sex-errors="fieldError('biologicalSex')" @blur-sex="touchField('biologicalSex')" />
+        <patient-identity-fields ref="biologicalSex" v-model="identity" :disabled="isSaving" :sex-errors="fieldError('biologicalSex')" :catalog-errors="identityErrors" @blur-sex="touchField('biologicalSex')" />
       </article>
 
       <article class="patient-create-section">
@@ -100,6 +100,7 @@ import DAPxService from '../../services/core/px/DAPxService';
 import { newAgendaRequestId } from '../../domain/appointments/agendaInteraction';
 import { peekAgendaReturn, setAgendaCreatedPatient } from '../../domain/appointments/agendaNavigation';
 import { authorizationContext, isCurrentAuthorization } from '../../security/authorizationContext';
+import { identityFieldError } from '../../domain/identity/identityDraft';
 
 export default {
   components: { PatientIdentityFields },
@@ -108,6 +109,7 @@ export default {
   data() {
     return {
       identity: {},
+      identityErrors: {},
       isSaving: false,
       pendingCreate: null, retryAllowed: false, createdPatient: null, creationMessage: '', accessChanged: false,
       creationContext: authorizationContext(this.$store), alive: true, leaving: false, removeCreationGuard: null,
@@ -157,6 +159,16 @@ export default {
     creationAccessKey() { this.accessChanged = true; this.pendingCreate = null; this.createdPatient = null; Object.keys(this.form).forEach(key => { this.form[key] = '' }); this.creationMessage = 'Cambió tu acceso. Recarga para continuar.'; },
     'form.birthDate': function() {
       this.form.age = this.calculateAge(this.form.birthDate);
+    },
+    // A correction of the identity clears the server error shown at its key.
+    identity(value, previous) {
+      if(Object.keys(this.identityErrors).length) this.identityErrors = {};
+      const code=((value.residence||{}).postalCode||{}).code||'', old=(((previous||{}).residence||{}).postalCode||{}).code||'';
+      if(code!==old && this.form.postalCode!==code)this.form.postalCode=code;
+    },
+    'form.postalCode'(value) {
+      const code=String(value||'').trim(), current=((this.identity.residence||{}).postalCode||{}).code||'';
+      if(code!==current)this.identity={...this.identity,residence:{...this.identity.residence,postalCode:code?{family:'sepomex.postal_code',code}:null}};
     }
   },
   methods: {
@@ -191,6 +203,15 @@ export default {
       return (this.submitted || this.touched[field]) && this.formErrors[field] ? [this.formErrors[field]] : [];
     },
     touchField(field) { this.$set(this.touched, field, true); },
+    // A server rejection must be visible where the user is: the rejected key, otherwise the message itself.
+    showRejection(field) {
+      this.$nextTick(() => {
+        const identity = this.$refs.biologicalSex;
+        if(field && identity && identity.focusCatalog && identity.focusCatalog(field)) return;
+        const alert = this.$refs.creationAlert;
+        if(alert && alert.scrollIntoView) alert.scrollIntoView({ block: 'center' });
+      });
+    },
     focusField(field) {
       this.$nextTick(() => {
         const control = this.$refs[field];
@@ -242,7 +263,13 @@ export default {
         if(!this.creationCurrent()) return;
         if(r.success && r.data && r.data.id_person) await this.finishCreation(r.data.id_person, sent);
         else if(r.data && r.data.code === 'PATIENT_CREATE_ALREADY_RECORDED') recover = true;
-        else if(r.status >= 400 && r.status < 500) { this.pendingCreate = null; this.creationMessage = r.message || 'Revisa los datos del alta.'; }
+        else if(r.status >= 400 && r.status < 500) {
+          this.pendingCreate = null;
+          const mapped = identityFieldError(r);
+          this.identityErrors = mapped ? mapped.errors : {};
+          this.creationMessage = mapped ? `${mapped.label}: ${mapped.message} Conservamos la captura.` : r.message || 'Revisa los datos del alta.';
+          this.showRejection(mapped && mapped.field);
+        }
         else this.creationMessage = 'No se confirmó el alta. Consulta el resultado antes de volver a enviarla.';
       } catch (_) { if(this.creationCurrent()) this.creationMessage = 'No se confirmó el alta. Consulta el resultado; no se enviará otra automáticamente.'; }
       finally { this.isSaving = false; }
