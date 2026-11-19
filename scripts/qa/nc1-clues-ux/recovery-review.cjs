@@ -8,7 +8,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const out = OUT, report = [];
 const btn = (p, name) => p.getByRole('button', { name, exact: true });
 const input = p => p.locator('.health-units [data-field="displayName"] input');
-const base = 'http://127.0.0.1:4388/admin?section=identity';
+const base = (process.env.NC1_QA_BASE || 'http://127.0.0.1:4388') + '/admin?section=identity';
 const draft = 'Borrador posterior que debe conservarse';
 async function open(p, query, night) {
   await p.goto(base + query + (night ? '&theme=night' : ''));
