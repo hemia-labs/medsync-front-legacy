@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-full app-background tenant-layout" :class="{ 'tenant-settings-layout': $route.path === '/admin', 'tenant-restricted-layout': $route.name === 'tenantRestricted', 'tenant-pulse-layout': $route.name === 'business-pulse', 'tenant-sidebar-collapsed': sidebarCollapsed }">
+  <div class="min-h-full app-background tenant-layout" :class="{ 'tenant-settings-layout': $route.path === '/admin', 'tenant-restricted-layout': $route.name === 'tenantRestricted', 'tenant-pulse-layout': $route.name === 'business-pulse', 'tenant-sidebar-collapsed': sidebarCollapsed, 'tenant-chat-open': chatEnabled && chatPanelOpen }">
     <header class="tenant-header" :inert="isMobileNavigationOpen ? '' : null">
       <div class="tenant-header-nav">
         <div class="tenant-header-left">
@@ -28,6 +28,7 @@
         </div>
 
         <div class="tenant-header-right">
+          <chat-launcher v-if="chatEnabled" />
           <div class="tenant-logo">
             <medsync-brand :custom-logo="logoOrrico === defaultBrandLogo ? '' : logoOrrico" />
           </div>
@@ -112,6 +113,7 @@
     </main>
 
     <logout-confirm-dialog v-model="showLogoutConfirmation" @confirm="confirmLogout" />
+    <internal-chat-host :enabled="chatEnabled" :scope="chatScope" />
 
   </div>
 </template>
@@ -134,6 +136,9 @@ import { isD2AuthMode } from '../../services/config/authTransport.config';
 import TenantNavigationRail from '../components/navigation/TenantNavigationRail.vue';
 import LogoutConfirmDialog from '../components/navigation/LogoutConfirmDialog.vue';
 import TrialNotice from '../../components/billing/TrialNotice.vue';
+import ChatLauncher from '../../views/Chat/ChatLauncher.vue';
+import InternalChatHost from '../../views/Chat/InternalChatHost.vue';
+import { chatState } from '../../domain/chat/chatState';
 import {
   tenantNavigationItems,
   sortTenantNavigationItems,
@@ -156,7 +161,7 @@ export default {
         }
     },
     components: {
-      TrialNotice, PulseReturn, OnboardingCoordinator, LogoutConfirmDialog,
+      TrialNotice, PulseReturn, OnboardingCoordinator, LogoutConfirmDialog, ChatLauncher, InternalChatHost,
       'da-re-login': ReLogin,
       'tenant-navigation-rail': TenantNavigationRail
     },
@@ -304,6 +309,17 @@ export default {
 
           const user = this.sessionUser
           return user && user.rol ? this.roleLabel(user.rol) : ''
+        },
+        // NC5 · Chat interno: alcance por usuario y negocio de la sesión; nunca para super_admin ni consultorio restringido.
+        chatScope: function() {
+          const user = this.user || {}
+          const business = (this.business && this.business.id_business) || user.id_business
+          return user.id_login && business ? business + ':' + user.id_login : ''
+        },
+        chatPanelOpen: function() { return chatState.panelOpen },
+        chatEnabled: function() {
+          return Boolean(this.isAuthorized && this.chatScope && this.role !== 'super_admin' && !this.isTenantRestrictedMode
+            && this.$route.name !== 'accountActivation')
         },
         isTenantRestrictedMode: function() {
           const tenantOperational = isD2AuthMode()
@@ -758,6 +774,11 @@ html[data-theme="clinical-night"] .tenant-sidebar-toggle:focus-visible {
   .tenant-content {
     min-height: calc(100vh - 4rem);
   }
+}
+
+/* NC5 · Con el chat abierto en escritorio el contenido se recorre: la nota y sus acciones de firma no quedan debajo del panel. */
+@media (min-width: 1024px) {
+  .tenant-chat-open .tenant-main-shell { padding-right: min(400px, 100vw); }
 }
 
 @media (max-width: 1023px) {
