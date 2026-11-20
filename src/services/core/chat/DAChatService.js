@@ -16,5 +16,5 @@ export default {
     previewNotice(recipientId, context, reason) { return DACore.post('api/chat/notices/preview', { recipientId, context, reason }); },
     sendNotice(payload) { return DACore.post('api/chat/notices', payload); },
     request(clientRequestId) { return DACore.get(`api/chat/requests/${enc(clientRequestId)}`); },
-    noticesForTracing(tracingId) { return DACore.get(`api/chat/notices/tracing/${enc(tracingId)}`); }
+    noticesForContext(kind, reference) { return DACore.get(`api/chat/notices/context/${enc(kind)}/${enc(reference)}`); }
 };

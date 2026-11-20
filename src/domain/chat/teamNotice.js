@@ -5,13 +5,15 @@ import { chatState, newRequestId } from './chatState';
 
 /**
  * Abre el compositor «Avisar al equipo». Siempre se resuelve, nunca se rechaza.
- * @param {{context:{kind:'tracing',patientId:string,tracingId:string,professionalId?:string,reason?:string}, clientRequestId?:string, returnFocus?:HTMLElement}} options
+ * context.kind 'evolution_note' (nota formal firmada: patientId + noteId) o 'tracing' (seguimiento existente: patientId + tracingId).
+ * @param {{context:{kind:'evolution_note'|'tracing',patientId:string,noteId?:string,tracingId?:string,professionalId?:string,reason?:string}, clientRequestId?:string, returnFocus?:HTMLElement}} options
  * @returns {Promise<{status:'sent'|'cancelled'|'failed', clientRequestId:string, messageId?:string, recipient?:{id:string,name:string}, sentAt?:string, replayed?:boolean, retryable?:boolean, code?:string, message?:string}>}
  */
 export function openTeamNotice(options = {}) {
     const clientRequestId = options.clientRequestId || newRequestId();
     const context = options.context || {};
-    if (context.kind !== 'tracing' || !context.patientId || !context.tracingId) {
+    const reference = context.kind === 'evolution_note' ? context.noteId : context.kind === 'tracing' ? context.tracingId : null;
+    if (!reference || !context.patientId) {
         return Promise.resolve({ status: 'failed', retryable: false, code: 'CHAT_CONTEXT_INVALID', message: 'Falta la referencia de la nota.', clientRequestId });
     }
     if (chatState.composer) {
@@ -45,13 +47,15 @@ export async function teamNoticeStatus(clientRequestId) {
     return { found: true, message: { id: m.messageId, recipient: m.recipient, sentAt: m.sentAt, readAt: m.readAt } };
 }
 
-/** Avisos enviados desde una nota, con enviado y leído. Requiere acceso a Seguimiento. */
-export async function teamNoticesForTracing(tracingId) {
-    const response = await DAChatService.noticesForTracing(tracingId);
+/** Avisos enviados desde una nota, con enviado y leído. Requiere acceso a Seguimiento. kind: 'evolution_note' | 'tracing'. */
+export async function teamNoticesForContext(kind, reference) {
+    const response = await DAChatService.noticesForContext(kind, reference);
     return response.success ? ((response.data || {}).items || []) : [];
 }
 
+export function teamNoticesForTracing(tracingId) { return teamNoticesForContext('tracing', tracingId); }
+
 // QA local de NC5: permite simular la nota de Seguimiento desde la consola. Webpack elimina este bloque en producción.
 if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-    window.__nc5Chat = { openTeamNotice, teamNoticeStatus, teamNoticesForTracing };
+    window.__nc5Chat = { openTeamNotice, teamNoticeStatus, teamNoticesForContext, teamNoticesForTracing };
 }

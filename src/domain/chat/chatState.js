@@ -41,6 +41,7 @@ export function failure(response) {
     const messages = {
         CHAT_RECIPIENT_INVALID: 'Esa persona ya no está activa en este consultorio. Elige a otro colega.',
         CHAT_CONTEXT_INVALID: 'La nota ya no está disponible para avisar.',
+        CHAT_CONTEXT_UNAVAILABLE: 'Las notas firmadas aún no están disponibles en este entorno.',
         CHAT_CONTEXT_FORBIDDEN: 'No tienes acceso a los seguimientos de este paciente.',
         CHAT_REQUEST_CONFLICT: 'Este aviso ya se envió con otros datos. Cierra y vuelve a abrirlo.',
         AUTH_CONTEXT_CHANGED: 'Tu sesión cambió. Vuelve a abrir el chat.'
