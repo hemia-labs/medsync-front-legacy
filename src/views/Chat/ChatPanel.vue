@@ -115,7 +115,7 @@ export default {
     changes() { if (this.open && this.view === 'inbox') this.loadInbox(); if (this.open && this.view === 'thread') this.poll(); }
   },
   mounted() {
-    this.media = window.matchMedia('(max-width: 639px)');
+    this.media = window.matchMedia('(max-width: 1023px)');
     this.onMedia = () => { this.mobile = this.media.matches; if (this.open) this.trapFocus(); };
     this.onMedia();
     this.media.addEventListener ? this.media.addEventListener('change', this.onMedia) : this.media.addListener(this.onMedia);
@@ -162,7 +162,7 @@ export default {
       else if (this.view === 'new') this.loadDirectory();
       else if (this.peerId) this.loadThread();
     },
-    stopTimer() { if (this.timer) { clearInterval(this.timer); this.timer = null; } },
+    stopTimer() { this.ticket++; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
     async loadInbox() {
       this.inbox.loading = true;
       const response = await DAChatService.conversations();
@@ -222,10 +222,12 @@ export default {
     },
     async markRead() {
       const unread = this.thread.items.filter(item => !item.mine && !item.readAt);
-      if (!unread.length || document.visibilityState !== 'visible') return;
+      if (!this.open || this.view !== 'thread' || !unread.length || document.visibilityState !== 'visible') return;
       const upTo = unread[unread.length - 1].id;
+      const scope = this.scope;
       const response = await DAChatService.markRead(this.peerId, upTo);
       if (!response.success) return;
+      if (this._isDestroyed || scope !== this.scope) return;
       unread.forEach(item => { item.readAt = item.readAt || new Date().toISOString(); });
       chatState.unread = (response.data || {}).unread || 0;
     },
@@ -240,7 +242,9 @@ export default {
     async deliver(item) {
       item.status = 'sending';
       this.scrollToEnd();
+      const scope = this.scope;
       const response = await DAChatService.sendText(item.peerId, item.clientRequestId, item.body);
+      if (this._isDestroyed || scope !== this.scope) return;
       if (response.success) {
         this.pending = this.pending.filter(entry => entry !== item);
         if (this.peerId === item.peerId) {

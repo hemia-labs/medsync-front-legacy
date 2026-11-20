@@ -29,6 +29,7 @@
           <p>Realizados: {{ summary(entry.form.done,entry.form.performed) || 'Sin procedimiento' }}</p>
           <p>Previstos: {{ summary(entry.form.future,entry.form.indication) || 'Sin indicación' }}</p>
         </details>
+        <evolution-team-notice v-if="!historyId || (signedPage===1 && entry===signed[0])" :patient="patient" :note-id="entry.id" />
         <v-btn v-if="!historyId" text @click="loadSigned(1,entry.id)">Ver historial</v-btn>
         <v-btn v-if="!historyId && canCorrect && actor===entry.author" outlined small @click="startCorrection(entry)">Rectificar nota</v-btn>
       </article>
@@ -67,11 +68,12 @@
 <script>
 import { uuid } from 'vue-uuid'
 import { DACore } from '../../../services/config/axios.context'
+import EvolutionTeamNotice from './EvolutionTeamNotice.vue'
 import Nc5TreatmentSelect from './Nc5TreatmentSelect.vue'
 const fields=[{key:'reason',label:'Motivo de atención',rows:1,max:2000},{key:'evolution',label:'Evolución y valoración',rows:3,max:10000},{key:'plan',label:'Plan e indicaciones',rows:2,max:10000}]
 const copy=value=>JSON.parse(JSON.stringify(value))
 export default {
-  components:{Nc5TreatmentSelect},
+  components:{Nc5TreatmentSelect,EvolutionTeamNotice},
   props:{actor:String,canCreate:{type:Boolean,default:true},canCorrect:Boolean,patient:{type:String,required:true},treatments:{type:Array,default:()=>[]},appointments:{type:Array,default:()=>[]}},
   data(){return {signed:[],signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
   computed:{

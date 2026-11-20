@@ -1,7 +1,7 @@
 <template>
   <div v-if="enabled" class="ms-chat-host">
-    <chat-panel />
-    <team-notice-composer />
+    <chat-panel :key="activeScope" />
+    <team-notice-composer :key="activeScope + '/composer'" />
   </div>
 </template>
 

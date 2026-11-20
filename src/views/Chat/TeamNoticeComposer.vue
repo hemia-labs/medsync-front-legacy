@@ -103,10 +103,11 @@ export default {
       this.$nextTick(() => setTimeout(() => this.$refs.title && this.$refs.title.focus(), 60));
     },
     async loadDirectory() {
+      const request = this.request;
       this.loadingDirectory = true; this.directoryError = '';
       const response = await DAChatService.directory();
       this.loadingDirectory = false;
-      if (!this.request) return;
+      if (request !== this.request) return;
       if (response.success) this.people = (response.data || {}).items || [];
       else this.directoryError = 'No se pudo cargar el equipo.';
     },
@@ -146,6 +147,7 @@ export default {
       if (this.attempted && this.error) {
         // Tras un fallo el resultado es incierto: se consulta antes de informar a Notas.
         const response = await DAChatService.request(request.clientRequestId);
+        if (request !== this.request) return;
         const data = response.success ? response.data || {} : {};
         if (data.found) request.resolve({ status: 'sent', messageId: data.message.messageId, recipient: data.message.recipient, sentAt: data.message.sentAt, replayed: true });
         else request.resolve({ status: 'failed', retryable: this.error.retryable, code: this.error.code, message: this.error.message });

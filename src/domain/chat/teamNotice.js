@@ -48,8 +48,9 @@ export async function teamNoticeStatus(clientRequestId) {
 }
 
 /** Avisos enviados desde una nota, con enviado y leído. Requiere acceso a Seguimiento. kind: 'evolution_note' | 'tracing'. */
-export async function teamNoticesForContext(kind, reference) {
+export async function teamNoticesForContext(kind, reference, options = {}) {
     const response = await DAChatService.noticesForContext(kind, reference);
+    if (!response.success && options.reportErrors) throw new Error('No se pudieron consultar los avisos.');
     return response.success ? ((response.data || {}).items || []) : [];
 }
 
