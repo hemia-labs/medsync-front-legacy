@@ -14,9 +14,9 @@
     <div v-if="view === 'inbox'" class="ms-chat-body">
       <v-btn depressed color="primary" class="ms-chat-new" @click="startNew"><v-icon left>mdi-message-plus-outline</v-icon>Nueva conversación</v-btn>
       <p v-if="inbox.loading && !inbox.items.length" class="ms-chat-muted" role="status">Cargando conversaciones…</p>
-      <p v-else-if="inbox.error" class="ms-chat-error" role="alert">{{ inbox.error }} <button type="button" class="ms-chat-link" @click="loadInbox">Reintentar</button></p>
-      <p v-else-if="!inbox.items.length" class="ms-chat-empty">Aún no tienes conversaciones. Escribe a un colega del consultorio para coordinar el día.</p>
-      <ul v-else class="ms-chat-list" aria-label="Conversaciones">
+      <p v-if="inbox.error" class="ms-chat-error" role="alert">{{ inbox.error }} <button type="button" class="ms-chat-link" @click="loadInbox">Reintentar</button></p>
+      <p v-if="!inbox.loading && !inbox.error && !inbox.items.length" class="ms-chat-empty">Aún no tienes conversaciones. Escribe a un colega del consultorio para coordinar el día.</p>
+      <ul v-if="inbox.items.length" class="ms-chat-list" aria-label="Conversaciones">
         <li v-for="item in inbox.items" :key="item.peer.id">
           <button type="button" class="ms-chat-row" :class="{ 'is-unread': item.unread }" @click="openThread(item.peer)">
             <span class="ms-chat-avatar" aria-hidden="true">{{ item.peer.initials }}</span>
@@ -79,7 +79,7 @@ import { containNavigationFocus } from '../../utils/mobileNavigationFocus';
 import RecipientPicker from './RecipientPicker.vue';
 import NoticeCard from './NoticeCard.vue';
 
-const THREAD_POLL_MS = 4000;
+const PANEL_POLL_MS = 4000;
 const emptyThread = () => ({ peer: null, items: [], readUpTo: 0, hasMore: false, loading: false, loadingOlder: false, error: '' });
 
 export default {
@@ -119,7 +119,11 @@ export default {
     this.onMedia = () => { this.mobile = this.media.matches; if (this.open) this.trapFocus(); };
     this.onMedia();
     this.media.addEventListener ? this.media.addEventListener('change', this.onMedia) : this.media.addListener(this.onMedia);
-    this.onVisible = () => { if (document.visibilityState === 'visible' && this.open && this.view === 'thread') this.poll(); };
+    this.onVisible = () => {
+      if (!this.open || document.visibilityState !== 'visible') return;
+      if (this.view === 'inbox') this.loadInbox();
+      if (this.view === 'thread') this.poll();
+    };
     document.addEventListener('visibilitychange', this.onVisible);
   },
   beforeDestroy() {
@@ -158,17 +162,28 @@ export default {
     onView() {
       this.stopTimer();
       if (!this.open) return;
-      if (this.view === 'inbox') this.loadInbox();
-      else if (this.view === 'new') this.loadDirectory();
+      if (this.view === 'inbox') {
+        this.loadInbox();
+        this.timer = setInterval(() => this.loadInbox(), PANEL_POLL_MS);
+      } else if (this.view === 'new') this.loadDirectory();
       else if (this.peerId) this.loadThread();
     },
-    stopTimer() { this.ticket++; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
+    stopTimer() { this.ticket++; this.inbox.loading = false; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
     async loadInbox() {
+      if (!this.open || this.view !== 'inbox' || this.inbox.loading || document.visibilityState !== 'visible') return;
+      const ticket = this.ticket, scope = this.scope;
       this.inbox.loading = true;
-      const response = await DAChatService.conversations();
-      this.inbox.loading = false;
-      if (response.success) { this.inbox.items = (response.data || {}).items || []; this.inbox.error = ''; }
-      else this.inbox.error = 'No se pudieron cargar tus conversaciones.';
+      try {
+        const response = await DAChatService.conversations();
+        if (ticket !== this.ticket || scope !== this.scope) return;
+        if (!response.success) throw new Error();
+        this.inbox.items = (response.data || {}).items || [];
+        this.inbox.error = '';
+      } catch {
+        if (ticket === this.ticket && scope === this.scope) this.inbox.error = 'No se pudieron actualizar tus conversaciones.';
+      } finally {
+        if (ticket === this.ticket) this.inbox.loading = false;
+      }
     },
     async loadDirectory() {
       this.directory.loading = true; this.directory.error = '';
@@ -188,7 +203,7 @@ export default {
       Object.assign(this.thread, { peer: data.peer, items: data.items || [], readUpTo: data.readUpTo || 0, hasMore: Boolean(data.hasMore) });
       this.scrollToEnd();
       this.markRead();
-      this.timer = setInterval(() => this.poll(), THREAD_POLL_MS);
+      this.timer = setInterval(() => this.poll(), PANEL_POLL_MS);
     },
     async poll() {
       if (document.visibilityState !== 'visible' || !this.thread.peer || this.thread.loading) return;
