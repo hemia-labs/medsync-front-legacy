@@ -1266,7 +1266,7 @@ export default {
         }
         if(restored && restored.kind === 'follow-up') await this.scheduleFollowUp({ id_person: restored.patientId, id_tracing: restored.followUpId })
         if(restored && restored.kind === 'evolution-visit') {
-          this.openAppointment({patientId:restored.patientId, doctorProfileId:this.selectedDoctorId, date:this.selectedDate, startTime:'', endTime:'', status:APPOINTMENT_STATUSES.PENDING})
+          this.openManualAppointment(restored.patientId)
           await this.loadLinkedPatientName()
         }
         this.agendaNotice = 'Volviste a la agenda con el doctor, la fecha y la vista que estabas consultando.'
@@ -1393,7 +1393,7 @@ export default {
       })
     },
 
-    openManualAppointment: function() {
+    openManualAppointment: function(patientId) {
       if(this.selectedDoctor && this.selectedDoctor.active === 0) return
       const now = clinicClock(this.appointmentConfig.timezone)
       const firstSlot = this.weekDates
@@ -1409,7 +1409,7 @@ export default {
         source: 'calendar',
         title: '',
         description: '',
-        patientId: '',
+        patientId: typeof patientId === 'string' ? patientId : '',
         patientName: '',
         contactPhone: ''
       })

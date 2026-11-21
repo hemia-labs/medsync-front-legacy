@@ -55,7 +55,7 @@
           <p v-for="item in entry.form.done.filter(p=>p.closedPlan)" :key="item.id">{{ item.name }} · {{ item.planTitle || 'Plan cerrado' }} · {{ item.noteOnly ? 'Registrado solo en la nota' : 'Ya completado en el plan' }}</p>
           <p>Previstos: {{ summary(entry.form.future,entry.form.indication) || 'Sin indicación' }}</p>
         </details>
-        <h4 v-if="signedPage===1 && entry===signed[0]">¿Qué hacemos con la próxima cita?</h4><div v-if="signedPage===1 && entry===signed[0]" class="actions"><slot name="booking" /><button type="button" @click="refreshHistory">Dejar sin cita y volver</button></div>
+        <h4 v-if="signedPage===1 && entry===signed[0]">¿Qué hacemos con la próxima cita?</h4><div v-if="signedPage===1 && entry===signed[0]" class="actions"><slot name="booking" /><button type="button" @click="refreshHistory">Volver sin reservar</button></div>
         <evolution-team-notice v-if="signedPage===1 && entry===signed[0]" :patient="patient" :note-id="entry.id" />
         
         <v-btn v-if="canCorrect && signedPage===1 && entry===signed[0] && actor===entry.author" outlined small @click="startCorrection(entry)">Rectificar nota</v-btn>
@@ -72,7 +72,7 @@
         </fieldset><fieldset :disabled="busy"><legend>Nota clínica</legend>
         <label v-for="field in fields" :key="field.key">{{ field.label }}<textarea v-model="form[field.key]" :maxlength="field.max" :rows="field.rows"></textarea></label>
       </fieldset>
-      <fieldset :disabled="busy"><legend>Tratamientos</legend>
+      <fieldset :disabled="busy"><legend>Tratamiento de esta visita</legend>
         <p v-if="catalogError" role="alert">No se pudieron cargar los planes. <button type="button" @click="loadProcedures">Volver a intentar</button></p>
         <label v-if="catalog && !catalog.active && catalog.plans.length">Ver procedimientos de
           <select v-model="historyMode" @change="loadProcedures">
@@ -83,7 +83,7 @@
         <p v-if="catalog && !catalog.active && !catalog.plans.length">Este paciente aún no tiene procedimientos de un plan para elegir.</p>
         <nc5-treatment-select v-model="form.done" :items="doneOptions" :disabled="busy || form.none" label="Tratamientos realizados del plan" />
         <ul v-if="form.done.some(item=>item.planId)" aria-label="Procedimientos seleccionados y plan de origen"><li v-for="item in form.done.filter(p=>p.planId)" :key="item.id">{{ procedureLabel(item) }}</li></ul>
-        <label>Otro tratamiento realizado<input v-model="form.performed" maxlength="255" :disabled="form.none"></label>
+        <label>Otro tratamiento realizado<input v-model="form.performed" maxlength="255" :disabled="form.none"></label><p class="muted">Al firmar, el tratamiento adicional quedará en «Otros tratamientos» del plan activo. Si aún no hay plan, se incorporará al próximo.</p>
         <label><input type="checkbox" v-model="form.none" @change="clearPerformed"> No se realizó un procedimiento</label>
         </fieldset><fieldset :disabled="busy"><legend>Tratamientos previstos</legend>
         <nc5-treatment-select v-if="(catalog && catalog.active) || form.future.length" v-model="form.future" :items="catalog && catalog.active ? catalog.items : []" :disabled="busy" label="Tratamientos previstos del plan" />
@@ -127,7 +127,7 @@ export default {
       if (!this.visit) return this.rows.length ? 'Retomar borrador' : 'Registrar atención sin cita'
       if (this.rows.some(n=>n.form.origin===this.visit.id)) return 'Retomar borrador'
       if (this.signed.some(n=>n.form.origin===this.visit.id)) return 'Ver nota firmada'
-      return 'Abrir nota de esta cita'
+      return 'Registrar nota de esta cita'
     },
     historyRows(){
       const notes=(items,kind)=>items.map(item=>({item,kind,key:kind+item.id,date:item.form.date,
@@ -165,7 +165,7 @@ export default {
   methods:{
     treatment(form){return [...(form.done || []).map(p=>p.name),form.performed].filter(Boolean).join(' · ') || (form.none?'Sin procedimiento':'Sin registro')},
     async refreshHistory(){
-      this.historyPage=1; this.historyId=''; this.error=''; this.signed=[]; this.rows=[]
+      this.historyPage=1; this.latest=null; this.historyId=''; this.error=''; this.signed=[]; this.rows=[]
       await this.loadSigned(1)
       if(this.canCreate) await this.load(1)
     },
@@ -203,7 +203,8 @@ export default {
         const r=await DACore.get(this.signedPath+(id?'/'+id+'/versions':''),{params:{page}})
         if(!r.success)throw Error(r.message)
         this.signed=append ? this.signed.concat(r.data.items) : r.data.items;
-        if(!id && page===1)this.latest=r.data.items[0] || null;this.signedPage=r.data.pagination.page;this.signedPages=r.data.pagination.totalPages;this.historyId=id;return true
+        if(!id && page===1)this.latest=r.data.items[0] || null;
+        this.signedPage=r.data.pagination.page;this.signedPages=r.data.pagination.totalPages;this.historyId=id;return true
       }catch(e){this.error=e.message || 'No se pudo consultar el historial.'}finally{this.busy=false}
     },
     startCorrection(entry){
