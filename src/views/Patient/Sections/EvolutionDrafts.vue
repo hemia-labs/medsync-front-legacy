@@ -41,7 +41,7 @@
             <td><slot v-if="row.kind === 'legacy'" name="legacy-actions" :item="row.item" /><button v-else type="button" :disabled="busy" @click="row.kind === 'draft' ? open(row.item) : viewSigned(row.item.id)">{{ row.kind === 'draft' ? 'Retomar borrador' : 'Ver nota' }}</button></td>
           </tr></tbody></table></div>
         <nav v-if="historyPage > 1 || moreHistory" class="actions" aria-label="Páginas del historial"><button :disabled="busy || historyPage===1" @click="historyPage--">Anterior</button><span role="status">Página {{ historyPage }}</span><button :disabled="busy || !moreHistory" @click="nextPage">Siguiente</button></nav>
-        <div class="actions"><slot name="legacy-create" /></div>
+        <div v-if="canCreate" class="actions"><button type="button" :disabled="busy" @click="begin">Nuevo seguimiento</button></div>
       </template>
       <template v-else><button type="button" @click="refreshHistory">Volver al historial</button>
       <article v-for="entry in signed" :key="entry.id+'-'+entry.version">
@@ -82,12 +82,12 @@
         <p v-if="catalog && !catalog.active && historyMode==='latest' && catalog.plans.length">{{ planLabel(catalog.plans[0]) }}</p>
         <p v-if="catalog && !catalog.active && !catalog.plans.length">Este paciente aún no tiene procedimientos de un plan para elegir.</p>
         <nc5-treatment-select v-model="form.done" :items="doneOptions" :disabled="busy || form.none" label="Tratamientos realizados del plan" />
+        <p class="plan-hint"><strong>Al firmar la nota</strong>, los procedimientos seleccionados del plan activo quedarán marcados como realizados. Los planes cerrados conservarán su estado.</p>
         <ul v-if="form.done.some(item=>item.planId)" aria-label="Procedimientos seleccionados y plan de origen"><li v-for="item in form.done.filter(p=>p.planId)" :key="item.id">{{ procedureLabel(item) }}</li></ul>
         <label>Otro tratamiento realizado<input v-model="form.performed" maxlength="255" :disabled="form.none"></label><p class="muted">Al firmar, el tratamiento adicional quedará en «Otros tratamientos» del plan activo. Si aún no hay plan, se incorporará al próximo.</p>
         <label><input type="checkbox" v-model="form.none" @change="clearPerformed"> No se realizó un procedimiento</label>
         </fieldset><fieldset :disabled="busy"><legend>Tratamientos previstos</legend>
         <nc5-treatment-select v-if="(catalog && catalog.active) || form.future.length" v-model="form.future" :items="catalog && catalog.active ? catalog.items : []" :disabled="busy" label="Tratamientos previstos del plan" />
-        <p class="plan-hint"><strong>Al firmar la nota</strong>, los procedimientos realizados del plan activo quedarán completados. Los planes cerrados conservarán su estado. Puedes escribir lo previsto para otra visita en «Otra indicación».</p>
         <label>Otra indicación<input v-model="form.indication" maxlength="2000"></label>
       </fieldset>
       <section v-if="conflict" role="alert"><h4>{{ conflict.id === id ? 'Otra sesión guardó cambios' : 'Esta cita ya tiene otro borrador' }}</h4><p>Tu captura sigue abierta. Compara ambas versiones antes de elegir.</p>

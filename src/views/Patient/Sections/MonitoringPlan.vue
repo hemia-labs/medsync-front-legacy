@@ -13,7 +13,6 @@
           <button v-if="canManageAppointments && item.status === 'active' && px.person.active !== 0" type="button" @click="openAgendaForFollowUp(item)">{{ ['pending_confirmation','confirmed'].includes(item.linked_appointment_status) ? 'Ver cita' : 'Agendar' }}</button>
           <button v-if="canCancelMonitoring && item.status !== 'cancelled'" type="button" @click="showDelete(item)">Anular</button>
         </template>
-        <template #legacy-create><button v-if="canCreateMonitoring" type="button" @click="openModalAdd()">Nuevo seguimiento</button></template>
         <template #booking><button v-if="canManageAppointments" type="button" @click="bookNextVisit">Reservar en Agenda</button></template>
       </evolution-drafts>
         <section v-if="canViewAppointmentHistory" class="appointment-history-section" aria-labelledby="appointment-history-title">
