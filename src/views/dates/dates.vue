@@ -257,7 +257,8 @@
         <div v-if="editingAppointment.id || canOpenAppointmentRecord || canCreatePatient" class="appointment-context-actions" aria-label="Acciones de la cita">
           <v-btn v-if="canLinkPatient" small outlined :disabled="savingAppointment || !!pendingSave" @click="linkCandidate = null; linkDialog = true">Vincular paciente</v-btn>
           <v-btn v-if="canCreatePatient" small outlined :disabled="savingAppointment || !!pendingSave" @click="createPatientDialog = true">Registrar paciente</v-btn>
-          <v-btn v-if="canOpenAppointmentRecord" small outlined :disabled="savingAppointment || !!pendingSave" @click="openAppointmentRecord">Abrir expediente</v-btn>
+          <v-btn v-if="canOpenAppointmentRecord" small outlined :disabled="savingAppointment || !!pendingSave" @click="openAppointmentRecord()">Abrir expediente</v-btn>
+          <v-btn v-if="canOpenAppointmentRecord && editingAppointment.id && hasPermission('px.tab.monitoring') && hasPermission('tracing.create')" small outlined :disabled="savingAppointment || !!pendingSave" @click="openAppointmentRecord(true)">Nota de evolución</v-btn>
           <template v-if="editingAppointment.id">
             <v-btn v-if="editingAppointment.status !== 'rescheduled'" small outlined class="appointment-status-action" :style="statusActionStyle('rescheduled')" :disabled="savingAppointment || !!pendingSave || isReadOnlyAppointment" @click="startReschedule">Reprogramar</v-btn>
             <v-btn v-for="state in ['confirmed','completed','no_show']" :key="state" small outlined class="appointment-status-action" :class="{ 'appointment-status-current': editingAppointment.status === state }" :style="statusActionStyle(state)" :aria-label="statusLabel(state) + (editingAppointment.status === state ? ', estado seleccionado' : '')" :disabled="savingAppointment || !!pendingSave || editingAppointment.status === 'rescheduled' || !!temporalErrorFor(state)" @click="quickStatus(state)"><v-icon v-if="editingAppointment.status === state" small left>mdi-check-circle-outline</v-icon>{{ statusLabel(state) }}</v-btn>
@@ -426,7 +427,7 @@
           <div class="agenda-modal-heading"><p class="agenda-modal-eyebrow">Continuidad de captura</p><h2 id="record-leave-title">Abrir expediente</h2></div>
         </div>
         <v-card-text class="agenda-modal-body"><p>Tu captura se conservará al volver a la agenda en esta sesión. Si recargas la página o cambian tus permisos, se descartará.</p><p class="agenda-modal-note">La cita todavía no se guardará.</p></v-card-text>
-        <v-card-actions class="agenda-modal-footer"><v-btn class="agenda-modal-button" @click="recordLeaveDialog = false">Seguir editando</v-btn><v-btn class="agenda-modal-button agenda-modal-button--primary" @click="navigateToPatientRecord(recordPatientId)">Conservar captura y abrir</v-btn></v-card-actions>
+        <v-card-actions class="agenda-modal-footer"><v-btn class="agenda-modal-button" @click="recordLeaveDialog = false">Seguir editando</v-btn><v-btn class="agenda-modal-button agenda-modal-button--primary" @click="navigateToPatientRecord(recordPatientId, draftAppointmentId)">Conservar captura y abrir</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="leaveDialog" persistent scrollable max-width="520" aria-labelledby="agenda-leave-title">
@@ -600,7 +601,7 @@ export default {
       appointments: getAppointments(),
       appointmentDialog: false,
       agendaInitializing: false, agendaClockTimer: null, pastCreationDialog: false, pastCreationAcknowledged: '', pastCreationPromptKey: '',
-      recordLeaveDialog: false, recordPatientId: '',
+      recordLeaveDialog: false, recordPatientId: '', draftAppointmentId: '',
       linkedPatientName: '', patientIdentityLoading: false, patientIdentityError: '', patientIdentityRequest: 0,
       followUpDialog: false,
       completedEditConfirmDialog: false,
@@ -948,19 +949,20 @@ export default {
       } catch(e) { if(request === this.patientIdentityRequest && access === this.agendaAccessKey) this.patientIdentityError = 'No se pudo consultar el nombre actual. Se conserva el nombre de la cita.' }
       finally { if(request === this.patientIdentityRequest) this.patientIdentityLoading = false }
     },
-    openAppointmentRecord() {
+    openAppointmentRecord(forNote = false) {
       if(!this.canOpenAppointmentRecord || this.savingAppointment || this.pendingSave) return
+      this.draftAppointmentId = forNote ? this.editingAppointment.id : ''
       this.recordPatientId = this.editingAppointment.patientId
       if(this.draftDirty) { this.recordLeaveDialog = true; return }
-      return this.navigateToPatientRecord(this.recordPatientId)
+      return this.navigateToPatientRecord(this.recordPatientId, this.draftAppointmentId)
     },
-    async navigateToPatientRecord(patientId) {
+    async navigateToPatientRecord(patientId, draftVisit = '') {
       if(!patientId || !this.canOpenPatientRecords || this.savingAppointment || this.pendingSave) return
       const wasOpen = this.appointmentDialog, access = this.agendaAccessKey
       keepAgendaReturn(this.$store, { patientId, doctorId: this.selectedDoctorId, date: this.selectedDate, view: this.viewMode,
         draft: wasOpen ? { appointment: this.editingAppointment, original: this.originalAppointment, baseline: this.draftBaseline, requestId: this.appointmentRequestId, phoneCountry: this.phoneCountry } : null })
       this.recordLeaveDialog = false; this.appointmentDialog = false; this.followUpDialog = false
-      try { await this.$router.push({ name: 'ShowPx', params: { id: patientId }, query: { returnKey: 'agenda' } }) }
+      try { await this.$router.push({ name: 'ShowPx', params: { id: patientId }, query: { returnKey: 'agenda', ...(draftVisit ? { tab: 'monitoring', draftVisit } : {}) } }) }
       catch(e) {
         clearAgendaReturn(this.$store)
         if(access === this.agendaAccessKey) { this.appointmentDialog = wasOpen; this.dialogError = 'No se pudo abrir el expediente. Tu captura sigue aquí.' }

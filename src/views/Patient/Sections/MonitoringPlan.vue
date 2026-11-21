@@ -2,7 +2,9 @@
   <div class="w-full h-full">
 
     <da-loader v-bind:overlay="isLoading"></da-loader>
-    <div class="monitoring-body">
+    <evolution-drafts v-if="px.person && !showNotePreview" :can-create="canCreateMonitoring" :can-correct="canCorrectMonitoring" :actor="authUser && authUser.id_login" :key="[px.person.id_person, authUser && authUser.id_login, authUser && authUser.id_business, $route.query.draftVisit].join('/')" :patient="px.person.id_person" :treatments="getAllTreatments || []" :appointments="appointmentHistoryRows" />
+    <nc5-preview v-if="showNotePreview" :treatments="getAllTreatments || []" />
+    <div v-else class="monitoring-body">
         <div class="monitoring-intro">
           <div>
             <p class="monitoring-kicker">Seguimiento clínico</p>
@@ -47,7 +49,7 @@
                     </td>
                     <td>
                       <div class="monitoring-treatment-cell">
-                        <strong>{{ displayMonitoringText(item.treatment_now, 'Sin tratamiento registrado') }}</strong>
+                        <strong>{{ performedLabel(item) || 'Sin tratamiento registrado' }}</strong>
                         <small v-if="displayMonitoringText(item.note, '')">{{ monitoringNotePreview(item) }}</small>
                       </div>
                     </td>
@@ -93,7 +95,7 @@
                 <dl class="monitoring-mobile-meta">
                   <div>
                     <dt>Tratamiento realizado</dt>
-                    <dd>{{ displayMonitoringText(item.treatment_now, 'Sin tratamiento registrado') }}</dd>
+                    <dd>{{ performedLabel(item) || 'Sin tratamiento registrado' }}</dd>
                   </div>
                   <div>
                     <dt>Próximo tratamiento</dt>
@@ -273,6 +275,7 @@
 
           <v-autocomplete :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring" v-if="showtto2 == true" class="animate-fade-in-up" :items="getAllTreatments" item-text="name" v-model="ttoSelecionado1" item-value="id" label="Tratamiento realizado (obligatorio)" aria-required="true" :error-messages="newMonitoringFieldError('performed')" dense outlined :color="themePrimaryColor"></v-autocomplete>
 
+          <v-text-field v-model.trim="otherPerformed" :readonly="Boolean(savedNewMonitoring) || isSavingMonitoring" maxlength="255" label="Otro tratamiento realizado (opcional)" hint="Se agregará a Otros tratamientos del plan activo o del próximo plan que abras." persistent-hint outlined dense />
           <v-checkbox v-if="canManageAppointments" v-model="scheduleNewAppointment" :disabled="isSavingMonitoring" label="Agendar próxima cita (opcional)" :color="themePrimaryColor" hide-details />
           <v-text-field
             v-if="canManageAppointments && scheduleNewAppointment"
@@ -460,7 +463,7 @@
               <strong>Revisión {{ revision.revision }} · {{ revisionAction(revision.action) }}</strong>
               <p>{{ revision.actor_name || revision.recorded_by || 'Autoría original conservada en el registro' }} · {{ revision.recorded_at }}</p>
               <p v-if="revision.change_reason">Motivo: {{ revision.change_reason }}</p>
-              <p>Fecha: {{ displayMonitoringDate(revision.snapshot.quote_date_now) }} · Tratamiento: {{ revision.snapshot.treatment_now }}</p>
+              <p>Fecha: {{ displayMonitoringDate(revision.snapshot.quote_date_now) }} · Tratamiento: {{ performedLabel(revision.snapshot) }}</p>
               <p>Próxima cita: {{ displayMonitoringDate(revision.snapshot.quote_date_after, 'Sin próxima cita') }} · {{ revision.snapshot.treatment_after }}</p>
               <p style="white-space: pre-wrap">{{ revision.snapshot.note }}</p>
             </article>
@@ -636,6 +639,7 @@ export default {
             citas:  [],
             showtto:    false,
             showtto1:   false,
+            otherPerformed: '',
             showtto2:   false,
             showtto3:   false,
             show:       false,
@@ -708,6 +712,8 @@ export default {
        
     },
     components: {
+      EvolutionDrafts: () => import('./EvolutionDrafts.vue'),
+      Nc5Preview: () => import('./Nc5Preview.vue'),
       FollowUpAppointment,
         'da-sweet-confirm': DASweetConfirm
     },
@@ -718,6 +724,11 @@ export default {
   },
   computed: {
     ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, hasPermission: fnTypes.hasPermission }),
+    showNotePreview() {
+      return process.env.NODE_ENV === 'development' && process.env.VUE_APP_NC5_PREVIEW === 'true' && this.$route.query.maqueta === '1' &&
+        this.px.person && this.px.person.id_person === '9036c7be-4a11-5043-87e3-0ef2a476791b' &&
+        this.authUser && this.authUser.email === 'valeria.mendoza@alameda.example' && this.canCreateMonitoring
+    },
     canCreateMonitoring() { return this.hasPermission('px.tab.monitoring') && this.hasPermission('tracing.create') },
     canCorrectMonitoring() { return this.hasPermission('px.tab.monitoring') && this.hasPermission('tracing.correct') },
     canCancelMonitoring() { return this.hasPermission('px.tab.monitoring') && this.hasPermission('tracing.cancel') },
@@ -1024,6 +1035,9 @@ export default {
         this.isLoading = false
       },
 
+      performedLabel(item) {
+        return Array.from(new Set([item.treatment_now, item.other_performed].filter(Boolean))).join(' · ')
+      },
       newMonitoringFieldError(kind) {
         if(!this.newMonitoringSubmitted || this.savedNewMonitoring) return []
         const performed = kind === 'performed'
@@ -1031,7 +1045,7 @@ export default {
         const selected = performed ? this.ttoSelecionado1 : this.ttoSelecionado
         const text = performed ? this.objCita3.id_cat_treatment_now : this.objCita3.id_cat_treatment_after
         const value = useCatalog ? (this.getAllTreatments.find(item => String(item.id) === String(selected)) || {}).name : text
-        return String(value || '').trim() ? [] : [performed ? 'Indica el tratamiento realizado.' : 'Indica el próximo procedimiento o escribe Sin retorno previsto.']
+        return String(value || (performed ? this.otherPerformed : '') || '').trim() ? [] : [performed ? 'Indica el tratamiento realizado.' : 'Indica el próximo procedimiento o escribe Sin retorno previsto.']
       },
 
       onSaveMonitoring: async function(){
@@ -1040,7 +1054,7 @@ export default {
         this.newMonitoringError = ''
         const performed = this.getAllTreatments.find(item => String(item.id) === String(this.ttoSelecionado1))
         const next = this.getAllTreatments.find(item => String(item.id) === String(this.ttoSelecionado))
-        const treatmentNow = String(this.showtto2 ? performed && performed.name || '' : this.objCita3.id_cat_treatment_now || '').trim()
+        const treatmentNow = String(this.showtto2 ? performed && performed.name || '' : this.objCita3.id_cat_treatment_now || '').trim() || this.otherPerformed
         const treatmentAfter = this.savedNewMonitoring ? this.savedNewMonitoring.treatment_after
           : String(this.showtto3 ? next && next.name || '' : this.objCita3.id_cat_treatment_after || '').trim()
         if (!this.savedNewMonitoring && (!treatmentNow || !treatmentAfter)) {
@@ -1062,6 +1076,7 @@ export default {
               id_tracing: this.newTracingId,
               quote_date_now: this.formatFecha(this.objCita3.quote_date_now || this.dateNow),
               treatment_now: treatmentNow,
+              ...(this.otherPerformed ? { other_performed: this.otherPerformed } : {}),
               id_patient_treatment: this.showtto2 && performed ? performed.id : null,
               quote_date_after: wantsAppointment ? this.formatFecha(this.objCita3.quote_date_after) : '00-00-0000',
               treatment_after: treatmentAfter,
@@ -1182,6 +1197,7 @@ export default {
 
       openModalAdd: async function(){
         if (!this.canCreateMonitoring || this.isSavingMonitoring) return
+        this.otherPerformed = ''
         this.newTracingId = uuid.v4()
         this.savedNewMonitoring = null
         this.scheduleNewAppointment = false

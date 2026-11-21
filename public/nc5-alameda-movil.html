@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Alameda · Seguimiento móvil</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#e8eff0;display:grid;place-items:center;height:100dvh}iframe{width:min(390px,100%);height:min(844px,100dvh);background:white;border:0;box-shadow:0 8px 40px #18313926}</style>
+<iframe title="Expediente de Alameda en móvil" src="/px/history/9036c7be-4a11-5043-87e3-0ef2a476791b?tab=monitoring&amp;maqueta=1"></iframe>
+<script>
+const frame=document.querySelector('iframe')
+frame.addEventListener('load',()=>{
+  const doc=frame.contentDocument
+  const show=()=>{const title=doc.getElementById('nc5-title');if(title){title.scrollIntoView({block:'start'});return true}}
+  if(!show()){const observer=new MutationObserver(()=>{if(show())observer.disconnect()});observer.observe(doc.body,{childList:true,subtree:true})}
+})
+</script></html>

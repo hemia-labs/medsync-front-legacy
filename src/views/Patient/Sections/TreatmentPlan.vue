@@ -167,8 +167,11 @@
             </div>
           </header>
 
-          <ul v-if="filteredTreatments.length > 0" class="tp-list">
-            <li v-for="item in filteredTreatments" :key="item.id_patient_treatment" class="tp-card" :class="'tp-card--' + item.status">
+          <div v-if="filteredTreatments.length > 0">
+            <section v-for="group in treatmentGroups" :key="group.label">
+              <h5 v-if="group.extra">{{ group.label }}</h5>
+              <ul class="tp-list">
+            <li v-for="item in group.items" :key="item.id_patient_treatment" class="tp-card" :class="'tp-card--' + item.status">
               <div class="tp-card-body">
                 <div class="tp-card-top">
                   <h5>{{ item.name }}</h5>
@@ -213,7 +216,7 @@
                 </v-menu>
               </div>
             </li>
-          </ul>
+          </ul></section></div>
 
           <div v-else class="tp-list-empty">
             <v-icon size="30">mdi-clipboard-plus-outline</v-icon>
@@ -971,6 +974,13 @@ export default {
     },
     activeTreatments: function() {
       return this.activePlan && this.activePlan.treatments ? this.activePlan.treatments : [];
+    },
+    treatmentGroups() {
+      const items = this.filteredTreatments;
+      return [
+        { label: 'Tratamientos del plan', items: items.filter(item => item.source !== 'performed_extra') },
+        { label: 'Otros tratamientos', extra: true, items: items.filter(item => item.source === 'performed_extra') }
+      ].filter(group => group.items.length);
     },
     filteredTreatments: function() {
       if(this.filter === 'all') {
