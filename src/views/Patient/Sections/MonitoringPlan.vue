@@ -2,130 +2,20 @@
   <div class="w-full h-full">
 
     <da-loader v-bind:overlay="isLoading"></da-loader>
-    <evolution-drafts v-if="px.person && !showNotePreview" :can-create="canCreateMonitoring" :can-correct="canCorrectMonitoring" :actor="authUser && authUser.id_login" :key="[px.person.id_person, authUser && authUser.id_login, authUser && authUser.id_business, $route.query.draftVisit].join('/')" :patient="px.person.id_person" :treatments="getAllTreatments || []" :appointments="appointmentHistoryRows" />
     <nc5-preview v-if="showNotePreview" :treatments="getAllTreatments || []" />
     <div v-else class="monitoring-body">
-        <div class="monitoring-intro">
-          <div>
-            <p class="monitoring-kicker">Seguimiento clínico</p>
-            <h3>Registros del paciente</h3>
-            <p>Consulta tratamientos realizados, próxima cita y notas clínicas.</p>
-          </div>
-          <button v-if="canCreateMonitoring" type="button" class="monitoring-add tab-create-action" @click="openModalAdd()">
-            <v-icon small>mdi-plus</v-icon>
-            <span>Nuevo seguimiento</span>
-          </button>
-        </div>
-
-        <div class="monitoring-table-card">
-          <div v-if="monitoringRows.length === 0" class="monitoring-empty-state">
-            <v-icon size="34">mdi-calendar-search-outline</v-icon>
-            <strong>Aún no hay seguimientos registrados.</strong>
-            <p>Cuando agregues un seguimiento, aquí aparecerán el tratamiento realizado, la próxima cita y las notas clínicas.</p>
-          </div>
-
-          <template v-else>
-            <div class="monitoring-table-wrap">
-              <table class="monitoring-table">
-                <thead>
-                  <tr>
-                    <th>Fecha del seguimiento</th>
-                    <th>Tratamiento realizado</th>
-                    <th>Próximo procedimiento o indicación</th>
-                    <th>Próxima atención</th>
-                    <th class="monitoring-table-action">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="item in monitoringRows" :key="monitoringKey(item)" :data-pulse-record="item.id_tracing">
-                    <td>
-                      <div class="monitoring-date-cell">
-                        <span class="monitoring-date-icon"><v-icon size="18">mdi-calendar-check-outline</v-icon></span>
-                        <div>
-                          <strong>{{ displayMonitoringDate(item.quote_date_now, 'Sin fecha registrada') }}</strong>
-                          <small>{{ item.status === 'cancelled' ? 'Anulado · solo consulta' : 'Fecha del registro' }}</small>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="monitoring-treatment-cell">
-                        <strong>{{ performedLabel(item) || 'Sin tratamiento registrado' }}</strong>
-                        <small v-if="displayMonitoringText(item.note, '')">{{ monitoringNotePreview(item) }}</small>
-                      </div>
-                    </td>
-                    <td>
-                      <span class="monitoring-pill">
-                        {{ displayMonitoringText(item.treatment_after, 'Sin tratamiento definido') }}
-                      </span>
-                    </td>
-                    <td>
-                      <follow-up-appointment :record="item" />
-                      <small v-if="item.linked_appointment_id">Fecha sugerida original: </small>
-                      <span :class="['monitoring-next-date', hasNextAppointmentDate(item.quote_date_after) ? 'has-date' : 'is-empty']">
-                        {{ displayMonitoringDate(item.quote_date_after, 'Sin fecha sugerida') }}
-                      </span>
-                    </td>
-                    <td>
-                      <div class="monitoring-actions"><button v-if="canManageAppointments && hasPermission('px.tab.monitoring') && item.status === 'active' && px.person && px.person.active !== 0" type="button" class="monitoring-action monitoring-action--view" @click="openAgendaForFollowUp(item)">{{ ['pending_confirmation','confirmed'].includes(item.linked_appointment_status) ? 'Ver cita' : 'Agendar' }}</button>
-                        <button type="button" class="monitoring-action monitoring-action--view" @click="showModalData(item)">
-                          <v-icon small>mdi-eye-outline</v-icon>
-                          <span>Ver detalle</span>
-                        </button>
-                        <button v-if="canCancelMonitoring && item.status !== 'cancelled'" type="button" class="monitoring-action monitoring-action--danger" @click="showDelete(item)">
-                          <v-icon small>mdi-trash-can-outline</v-icon>
-                          <span>Anular</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="monitoring-mobile-list">
-              <article v-for="item in monitoringRows" :key="`mobile-${monitoringKey(item)}`" :data-pulse-record="item.id_tracing" class="monitoring-mobile-card">
-                <div class="monitoring-mobile-head">
-                  <span class="monitoring-date-icon"><v-icon size="18">mdi-calendar-check-outline</v-icon></span>
-                  <div>
-                    <strong>{{ displayMonitoringDate(item.quote_date_now, 'Sin fecha registrada') }}</strong>
-                    <small>{{ item.status === 'cancelled' ? 'Anulado · solo consulta' : 'Seguimiento clínico' }}</small>
-                  </div>
-                </div>
-
-                <dl class="monitoring-mobile-meta">
-                  <div>
-                    <dt>Tratamiento realizado</dt>
-                    <dd>{{ performedLabel(item) || 'Sin tratamiento registrado' }}</dd>
-                  </div>
-                  <div>
-                    <dt>Próximo tratamiento</dt>
-                    <dd>{{ displayMonitoringText(item.treatment_after, 'Sin tratamiento definido') }}</dd>
-                  </div>
-                  <div>
-                    <dt>Próxima atención</dt>
-                    <dd class="monitoring-linked-care"><follow-up-appointment :record="item" /><span v-if="item.linked_appointment_id">Fecha sugerida original: </span>{{ displayMonitoringDate(item.quote_date_after, 'Sin fecha sugerida') }}</dd>
-                  </div>
-                </dl>
-
-                <p v-if="displayMonitoringText(item.note, '')" class="monitoring-mobile-note">
-                  {{ monitoringNotePreview(item) }}
-                </p>
-
-                <div class="monitoring-actions mobile"><button v-if="canManageAppointments && hasPermission('px.tab.monitoring') && item.status === 'active' && px.person && px.person.active !== 0" type="button" class="monitoring-action monitoring-action--view" @click="openAgendaForFollowUp(item)">{{ ['pending_confirmation','confirmed'].includes(item.linked_appointment_status) ? 'Ver cita' : 'Agendar' }}</button>
-                  <button type="button" class="monitoring-action monitoring-action--view" @click="showModalData(item)">
-                    <v-icon small>mdi-eye-outline</v-icon>
-                    <span>Ver detalle</span>
-                  </button>
-                  <button v-if="canCancelMonitoring && item.status !== 'cancelled'" type="button" class="monitoring-action monitoring-action--danger" @click="showDelete(item)">
-                    <v-icon small>mdi-trash-can-outline</v-icon>
-                    <span>Anular</span>
-                  </button>
-                </div>
-              </article>
-            </div>
-          </template>
-        </div>
-
+      <evolution-drafts v-if="px.person" :key="[px.person.id_person, authUser && authUser.id_login, authUser && authUser.id_business, $route.query.draftVisit].join('/')"
+        :patient="px.person.id_person" :actor="authUser && authUser.id_login" :can-create="canCreateMonitoring"
+        :can-correct="canCorrectMonitoring" :appointments="appointmentHistoryRows" :next-visit="nextAppointmentHistory"
+        :today="clinicalToday" :legacy="monitoringRows">
+        <template #legacy-actions="{ item }">
+          <button type="button" @click="showModalData(item)">Ver seguimiento</button>
+          <button v-if="canManageAppointments && item.status === 'active' && px.person.active !== 0" type="button" @click="openAgendaForFollowUp(item)">{{ ['pending_confirmation','confirmed'].includes(item.linked_appointment_status) ? 'Ver cita' : 'Agendar' }}</button>
+          <button v-if="canCancelMonitoring && item.status !== 'cancelled'" type="button" @click="showDelete(item)">Anular</button>
+        </template>
+        <template #legacy-create><button v-if="canCreateMonitoring" type="button" @click="openModalAdd()">Nuevo seguimiento</button></template>
+        <template #booking><button v-if="canManageAppointments" type="button" @click="bookNextVisit">Reservar en Agenda</button></template>
+      </evolution-drafts>
         <section v-if="canViewAppointmentHistory" class="appointment-history-section" aria-labelledby="appointment-history-title">
           <div class="appointment-history-head">
             <div>
@@ -724,6 +614,7 @@ export default {
   },
   computed: {
     ...mapGetters(moduleTypes.AUTH, { authUser: fnTypes.getUser, hasPermission: fnTypes.hasPermission }),
+    clinicalToday() { return clinicClock(this.appointmentConfig.timezone).date },
     showNotePreview() {
       return process.env.NODE_ENV === 'development' && process.env.VUE_APP_NC5_PREVIEW === 'true' && this.$route.query.maqueta === '1' &&
         this.px.person && this.px.person.id_person === '9036c7be-4a11-5043-87e3-0ef2a476791b' &&
@@ -832,6 +723,16 @@ export default {
     }
   },
   methods: {
+      async bookNextVisit() {
+        if (!this.canManageAppointments || !this.px.person) return
+        const pending = peekAgendaReturn(this.$store)
+        if (pending && pending.draft) {
+          await this.$swal.fire({icon:'info', title:'Tienes una captura en Agenda', text:'Vuelve a Agenda y termina esa captura antes de reservar otra cita.'})
+          return
+        }
+        keepAgendaReturn(this.$store, { kind:'evolution-visit', patientId:this.px.person.id_person, date:this.clinicalToday, view:'day' })
+        await this.$router.push({name:'Citas'})
+      },
       async openAgendaForFollowUp(item) {
         if(!(this.hasPermission('px.dates') || this.hasPermission('admin.config')) || !this.hasPermission('px.tab.monitoring') || item.status !== 'active' || !this.px.person || this.px.person.active === 0) return;
         const pending = peekAgendaReturn(this.$store);
