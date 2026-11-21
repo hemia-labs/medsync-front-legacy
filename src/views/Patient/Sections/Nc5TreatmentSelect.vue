@@ -4,7 +4,7 @@
     :items="available"
     :label="label"
     :disabled="disabled"
-    item-text="name"
+    :item-text="item => item.display || item.name"
     item-value="id"
     @keydown.enter.native.prevent
     multiple
@@ -15,6 +15,9 @@
     no-data-text="Sin coincidencias"
     @input="$emit('input', $event.map(({ id, name }) => ({ id, name })))"
   >
+    <template #item="{ item }">
+      <div><small v-if="item.heading" class="plan-heading">{{ item.heading }}</small>{{ item.display || item.name }}</div>
+    </template>
     <template #selection="{ index, item }">
       <span v-if="index === 0" class="summary">
         {{ value.length === 1 ? item.name : value.length + ' seleccionados' }}
@@ -41,5 +44,6 @@ export default {
 </script>
 
 <style scoped>
+.plan-heading { display:block; font-weight:600; margin-top:.4rem }
 .summary { max-width: 75%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

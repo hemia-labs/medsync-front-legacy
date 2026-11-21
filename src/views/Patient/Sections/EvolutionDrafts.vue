@@ -6,7 +6,12 @@
         <section v-if="reviewed"><h4>{{ correction ? 'Revisar rectificación' : 'Revisar y firmar la nota' }}</h4>
       <p v-if="correction">Motivo de la rectificación: {{ correctionReason }}</p>
       <dl v-for="diff in correctionChanges" :key="diff.label"><dt>{{ diff.label }}</dt><dd>Antes: {{ diff.remote }}</dd><dd>Ahora: {{ diff.local }}</dd></dl><dl v-for="field in fields" :key="field.key"><dt>{{ field.label }}</dt><dd>{{ reviewed.form[field.key] }}</dd></dl><p>{{ dateLabel(reviewed.form.date) }} · {{ reviewed.form.origin ? 'Con cita vinculada' : 'Atención sin cita' }}</p><p>Realizados: {{ summary(reviewed.form.done, reviewed.form.performed) || 'Sin procedimiento' }}</p><p>Previstos: {{ summary(reviewed.form.future, reviewed.form.indication) || 'Sin indicación' }}</p><p>Tu firma profesional quedará vinculada a esta versión con tu nombre, cédula y fecha. Si se requiere la firma del paciente o de su representante, seguirá pendiente.</p>
-      <v-btn color="primary" :disabled="busy" @click="sign">{{ correction ? 'Firmar rectificación' : 'Firmar nota' }}</v-btn>
+      <div v-if="closedItems.length" role="group" aria-label="Confirmar procedimientos de planes cerrados">
+        <p>Estos procedimientos siguen pendientes en un plan cerrado:</p>
+        <ul><li v-for="item in closedItems" :key="item.id">{{ item.name }} · {{ item.plan || 'Plan cerrado' }}</li></ul>
+        <label><input type="checkbox" v-model="acceptClosed"> Confirmo que se realizaron. Se registrarán solo en la nota y el plan seguirá cerrado.</label>
+      </div>
+      <v-btn color="primary" :disabled="busy || (closedItems.length>0 && !acceptClosed)" @click="sign">{{ correction ? 'Firmar rectificación' : 'Firmar nota' }}</v-btn>
       <v-btn text :disabled="busy" @click="reviewed=null">Volver a editar</v-btn></section>
     <template v-else-if="!form">
       <template v-if="canCreate"><p>Registra lo que ocurrió en la visita. Puedes asociar una cita o documentar una atención sin cita.</p>
@@ -27,6 +32,7 @@
           <dl v-for="field in fields" :key="field.key"><dt>{{ field.label }}</dt><dd>{{ entry.form[field.key] }}</dd></dl>
           <p>{{ entry.form.origin ? 'Con cita vinculada' : 'Atención sin cita' }}</p>
           <p>Realizados: {{ summary(entry.form.done,entry.form.performed) || 'Sin procedimiento' }}</p>
+          <p v-for="item in entry.form.done.filter(p=>p.closedPlan)" :key="item.id">{{ item.name }} · {{ item.planTitle || 'Plan cerrado' }} · {{ item.noteOnly ? 'Registrado solo en la nota' : 'Ya completado en el plan' }}</p>
           <p>Previstos: {{ summary(entry.form.future,entry.form.indication) || 'Sin indicación' }}</p>
         </details>
         <evolution-team-notice v-if="!historyId || (signedPage===1 && entry===signed[0])" :patient="patient" :note-id="entry.id" />
@@ -44,11 +50,19 @@
         <label v-for="field in fields" :key="field.key">{{ field.label }}<textarea v-model="form[field.key]" :maxlength="field.max" :rows="field.rows"></textarea></label>
       </fieldset>
       <fieldset :disabled="busy"><legend>Tratamientos</legend>
-        <nc5-treatment-select v-model="form.done" :items="treatments" :disabled="busy || form.none" label="Tratamientos realizados del plan" />
+        <p v-if="catalogError" role="alert">No se pudieron cargar los planes. <button type="button" @click="loadProcedures">Volver a intentar</button></p>
+        <label v-if="catalog && !catalog.active && catalog.plans.length">Ver procedimientos de
+          <select v-model="historyMode" @change="loadProcedures">
+            <option value="latest">Último plan cerrado</option><option value="all">Todos los planes cerrados</option>
+          </select>
+        </label>
+        <p v-if="catalog && !catalog.active && historyMode==='latest' && catalog.plans.length">{{ planLabel(catalog.plans[0]) }}</p>
+        <p v-if="catalog && !catalog.active && !catalog.plans.length">Este paciente aún no tiene procedimientos de un plan para elegir.</p>
+        <nc5-treatment-select v-model="form.done" :items="doneOptions" :disabled="busy || form.none" label="Tratamientos realizados del plan" />
         <label>Otro tratamiento realizado<input v-model="form.performed" maxlength="255" :disabled="form.none"></label>
         <label><input type="checkbox" v-model="form.none" @change="clearPerformed"> No se realizó un procedimiento</label>
-        <nc5-treatment-select v-model="form.future" :items="treatments" :disabled="busy" label="Tratamientos previstos del plan" />
-        <p class="plan-hint"><strong>Al firmar la nota</strong>, los tratamientos que selecciones como realizados quedarán completados en el plan de tratamiento. Los que elijas solo como previstos conservarán su estado actual.</p>
+        <nc5-treatment-select v-if="(catalog && catalog.active) || form.future.length" v-model="form.future" :items="catalog && catalog.active ? catalog.items : []" :disabled="busy" label="Tratamientos previstos del plan" />
+        <p class="plan-hint"><strong>Al firmar la nota</strong>, los procedimientos realizados del plan activo quedarán completados. Los planes cerrados conservarán su estado. Puedes escribir lo previsto para otra visita en «Otra indicación».</p>
         <label>Otra indicación<input v-model="form.indication" maxlength="2000"></label>
       </fieldset>
       <section v-if="conflict" role="alert"><h4>{{ conflict.id === id ? 'Otra sesión guardó cambios' : 'Esta cita ya tiene otro borrador' }}</h4><p>Tu captura sigue abierta. Compara ambas versiones antes de elegir.</p>
@@ -77,8 +91,18 @@ const copy=value=>JSON.parse(JSON.stringify(value))
 export default {
   components:{Nc5TreatmentSelect,EvolutionTeamNotice},
   props:{actor:String,canCreate:{type:Boolean,default:true},canCorrect:Boolean,patient:{type:String,required:true},treatments:{type:Array,default:()=>[]},appointments:{type:Array,default:()=>[]}},
-  data(){return {signed:[],signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
+  data(){return {catalog:null,catalogError:false,historyMode:"latest",closedItems:[],acceptClosed:false,signed:[],signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
   computed:{
+    doneOptions(){
+      if(!this.catalog)return []
+      if(this.catalog.active)return this.catalog.items
+      const options=[]
+      for(const plan of this.catalog.plans){
+        const group=this.catalog.items.filter(item=>item.planId===plan.id)
+        if(group.length)options.push(...group.map((item,index)=>({...item,heading:index===0?this.planLabel(plan):'',display:item.name+' · '+this.planLabel(plan)})))
+      }
+      return options
+    },
     dirty(){return this.form && JSON.stringify(this.form)!==this.baseline},
     path(){return 'api/tracing/patient/'+encodeURIComponent(this.patient)+'/evolution-drafts'},
     signedPath(){return this.path.replace('evolution-drafts','evolution-notes')},
@@ -121,16 +145,23 @@ export default {
     reviewCorrection(){
       if(!this.dirty || !this.correctionReason.trim())return
       this.requestId=uuid.v4()
-      this.reviewed={form:copy(this.form)}
+      this.closedItems=[];this.acceptClosed=false;this.reviewed={form:copy(this.form)}
     },
     async sign(){
       if(this.busy || !this.reviewed)return
       this.busy=true;this.error=''
       try{
         const body={revision:this.revision,requestId:this.requestId}
+        if(this.acceptClosed)body.confirmedClosed=this.closedItems.map(item=>item.id)
         if(this.correction){body.form=this.reviewed.form;body.reason=this.correctionReason}
         const result=await DACore.put(this.signedPath+'/'+this.id+'/'+(this.correction?'rectify':'sign'),body)
-        if(!result.success)throw Error(result.message)
+        if(!result.success){
+          if(result.data && result.data.code==='CONFIRM_CLOSED_PROCEDURES'){
+            this.closedItems=result.data.items;this.acceptClosed=false
+            return
+          }
+          throw Error(result.message)
+        }
         this.message=result.message
         this.reviewed=null;this.correction=null;this.form=null
         await this.loadSigned(1)
@@ -139,6 +170,16 @@ export default {
       }catch(e){this.error=e.message || 'No se pudo confirmar la firma. Puedes reintentar.'}finally{this.busy=false}
     },
     focusAfterRender(ref){this.$nextTick(()=>{const target=this.$refs[ref];if(target)target.focus()})},
+    planLabel(plan){return (plan.title || 'Plan sin título')+(plan.closedDate?' · '+this.dateLabel(plan.closedDate):'')},
+    async loadProcedures(){
+      const ticket=this.catalogTicket=(this.catalogTicket || 0)+1
+      this.catalogError=false
+      try{
+        const r=await DACore.get(this.path+'/procedure-options',{params:{history:this.historyMode}})
+        if(!r.success)throw Error(r.message)
+        if(ticket===this.catalogTicket)this.catalog=r.data
+      }catch{if(ticket===this.catalogTicket){this.catalogError=true;this.catalog=null}}
+    },
     dateLabel(date){return date ? new Date(date+'T12:00:00').toLocaleDateString('es-MX') : 'Sin fecha'},
     async load(page){
       this.busy=true; this.error=''
@@ -147,7 +188,7 @@ export default {
       } catch(e){this.error=e.message || 'No se pudieron cargar los borradores.'}finally{this.busy=false}
     },
     begin(){this.open({id:uuid.v4(),revision:0,form:{date:new Date().toLocaleDateString('sv-SE'),origin:'',reason:'',evolution:'',plan:'',done:[],future:[],none:false,performed:'',indication:''}})},
-    open(row){this.correction=null;this.correctionReason='';this.requestId='';this.id=row.id;this.revision=row.revision;this.form=copy(row.form);this.baseline=JSON.stringify(this.form);this.conflict=null;this.message='';this.error='';this.discard=false;this.focusAfterRender("editor")},
+    open(row){this.historyMode="latest";this.catalog=null;this.loadProcedures();this.correction=null;this.correctionReason='';this.requestId='';this.id=row.id;this.revision=row.revision;this.form=copy(row.form);this.baseline=JSON.stringify(this.form);this.conflict=null;this.message='';this.error='';this.discard=false;this.focusAfterRender("editor")},
     reconcile(){
       if(this.id!==this.conflict.id){
         this.form.origin=''
@@ -163,7 +204,7 @@ export default {
       try{
         const r=await DACore.get(this.path+'/'+this.id+'/review',{params:{revision:this.revision}})
         if(!r.success){if(r.status===409)this.conflict=r.data;throw Error(r.message)}
-        this.requestId=uuid.v4();this.reviewed=r.data
+        this.requestId=uuid.v4();this.closedItems=[];this.acceptClosed=false;this.reviewed=r.data
       }catch(e){this.error=e.message || 'No se pudo revisar la versión guardada.'}finally{this.busy=false}
     },
     clearPerformed(){if(this.form.none){this.form.done=[];this.form.performed=''}},
