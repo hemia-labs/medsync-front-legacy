@@ -52,7 +52,7 @@
         <div v-if="!entry.form" class="integrity-alert is-discrepancy" role="alert" data-integrity-alert>
           <strong>{{ entry.version ? 'Versión '+entry.version+' · revisión requerida' : 'Revisión requerida' }}</strong>
           <p>{{ discrepancyText(entry) }}</p>
-          <p>Avisa al administrador del consultorio para que la restaure desde el respaldo. Menciona esta referencia: <code>{{ reference(entry) }}</code></p>
+          <p>Comparte esta referencia con Soporte de HEMIA: <code>{{ reference(entry) }}</code></p>
         </div>
         <template v-else>
         <h4>{{ entry.form.reason }} · {{ dateLabel(entry.form.date) }}</h4>
@@ -171,11 +171,11 @@ export default {
     signedPath(){return this.path.replace('evolution-drafts','evolution-notes')},
     correctionChanges(){return this.correction ? this.compare(this.correction.form) : []},
     differences(){return this.conflict ? this.compare(this.conflict.form) : []},
-    integrityIssue(){return this.signed.some(entry=>!entry.form || (entry.integrity && entry.integrity.state==='discrepancy'))},
+    integrityIssue(){return Boolean(this.integrity && ['discrepancy','unavailable'].includes(this.integrity.state)) || this.signed.some(entry=>!entry.form)},
     integrityBanner(){
       const state=this.integrity && this.integrity.state
-      if(state==='discrepancy')return {state,title:'Revisión requerida',text:this.historyId ? 'Esta nota tiene una versión que no coincide con lo firmado o que falta. Las versiones afectadas no se muestran como notas firmadas válidas y no se puede rectificar hasta restaurarlas. Avisa al administrador del consultorio.' : 'Se detectó una diferencia en las notas firmadas de este paciente. Las versiones afectadas no se muestran como notas firmadas válidas. Avisa al administrador del consultorio para restaurarlas desde el respaldo.'}
-      if(state==='unavailable')return {state,title:'No se pudo comprobar la integridad',text:'Las notas se muestran, pero no están verificadas por ahora. Reintenta en unos momentos.'}
+      if(state==='discrepancy')return {state,title:'Revisión requerida',text:this.historyId ? 'Falta una versión o hay datos que difieren de lo firmado. Puedes leer las versiones verificadas. Contacta a Soporte de HEMIA con la referencia '+this.reference({id:this.historyId})+' e informa al responsable del consultorio.' : 'El historial firmado de este paciente necesita revisión. Contacta a Soporte de HEMIA e informa al responsable del consultorio.'}
+      if(state==='unavailable')return {state,title:'No se pudo comprobar la integridad',text:'Vuelve a intentarlo en unos momentos. Si el aviso continúa, contacta a Soporte de HEMIA.'}
       return null
     }
   },
