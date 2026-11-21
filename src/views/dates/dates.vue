@@ -1265,6 +1265,10 @@ export default {
           else { this.editingAppointment.patientId = restored.createdPatient.id; this.editingAppointment.patientName = restored.createdPatient.name; await this.loadLinkedPatientName() }
         }
         if(restored && restored.kind === 'follow-up') await this.scheduleFollowUp({ id_person: restored.patientId, id_tracing: restored.followUpId })
+        if(restored && restored.kind === 'evolution-visit') {
+          this.openAppointment({patientId:restored.patientId, doctorProfileId:this.selectedDoctorId, date:this.selectedDate, startTime:'', endTime:'', status:APPOINTMENT_STATUSES.PENDING})
+          await this.loadLinkedPatientName()
+        }
         this.agendaNotice = 'Volviste a la agenda con el doctor, la fecha y la vista que estabas consultando.'
       } else await this.openPulseAppointment()
       } catch(error) { this.agendaError = 'No se pudieron cargar los doctores. Reintenta.' }
