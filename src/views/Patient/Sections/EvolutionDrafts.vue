@@ -32,21 +32,34 @@
           <div><small>Próxima visita</small><strong>{{ nextVisit ? dateLabel(nextVisit.date) + ' · ' + nextVisit.startTime : 'Sin cita programada' }}</strong></div></div>
         <h4>Atenciones y seguimientos anteriores</h4>
         <p v-if="busy" role="status">Cargando registros…</p>
+        <div v-if="integrityBanner" class="integrity-alert" :class="'is-'+integrityBanner.state" :role="integrityBanner.state==='discrepancy'?'alert':'status'" data-integrity-banner>
+          <strong>{{ integrityBanner.title }}</strong><p>{{ integrityBanner.text }}</p>
+          <button v-if="integrityBanner.state==='unavailable'" type="button" :disabled="busy" @click="refreshHistory">Reintentar</button></div>
         <button v-if="error" type="button" @click="refreshHistory">Volver a cargar el historial</button>
         <p v-if="!busy && !error && !historyRows.length">Aún no hay atenciones ni seguimientos registrados.</p>
         <div v-if="historyRows.length" class="history-table"><table><thead><tr><th>Fecha</th><th>Registro</th><th>Tratamiento realizado</th><th>Próxima visita</th><th>Detalle</th></tr></thead>
           <tbody><tr v-for="row in visibleRows" :key="row.key" :data-pulse-record="row.kind === 'legacy' ? row.item.id_tracing : null">
-            <td data-label="Fecha">{{ dateLabel(row.date) }}</td><td data-label="Registro"><strong>{{ row.kind === 'legacy' ? 'Seguimiento anterior' : 'Nota de evolución' }}</strong><small class="chip">{{ row.status }}</small><small v-if="row.item.form">{{ row.item.form.reason }}</small></td>
+            <td data-label="Fecha">{{ dateLabel(row.date) }}</td><td data-label="Registro"><strong>{{ row.kind === 'legacy' ? 'Seguimiento anterior' : 'Nota de evolución' }}</strong><small class="chip" :class="row.kind==='signed' && !row.item.form ? 'integrity-badge is-discrepancy' : ''">{{ row.status }}</small><small v-if="badge(row.item)" class="integrity-badge" :class="'is-'+row.item.integrity.state" data-integrity-badge>{{ badge(row.item) }}</small><small v-if="row.item.form">{{ row.item.form.reason }}</small></td>
             <td data-label="Tratamiento">{{ row.treatment }}</td><td data-label="Próxima visita">{{ row.next }}</td>
-            <td><slot v-if="row.kind === 'legacy'" name="legacy-actions" :item="row.item" /><button v-else type="button" :disabled="busy" @click="row.kind === 'draft' ? open(row.item) : viewSigned(row.item.id)">{{ row.kind === 'draft' ? 'Retomar borrador' : 'Ver nota' }}</button></td>
+            <td><slot v-if="row.kind === 'legacy'" name="legacy-actions" :item="row.item" /><button v-else-if="row.kind==='signed' && !row.item.id" type="button" disabled>Sin detalle disponible</button><button v-else type="button" :disabled="busy" @click="row.kind === 'draft' ? open(row.item) : viewSigned(row.item.id)">{{ row.kind === 'draft' ? 'Retomar borrador' : row.item.form ? 'Ver nota' : 'Ver detalle' }}</button></td>
           </tr></tbody></table></div>
         <nav v-if="historyPage > 1 || moreHistory" class="actions" aria-label="Páginas del historial"><button :disabled="busy || historyPage===1" @click="historyPage--">Anterior</button><span role="status">Página {{ historyPage }}</span><button :disabled="busy || !moreHistory" @click="nextPage">Siguiente</button></nav>
         <div v-if="canCreate" class="actions"><button type="button" :disabled="busy" @click="begin">Nuevo seguimiento</button></div>
       </template>
       <template v-else><button type="button" @click="refreshHistory">Volver al historial</button>
+      <div v-if="integrityBanner" class="integrity-alert" :class="'is-'+integrityBanner.state" :role="integrityBanner.state==='discrepancy'?'alert':'status'" data-integrity-banner><strong>{{ integrityBanner.title }}</strong><p>{{ integrityBanner.text }}</p><button v-if="integrityBanner.state==='unavailable'" type="button" :disabled="busy" @click="loadSigned(signedPage,historyId)">Reintentar</button></div>
       <article v-for="entry in signed" :key="entry.id+'-'+entry.version">
+        <div v-if="!entry.form" class="integrity-alert is-discrepancy" role="alert" data-integrity-alert>
+          <strong>{{ entry.version ? 'Versión '+entry.version+' · revisión requerida' : 'Revisión requerida' }}</strong>
+          <p>{{ discrepancyText(entry) }}</p>
+          <p>Avisa al administrador del consultorio para que la restaure desde el respaldo. Menciona esta referencia: <code>{{ reference(entry) }}</code></p>
+        </div>
+        <template v-else>
         <h4>{{ entry.form.reason }} · {{ dateLabel(entry.form.date) }}</h4>
         <p>Versión {{ entry.version }} · {{ entry.signer }} · Cédula {{ entry.license }} · {{ new Date(entry.signedAt).toLocaleString('es-MX') }}</p>
+        <p v-if="entry.integrity && entry.integrity.state==='verified'" class="integrity-badge is-verified" data-integrity-badge>Integridad verificada</p>
+        <p v-else-if="entry.integrity && entry.integrity.state==='historical'" class="integrity-badge is-historical" data-integrity-badge>Anterior al control de integridad: no se puede comprobar si cambió desde su firma.</p>
+        <p v-else-if="entry.integrity && entry.integrity.state==='unavailable'" class="integrity-badge is-unavailable" data-integrity-badge>Integridad sin verificar por ahora.</p>
         <details><summary>Leer versión {{ entry.version }}</summary>
           <p v-if="entry.reason">Motivo de rectificación: {{ entry.reason }}</p>
           <dl v-for="field in fields" :key="field.key"><dt>{{ field.label }}</dt><dd>{{ entry.form[field.key] }}</dd></dl>
@@ -58,7 +71,8 @@
         <h4 v-if="signedPage===1 && entry===signed[0]">¿Qué hacemos con la próxima cita?</h4><div v-if="signedPage===1 && entry===signed[0]" class="actions"><slot name="booking" /><button type="button" @click="refreshHistory">Volver sin reservar</button></div>
         <evolution-team-notice v-if="signedPage===1 && entry===signed[0]" :patient="patient" :note-id="entry.id" />
         
-        <v-btn v-if="canCorrect && signedPage===1 && entry===signed[0] && actor===entry.author" outlined small @click="startCorrection(entry)">Rectificar nota</v-btn>
+        <v-btn v-if="canCorrect && signedPage===1 && entry===signed[0] && actor===entry.author && !integrityIssue" outlined small @click="startCorrection(entry)">Rectificar nota</v-btn>
+        </template>
       </article>
       <nav v-if="signedPages>1" aria-label="Páginas de notas firmadas"><v-btn text :disabled="busy || signedPage===1" @click="loadSigned(signedPage-1,historyId)">Anterior</v-btn>{{ signedPage }} de {{ signedPages }}<v-btn text :disabled="busy || signedPage===signedPages" @click="loadSigned(signedPage+1,historyId)">Siguiente</v-btn></nav>
     </template>
@@ -116,7 +130,7 @@ const copy=value=>JSON.parse(JSON.stringify(value))
 export default {
   components:{Nc5TreatmentSelect,EvolutionTeamNotice},
   props:{actor:String,canCreate:{type:Boolean,default:true},canCorrect:Boolean,patient:{type:String,required:true},legacy:{type:Array,default:()=>[]},today:String,nextVisit:Object,appointments:{type:Array,default:()=>[]}},
-  data(){return {historyPage:1,visitId:'',latest:null,catalog:null,catalogError:false,historyMode:"latest",closedItems:[],acceptClosed:false,signed:[],signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
+  data(){return {historyPage:1,visitId:'',latest:null,catalog:null,catalogError:false,historyMode:"latest",closedItems:[],acceptClosed:false,signed:[],integrity:null,signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
   computed:{
     visitChoices(){
       return this.appointments.filter(a => a.date && a.date <= this.today && !['cancelled','rescheduled','no_show'].includes(a.status))
@@ -126,13 +140,14 @@ export default {
     primaryLabel(){
       if (!this.visit) return this.rows.length ? 'Retomar borrador' : 'Registrar atención sin cita'
       if (this.rows.some(n=>n.form.origin===this.visit.id)) return 'Retomar borrador'
-      if (this.signed.some(n=>n.form.origin===this.visit.id)) return 'Ver nota firmada'
+      if (this.signed.some(n=>n.form && n.form.origin===this.visit.id)) return 'Ver nota firmada'
       return 'Registrar nota de esta cita'
     },
     historyRows(){
-      const notes=(items,kind)=>items.map(item=>({item,kind,key:kind+item.id,date:item.form.date,
-        stamp:new Date(item.signedAt || item.updatedAt).getTime(),status:kind==='draft'?'Borrador':'Firmada',
-        treatment:this.treatment(item.form),next:'Consultar en Agenda'}))
+      const notes=(items,kind)=>items.map(item=>({item,kind,key:kind+(item.id || 'sin-referencia')+'-'+(item.version || ''),date:item.form ? item.form.date : '',
+        stamp:item.form ? new Date(item.signedAt || item.updatedAt).getTime() : Number.MAX_SAFE_INTEGER,
+        status:kind==='draft'?'Borrador':item.form ? 'Firmada' : 'Revisión requerida',
+        treatment:item.form ? this.treatment(item.form) : 'No disponible',next:item.form ? 'Consultar en Agenda' : 'No disponible'}))
       const previous=this.legacy.map(item=>({item,kind:'legacy',key:'legacy'+item.id_tracing,date:String(item.quote_date_now || '').slice(0,10),
         stamp:Date.parse(item.quote_date_now)||0,status:item.status==='cancelled'?'Anulado':'Registro previo',
         treatment:[item.treatment_now,item.other_performed].filter(Boolean).join(' · ') || 'Sin registro',
@@ -155,7 +170,14 @@ export default {
     path(){return 'api/tracing/patient/'+encodeURIComponent(this.patient)+'/evolution-drafts'},
     signedPath(){return this.path.replace('evolution-drafts','evolution-notes')},
     correctionChanges(){return this.correction ? this.compare(this.correction.form) : []},
-    differences(){return this.conflict ? this.compare(this.conflict.form) : []}
+    differences(){return this.conflict ? this.compare(this.conflict.form) : []},
+    integrityIssue(){return this.signed.some(entry=>!entry.form || (entry.integrity && entry.integrity.state==='discrepancy'))},
+    integrityBanner(){
+      const state=this.integrity && this.integrity.state
+      if(state==='discrepancy')return {state,title:'Revisión requerida',text:this.historyId ? 'Esta nota tiene una versión que no coincide con lo firmado o que falta. Las versiones afectadas no se muestran como notas firmadas válidas y no se puede rectificar hasta restaurarlas. Avisa al administrador del consultorio.' : 'Se detectó una diferencia en las notas firmadas de este paciente. Las versiones afectadas no se muestran como notas firmadas válidas. Avisa al administrador del consultorio para restaurarlas desde el respaldo.'}
+      if(state==='unavailable')return {state,title:'No se pudo comprobar la integridad',text:'Las notas se muestran, pero no están verificadas por ahora. Reintenta en unos momentos.'}
+      return null
+    }
   },
   async created(){
     await this.refreshHistory()
@@ -163,6 +185,19 @@ export default {
     if(this.canCreate && typeof origin==='string' && origin) await this.openVisit(origin)
   },
   methods:{
+    badge(item){
+      const state=item.integrity && item.integrity.state
+      if(state==='unavailable')return 'Verificar'
+      if(state==='historical')return 'Anterior al control'
+      return ''
+    },
+    discrepancyText(entry){
+      const code=entry.integrity && entry.integrity.code
+      if(code==='VERSION_MISSING')return entry.version ? 'Falta la versión '+entry.version+' de esta nota. El historial no está completo.' : 'Falta una nota firmada de este paciente.'
+      if(code==='UNREFERENCED_VERSION')return 'Hay una versión que no consta en el control de integridad y no se muestra como nota firmada válida.'
+      return 'Esta versión no coincide con lo que se firmó, por lo que no se muestra como nota firmada válida.'
+    },
+    reference(entry){return [entry.id ? String(entry.id).slice(0,8) : 'historial',entry.version ? 'v'+entry.version : null,entry.integrity && entry.integrity.code].filter(Boolean).join(' · ')},
     treatment(form){return [...(form.done || []).map(p=>p.name),form.performed].filter(Boolean).join(' · ') || (form.none?'Sin procedimiento':'Sin registro')},
     async refreshHistory(){
       this.historyPage=1; this.latest=null; this.historyId=''; this.error=''; this.signed=[]; this.rows=[]
@@ -203,7 +238,8 @@ export default {
         const r=await DACore.get(this.signedPath+(id?'/'+id+'/versions':''),{params:{page}})
         if(!r.success)throw Error(r.message)
         this.signed=append ? this.signed.concat(r.data.items) : r.data.items;
-        if(!id && page===1)this.latest=r.data.items[0] || null;
+        this.integrity=r.data.integrity || null
+        if(!id && page===1)this.latest=r.data.items.find(item=>item.form) || null;
         this.signedPage=r.data.pagination.page;this.signedPages=r.data.pagination.totalPages;this.historyId=id;return true
       }catch(e){this.error=e.message || 'No se pudo consultar el historial.'}finally{this.busy=false}
     },
@@ -304,4 +340,7 @@ export default {
 .drafts fieldset{min-width:0;border:1px solid #bdcecf;border-radius:8px;margin:12px 0;padding:12px}.drafts label,.drafts small{display:block;margin:8px 0}.drafts textarea,.drafts select,.drafts input:not([type=checkbox]){display:block;border:1px solid #91a9ab;border-radius:6px;padding:8px;width:100%;color:inherit;font:inherit}.drafts select{appearance:auto}.drafts ul{list-style:none;padding:0}.drafts li{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #cad6d6;padding:8px 0}.drafts dd{white-space:pre-wrap;overflow-wrap:anywhere}.drafts h4{margin:12px 0 5px}
 @media(max-width:640px){.drafts form{padding-bottom:8rem}.draft-actions{position:fixed;inset-inline:0;bottom:0;z-index:8;justify-content:center;display:flex;flex-wrap:wrap;gap:.25rem;padding:.5rem .25rem calc(.5rem + env(safe-area-inset-bottom));background:var(--color-surface,#fff);border-top:1px solid var(--color-border,#cbdcdb)}}
 .drafts li,.drafts section p{overflow-wrap:anywhere}.plan-hint{margin:.5rem 0 .75rem;padding:.6rem .8rem;border-inline-start:3px solid var(--color-primary,#18756e);color:inherit;font-size:.9rem;line-height:1.45}
+.integrity-alert{margin:12px 0;padding:12px 14px;border:1px solid #d92d20;border-inline-start:5px solid #b42318;border-radius:8px;background:#fef3f2;color:#7a271a}.integrity-alert.is-unavailable{border-color:#b54708;background:#fffaeb;color:#7a2e0e}.integrity-alert strong{display:block;margin-bottom:4px}.integrity-alert button{margin-top:8px}.integrity-alert code{overflow-wrap:anywhere}
+.drafts .integrity-badge{display:inline-block;width:fit-content;margin:2px 6px 2px 0;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:650;background:#e5f5ef;color:#07594e}.drafts .integrity-badge.is-discrepancy{background:#fee4e2;color:#912018}.drafts .integrity-badge.is-unavailable{background:#fef0c7;color:#7a2e0e}.drafts .integrity-badge.is-historical{background:#eef2f6;color:#364152}
+.theme--dark .integrity-alert{background:#3a1c1a;color:#fecdca;border-color:#f97066}.theme--dark .integrity-alert.is-unavailable{background:#3d2a10;color:#fedf89;border-color:#f79009}.theme--dark .drafts .integrity-badge{background:#1c4b3f;color:#b6f0dd}.theme--dark .drafts .integrity-badge.is-discrepancy{background:#5a1f1a;color:#fecdca}.theme--dark .drafts .integrity-badge.is-unavailable{background:#4d3412;color:#fedf89}.theme--dark .drafts .integrity-badge.is-historical{background:#2f3a46;color:#d0d9e4}
 </style>
