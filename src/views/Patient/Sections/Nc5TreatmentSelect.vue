@@ -13,7 +13,7 @@
     dense
     hide-details
     no-data-text="Sin coincidencias"
-    @input="$emit('input', $event.map(({ id, name }) => ({ id, name })))"
+    @input="$emit('input', $event.map(selection))"
   >
     <template #item="{ item }">
       <div><small v-if="item.heading" class="plan-heading">{{ item.heading }}</small>{{ item.display || item.name }}</div>
@@ -33,6 +33,12 @@ export default {
     items: { type: Array, required: true },
     label: { type: String, required: true },
     disabled: Boolean
+  },
+  methods: {
+    selection(item) {
+      const {id,name,planId,planTitle,startedDate,closedDate}=item
+      return planId && planTitle !== undefined ? {id,name,planId,planTitle,startedDate,closedDate} : {id,name}
+    }
   },
   computed: {
     available() {

@@ -8,7 +8,7 @@
       <dl v-for="diff in correctionChanges" :key="diff.label"><dt>{{ diff.label }}</dt><dd>Antes: {{ diff.remote }}</dd><dd>Ahora: {{ diff.local }}</dd></dl><dl v-for="field in fields" :key="field.key"><dt>{{ field.label }}</dt><dd>{{ reviewed.form[field.key] }}</dd></dl><p>{{ dateLabel(reviewed.form.date) }} · {{ reviewed.form.origin ? 'Con cita vinculada' : 'Atención sin cita' }}</p><p>Realizados: {{ summary(reviewed.form.done, reviewed.form.performed) || 'Sin procedimiento' }}</p><p>Previstos: {{ summary(reviewed.form.future, reviewed.form.indication) || 'Sin indicación' }}</p><p>Tu firma profesional quedará vinculada a esta versión con tu nombre, cédula y fecha. Si se requiere la firma del paciente o de su representante, seguirá pendiente.</p>
       <div v-if="closedItems.length" role="group" aria-label="Confirmar procedimientos de planes cerrados">
         <p>Estos procedimientos siguen pendientes en un plan cerrado:</p>
-        <ul><li v-for="item in closedItems" :key="item.id">{{ item.name }} · {{ item.plan || 'Plan cerrado' }}</li></ul>
+        <ul><li v-for="item in closedItems" :key="item.id">{{ item.name }} · {{ procedureOrigin(item) }}</li></ul>
         <label><input type="checkbox" v-model="acceptClosed"> Confirmo que se realizaron. Se registrarán solo en la nota y el plan seguirá cerrado.</label>
       </div>
       <v-btn color="primary" :disabled="busy || (closedItems.length>0 && !acceptClosed)" @click="sign">{{ correction ? 'Firmar rectificación' : 'Firmar nota' }}</v-btn>
@@ -59,6 +59,7 @@
         <p v-if="catalog && !catalog.active && historyMode==='latest' && catalog.plans.length">{{ planLabel(catalog.plans[0]) }}</p>
         <p v-if="catalog && !catalog.active && !catalog.plans.length">Este paciente aún no tiene procedimientos de un plan para elegir.</p>
         <nc5-treatment-select v-model="form.done" :items="doneOptions" :disabled="busy || form.none" label="Tratamientos realizados del plan" />
+        <ul v-if="form.done.some(item=>item.planId)" aria-label="Procedimientos seleccionados y plan de origen"><li v-for="item in form.done.filter(p=>p.planId)" :key="item.id">{{ procedureLabel(item) }}</li></ul>
         <label>Otro tratamiento realizado<input v-model="form.performed" maxlength="255" :disabled="form.none"></label>
         <label><input type="checkbox" v-model="form.none" @change="clearPerformed"> No se realizó un procedimiento</label>
         <nc5-treatment-select v-if="(catalog && catalog.active) || form.future.length" v-model="form.future" :items="catalog && catalog.active ? catalog.items : []" :disabled="busy" label="Tratamientos previstos del plan" />
@@ -99,7 +100,7 @@ export default {
       const options=[]
       for(const plan of this.catalog.plans){
         const group=this.catalog.items.filter(item=>item.planId===plan.id)
-        if(group.length)options.push(...group.map((item,index)=>({...item,heading:index===0?this.planLabel(plan):'',display:item.name+' · '+this.planLabel(plan)})))
+        if(group.length)options.push(...group.map((item,index)=>({...item,planTitle:plan.title,startedDate:plan.startedDate,closedDate:plan.closedDate,heading:index===0?this.planLabel(plan):'',display:item.name+' · '+this.planLabel(plan)})))
       }
       return options
     },
@@ -127,7 +128,7 @@ export default {
     compare(previous){
       
       const labels={date:'Fecha',origin:'Cita',reason:'Motivo',evolution:'Valoración',plan:'Plan',done:'Realizados',future:'Previstos',performed:'Otro tratamiento',indication:'Otra indicación',none:'Sin procedimiento'}
-      const show=v=>Array.isArray(v)?v.map(t=>t.name).join(', '):typeof v==='boolean'?(v?'Sí':'No'):v
+      const show=v=>Array.isArray(v)?v.map(this.procedureLabel).join(', '):typeof v==='boolean'?(v?'Sí':'No'):v
       return Object.keys(labels).filter(k=>JSON.stringify(this.form[k])!==JSON.stringify(previous[k])).map(k=>({label:labels[k],local:show(this.form[k]) || 'Sin dato',remote:show(previous[k]) || 'Sin dato'}))
     },
     async loadSigned(page,id=''){
@@ -170,7 +171,14 @@ export default {
       }catch(e){this.error=e.message || 'No se pudo confirmar la firma. Puedes reintentar.'}finally{this.busy=false}
     },
     focusAfterRender(ref){this.$nextTick(()=>{const target=this.$refs[ref];if(target)target.focus()})},
-    planLabel(plan){return (plan.title || 'Plan sin título')+(plan.closedDate?' · '+this.dateLabel(plan.closedDate):'')},
+    planLabel(plan){
+      return [plan.title || 'Plan sin título',plan.startedDate && 'Inicio '+this.dateLabel(plan.startedDate),
+        plan.closedDate && 'Cierre '+this.dateLabel(plan.closedDate),'Ref. '+plan.id].filter(Boolean).join(' · ')
+    },
+    procedureOrigin(item){
+      return this.planLabel({id:item.planId,title:item.planTitle,startedDate:item.startedDate,closedDate:item.closedDate})
+    },
+    procedureLabel(item){return item.planId ? item.name+' — '+this.procedureOrigin(item) : item.name},
     async loadProcedures(){
       const ticket=this.catalogTicket=(this.catalogTicket || 0)+1
       this.catalogError=false
@@ -198,7 +206,7 @@ export default {
         return
       }
       this.revision=this.conflict.revision;this.baseline=JSON.stringify(this.conflict.form);this.conflict=null;this.message='Revisa tu captura y guarda cuando esté lista.';this.error=''},
-    summary(items,extra){return [...items.map(t=>t.name),extra].filter(Boolean).join(' · ')},
+    summary(items,extra){return [...items.map(this.procedureLabel),extra].filter(Boolean).join(' · ')},
     async review(){
       this.busy=true;this.error=''
       try{
@@ -226,6 +234,6 @@ export default {
 <style scoped>
 .drafts{padding:18px;margin-bottom:16px;border:1px solid var(--color-border,#cbdcdb);border-radius:12px;background:var(--color-surface,#fff)}
 .drafts fieldset{min-width:0;border:1px solid #bdcecf;border-radius:8px;margin:12px 0;padding:12px}.drafts label,.drafts small{display:block;margin:8px 0}.drafts textarea,.drafts select,.drafts input:not([type=checkbox]){display:block;border:1px solid #91a9ab;border-radius:6px;padding:8px;width:100%;color:inherit;font:inherit}.drafts select{appearance:auto}.drafts ul{list-style:none;padding:0}.drafts li{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #cad6d6;padding:8px 0}.drafts dd{white-space:pre-wrap;overflow-wrap:anywhere}.drafts h4{margin:12px 0 5px}
-@media(max-width:640px){.draft-actions{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;gap:.25rem;padding:.5rem .25rem calc(.5rem + env(safe-area-inset-bottom));background:var(--color-surface,#fff);border-top:1px solid var(--color-border,#cbdcdb)}}
-.plan-hint{margin:.5rem 0 .75rem;padding:.6rem .8rem;border-inline-start:3px solid var(--color-primary,#18756e);color:inherit;font-size:.9rem;line-height:1.45}
+@media(max-width:640px){.drafts form{padding-bottom:8rem}.draft-actions{position:fixed;inset-inline:0;bottom:0;z-index:8;justify-content:center;display:flex;flex-wrap:wrap;gap:.25rem;padding:.5rem .25rem calc(.5rem + env(safe-area-inset-bottom));background:var(--color-surface,#fff);border-top:1px solid var(--color-border,#cbdcdb)}}
+.drafts li,.drafts section p{overflow-wrap:anywhere}.plan-hint{margin:.5rem 0 .75rem;padding:.6rem .8rem;border-inline-start:3px solid var(--color-primary,#18756e);color:inherit;font-size:.9rem;line-height:1.45}
 </style>
