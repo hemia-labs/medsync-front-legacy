@@ -37,12 +37,18 @@ export default {
   },
   mounted() {
     window.addEventListener('focus', this.refresh)
+    this.onScreen = true
+    if (typeof IntersectionObserver !== 'undefined') {
+      this.observer = new IntersectionObserver(([entry]) => { this.onScreen = entry.isIntersecting })
+      this.observer.observe(this.$el)
+    }
     this.timer = setInterval(() => {
-      if (!document.hidden && this.notices.some(n => !n.readAt)) this.refresh()
+      if (this.onScreen && !document.hidden && this.notices.some(n => !n.readAt)) this.refresh()
     }, 20000)
   },
   beforeDestroy() {
     this.generation++
+    if (this.observer) this.observer.disconnect()
     clearInterval(this.timer)
     window.removeEventListener('focus', this.refresh)
   },
@@ -90,7 +96,7 @@ export default {
         const clientRequestId = this.pending || newRequestId()
         this.remember(clientRequestId)
         const result = await openTeamNotice({
-          context: { kind: 'evolution_note', patientId: this.patient, noteId: this.noteId, reason: 'control' },
+          context: { kind: 'evolution_note', patientId: this.patient, noteId: this.noteId },
           clientRequestId, returnFocus
         })
         if (generation !== this.generation) return

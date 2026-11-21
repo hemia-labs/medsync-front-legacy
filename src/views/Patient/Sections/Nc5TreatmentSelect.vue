@@ -6,6 +6,7 @@
     :disabled="disabled"
     item-text="name"
     item-value="id"
+    @keydown.enter.native.prevent
     multiple
     return-object
     outlined

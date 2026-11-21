@@ -1,7 +1,7 @@
 <template>
   <section class="drafts" aria-label="Notas de evolución">
     <h3>Notas de evolución</h3>
-    <p v-if="message" role="status">{{ message }}</p>
+    <p v-if="message" ref="result" tabindex="-1" role="status">{{ message }}</p>
     <p v-if="error" role="alert">{{ error }}</p>
         <section v-if="reviewed"><h4>{{ correction ? 'Revisar rectificación' : 'Revisar y firmar la nota' }}</h4>
       <p v-if="correction">Motivo de la rectificación: {{ correctionReason }}</p>
@@ -36,7 +36,7 @@
       <nav v-if="signedPages>1" aria-label="Páginas de notas firmadas"><v-btn text :disabled="busy || signedPage===1" @click="loadSigned(signedPage-1,historyId)">Anterior</v-btn>{{ signedPage }} de {{ signedPages }}<v-btn text :disabled="busy || signedPage===signedPages" @click="loadSigned(signedPage+1,historyId)">Siguiente</v-btn></nav>
     </template>
     <form v-else @submit.prevent="save">
-      <fieldset :disabled="busy"><legend>Datos de la visita</legend>
+      <fieldset :disabled="busy"><legend ref="editor" tabindex="-1">Datos de la visita</legend>
         <label>Cita de origen<select v-model="form.origin" :disabled="!!correction"><option value="">Atención sin cita</option>
           <option v-if="form.origin && !appointments.some(a=>a.id===form.origin)" :value="form.origin">Cita vinculada</option>
           <option v-for="a in appointments" :key="a.id" :value="a.id">{{ a.date }} · {{ a.startTime }} · {{ a.title || 'Consulta' }}</option></select></label>
@@ -48,6 +48,7 @@
         <label>Otro tratamiento realizado<input v-model="form.performed" maxlength="255" :disabled="form.none"></label>
         <label><input type="checkbox" v-model="form.none" @change="clearPerformed"> No se realizó un procedimiento</label>
         <nc5-treatment-select v-model="form.future" :items="treatments" :disabled="busy" label="Tratamientos previstos del plan" />
+        <p class="plan-hint"><strong>Al firmar la nota</strong>, los tratamientos que selecciones como realizados quedarán completados en el plan de tratamiento. Los que elijas solo como previstos conservarán su estado actual.</p>
         <label>Otra indicación<input v-model="form.indication" maxlength="2000"></label>
       </fieldset>
       <section v-if="conflict" role="alert"><h4>{{ conflict.id === id ? 'Otra sesión guardó cambios' : 'Esta cita ya tiene otro borrador' }}</h4><p>Tu captura sigue abierta. Compara ambas versiones antes de elegir.</p>
@@ -57,10 +58,11 @@
       </section>
       <p v-if="correction && correction.form.performed && correction.form.performed!==form.performed">El cambio se conservará en la nota. Revisa también el tratamiento y su costo en el plan.</p>
       <label v-if="correction">¿Por qué rectificas esta nota?<textarea v-model="correctionReason" maxlength="1000" rows="2"></textarea></label>
+      <div class="draft-actions">
       <v-btn v-if="correction" color="primary" :disabled="busy || !dirty || !correctionReason.trim()" @click="reviewCorrection">Revisar rectificación</v-btn>
       <v-btn v-else type="submit" color="primary" :disabled="busy || !!conflict">Guardar borrador</v-btn>
       <v-btn v-if="revision && !correction" text :disabled="busy || !!conflict || dirty" @click="review">Revisar versión guardada</v-btn>
-      <v-btn text :disabled="busy" @click="cancel">Volver</v-btn>
+      <v-btn text :disabled="busy" @click="cancel">Volver</v-btn></div>
       <div v-if="discard"><p>Hay cambios sin guardar.</p><v-btn text @click="discard=false">Seguir editando</v-btn><v-btn text @click="leave">Descartar cambios</v-btn></div>
     </form>
   </section>
@@ -133,8 +135,10 @@ export default {
         this.reviewed=null;this.correction=null;this.form=null
         await this.loadSigned(1)
         if(this.canCreate)await this.load(1)
+        this.focusAfterRender("result")
       }catch(e){this.error=e.message || 'No se pudo confirmar la firma. Puedes reintentar.'}finally{this.busy=false}
     },
+    focusAfterRender(ref){this.$nextTick(()=>{const target=this.$refs[ref];if(target)target.focus()})},
     dateLabel(date){return date ? new Date(date+'T12:00:00').toLocaleDateString('es-MX') : 'Sin fecha'},
     async load(page){
       this.busy=true; this.error=''
@@ -143,7 +147,7 @@ export default {
       } catch(e){this.error=e.message || 'No se pudieron cargar los borradores.'}finally{this.busy=false}
     },
     begin(){this.open({id:uuid.v4(),revision:0,form:{date:new Date().toLocaleDateString('sv-SE'),origin:'',reason:'',evolution:'',plan:'',done:[],future:[],none:false,performed:'',indication:''}})},
-    open(row){this.correction=null;this.correctionReason='';this.requestId='';this.id=row.id;this.revision=row.revision;this.form=copy(row.form);this.baseline=JSON.stringify(this.form);this.conflict=null;this.message='';this.error='';this.discard=false},
+    open(row){this.correction=null;this.correctionReason='';this.requestId='';this.id=row.id;this.revision=row.revision;this.form=copy(row.form);this.baseline=JSON.stringify(this.form);this.conflict=null;this.message='';this.error='';this.discard=false;this.focusAfterRender("editor")},
     reconcile(){
       if(this.id!==this.conflict.id){
         this.form.origin=''
@@ -172,7 +176,7 @@ export default {
       try {
         const r=await DACore.put(this.path+'/'+this.id,{revision:this.revision,form:this.form})
         if(!r.success){if(r.status===409 && r.data)this.conflict=r.data;throw Error(r.message)}
-        this.form=null;this.message='Borrador guardado. Puedes retomarlo desde otra sesión.';await this.load(1)
+        this.form=null;this.message='Borrador guardado. Puedes retomarlo desde otra sesión.';await this.load(1);this.focusAfterRender('result')
       }catch(e){this.error=e.message || 'No se pudo confirmar el guardado. Tu captura sigue abierta.'}finally{this.busy=false}
     }
   }
@@ -181,4 +185,6 @@ export default {
 <style scoped>
 .drafts{padding:18px;margin-bottom:16px;border:1px solid var(--color-border,#cbdcdb);border-radius:12px;background:var(--color-surface,#fff)}
 .drafts fieldset{min-width:0;border:1px solid #bdcecf;border-radius:8px;margin:12px 0;padding:12px}.drafts label,.drafts small{display:block;margin:8px 0}.drafts textarea,.drafts select,.drafts input:not([type=checkbox]){display:block;border:1px solid #91a9ab;border-radius:6px;padding:8px;width:100%;color:inherit;font:inherit}.drafts select{appearance:auto}.drafts ul{list-style:none;padding:0}.drafts li{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #cad6d6;padding:8px 0}.drafts dd{white-space:pre-wrap;overflow-wrap:anywhere}.drafts h4{margin:12px 0 5px}
+@media(max-width:640px){.draft-actions{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;gap:.25rem;padding:.5rem .25rem calc(.5rem + env(safe-area-inset-bottom));background:var(--color-surface,#fff);border-top:1px solid var(--color-border,#cbdcdb)}}
+.plan-hint{margin:.5rem 0 .75rem;padding:.6rem .8rem;border-inline-start:3px solid var(--color-primary,#18756e);color:inherit;font-size:.9rem;line-height:1.45}
 </style>
