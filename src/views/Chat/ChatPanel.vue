@@ -162,8 +162,10 @@ export default {
     onView() {
       this.stopTimer();
       if (!this.open) return;
-      if (this.view === 'inbox') this.loadInbox();
-      else if (this.view === 'new') this.loadDirectory();
+      if (this.view === 'inbox') {
+        this.loadInbox();
+        this.timer = setInterval(() => this.loadInbox(), PANEL_POLL_MS);
+      } else if (this.view === 'new') this.loadDirectory();
       else if (this.peerId) this.loadThread();
     },
     stopTimer() { this.ticket++; this.inbox.loading = false; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
