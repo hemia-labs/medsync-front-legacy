@@ -174,8 +174,14 @@ export default {
     integrityIssue(){return Boolean(this.integrity && ['discrepancy','unavailable'].includes(this.integrity.state)) || this.signed.some(entry=>!entry.form)},
     integrityBanner(){
       const state=this.integrity && this.integrity.state
-      if(state==='discrepancy')return {state,title:'Revisión requerida',text:this.historyId ? 'Falta una versión o hay datos que difieren de lo firmado. Puedes leer las versiones verificadas. Contacta a Soporte de HEMIA con la referencia '+this.reference({id:this.historyId})+' e informa al responsable del consultorio.' : 'El historial firmado de este paciente necesita revisión. Contacta a Soporte de HEMIA e informa al responsable del consultorio.'}
-      if(state==='unavailable')return {state,title:'No se pudo comprobar la integridad',text:'Vuelve a intentarlo en unos momentos. Si el aviso continúa, contacta a Soporte de HEMIA.'}
+      if(state==='discrepancy'){
+        const title='Revisión requerida'
+        if(this.historyId)return {state,title,text:'Falta una versión o hay datos que difieren de lo firmado. Puedes leer las versiones verificadas. Contacta a Soporte de HEMIA con la referencia '+this.reference({id:this.historyId})+' e informa al responsable del consultorio.'}
+        let text='El historial firmado de este paciente necesita revisión. Contacta a Soporte de HEMIA e informa al responsable del consultorio.'
+        if(this.signed.some(entry=>!entry.id))text+=' Si no ves un detalle, indica a Soporte de HEMIA el consultorio, la hora y este mensaje.'
+        return {state,title,text}
+      }
+      if(state==='unavailable')return {state,title:'No se pudo comprobar la integridad',text:'Puedes seguir leyendo las notas disponibles, pero aún no están verificadas. Vuelve a intentarlo en unos momentos. Si el aviso continúa, contacta a Soporte de HEMIA.'}
       return null
     }
   },
