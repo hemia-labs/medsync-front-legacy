@@ -4,6 +4,7 @@
       <h3 ref="heading" tabindex="-1">{{ reviewed ? 'Revisar antes de firmar' : correction ? 'Rectificar nota' : form ? (revision ? 'Retomar borrador' : 'Registrar atención') : historyId ? 'Nota firmada' : 'Seguimiento del paciente' }}</h3>
     </div></header>
     <p v-if="message" class="feedback" ref="result" tabindex="-1" role="status">{{ message }}</p>
+    <p v-if="responseNotice" class="external-pending" :class="'is-'+responseExternal.state" role="status" data-external-response>{{ responseNotice }}</p>
     <p v-if="error" role="alert">{{ error }}</p>
         <section v-if="reviewed"><h4>{{ correction ? 'Revisar rectificación' : 'Revisar y firmar la nota' }}</h4>
       <p v-if="correction">Motivo de la rectificación: {{ correctionReason }}</p>
@@ -32,6 +33,7 @@
           <div><small>Próxima visita</small><strong>{{ nextVisit ? dateLabel(nextVisit.date) + ' · ' + nextVisit.startTime : 'Sin cita programada' }}</strong></div></div>
         <h4>Atenciones y seguimientos anteriores</h4>
         <p v-if="busy" role="status">Cargando registros…</p>
+        <div v-if="integrityWarning" class="integrity-alert is-unavailable" role="status" data-integrity-warning><strong>{{ integrityWarning.title }}</strong><p>{{ integrityWarning.text }}</p></div>
         <div v-if="integrityBanner" class="integrity-alert" :class="'is-'+integrityBanner.state" :role="integrityBanner.state==='discrepancy'?'alert':'status'" data-integrity-banner>
           <strong>{{ integrityBanner.title }}</strong><p>{{ integrityBanner.text }}</p>
           <button v-if="integrityBanner.state==='unavailable'" type="button" :disabled="busy" @click="refreshHistory">Reintentar</button></div>
@@ -47,6 +49,7 @@
         <div v-if="canCreate" class="actions"><button type="button" :disabled="busy" @click="begin">Nuevo seguimiento</button></div>
       </template>
       <template v-else><button type="button" @click="refreshHistory">Volver al historial</button>
+      <div v-if="integrityWarning" class="integrity-alert is-unavailable" role="status" data-integrity-warning><strong>{{ integrityWarning.title }}</strong><p>{{ integrityWarning.text }}</p></div>
       <div v-if="integrityBanner" class="integrity-alert" :class="'is-'+integrityBanner.state" :role="integrityBanner.state==='discrepancy'?'alert':'status'" data-integrity-banner><strong>{{ integrityBanner.title }}</strong><p>{{ integrityBanner.text }}</p><button v-if="integrityBanner.state==='unavailable'" type="button" :disabled="busy" @click="loadSigned(signedPage,historyId)">Reintentar</button></div>
       <article v-for="entry in signed" :key="entry.id+'-'+entry.version">
         <div v-if="!entry.form" class="integrity-alert is-discrepancy" role="alert" data-integrity-alert>
@@ -132,7 +135,7 @@ const copy=value=>JSON.parse(JSON.stringify(value))
 export default {
   components:{Nc5TreatmentSelect,EvolutionTeamNotice},
   props:{actor:String,canCreate:{type:Boolean,default:true},canCorrect:Boolean,patient:{type:String,required:true},legacy:{type:Array,default:()=>[]},today:String,nextVisit:Object,appointments:{type:Array,default:()=>[]}},
-  data(){return {historyPage:1,visitId:'',latest:null,catalog:null,catalogError:false,historyMode:"latest",closedItems:[],acceptClosed:false,signed:[],integrity:null,signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
+  data(){return {historyPage:1,visitId:'',latest:null,catalog:null,catalogError:false,historyMode:"latest",closedItems:[],acceptClosed:false,signed:[],integrity:null,responseExternal:null,signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
   computed:{
     visitChoices(){
       return this.appointments.filter(a => a.date && a.date <= this.today && !['cancelled','rescheduled','no_show'].includes(a.status))
@@ -175,6 +178,14 @@ export default {
     differences(){return this.conflict ? this.compare(this.conflict.form) : []},
     // La acción se oculta con la misma regla local que aplica el servidor al escribir (correctionBlocked), no por el aviso global del conciliador.
     integrityIssue(){return Boolean(this.integrity && this.integrity.correctionBlocked) || this.signed.some(entry=>!entry.form)},
+    // Estado de la confirmación externa que devolvió la propia firma: se conserva aunque falle la relectura del detalle y lo
+    // sustituye una lectura posterior que traiga el estado explícito de esa versión.
+    responseNotice(){return this.responseExternal ? this.externalNotice({form:true,id:this.responseExternal.id,version:this.responseExternal.version,integrity:{external:this.responseExternal.state}}) : ''},
+    integrityWarning(){
+      const warnings=this.integrity && this.integrity.warnings
+      if(Array.isArray(warnings) && warnings.includes('REFERENCE_UNVERIFIABLE'))return {title:'No se pudo verificar la referencia externa',text:'Puedes seguir trabajando con normalidad. Soporte de HEMIA lo revisará; si el aviso continúa, contáctalos.'}
+      return null
+    },
     integrityBanner(){
       const state=this.integrity && this.integrity.state
       if(state==='discrepancy'){
@@ -258,6 +269,7 @@ export default {
         if(!r.success)throw Error(r.message)
         this.signed=append ? this.signed.concat(r.data.items) : r.data.items;
         this.integrity=r.data.integrity || null
+        if(this.responseExternal && r.data.items.some(item=>item.id===this.responseExternal.id && item.version===this.responseExternal.version && item.integrity && Object.prototype.hasOwnProperty.call(item.integrity,'external')))this.responseExternal=null
         if(!id && page===1)this.latest=r.data.items.find(item=>item.form) || null;
         this.signedPage=r.data.pagination.page;this.signedPages=r.data.pagination.totalPages;this.historyId=id;return true
       }catch(e){this.error=e.message || 'No se pudo consultar el historial.'}finally{this.busy=false}
@@ -287,6 +299,8 @@ export default {
           throw Error(result.message)
         }
         this.message=result.message
+        const external=result.data && result.data.integrity && result.data.integrity.external
+        this.responseExternal=external && external!=='received' ? {id:this.id,version:result.data.version,state:external} : null
         this.reviewed=null;this.correction=null;this.form=null
         await this.viewSigned(this.id)
         this.focusAfterRender("result")
