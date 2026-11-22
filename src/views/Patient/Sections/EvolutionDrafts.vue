@@ -39,7 +39,7 @@
         <p v-if="!busy && !error && !historyRows.length">Aún no hay atenciones ni seguimientos registrados.</p>
         <div v-if="historyRows.length" class="history-table"><table><thead><tr><th>Fecha</th><th>Registro</th><th>Tratamiento realizado</th><th>Próxima visita</th><th>Detalle</th></tr></thead>
           <tbody><tr v-for="row in visibleRows" :key="row.key" :data-pulse-record="row.kind === 'legacy' ? row.item.id_tracing : null">
-            <td data-label="Fecha">{{ dateLabel(row.date) }}</td><td data-label="Registro"><strong>{{ row.kind === 'legacy' ? 'Seguimiento anterior' : 'Nota de evolución' }}</strong><small class="chip" :class="row.kind==='signed' && !row.item.form ? 'integrity-badge is-discrepancy' : ''">{{ row.status }}</small><small v-if="badge(row.item)" class="integrity-badge" :class="'is-'+row.item.integrity.state" data-integrity-badge>{{ badge(row.item) }}</small><small v-if="row.item.form">{{ row.item.form.reason }}</small></td>
+            <td data-label="Fecha">{{ dateLabel(row.date) }}</td><td data-label="Registro"><strong>{{ row.kind === 'legacy' ? 'Seguimiento anterior' : 'Nota de evolución' }}</strong><small class="chip" :class="row.kind==='signed' && !row.item.form ? 'integrity-badge is-discrepancy' : ''">{{ row.status }}</small><small v-if="badge(row.item)" class="integrity-badge" :class="'is-'+row.item.integrity.state" data-integrity-badge>{{ badge(row.item) }}</small><small v-if="pending(row.item)" class="external-pending" role="status" data-external-pending>{{ pendingText(row.item) }}</small><small v-if="row.item.form">{{ row.item.form.reason }}</small></td>
             <td data-label="Tratamiento">{{ row.treatment }}</td><td data-label="Próxima visita">{{ row.next }}</td>
             <td><slot v-if="row.kind === 'legacy'" name="legacy-actions" :item="row.item" /><button v-else-if="row.kind==='signed' && !row.item.id" type="button" disabled>Sin detalle disponible</button><button v-else type="button" :disabled="busy" @click="row.kind === 'draft' ? open(row.item) : viewSigned(row.item.id)">{{ row.kind === 'draft' ? 'Retomar borrador' : row.item.form ? 'Ver nota' : 'Ver detalle' }}</button></td>
           </tr></tbody></table></div>
@@ -60,6 +60,7 @@
         <p v-if="entry.integrity && entry.integrity.state==='verified'" class="integrity-badge is-verified" data-integrity-badge>Integridad verificada</p>
         <p v-else-if="entry.integrity && entry.integrity.state==='historical'" class="integrity-badge is-historical" data-integrity-badge>Anterior al control de integridad: no se puede comprobar si cambió desde su firma.</p>
         <p v-else-if="entry.integrity && entry.integrity.state==='unavailable'" class="integrity-badge is-unavailable" data-integrity-badge>Integridad sin verificar por ahora.</p>
+        <p v-if="pending(entry)" class="external-pending" role="status" data-external-pending>{{ pendingText(entry) }}</p>
         <details><summary>Leer versión {{ entry.version }}</summary>
           <p v-if="entry.reason">Motivo de rectificación: {{ entry.reason }}</p>
           <dl v-for="field in fields" :key="field.key"><dt>{{ field.label }}</dt><dd>{{ entry.form[field.key] }}</dd></dl>
@@ -130,7 +131,7 @@ const copy=value=>JSON.parse(JSON.stringify(value))
 export default {
   components:{Nc5TreatmentSelect,EvolutionTeamNotice},
   props:{actor:String,canCreate:{type:Boolean,default:true},canCorrect:Boolean,patient:{type:String,required:true},legacy:{type:Array,default:()=>[]},today:String,nextVisit:Object,appointments:{type:Array,default:()=>[]}},
-  data(){return {historyPage:1,visitId:'',latest:null,catalog:null,catalogError:false,historyMode:"latest",closedItems:[],acceptClosed:false,signed:[],integrity:null,signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
+  data(){return {historyPage:1,visitId:'',latest:null,catalog:null,catalogError:false,historyMode:"latest",closedItems:[],acceptClosed:false,signed:[],integrity:null,pendingTimer:null,pendingPollMs:15000,signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
   computed:{
     visitChoices(){
       return this.appointments.filter(a => a.date && a.date <= this.today && !['cancelled','rescheduled','no_show'].includes(a.status))
@@ -185,12 +186,27 @@ export default {
       return null
     }
   },
+  beforeDestroy(){clearTimeout(this.pendingTimer)},
   async created(){
     await this.refreshHistory()
     const origin=this.$route.query.draftVisit
     if(this.canCreate && typeof origin==='string' && origin) await this.openVisit(origin)
   },
   methods:{
+    // Confirmación externa pendiente: es una espera de entrega, distinta de una firma histórica o de una discrepancia.
+    pending(item){return Boolean(item.form && item.integrity && item.integrity.external==='pending')},
+    pendingText(item){
+      return (item.version>1 ? 'Rectificación firmada' : 'Nota firmada')+'. La confirmación externa está pendiente. MedSync la reintentará automáticamente.'
+    },
+    // Mientras haya pendientes, la pantalla vuelve a consultar sola; el aviso desaparece cuando llega el acuse.
+    schedulePending(){
+      clearTimeout(this.pendingTimer); this.pendingTimer=null
+      if(!this.signed.some(item=>this.pending(item)))return
+      this.pendingTimer=setTimeout(()=>{
+        if(this.busy || this.form || this.reviewed || this.signedPage!==1)return this.schedulePending()
+        this.loadSigned(1,this.historyId,false,true)
+      },this.pendingPollMs)
+    },
     badge(item){
       const state=item.integrity && item.integrity.state
       if(state==='unavailable')return 'Verificar'
@@ -238,8 +254,8 @@ export default {
       const show=v=>Array.isArray(v)?v.map(this.procedureLabel).join(', '):typeof v==='boolean'?(v?'Sí':'No'):v
       return Object.keys(labels).filter(k=>JSON.stringify(this.form[k])!==JSON.stringify(previous[k])).map(k=>({label:labels[k],local:show(this.form[k]) || 'Sin dato',remote:show(previous[k]) || 'Sin dato'}))
     },
-    async loadSigned(page,id='',append=false){
-      this.busy=true
+    async loadSigned(page,id='',append=false,quiet=false){
+      if(!quiet)this.busy=true
       try{
         const r=await DACore.get(this.signedPath+(id?'/'+id+'/versions':''),{params:{page}})
         if(!r.success)throw Error(r.message)
@@ -247,7 +263,7 @@ export default {
         this.integrity=r.data.integrity || null
         if(!id && page===1)this.latest=r.data.items.find(item=>item.form) || null;
         this.signedPage=r.data.pagination.page;this.signedPages=r.data.pagination.totalPages;this.historyId=id;return true
-      }catch(e){this.error=e.message || 'No se pudo consultar el historial.'}finally{this.busy=false}
+      }catch(e){if(!quiet)this.error=e.message || 'No se pudo consultar el historial.'}finally{if(!quiet)this.busy=false;this.schedulePending()}
     },
     startCorrection(entry){
       this.open({id:entry.id,revision:entry.version,form:entry.form})
@@ -348,5 +364,7 @@ export default {
 .drafts li,.drafts section p{overflow-wrap:anywhere}.plan-hint{margin:.5rem 0 .75rem;padding:.6rem .8rem;border-inline-start:3px solid var(--color-primary,#18756e);color:inherit;font-size:.9rem;line-height:1.45}
 .integrity-alert{margin:12px 0;padding:12px 14px;border:1px solid #d92d20;border-inline-start:5px solid #b42318;border-radius:8px;background:#fef3f2;color:#7a271a}.integrity-alert.is-unavailable{border-color:#b54708;background:#fffaeb;color:#7a2e0e}.integrity-alert strong{display:block;margin-bottom:4px}.integrity-alert button{margin-top:8px}.integrity-alert code{overflow-wrap:anywhere}
 .drafts .integrity-badge{display:inline-block;width:fit-content;margin:2px 6px 2px 0;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:650;background:#e5f5ef;color:#07594e}.drafts .integrity-badge.is-discrepancy{background:#fee4e2;color:#912018}.drafts .integrity-badge.is-unavailable{background:#fef0c7;color:#7a2e0e}.drafts .integrity-badge.is-historical{background:#eef2f6;color:#364152}
+.drafts .external-pending{display:block;margin:6px 0;padding:6px 10px;border-inline-start:3px solid #3b82c4;border-radius:4px;background:#eef5fb;color:#1d3a56;font-size:13px;line-height:1.4}
+.theme--dark .drafts .external-pending{background:#1c2f44;color:#cfe3f7;border-color:#6aa9e0}
 .theme--dark .integrity-alert{background:#3a1c1a;color:#fecdca;border-color:#f97066}.theme--dark .integrity-alert.is-unavailable{background:#3d2a10;color:#fedf89;border-color:#f79009}.theme--dark .drafts .integrity-badge{background:#1c4b3f;color:#b6f0dd}.theme--dark .drafts .integrity-badge.is-discrepancy{background:#5a1f1a;color:#fecdca}.theme--dark .drafts .integrity-badge.is-unavailable{background:#4d3412;color:#fedf89}.theme--dark .drafts .integrity-badge.is-historical{background:#2f3a46;color:#d0d9e4}
 </style>
