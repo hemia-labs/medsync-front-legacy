@@ -180,10 +180,13 @@ export default {
     integrityIssue(){return Boolean(this.integrity && this.integrity.correctionBlocked) || this.signed.some(entry=>!entry.form)},
     // Estado de la confirmación externa que devolvió la propia firma: se conserva aunque falle la relectura del detalle y lo
     // sustituye una lectura posterior que traiga el estado explícito de esa versión.
-    responseNotice(){return this.responseExternal ? this.externalNotice({form:true,id:this.responseExternal.id,version:this.responseExternal.version,integrity:{external:this.responseExternal.state}}) : ''},
+    responseNotice(){
+      if(this.responseExternal && this.responseExternal.state==='received')return (this.responseExternal.version>1 ? 'Rectificación firmada' : 'Nota firmada')+'. Confirmación externa recibida.'
+      return this.responseExternal ? this.externalNotice({form:true,id:this.responseExternal.id,version:this.responseExternal.version,integrity:{external:this.responseExternal.state}}) : ''
+    },
     integrityWarning(){
       const warnings=this.integrity && this.integrity.warnings
-      if(Array.isArray(warnings) && warnings.includes('REFERENCE_UNVERIFIABLE'))return {title:'No se pudo verificar la referencia externa',text:'Puedes seguir trabajando con normalidad. Soporte de HEMIA lo revisará; si el aviso continúa, contáctalos.'}
+      if(Array.isArray(warnings) && warnings.includes('REFERENCE_UNVERIFIABLE'))return {title:'No se pudo verificar la referencia externa',text:'Puedes seguir trabajando con normalidad. Si el aviso continúa, contacta a Soporte de HEMIA.'}
       return null
     },
     integrityBanner(){
@@ -212,7 +215,7 @@ export default {
       const state=item.form && item.integrity && item.integrity.external
       if(state==='pending')return (item.version>1 ? 'Rectificación firmada' : 'Nota firmada')+'. La confirmación externa está pendiente. MedSync la reintentará automáticamente.'
       if(state==='unknown')return 'La nota está firmada. MedSync no pudo comprobar la confirmación externa. No necesitas firmar de nuevo. Si el aviso continúa, contacta a Soporte de HEMIA.'
-      if(state==='conflict')return 'La confirmación externa registró una diferencia con esta versión. Contacta a Soporte de HEMIA con la referencia '+this.reference({id:item.id,version:item.version})+'.'
+      if(state==='conflict')return 'Revisión requerida. La confirmación externa registró una diferencia con esta versión. Contacta a Soporte de HEMIA con la referencia '+this.reference({id:item.id,version:item.version})+'.'
       return ''
     },
     badge(item){
@@ -300,7 +303,7 @@ export default {
         }
         this.message=result.message
         const external=result.data && result.data.integrity && result.data.integrity.external
-        this.responseExternal=external && external!=='received' ? {id:this.id,version:result.data.version,state:external} : null
+        this.responseExternal=external ? {id:this.id,version:result.data.version,state:external} : null
         this.reviewed=null;this.correction=null;this.form=null
         await this.viewSigned(this.id)
         this.focusAfterRender("result")
@@ -376,8 +379,10 @@ export default {
 .integrity-alert{margin:12px 0;padding:12px 14px;border:1px solid #d92d20;border-inline-start:5px solid #b42318;border-radius:8px;background:#fef3f2;color:#7a271a}.integrity-alert.is-unavailable{border-color:#b54708;background:#fffaeb;color:#7a2e0e}.integrity-alert strong{display:block;margin-bottom:4px}.integrity-alert button{margin-top:8px}.integrity-alert code{overflow-wrap:anywhere}
 .drafts .integrity-badge{display:inline-block;width:fit-content;margin:2px 6px 2px 0;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:650;background:#e5f5ef;color:#07594e}.drafts .integrity-badge.is-discrepancy{background:#fee4e2;color:#912018}.drafts .integrity-badge.is-unavailable{background:#fef0c7;color:#7a2e0e}.drafts .integrity-badge.is-historical{background:#eef2f6;color:#364152}
 .drafts .external-pending{display:block;margin:6px 0;padding:6px 10px;border-inline-start:3px solid #3b82c4;border-radius:4px;background:#eef5fb;color:#1d3a56;font-size:13px;line-height:1.4}
+.drafts .external-pending.is-received{border-color:#07594e;background:#e5f5ef;color:#07594e}.theme--dark .drafts .external-pending.is-received{background:#1c4b3f;color:#b6f0dd;border-color:#4fb99f}
 .drafts .external-pending.is-unknown{border-color:#b54708;background:#fffaeb;color:#7a2e0e}.drafts .external-pending.is-conflict{border-color:#b42318;background:#fef3f2;color:#7a271a}
-.theme--dark .drafts .external-pending.is-unknown{background:#3d2a10;color:#fedf89;border-color:#f79009}.theme--dark .drafts .external-pending.is-conflict{background:#3a1c1a;color:#fecdca;border-color:#f97066}
+.theme--dark .drafts .external-pending.is-received{border-color:#07594e;background:#e5f5ef;color:#07594e}.theme--dark .drafts .external-pending.is-received{background:#1c4b3f;color:#b6f0dd;border-color:#4fb99f}
+.drafts .external-pending.is-unknown{background:#3d2a10;color:#fedf89;border-color:#f79009}.theme--dark .drafts .external-pending.is-conflict{background:#3a1c1a;color:#fecdca;border-color:#f97066}
 .theme--dark .drafts .external-pending{background:#1c2f44;color:#cfe3f7;border-color:#6aa9e0}
 .theme--dark .integrity-alert{background:#3a1c1a;color:#fecdca;border-color:#f97066}.theme--dark .integrity-alert.is-unavailable{background:#3d2a10;color:#fedf89;border-color:#f79009}.theme--dark .drafts .integrity-badge{background:#1c4b3f;color:#b6f0dd}.theme--dark .drafts .integrity-badge.is-discrepancy{background:#5a1f1a;color:#fecdca}.theme--dark .drafts .integrity-badge.is-unavailable{background:#4d3412;color:#fedf89}.theme--dark .drafts .integrity-badge.is-historical{background:#2f3a46;color:#d0d9e4}
 </style>
