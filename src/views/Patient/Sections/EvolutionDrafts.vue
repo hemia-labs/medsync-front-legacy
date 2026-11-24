@@ -4,6 +4,7 @@
       <h3 ref="heading" tabindex="-1">{{ reviewed ? 'Revisar antes de firmar' : correction ? 'Rectificar nota' : form ? (revision ? 'Retomar borrador' : 'Registrar atención') : historyId ? 'Nota firmada' : 'Seguimiento del paciente' }}</h3>
     </div></header>
     <p v-if="message" class="feedback" ref="result" tabindex="-1" role="status">{{ message }}</p>
+    <p v-if="responseNotice" class="external-pending" :class="'is-'+responseExternal.state" role="status" data-external-response>{{ responseNotice }}</p>
     <p v-if="error" role="alert">{{ error }}</p>
         <section v-if="reviewed"><h4>{{ correction ? 'Revisar rectificación' : 'Revisar y firmar la nota' }}</h4>
       <p v-if="correction">Motivo de la rectificación: {{ correctionReason }}</p>
@@ -32,6 +33,7 @@
           <div><small>Próxima visita</small><strong>{{ nextVisit ? dateLabel(nextVisit.date) + ' · ' + nextVisit.startTime : 'Sin cita programada' }}</strong></div></div>
         <h4>Atenciones y seguimientos anteriores</h4>
         <p v-if="busy" role="status">Cargando registros…</p>
+        <div v-if="integrityWarning" class="integrity-alert is-unavailable" role="status" data-integrity-warning><strong>{{ integrityWarning.title }}</strong><p>{{ integrityWarning.text }}</p></div>
         <div v-if="integrityBanner" class="integrity-alert" :class="'is-'+integrityBanner.state" :role="integrityBanner.state==='discrepancy'?'alert':'status'" data-integrity-banner>
           <strong>{{ integrityBanner.title }}</strong><p>{{ integrityBanner.text }}</p>
           <button v-if="integrityBanner.state==='unavailable'" type="button" :disabled="busy" @click="refreshHistory">Reintentar</button></div>
@@ -39,7 +41,7 @@
         <p v-if="!busy && !error && !historyRows.length">Aún no hay atenciones ni seguimientos registrados.</p>
         <div v-if="historyRows.length" class="history-table"><table><thead><tr><th>Fecha</th><th>Registro</th><th>Tratamiento realizado</th><th>Próxima visita</th><th>Detalle</th></tr></thead>
           <tbody><tr v-for="row in visibleRows" :key="row.key" :data-pulse-record="row.kind === 'legacy' ? row.item.id_tracing : null">
-            <td data-label="Fecha">{{ dateLabel(row.date) }}</td><td data-label="Registro"><strong>{{ row.kind === 'legacy' ? 'Seguimiento anterior' : 'Nota de evolución' }}</strong><small class="chip" :class="row.kind==='signed' && !row.item.form ? 'integrity-badge is-discrepancy' : ''">{{ row.status }}</small><small v-if="badge(row.item)" class="integrity-badge" :class="'is-'+row.item.integrity.state" data-integrity-badge>{{ badge(row.item) }}</small><small v-if="row.item.form">{{ row.item.form.reason }}</small></td>
+            <td data-label="Fecha">{{ dateLabel(row.date) }}</td><td data-label="Registro"><strong>{{ row.kind === 'legacy' ? 'Seguimiento anterior' : 'Nota de evolución' }}</strong><small class="chip" :class="row.kind==='signed' && !row.item.form ? 'integrity-badge is-discrepancy' : ''">{{ row.status }}</small><small v-if="badge(row.item)" class="integrity-badge" :class="'is-'+row.item.integrity.state" data-integrity-badge>{{ badge(row.item) }}</small><small v-if="externalNotice(row.item)" class="external-pending" :class="'is-'+row.item.integrity.external" role="status" data-external-pending>{{ externalNotice(row.item) }}</small><small v-if="row.item.form">{{ row.item.form.reason }}</small></td>
             <td data-label="Tratamiento">{{ row.treatment }}</td><td data-label="Próxima visita">{{ row.next }}</td>
             <td><slot v-if="row.kind === 'legacy'" name="legacy-actions" :item="row.item" /><button v-else-if="row.kind==='signed' && !row.item.id" type="button" disabled>Sin detalle disponible</button><button v-else type="button" :disabled="busy" @click="row.kind === 'draft' ? open(row.item) : viewSigned(row.item.id)">{{ row.kind === 'draft' ? 'Retomar borrador' : row.item.form ? 'Ver nota' : 'Ver detalle' }}</button></td>
           </tr></tbody></table></div>
@@ -47,6 +49,7 @@
         <div v-if="canCreate" class="actions"><button type="button" :disabled="busy" @click="begin">Nuevo seguimiento</button></div>
       </template>
       <template v-else><button type="button" @click="refreshHistory">Volver al historial</button>
+      <div v-if="integrityWarning" class="integrity-alert is-unavailable" role="status" data-integrity-warning><strong>{{ integrityWarning.title }}</strong><p>{{ integrityWarning.text }}</p></div>
       <div v-if="integrityBanner" class="integrity-alert" :class="'is-'+integrityBanner.state" :role="integrityBanner.state==='discrepancy'?'alert':'status'" data-integrity-banner><strong>{{ integrityBanner.title }}</strong><p>{{ integrityBanner.text }}</p><button v-if="integrityBanner.state==='unavailable'" type="button" :disabled="busy" @click="loadSigned(signedPage,historyId)">Reintentar</button></div>
       <article v-for="entry in signed" :key="entry.id+'-'+entry.version">
         <div v-if="!entry.form" class="integrity-alert is-discrepancy" role="alert" data-integrity-alert>
@@ -60,6 +63,8 @@
         <p v-if="entry.integrity && entry.integrity.state==='verified'" class="integrity-badge is-verified" data-integrity-badge>Integridad verificada</p>
         <p v-else-if="entry.integrity && entry.integrity.state==='historical'" class="integrity-badge is-historical" data-integrity-badge>Anterior al control de integridad: no se puede comprobar si cambió desde su firma.</p>
         <p v-else-if="entry.integrity && entry.integrity.state==='unavailable'" class="integrity-badge is-unavailable" data-integrity-badge>Integridad sin verificar por ahora.</p>
+        <p v-if="externalNotice(entry)" class="external-pending" :class="'is-'+entry.integrity.external" role="status" data-external-pending>{{ externalNotice(entry) }}</p>
+        <p v-else-if="entry.integrity && entry.integrity.external==='received'" class="integrity-badge is-verified" data-external-received>Confirmación externa recibida</p>
         <details><summary>Leer versión {{ entry.version }}</summary>
           <p v-if="entry.reason">Motivo de rectificación: {{ entry.reason }}</p>
           <dl v-for="field in fields" :key="field.key"><dt>{{ field.label }}</dt><dd>{{ entry.form[field.key] }}</dd></dl>
@@ -130,7 +135,7 @@ const copy=value=>JSON.parse(JSON.stringify(value))
 export default {
   components:{Nc5TreatmentSelect,EvolutionTeamNotice},
   props:{actor:String,canCreate:{type:Boolean,default:true},canCorrect:Boolean,patient:{type:String,required:true},legacy:{type:Array,default:()=>[]},today:String,nextVisit:Object,appointments:{type:Array,default:()=>[]}},
-  data(){return {historyPage:1,visitId:'',latest:null,catalog:null,catalogError:false,historyMode:"latest",closedItems:[],acceptClosed:false,signed:[],integrity:null,signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
+  data(){return {historyPage:1,visitId:'',latest:null,catalog:null,catalogError:false,historyMode:"latest",closedItems:[],acceptClosed:false,signed:[],integrity:null,responseExternal:null,signedPage:1,signedPages:1,historyId:'',correction:null,correctionReason:'',requestId:'',fields,rows:[],page:1,pages:1,id:'',revision:0,form:null,reviewed:null,baseline:'',busy:false,conflict:null,discard:false,error:'',message:''}},
   computed:{
     visitChoices(){
       return this.appointments.filter(a => a.date && a.date <= this.today && !['cancelled','rescheduled','no_show'].includes(a.status))
@@ -171,7 +176,19 @@ export default {
     signedPath(){return this.path.replace('evolution-drafts','evolution-notes')},
     correctionChanges(){return this.correction ? this.compare(this.correction.form) : []},
     differences(){return this.conflict ? this.compare(this.conflict.form) : []},
-    integrityIssue(){return Boolean(this.integrity && ['discrepancy','unavailable'].includes(this.integrity.state)) || this.signed.some(entry=>!entry.form)},
+    // La acción se oculta con la misma regla local que aplica el servidor al escribir (correctionBlocked), no por el aviso global del conciliador.
+    integrityIssue(){return Boolean(this.integrity && this.integrity.correctionBlocked) || this.signed.some(entry=>!entry.form)},
+    // Estado de la confirmación externa que devolvió la propia firma: se conserva aunque falle la relectura del detalle y lo
+    // sustituye una lectura posterior que traiga el estado explícito de esa versión.
+    responseNotice(){
+      if(this.responseExternal && this.responseExternal.state==='received')return (this.responseExternal.version>1 ? 'Rectificación firmada' : 'Nota firmada')+'. Confirmación externa recibida.'
+      return this.responseExternal ? this.externalNotice({form:true,id:this.responseExternal.id,version:this.responseExternal.version,integrity:{external:this.responseExternal.state}}) : ''
+    },
+    integrityWarning(){
+      const warnings=this.integrity && this.integrity.warnings
+      if(Array.isArray(warnings) && warnings.includes('REFERENCE_UNVERIFIABLE'))return {title:'No se pudo verificar la referencia externa',text:'Puedes seguir trabajando con normalidad. Si el aviso continúa, contacta a Soporte de HEMIA.'}
+      return null
+    },
     integrityBanner(){
       const state=this.integrity && this.integrity.state
       if(state==='discrepancy'){
@@ -191,6 +208,16 @@ export default {
     if(this.canCreate && typeof origin==='string' && origin) await this.openVisit(origin)
   },
   methods:{
+    // Confirmación externa pendiente: es una espera de entrega, distinta de una firma histórica o de una discrepancia.
+    // Estado de la confirmación externa, separado de la firma clínica. Solo se avisa de lo que pide atención; «recibida» es una
+    // insignia del detalle y los históricos o ambientes sin testigo no muestran nada (external null).
+    externalNotice(item){
+      const state=item.form && item.integrity && item.integrity.external
+      if(state==='pending')return (item.version>1 ? 'Rectificación firmada' : 'Nota firmada')+'. La confirmación externa está pendiente. MedSync la reintentará automáticamente.'
+      if(state==='unknown')return 'La nota está firmada. MedSync no pudo comprobar la confirmación externa. No necesitas firmar de nuevo. Si el aviso continúa, contacta a Soporte de HEMIA.'
+      if(state==='conflict')return 'Revisión requerida. La confirmación externa registró una diferencia con esta versión. Contacta a Soporte de HEMIA con la referencia '+this.reference({id:item.id,version:item.version})+'.'
+      return ''
+    },
     badge(item){
       const state=item.integrity && item.integrity.state
       if(state==='unavailable')return 'Verificar'
@@ -245,6 +272,7 @@ export default {
         if(!r.success)throw Error(r.message)
         this.signed=append ? this.signed.concat(r.data.items) : r.data.items;
         this.integrity=r.data.integrity || null
+        if(this.responseExternal && r.data.items.some(item=>item.id===this.responseExternal.id && item.version===this.responseExternal.version && item.integrity && Object.prototype.hasOwnProperty.call(item.integrity,'external')))this.responseExternal=null
         if(!id && page===1)this.latest=r.data.items.find(item=>item.form) || null;
         this.signedPage=r.data.pagination.page;this.signedPages=r.data.pagination.totalPages;this.historyId=id;return true
       }catch(e){this.error=e.message || 'No se pudo consultar el historial.'}finally{this.busy=false}
@@ -274,6 +302,8 @@ export default {
           throw Error(result.message)
         }
         this.message=result.message
+        const external=result.data && result.data.integrity && result.data.integrity.external
+        this.responseExternal=external ? {id:this.id,version:result.data.version,state:external} : null
         this.reviewed=null;this.correction=null;this.form=null
         await this.viewSigned(this.id)
         this.focusAfterRender("result")
@@ -348,5 +378,11 @@ export default {
 .drafts li,.drafts section p{overflow-wrap:anywhere}.plan-hint{margin:.5rem 0 .75rem;padding:.6rem .8rem;border-inline-start:3px solid var(--color-primary,#18756e);color:inherit;font-size:.9rem;line-height:1.45}
 .integrity-alert{margin:12px 0;padding:12px 14px;border:1px solid #d92d20;border-inline-start:5px solid #b42318;border-radius:8px;background:#fef3f2;color:#7a271a}.integrity-alert.is-unavailable{border-color:#b54708;background:#fffaeb;color:#7a2e0e}.integrity-alert strong{display:block;margin-bottom:4px}.integrity-alert button{margin-top:8px}.integrity-alert code{overflow-wrap:anywhere}
 .drafts .integrity-badge{display:inline-block;width:fit-content;margin:2px 6px 2px 0;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:650;background:#e5f5ef;color:#07594e}.drafts .integrity-badge.is-discrepancy{background:#fee4e2;color:#912018}.drafts .integrity-badge.is-unavailable{background:#fef0c7;color:#7a2e0e}.drafts .integrity-badge.is-historical{background:#eef2f6;color:#364152}
+.drafts .external-pending{display:block;margin:6px 0;padding:6px 10px;border-inline-start:3px solid #3b82c4;border-radius:4px;background:#eef5fb;color:#1d3a56;font-size:13px;line-height:1.4}
+.drafts .external-pending.is-received{border-color:#07594e;background:#e5f5ef;color:#07594e}.theme--dark .drafts .external-pending.is-received{background:#1c4b3f;color:#b6f0dd;border-color:#4fb99f}
+.drafts .external-pending.is-unknown{border-color:#b54708;background:#fffaeb;color:#7a2e0e}.drafts .external-pending.is-conflict{border-color:#b42318;background:#fef3f2;color:#7a271a}
+.theme--dark .drafts .external-pending.is-received{border-color:#07594e;background:#e5f5ef;color:#07594e}.theme--dark .drafts .external-pending.is-received{background:#1c4b3f;color:#b6f0dd;border-color:#4fb99f}
+.drafts .external-pending.is-unknown{background:#3d2a10;color:#fedf89;border-color:#f79009}.theme--dark .drafts .external-pending.is-conflict{background:#3a1c1a;color:#fecdca;border-color:#f97066}
+.theme--dark .drafts .external-pending{background:#1c2f44;color:#cfe3f7;border-color:#6aa9e0}
 .theme--dark .integrity-alert{background:#3a1c1a;color:#fecdca;border-color:#f97066}.theme--dark .integrity-alert.is-unavailable{background:#3d2a10;color:#fedf89;border-color:#f79009}.theme--dark .drafts .integrity-badge{background:#1c4b3f;color:#b6f0dd}.theme--dark .drafts .integrity-badge.is-discrepancy{background:#5a1f1a;color:#fecdca}.theme--dark .drafts .integrity-badge.is-unavailable{background:#4d3412;color:#fedf89}.theme--dark .drafts .integrity-badge.is-historical{background:#2f3a46;color:#d0d9e4}
 </style>
