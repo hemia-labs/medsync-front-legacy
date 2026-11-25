@@ -10,6 +10,7 @@
       outlined dense clearable no-filter :hide-selected="hideSavedOption" :menu-props="{ offsetY: true, maxHeight: 280, contentClass: guided ? 'clues-catalog-menu' : '' }" :no-data-text="guided ? 'No encontramos coincidencias. Si ya tienes tu clave, usa Ingresar mi CLUES.' : 'Sin coincidencias. Puedes capturar una clave conocida.'"
       @focus="load" @change="select">
       <template v-if="guided" v-slot:selection="{ item }"><span class="catalog-field-code">{{ item.ref.code }}</span></template>
+      <template v-else-if="family === 'sis.personnel_type'" v-slot:selection="{ item }"><span class="catalog-field-personnel">{{ item.text }}</span></template>
       <template v-if="guided" v-slot:item="{ item }"><div class="catalog-field-result"><span class="catalog-field-code">{{ item.ref.code }}</span><span>{{ item.text.replace(' · ' + item.ref.code, '') }}</span></div></template>
       <template v-slot:append-item><v-btn v-if="hasMore" text small :disabled="loading" @click="load(true)">Más resultados</v-btn></template>
     </v-autocomplete>
@@ -111,6 +112,7 @@ export default {
 </script>
 <style scoped>
 .catalog-field { min-width: 0; margin-bottom: 12px; }
+.catalog-field-personnel { max-width: 100%; margin: 6px 0; white-space: normal; overflow-wrap: anywhere; }
 .catalog-field-modes { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px; border: 1px solid var(--clinic-border, #d8e4e7); border-radius: 12px; background: var(--clinic-soft, #f6f9fa); margin-bottom: 12px; }
 .catalog-field-modes button { flex: 1; min-width: 130px; min-height: 38px; padding: 7px 10px; border: 1px solid transparent; border-radius: 8px; font-size: 13px; color: var(--clinic-muted, #526774); }
 .catalog-field-modes button[aria-pressed="true"] { background: var(--clinic-surface, #fff); border-color: var(--clinic-accent, #096b78); color: var(--clinic-accent, #096b78); box-shadow: 0 1px 4px #0f334815; }
